@@ -146,8 +146,13 @@ class DujjonkuVoiceController {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const text = [...event.results[i]].map((result) => result.transcript).join(" ")
           .replace(/\s+/g, "").toLowerCase();
-        if (text.includes("두") || text.includes("듀")) this.callbacks.onWord?.("DU");
-        if (text.includes("쿠") || text.includes("구")) this.callbacks.onWord?.("KU");
+        // 짧은 한 음절은 Speech Recognition이 숫자/받침/유사음으로 반환하기 쉽다.
+        if (["두", "둘", "듀", "뚜", "2", "two"].some((word) => text.includes(word))) {
+          this.callbacks.onWord?.("DU");
+        }
+        if (["쿠", "쿡", "구", "큐", "9", "ku", "koo"].some((word) => text.includes(word))) {
+          this.callbacks.onWord?.("KU");
+        }
       }
     };
     this.recognition.onerror = (event) => {

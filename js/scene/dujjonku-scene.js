@@ -71,6 +71,8 @@ class DujjonkuScene extends Phaser.Scene {
     this.projectileSettledAt = 0;
     this.warningFired = false;
     this.micReady = false;
+    this.timerActive = false;
+    this.waitingVoiceStartedAt = 0;
     this.lastActionAt = 0;
     this.waveSamples = new Array(36).fill(0);
     this.updateStateHud();
@@ -187,6 +189,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.stageRunning = true;
     this.startedAt = performance.now();
     this.pausedDuration = 0;
+    this.timerActive = this.debugVoice;
     gameEvents.emit(GAME_EVENTS.STAGE_START, { voiceEnabled: true, stageId: "dujjonku" });
     this.connectVoice();
   }
@@ -200,6 +203,11 @@ class DujjonkuScene extends Phaser.Scene {
       onCalibrating: () => this.statusText?.setText("쉿! 주변 소음 측정 중…"),
       onReady: () => {
         this.micReady = true;
+        if (!this.timerActive) {
+          this.startedAt = performance.now();
+          this.pausedDuration = 0;
+          this.timerActive = true;
+        }
         this.statusText?.setText("‘두’라고 말해 두쫀쿠를 장전하세요!").setColor("#4f7757");
       },
       onLevel: (payload) => this.onVoiceLevel(payload),
@@ -241,33 +249,53 @@ class DujjonkuScene extends Phaser.Scene {
     if (word === "DU" && this.voiceState === DUJJONKU_STATE.WAITING) {
       this.lastActionAt = now;
       this.loadProjectile();
-    } else if (word === "KU" && this.voiceState === DUJJONKU_STATE.CHARGING) {
+    } else if (word === "KU" && (
+      this.voiceState === DUJJONKU_STATE.LOADED || this.voiceState === DUJJONKU_STATE.CHARGING
+    )) {
+      // 음량 시작 판정보다 단어 인식이 먼저 도착하는 짧은 "쿠"도 놓치지 않는다.
+      if (this.voiceState === DUJJONKU_STATE.LOADED) {
+        this.beginCharge();
+        this.chargeMs = DUJJONKU_CONFIG.charge.minMs;
+        this.chargePercent = DUJJONKU_CONFIG.charge.minimumPercent;
+      }
       this.fireProjectile();
     }
   }
 
   onVoiceStart() {
     if (!this.isActiveStage()) return;
-    if (this.voiceState === DUJJONKU_STATE.LOADED) this.beginCharge();
+    if (this.voiceState === DUJJONKU_STATE.WAITING) {
+      this.waitingVoiceStartedAt = performance.now();
+    } else if (this.voiceState === DUJJONKU_STATE.LOADED) {
+      this.beginCharge();
+    }
   }
 
   onVoiceEnd() {
     if (!this.isActiveStage()) return;
-    if (this.voiceState === DUJJONKU_STATE.CHARGING) this.fireProjectile();
+    if (this.voiceState === DUJJONKU_STATE.WAITING && this.waitingVoiceStartedAt) {
+      const spokenMs = performance.now() - this.waitingVoiceStartedAt;
+      this.waitingVoiceStartedAt = 0;
+      // 단어 API가 한 음절을 놓쳐도 짧고 분명한 첫 발성은 "두"로 안전하게 보완한다.
+      if (spokenMs >= 80 && spokenMs <= 1250) this.loadProjectile();
+    } else if (this.voiceState === DUJJONKU_STATE.CHARGING) {
+      this.fireProjectile();
+    }
   }
 
   loadProjectile() {
     if (this.voiceState !== DUJJONKU_STATE.WAITING || this.shotsLeft <= 0) return;
     this.voiceState = DUJJONKU_STATE.LOADED;
+    this.waitingVoiceStartedAt = 0;
     this.chargeMs = 0;
     this.chargePercent = 0;
-    this.projectile = this.matter.add.image(
-      DUJJONKU_CONFIG.launcher.x, DUJJONKU_CONFIG.launcher.y,
-      DUJJONKU_TEXTURES.projectile, null,
-      { shape: { type: "circle", radius: 27 }, density: .002, restitution: .72, friction: .4, frictionAir: .008 },
-    );
-    this.projectile.setStatic(true).setDepth(12).setDataEnabled();
-    this.projectile.setData({ kind: "projectile" });
+    // 장전 중에는 물리 바디가 구조물/월드와 상호작용하지 않는 순수 표시 객체를 쓴다.
+    this.projectile = this.add.image(
+      DUJJONKU_CONFIG.launcher.x,
+      DUJJONKU_CONFIG.launcher.y,
+      DUJJONKU_TEXTURES.projectile,
+    ).setDepth(12).setDataEnabled();
+    this.projectile.setData({ kind: "projectile-preview" });
     this.statusText.setText("다음 목소리로 ‘쫀~’ 충전!");
     this.updateStateHud();
   }
@@ -286,13 +314,44 @@ class DujjonkuScene extends Phaser.Scene {
     const percent = Math.max(cfg.charge.minimumPercent, this.chargePercent);
     const power = Phaser.Math.Linear(cfg.launcher.minPower, cfg.launcher.maxPower, percent / 100);
     const radians = Phaser.Math.DegToRad(this.currentAngle);
-    this.projectile.setStatic(false);
+    // 정적 바디를 해제하는 대신 발사 순간 새 동적 바디를 만들어 브라우저별 Matter 차이를 없앤다.
+    const launchX = this.projectile.x;
+    const launchY = this.projectile.y;
+    this.projectile.destroy();
+    this.projectile = this.matter.add.image(
+      launchX,
+      launchY,
+      DUJJONKU_TEXTURES.projectile,
+      null,
+      {
+        shape: { type: "circle", radius: 27 },
+        density: .002,
+        restitution: .72,
+        friction: .4,
+        frictionAir: .008,
+      },
+    ).setDepth(12).setDataEnabled();
+    this.projectile.setData({ kind: "projectile" });
     this.projectile.setVelocity(Math.cos(radians) * power, -Math.sin(radians) * power);
     this.projectile.setAngularVelocity(.13);
     this.shotsLeft -= 1;
     this.statusText.setText("쿠! 날아간다!");
     this.lastActionAt = performance.now();
     this.updateStateHud();
+    if (this.debugVoice) {
+      [100, 500, 1000].forEach((delay) => this.time.delayedCall(delay, () => {
+        if (!this.projectile?.active) return;
+        console.info("[두쫀쿠 발사 진단]", JSON.stringify({
+          delay,
+          state: this.voiceState,
+          isStatic: this.projectile.body?.isStatic,
+          x: Math.round(this.projectile.x),
+          y: Math.round(this.projectile.y),
+          vx: Number(this.projectile.body?.velocity?.x?.toFixed(2)),
+          vy: Number(this.projectile.body?.velocity?.y?.toFixed(2)),
+        }));
+      }));
+    }
   }
 
   createCollisionRules() {
@@ -384,9 +443,21 @@ class DujjonkuScene extends Phaser.Scene {
     this.input.keyboard.on("keyup-SPACE", () => this.onVoiceEnd());
     this.input.keyboard.on("keydown-K", () => this.onVoiceWord("KU"));
     this.add.text(25, 1040, "VOICE DEBUG", { fontSize: "16px", color: "#ffffff55" }).setDepth(50);
-    if (new URLSearchParams(window.location.search).get("autoVoice") === "1") {
+    const autoVoice = new URLSearchParams(window.location.search).get("autoVoice");
+    if (autoVoice === "1") {
       this.time.delayedCall(1100, () => this.onVoiceWord("DU"));
       this.time.delayedCall(1450, () => {
+        this.voice && (this.voice.voiceActive = true);
+        this.onVoiceStart();
+      });
+      this.time.delayedCall(2850, () => {
+        this.voice && (this.voice.voiceActive = false);
+        this.onVoiceEnd();
+      });
+    } else if (autoVoice === "amplitude") {
+      this.time.delayedCall(900, () => this.onVoiceStart());
+      this.time.delayedCall(1220, () => this.onVoiceEnd());
+      this.time.delayedCall(1600, () => {
         this.voice && (this.voice.voiceActive = true);
         this.onVoiceStart();
       });
@@ -399,6 +470,12 @@ class DujjonkuScene extends Phaser.Scene {
 
   update(time, delta) {
     if (!this.stageRunning || this.ended || this.paused) {
+      this.drawDynamicHud();
+      return;
+    }
+    if (!this.timerActive) {
+      this.timerText.setText("20.26");
+      this.drawLauncher();
       this.drawDynamicHud();
       return;
     }
