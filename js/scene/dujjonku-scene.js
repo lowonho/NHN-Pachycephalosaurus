@@ -334,6 +334,8 @@ class DujjonkuScene extends Phaser.Scene {
     this.projectile.setData({ kind: "projectile" });
     this.projectile.setVelocity(Math.cos(radians) * power, -Math.sin(radians) * power);
     this.projectile.setAngularVelocity(.13);
+    // 발사 순간 고무줄과 발사체의 시각적 연결을 끊는다.
+    this.slingReleasedAt = this.time.now;
     this.shotsLeft -= 1;
     this.statusText.setText("쿠! 날아간다!");
     this.lastActionAt = performance.now();
@@ -553,13 +555,28 @@ class DujjonkuScene extends Phaser.Scene {
   drawLauncher() {
     if (!this.launcherGraphics) return;
     const cfg = DUJJONKU_CONFIG.launcher;
-    const projectileX = this.projectile?.x ?? cfg.x;
-    const projectileY = this.projectile?.y ?? cfg.y;
+    const isAttached = Boolean(
+      this.projectile?.active && (
+        this.voiceState === DUJJONKU_STATE.LOADED ||
+        this.voiceState === DUJJONKU_STATE.CHARGING
+      )
+    );
+    // FIRED 이후에는 움직이는 발사체 좌표를 절대 고무줄 끝점으로 사용하지 않는다.
+    const projectileX = isAttached ? this.projectile.x : cfg.x;
+    const projectileY = isAttached ? this.projectile.y : cfg.y;
     this.launcherGraphics.clear();
-    this.launcherGraphics.lineStyle(24, 0x8e5137).lineBetween(cfg.x - 42, cfg.y + 92, cfg.x - 28, cfg.y - 56)
+    // 뒤쪽 고무줄 → 나무 프레임 → 앞쪽 고무줄 순서로 그려 앵그리버드식 깊이를 만든다.
+    this.launcherGraphics.lineStyle(9, 0x56303a, 1)
+      .lineBetween(cfg.x + 28, cfg.y - 52, projectileX, projectileY);
+    this.launcherGraphics.lineStyle(24, 0x8e5137, 1)
+      .lineBetween(cfg.x - 42, cfg.y + 92, cfg.x - 28, cfg.y - 56)
       .lineBetween(cfg.x + 42, cfg.y + 92, cfg.x + 28, cfg.y - 56);
-    this.launcherGraphics.lineStyle(10, 0x6f3d42).lineBetween(cfg.x - 28, cfg.y - 52, projectileX, projectileY)
-      .lineBetween(projectileX, projectileY, cfg.x + 28, cfg.y - 52);
+    this.launcherGraphics.lineStyle(9, 0x75404a, 1)
+      .lineBetween(cfg.x - 28, cfg.y - 52, projectileX, projectileY);
+
+    if (!isAttached) {
+      this.launcherGraphics.fillStyle(0x6b3944, 1).fillEllipse(cfg.x, cfg.y, 25, 14);
+    }
     this.drawTrajectory();
   }
 
