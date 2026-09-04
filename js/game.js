@@ -1,38 +1,153 @@
-/* global Phaser */
 /*
- * 기능(B) — 부트스트랩.
- *
- * 이 파일이 하는 일은 Phaser 게임을 만들고, DOM 위젯을 연결하고, 정리하는 것뿐이다.
- * 색·좌표·문구·사운드는 각 트랙의 파일에 있다.
- *
- * 게임 내용을 다시 정하는 중이라 지금 등록된 씬은 빈 PlaceholderScene 하나뿐이고,
- * 스테이지로 들어가는 경로는 전부 막혀 있다(스테이지 카드 3장 모두 준비 중).
+ * Downloads/2026-ARCHIVE-GitHub의 7개 스테이지 엔진과 기존 DOM UI를 잇는 어댑터.
+ * 게임 규칙은 js/archive/game.mjs가 담당하고, 이 파일은 화면 전환·일시정지·결과만 연결한다.
  */
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: "game-container",
-  width: STAGE_GEOMETRY.canvas.width,
-  height: STAGE_GEOMETRY.canvas.height,
-  transparent: false,
-  physics: {
-    default: "arcade",
-    arcade: {
-      gravity: { y: BALANCE.physics.gravityY },
-      debug: false,
-    },
-  },
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  scene: [PlaceholderScene],
-});
+class ArchiveGameBridge {
+  constructor(events, dom, soundBus) {
+    this.events = events;
+    this.ui = dom;
+    this.soundBus = soundBus;
+    this.api = null;
+    this.currentStage = null;
+    this.stages = [];
+    this.active = false;
+    this.warningSent = false;
+    this.pendingStageId = null;
+
+    window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
+    window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
+    window.addEventListener("archive-stage-end", (event) => this.onStageEnd(event.detail));
+
+    this.events.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => this.start(stageId));
+    this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
+    this.events.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pause());
+    this.events.on(GAME_EVENTS.REQUEST_RESUME, () => this.resume());
+    this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop());
+    this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
+  }
+
+  onReady({ scene, stages } = {}) {
+    this.api = window.archiveGame;
+    this.stages = Array.isArray(stages) ? stages : [];
+    this.events.emit(GAME_EVENTS.SCENE_CREATE, { scene });
+    mainMenuFlow.setStages(this.stages);
+    this.syncAudio();
+
+    if (this.pendingStageId) {
+      const stageId = this.pendingStageId;
+      this.pendingStageId = null;
+      this.start(stageId);
+    }
+  }
+
+  start(stageId) {
+    if (!stageId) return;
+    if (!this.api) {
+      this.pendingStageId = stageId;
+      return;
+    }
+
+    const stage = this.stages.find((item) => item.id === stageId);
+    if (!stage) {
+      console.error(`[archive] 알 수 없는 스테이지: ${stageId}`);
+      return;
+    }
+
+    this.currentStage = stage;
+    this.active = true;
+    this.warningSent = false;
+    this.ui.appShell?.removeAttribute("inert");
+    this.updateStageHud(stage);
+    this.api.loadStage(stage.id);
+    this.api.start();
+    this.events.emit(GAME_EVENTS.STAGE_START, { stageId: stage.id, stage });
+  }
+
+  restart() {
+    if (this.currentStage) this.start(this.currentStage.id);
+  }
+
+  pause() {
+    if (!this.active || !this.api) return;
+    this.api.pause(true);
+    this.events.emit(GAME_EVENTS.STAGE_PAUSE, { stageId: this.currentStage?.id });
+  }
+
+  resume() {
+    if (!this.active || !this.api) return;
+    this.api.pause(false);
+    this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
+  }
+
+  stop() {
+    this.active = false;
+    this.warningSent = false;
+    this.pendingStageId = null;
+    this.api?.stop();
+    this.ui.stageHud?.setAttribute("hidden", "");
+  }
+
+  onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0 } = {}) {
+    if (!this.currentStage) return;
+    const safeRemaining = Math.max(0, Number(remaining) || 0);
+    const safeRisk = Math.max(0, Math.min(100, Number(risk) || 0));
+
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = safeRemaining.toFixed(2);
+    if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${this.currentStage.actionLabel} ${String(actions).padStart(2, "0")}`;
+    if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = anomaly;
+    if (this.ui.stageHudRisk) {
+      this.ui.stageHudRisk.style.width = `${safeRisk}%`;
+      this.ui.stageHudRisk.dataset.level = safeRisk >= 75 ? "danger" : safeRisk >= 45 ? "warn" : "safe";
+    }
+
+    this.events.emit(GAME_EVENTS.TIMER_TICK, { remainingMs: Math.round(safeRemaining * 1000) });
+    if (!this.warningSent && safeRemaining <= 5 && safeRemaining > 0) {
+      this.warningSent = true;
+      this.events.emit(GAME_EVENTS.TIMER_WARNING, {});
+    }
+  }
+
+  onStageEnd({ success, elapsed, actions, extra = "" } = {}) {
+    if (!this.currentStage || !this.active) return;
+    this.active = false;
+    const detail = {
+      stageId: this.currentStage.id,
+      stage: this.currentStage,
+      elapsed: Number((Number(elapsed) || 0).toFixed(2)),
+      actions: Number(actions) || 0,
+      extra,
+    };
+    this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
+  }
+
+  updateStageHud(stage) {
+    this.ui.stageHud?.removeAttribute("hidden");
+    if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `STAGE ${stage.number} · ${stage.title}`;
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = "20.26";
+    if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${stage.actionLabel} 00`;
+    if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = stage.anomaly;
+    if (this.ui.stageHudRisk) {
+      this.ui.stageHudRisk.style.width = "0%";
+      this.ui.stageHudRisk.dataset.level = "safe";
+    }
+  }
+
+  syncAudio() {
+    const volume = this.soundBus.muted
+      ? 0
+      : this.soundBus.volumes.master * this.soundBus.volumes.sfx;
+    window.archiveAudio?.setVolume(volume);
+  }
+}
+
+const archiveGameBridge = new ArchiveGameBridge(gameEvents, UI, audioBus);
 
 viewportFitter.start();
 
 window.addEventListener("beforeunload", () => {
   viewportFitter.stop();
   audioBus.destroy();
-  game.destroy(true);
+  gameEvents.emit(GAME_EVENTS.SCENE_SHUTDOWN, {});
+  window.archivePhaserGame?.destroy(true);
 });

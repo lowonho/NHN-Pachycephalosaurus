@@ -8,6 +8,7 @@
       content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
     />
     <title>20.26</title>
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -84,11 +85,7 @@
       </section>
     </div>
 
-    <!--
-      스테이지 선택 — 게임 내용을 다시 정하는 중이라 카드 3장이 모두 준비 중이다.
-      스테이지가 정해지면 카드에서 disabled와 --soon을 떼고
-      js/ui/main-menu-flow.js에 선택·시작 배선을 다시 넣는다.
-    -->
+    <!-- 스테이지 데이터는 7개 스테이지 엔진이 준비되면 동적으로 채운다. -->
     <div class="stage-select-screen hidden" id="stage-select-screen">
       <section class="main-menu-card ui-scaled" aria-labelledby="stage-select-title">
         <div class="main-menu-heading">
@@ -98,27 +95,12 @@
           </div>
         </div>
 
-        <div class="stage-select-grid">
-          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
-            <span class="stage-number">STAGE 01</span>
-            <strong>준비 중</strong>
-            <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
-            <span class="stage-duration">COMING SOON</span>
-          </button>
-
-          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
-            <span class="stage-number">STAGE 02</span>
-            <strong>준비 중</strong>
-            <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
-            <span class="stage-duration">COMING SOON</span>
-          </button>
-
-          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
-            <span class="stage-number">STAGE 03</span>
-            <strong>준비 중</strong>
-            <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
-            <span class="stage-duration">COMING SOON</span>
-          </button>
+        <div class="stage-select-grid" id="stage-select-grid">
+          <div class="stage-select-card stage-select-card--soon">
+            <span class="stage-number">LOADING</span>
+            <strong>스테이지 불러오는 중</strong>
+            <span class="stage-description">게임 엔진을 준비하고 있습니다.</span>
+          </div>
         </div>
 
         <div class="main-menu-actions">
@@ -129,7 +111,10 @@
 
     <main class="app-shell" inert>
       <section class="game-card" aria-label="게임 화면">
-        <div id="game-container"></div>
+        <div id="game-container">
+          <div id="corruption" class="game-effect-overlay" aria-hidden="true"></div>
+          <div id="light-overlay" class="game-effect-overlay" aria-hidden="true"></div>
+        </div>
       </section>
 
       <!--
@@ -141,6 +126,17 @@
         새 게임의 HUD 위젯은 이 레이어 안에 넣는다.
       -->
       <div class="hud-layer">
+        <section class="stage-hud" id="stage-hud" aria-live="polite" hidden>
+          <div class="stage-hud-heading">
+            <strong id="stage-hud-title">STAGE</strong>
+            <output id="stage-hud-timer">20.26</output>
+          </div>
+          <div class="stage-hud-detail">
+            <span id="stage-hud-action">입력 00</span>
+            <span id="stage-hud-anomaly">대기</span>
+          </div>
+          <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
+        </section>
         <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
           <span aria-hidden="true">Ⅱ</span>
           일시정지
@@ -289,7 +285,7 @@
     <script src="js/ui/settings-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
-    <script src="js/scene/placeholder-scene.js"></script>
     <script src="js/game.js"></script>
+    <script type="module" src="js/archive/game.mjs"></script>
   </body>
 </html>

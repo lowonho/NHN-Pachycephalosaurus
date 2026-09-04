@@ -34,9 +34,9 @@
 .stage-select-screen .main-menu-card {
   /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
   margin: auto;
-  /* 카드 3장이 각각 220px 안팎을 가져가는 폭. */
-  width: 790px;
-  padding: 44px;
+  width: 1440px;
+  max-height: 980px;
+  padding: 38px 42px;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius-card) + 4px);
   background: rgba(5, 20, 52, 0.94);
@@ -71,8 +71,8 @@
 /* 스테이지 카드는 세로로 긴 판때기 3장을 좌우로 나란히 세운다. */
 .stage-select-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
   width: 100%;
 }
 
@@ -80,11 +80,11 @@
   position: relative;
   display: grid;
   /* 번호 · 제목 · 설명(남는 높이) · 러닝타임 — 러닝타임이 카드 바닥에 붙는다. */
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto auto;
   width: 100%;
   /* 세로형 비율. 카드 세 장이 같은 높이로 서도록 최소 높이를 잡는다. */
-  min-height: 420px;
-  padding: 24px 20px;
+  min-height: 270px;
+  padding: 22px 20px;
   border: 2px solid var(--cyan);
   border-radius: 20px;
   background:
@@ -107,15 +107,22 @@
 .stage-select-card strong {
   margin: 12px 0 6px;
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: 400;
   line-height: 1.05;
 }
 
 .stage-description {
   color: #c3d1ed;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   line-height: 1.5;
+}
+
+.stage-controls {
+  min-height: 2.8em;
+  margin-top: 12px;
+  color: #91a9d6;
+  font: 700 0.72rem/1.4 var(--font-ui);
 }
 
 .stage-duration {
@@ -143,6 +150,17 @@
 
 .stage-select-card--soon .stage-description {
   color: rgba(255, 255, 255, 0.38);
+}
+
+.stage-select-card:not(:disabled):hover,
+.stage-select-card:not(:disabled):focus-visible {
+  border-color: var(--yellow);
+  background:
+    linear-gradient(135deg, rgba(31, 92, 255, 0.42), rgba(78, 239, 255, 0.14)),
+    #091b42;
+  outline: 4px solid rgba(255, 224, 75, 0.2);
+  outline-offset: 2px;
+  transform: translateY(-3px);
 }
 
 /* 메인 화면으로 — 지금은 버튼 한 개지만 폭은 한 줄 배치 기준으로 잡아 둔다. */

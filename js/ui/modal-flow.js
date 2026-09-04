@@ -24,8 +24,14 @@ class ModalFlow {
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.close());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.close());
 
-    this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ elapsed } = {}) => this.showResult(true, elapsed));
-    this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.showResult(false));
+    this.events.on(GAME_EVENTS.STAGE_CLEAR, (detail = {}) => this.showResult(true, detail));
+    this.events.on(GAME_EVENTS.STAGE_FAIL, (detail = {}) => this.showResult(false, detail));
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key.toLowerCase() !== "r" || !this.isOpen()) return;
+      event.preventDefault();
+      this.onPrimary();
+    });
   }
 
   isOpen() {
@@ -71,15 +77,21 @@ class ModalFlow {
     this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
   }
 
-  showResult(success, elapsed) {
+  showResult(success, { elapsed = 0, stage, actions = 0, extra = "" } = {}) {
     const { ui } = this;
     const copy = this.strings.result;
+    const elapsedText = Number(elapsed).toFixed(2);
+    const stagePrefix = stage?.title ? `${stage.title} · ` : "";
 
     this.open();
     ui.modalStep.textContent = success ? copy.clearStep : copy.failStep;
     ui.modalTitle.textContent = success ? copy.clearTitle : copy.failTitle;
-    ui.modalCopy.textContent = success ? copy.clearCopy(elapsed) : copy.failCopy;
-    ui.modalResult.textContent = success ? copy.clearResult : copy.failResult;
+    ui.modalCopy.textContent = success
+      ? `${stagePrefix}${copy.clearCopy(elapsedText)}`
+      : `${stagePrefix}${copy.failCopy}`;
+    ui.modalResult.textContent = success
+      ? `${stage?.actionLabel || "입력"} ${actions}회${extra ? ` · ${extra}` : ""}`
+      : copy.failResult;
     ui.primaryButton.textContent = this.strings.buttons.retryStage;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
