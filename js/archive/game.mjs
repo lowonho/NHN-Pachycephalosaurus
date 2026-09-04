@@ -1,4 +1,6 @@
 import { STAGES } from "./data.mjs";
+import { createProgressStore } from "./progress.mjs";
+import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
 import { audio } from "./audio.mjs";
 import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS } from "./level-data.mjs";
 import { createBallState, multiplierForPresses, registerDirection, releaseDirection, riskLabel, stepBall } from "./physics-core.mjs";
@@ -9,6 +11,9 @@ const lightOverlay = document.querySelector("#light-overlay");
 const corruptionOverlay = document.querySelector("#corruption");
 
 window.archiveAudio = audio;
+let progressStorage = null;
+try { progressStorage = window.localStorage; } catch { /* Session-only fallback. */ }
+window.archiveProgress = createProgressStore(STAGES.map((stage) => stage.id), progressStorage);
 window.addEventListener("archive-sfx", (event) => audio.play(event.detail?.name));
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
@@ -125,6 +130,7 @@ class ArchiveGame extends Phaser.Scene {
       rotation: () => this.buildRotation(),
     };
     builders[id]?.();
+    this.buildFragment();
     this.sendHud();
   }
 
@@ -190,6 +196,8 @@ class ArchiveGame extends Phaser.Scene {
       actions: this.actions ?? 0,
       anomaly: this.anomaly ?? "대기",
       risk: this.risk ?? 0,
+      fragmentCollected: this.fragmentCollected,
+      fragmentHint: this.fragment?.hint,
     });
   }
 
@@ -209,6 +217,8 @@ class ArchiveGame extends Phaser.Scene {
     if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
+    if (this.remaining <= 0) { this.finish(false); this.sendHud(); return; }
+    const previous = this.fragmentBody();
     const updates = {
       maze: () => this.updateMaze(dt),
       gravity: () => this.updateGravity(dt),
@@ -219,6 +229,7 @@ class ArchiveGame extends Phaser.Scene {
       rotation: () => this.updateRotation(dt),
     };
     updates[this.stageId]?.();
+    if (this.mode === "playing") this.checkFragment(this.fragmentBody(), previous);
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -259,6 +270,7 @@ class ArchiveGame extends Phaser.Scene {
 
   finish(success, extra = "") {
     if (this.mode !== "playing") return;
+    if (success) this.checkFragment(this.fragmentBody());
     this.mode = "done";
     this.setCorruption(0);
     lightOverlay.classList.remove("is-active");
@@ -268,7 +280,43 @@ class ArchiveGame extends Phaser.Scene {
       elapsed: PHYSICS.timeLimit - this.remaining,
       actions: this.actions ?? 0,
       extra,
+      fragmentCollected: this.fragmentCollected,
     });
+  }
+
+  buildFragment() {
+    this.fragmentTip = null;
+    this.fragment = MEMORY_FRAGMENTS[this.stageId];
+    this.fragmentCollected = false;
+    this.fragmentObject = this.add.rectangle(this.fragment.x, this.fragment.y, 19, 19, 0xffd27c, 0.85)
+      .setStrokeStyle(2, 0xfff0c2).setRotation(Math.PI / 4).setDepth(7);
+    this.fragmentRing = this.add.circle(this.fragment.x, this.fragment.y, this.fragment.radius + 7, 0xffd27c, 0.08)
+      .setStrokeStyle(1, 0xffd27c, 0.6).setDepth(6);
+    this.tweens.add({ targets: this.fragmentRing, alpha: 0.3, duration: 650, yoyo: true, repeat: -1 });
+    if (this.stageId === "rotation") this.fragmentTip = this.add.circle(0, 0, 7, 0xffe5ab).setDepth(6);
+    this.sendHud();
+  }
+
+  fragmentBody() {
+    const s = this.state;
+    if (!s || this.stageId === "recoil") return null;
+    if (this.stageId === "rotation") {
+      const body = { x: s.center.x + Math.cos(s.angle) * 165, y: s.center.y + Math.sin(s.angle) * 165, radius: 7 };
+      this.fragmentTip?.setPosition(body.x, body.y);
+      return body;
+    }
+    const body = this.stageId === "maze" ? s.ball : s;
+    return { x: body.x, y: body.y, radius: body.radius ?? 12 };
+  }
+
+  checkFragment(body, previous = body) {
+    if (this.mode !== "playing" || this.pausedByMenu || this.fragmentCollected || !body) return;
+    if (!touchesFragment(this.fragment, body, previous || body)) return;
+    this.fragmentCollected = true;
+    this.fragmentObject.setVisible(false);
+    this.fragmentRing.setVisible(false);
+    emit("archive-sfx", { name: "hit" });
+    this.sendHud();
   }
 
   /* 01 — Velocity maze */
@@ -558,8 +606,10 @@ class ArchiveGame extends Phaser.Scene {
 
     for (let index = s.bullets.length - 1; index >= 0; index -= 1) {
       const bullet = s.bullets[index];
+      const previous = { x: bullet.x, y: bullet.y };
       bullet.x += bullet.vx * dt;
       bullet.y += bullet.vy * dt;
+      this.checkFragment({ x: bullet.x, y: bullet.y, radius: 5 }, previous);
       bullet.object.setPosition(bullet.x, bullet.y);
       let removed = false;
       for (let targetIndex = 0; targetIndex < s.targets.length; targetIndex += 1) {

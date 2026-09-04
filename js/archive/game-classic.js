@@ -28,6 +28,7 @@ const PROLOGUE = [
 const STAGES = [
   {
     id: "maze",
+    recordSymbol: "↗",
     number: "01",
     code: "VELOCITY_INDEX",
     title: "가속 미로",
@@ -40,6 +41,7 @@ const STAGES = [
   },
   {
     id: "gravity",
+    recordSymbol: "↓",
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
@@ -52,6 +54,7 @@ const STAGES = [
   },
   {
     id: "bounce",
+    recordSymbol: "◉",
     number: "03",
     code: "RESTITUTION_LOOP",
     title: "탄성 우회",
@@ -64,6 +67,7 @@ const STAGES = [
   },
   {
     id: "recoil",
+    recordSymbol: "⌖",
     number: "04",
     code: "RECOIL_ARRAY",
     title: "반동 사격장",
@@ -76,6 +80,7 @@ const STAGES = [
   },
   {
     id: "friction",
+    recordSymbol: "≈",
     number: "05",
     code: "FRICTION_DROP",
     title: "무마찰 배송",
@@ -88,6 +93,7 @@ const STAGES = [
   },
   {
     id: "darkness",
+    recordSymbol: "☼",
     number: "06",
     code: "LIGHT_DECAY",
     title: "소실 회랑",
@@ -100,6 +106,7 @@ const STAGES = [
   },
   {
     id: "rotation",
+    recordSymbol: "↻",
     number: "07",
     code: "ANGULAR_LOCK",
     title: "각속도 잠금",
@@ -514,6 +521,71 @@ function riskLabel(presses) {
 
 
 
+/* Source: progress.mjs */
+const RECORD_STATUS = Object.freeze({
+  DAMAGED: "DAMAGED", PARTIAL: "PARTIALLY RESTORED", FULL: "FULLY RESTORED", LOST: "RECORD LOST",
+});
+const PROGRESS_KEY = "archive-2026-recovery-v1";
+const RECOVERY_RULES = Object.freeze({ partialWeight: 0.5, normalEndingRatio: 0.5 });
+
+// Results belong to an attempt; stored records only ever improve.
+function createProgressStore(stageIds, storage = null) {
+  const ids = [...new Set(stageIds)];
+  const records = Object.fromEntries(ids.map((id) => [id, RECORD_STATUS.DAMAGED]));
+  try {
+    const saved = JSON.parse(storage?.getItem(PROGRESS_KEY) || "null");
+    if (saved?.version === 1) for (const id of ids) {
+      if ([RECORD_STATUS.PARTIAL, RECORD_STATUS.FULL].includes(saved.records?.[id])) records[id] = saved.records[id];
+    }
+  } catch { /* An unavailable or damaged save must not prevent play. */ }
+  const summary = () => {
+    const clearedCount = ids.filter((id) => records[id] !== RECORD_STATUS.DAMAGED).length;
+    const fragmentCount = ids.filter((id) => records[id] === RECORD_STATUS.FULL).length;
+    const recoveryRate = ids.length ? Math.round(100 * (fragmentCount + (clearedCount - fragmentCount) * RECOVERY_RULES.partialWeight) / ids.length) : 0;
+    const allCleared = ids.length > 0 && clearedCount === ids.length;
+    const ending = !allCleared ? null : fragmentCount === ids.length ? "complete"
+      : fragmentCount / ids.length >= RECOVERY_RULES.normalEndingRatio ? "normal" : "incomplete";
+    return { totalRecords: ids.length, clearedCount, fragmentCount, recoveryRate, allCleared, ending };
+  };
+  return {
+    status: (id) => records[id] || RECORD_STATUS.DAMAGED,
+    summary,
+    record(id, success, fragmentCollected) {
+      if (!ids.includes(id)) throw new Error(`Unknown record: ${id}`);
+      const result = !success ? RECORD_STATUS.LOST : fragmentCollected ? RECORD_STATUS.FULL : RECORD_STATUS.PARTIAL;
+      if (success && records[id] !== RECORD_STATUS.FULL) {
+        records[id] = result;
+        try { storage?.setItem(PROGRESS_KEY, JSON.stringify({ version: 1, records })); } catch { /* Session state remains available. */ }
+      }
+      return { result, savedStatus: records[id], ...summary() };
+    },
+  };
+}
+
+
+/* Source: fragments.mjs */
+// Initial placements only. Change these independently of the physics and maps.
+const MEMORY_FRAGMENTS = Object.freeze({
+  maze: { x: 864, y: 206, radius: 12, hint: "샛길의 조각에 접촉" },
+  gravity: { x: 85, y: 387, radius: 12, hint: "첫 발판 왼쪽의 조각에 접촉" },
+  bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
+  recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
+  friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
+  darkness: { x: 610, y: 290, radius: 12, hint: "회랑 안쪽의 조각에 접촉" },
+  rotation: { x: 480 + Math.cos(-2.1) * 165, y: 272 + Math.sin(-2.1) * 165, radius: 14, hint: "밝은 끝점을 조각까지 회전" },
+});
+
+// Swept circle check prevents fast projectiles from skipping small fragments.
+function touchesFragment(fragment, body, previous = body) {
+  const dx = body.x - previous.x;
+  const dy = body.y - previous.y;
+  const length = dx * dx + dy * dy;
+  const t = length ? Math.max(0, Math.min(1, ((fragment.x - previous.x) * dx + (fragment.y - previous.y) * dy) / length)) : 0;
+  const radius = fragment.radius + (body.radius ?? 12);
+  return Math.hypot(fragment.x - previous.x - dx * t, fragment.y - previous.y - dy * t) <= radius;
+}
+
+
 /* Source: game.mjs */
 
 const WIDTH = VIEWPORT.width;
@@ -522,6 +594,9 @@ const lightOverlay = document.querySelector("#light-overlay");
 const corruptionOverlay = document.querySelector("#corruption");
 
 window.archiveAudio = audio;
+let progressStorage = null;
+try { progressStorage = window.localStorage; } catch { /* Session-only fallback. */ }
+window.archiveProgress = createProgressStore(STAGES.map((stage) => stage.id), progressStorage);
 window.addEventListener("archive-sfx", (event) => audio.play(event.detail?.name));
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
@@ -638,6 +713,7 @@ class ArchiveGame extends Phaser.Scene {
       rotation: () => this.buildRotation(),
     };
     builders[id]?.();
+    this.buildFragment();
     this.sendHud();
   }
 
@@ -703,6 +779,8 @@ class ArchiveGame extends Phaser.Scene {
       actions: this.actions ?? 0,
       anomaly: this.anomaly ?? "대기",
       risk: this.risk ?? 0,
+      fragmentCollected: this.fragmentCollected,
+      fragmentHint: this.fragment?.hint,
     });
   }
 
@@ -722,6 +800,8 @@ class ArchiveGame extends Phaser.Scene {
     if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
+    if (this.remaining <= 0) { this.finish(false); this.sendHud(); return; }
+    const previous = this.fragmentBody();
     const updates = {
       maze: () => this.updateMaze(dt),
       gravity: () => this.updateGravity(dt),
@@ -732,6 +812,7 @@ class ArchiveGame extends Phaser.Scene {
       rotation: () => this.updateRotation(dt),
     };
     updates[this.stageId]?.();
+    if (this.mode === "playing") this.checkFragment(this.fragmentBody(), previous);
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -772,6 +853,7 @@ class ArchiveGame extends Phaser.Scene {
 
   finish(success, extra = "") {
     if (this.mode !== "playing") return;
+    if (success) this.checkFragment(this.fragmentBody());
     this.mode = "done";
     this.setCorruption(0);
     lightOverlay.classList.remove("is-active");
@@ -781,7 +863,43 @@ class ArchiveGame extends Phaser.Scene {
       elapsed: PHYSICS.timeLimit - this.remaining,
       actions: this.actions ?? 0,
       extra,
+      fragmentCollected: this.fragmentCollected,
     });
+  }
+
+  buildFragment() {
+    this.fragmentTip = null;
+    this.fragment = MEMORY_FRAGMENTS[this.stageId];
+    this.fragmentCollected = false;
+    this.fragmentObject = this.add.rectangle(this.fragment.x, this.fragment.y, 19, 19, 0xffd27c, 0.85)
+      .setStrokeStyle(2, 0xfff0c2).setRotation(Math.PI / 4).setDepth(7);
+    this.fragmentRing = this.add.circle(this.fragment.x, this.fragment.y, this.fragment.radius + 7, 0xffd27c, 0.08)
+      .setStrokeStyle(1, 0xffd27c, 0.6).setDepth(6);
+    this.tweens.add({ targets: this.fragmentRing, alpha: 0.3, duration: 650, yoyo: true, repeat: -1 });
+    if (this.stageId === "rotation") this.fragmentTip = this.add.circle(0, 0, 7, 0xffe5ab).setDepth(6);
+    this.sendHud();
+  }
+
+  fragmentBody() {
+    const s = this.state;
+    if (!s || this.stageId === "recoil") return null;
+    if (this.stageId === "rotation") {
+      const body = { x: s.center.x + Math.cos(s.angle) * 165, y: s.center.y + Math.sin(s.angle) * 165, radius: 7 };
+      this.fragmentTip?.setPosition(body.x, body.y);
+      return body;
+    }
+    const body = this.stageId === "maze" ? s.ball : s;
+    return { x: body.x, y: body.y, radius: body.radius ?? 12 };
+  }
+
+  checkFragment(body, previous = body) {
+    if (this.mode !== "playing" || this.pausedByMenu || this.fragmentCollected || !body) return;
+    if (!touchesFragment(this.fragment, body, previous || body)) return;
+    this.fragmentCollected = true;
+    this.fragmentObject.setVisible(false);
+    this.fragmentRing.setVisible(false);
+    emit("archive-sfx", { name: "hit" });
+    this.sendHud();
   }
 
   /* 01 — Velocity maze */
@@ -1071,8 +1189,10 @@ class ArchiveGame extends Phaser.Scene {
 
     for (let index = s.bullets.length - 1; index >= 0; index -= 1) {
       const bullet = s.bullets[index];
+      const previous = { x: bullet.x, y: bullet.y };
       bullet.x += bullet.vx * dt;
       bullet.y += bullet.vy * dt;
+      this.checkFragment({ x: bullet.x, y: bullet.y, radius: 5 }, previous);
       bullet.object.setPosition(bullet.x, bullet.y);
       let removed = false;
       for (let targetIndex = 0; targetIndex < s.targets.length; targetIndex += 1) {

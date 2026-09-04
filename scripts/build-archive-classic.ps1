@@ -8,6 +8,8 @@ $sourceNames = @(
   "audio.mjs",
   "level-data.mjs",
   "physics-core.mjs",
+  "progress.mjs",
+  "fragments.mjs",
   "game.mjs"
 )
 

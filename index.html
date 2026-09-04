@@ -7,7 +7,7 @@
       name="description"
       content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
     />
-    <title>20.26</title>
+    <title>2026 ARCHIVE · 20.26</title>
     <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
+    <link rel="stylesheet" href="css/archive.css" />
   </head>
   <body>
     <!--
@@ -33,18 +34,15 @@
     -->
     <div class="main-menu" id="main-menu">
       <section class="main-menu-card ui-scaled" aria-labelledby="main-menu-title">
-        <h1 class="menu-logo" id="main-menu-title">
-          <img
-            src="assets/images/ui/Main/title-logo-20-26.webp"
-            alt="20.26"
-            width="960"
-            height="560"
-          />
-        </h1>
+        <p class="archive-eyebrow">MEMORY PRESERVATION SYSTEM / 2026</p>
+        <h1 class="archive-title" id="main-menu-title">2026<br><span>ARCHIVE</span></h1>
+        <p class="archive-system-log">SYSTEM ERROR DETECTED<br>PHYSICAL DATA CORRUPTED<br>RECOVERY REQUIRED</p>
+        <p class="archive-premise">빨리 해야 하는데, 움직일수록 더 망가진다.<br>20.26초 안에 손상된 기록을 복구하세요.</p>
+        <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
 
         <div class="main-menu-actions">
           <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <span>게임 시작</span>
+            <span>기록 복구 시작</span>
           </button>
 
           <button
@@ -90,8 +88,12 @@
       <section class="main-menu-card ui-scaled" aria-labelledby="stage-select-title">
         <div class="main-menu-heading">
           <div>
-            <p class="menu-kicker">SELECT YOUR 20.26</p>
-            <h2 id="stage-select-title">스테이지 선택</h2>
+            <p class="menu-kicker">2026 ARCHIVE RECORD LIST</p>
+            <h2 id="stage-select-title">손상된 기록</h2>
+            <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
+            <p id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+            <p class="archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+            <p id="archive-ending-status" hidden></p>
           </div>
         </div>
 
@@ -136,6 +138,7 @@
             <span id="stage-hud-anomaly">대기</span>
           </div>
           <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
+          <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
         </section>
         <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
           <span aria-hidden="true">Ⅱ</span>

@@ -88,10 +88,15 @@ class ArchiveGameBridge {
     this.ui.stageHud?.setAttribute("hidden", "");
   }
 
-  onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0 } = {}) {
+  onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "" } = {}) {
     if (!this.currentStage) return;
     const safeRemaining = Math.max(0, Number(remaining) || 0);
     const safeRisk = Math.max(0, Math.min(100, Number(risk) || 0));
+    const fragmentHud = document.querySelector("#stage-hud-fragment");
+    if (fragmentHud) {
+      fragmentHud.textContent = fragmentCollected ? "◆ MEMORY 1/1 · 목표 달성 시 저장" : `◇ MEMORY 0/1 · ${fragmentHint}`;
+      fragmentHud.dataset.collected = String(fragmentCollected);
+    }
 
     if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = safeRemaining.toFixed(2);
     if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${this.currentStage.actionLabel} ${String(actions).padStart(2, "0")}`;
@@ -108,22 +113,26 @@ class ArchiveGameBridge {
     }
   }
 
-  onStageEnd({ success, elapsed, actions, extra = "" } = {}) {
+  onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false } = {}) {
     if (!this.currentStage || !this.active) return;
     this.active = false;
+    const recovery = window.archiveProgress.record(this.currentStage.id, success, fragmentCollected);
+    mainMenuFlow.renderStages();
     const detail = {
       stageId: this.currentStage.id,
       stage: this.currentStage,
       elapsed: Number((Number(elapsed) || 0).toFixed(2)),
       actions: Number(actions) || 0,
       extra,
+      fragmentCollected,
+      recovery,
     };
     this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
   }
 
   updateStageHud(stage) {
     this.ui.stageHud?.removeAttribute("hidden");
-    if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `STAGE ${stage.number} · ${stage.title}`;
+    if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `RECORD ${stage.number} · ${stage.title}`;
     if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = "20.26";
     if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${stage.actionLabel} 00`;
     if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = stage.anomaly;

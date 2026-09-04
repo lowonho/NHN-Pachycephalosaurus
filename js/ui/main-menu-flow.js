@@ -1,16 +1,4 @@
-/*
- * 기능(B) — 메인 화면.
- *
- * 최초 진입 화면이자 게임의 허브다. 화면 흐름은
- *   메인 화면 → 스테이지 선택 → (스테이지)
- * 순서지만, 게임 내용을 다시 정하는 중이라 지금은 스테이지가 하나도 없다.
- * 스테이지 카드 3장은 모두 "준비 중"이고 선택·시작 배선은 끊어 둔 상태다.
- *
- * 스테이지가 정해지면 이 파일에 카드 선택(selectStage)과 시작(REQUEST_START 발행)을
- * 다시 넣는다. 그 자리는 startStage()에 표시해 두었다.
- *
- * 설정 화면은 settings-flow가 통째로 들고 있다. 여기서는 열고 닫는 신호만 보낸다.
- */
+/* ARCHIVE record list and saved recovery state. */
 
 class MainMenuFlow {
   constructor(events, dom, soundBus, settings) {
@@ -66,6 +54,20 @@ class MainMenuFlow {
     const grid = this.ui.stageSelectGrid;
     if (!grid) return;
     grid.replaceChildren();
+    const progress = window.archiveProgress;
+    const summary = progress?.summary();
+    document.querySelectorAll("[data-archive-recovery]").forEach((element) => {
+      element.textContent = `ARCHIVE RECOVERY ${summary?.recoveryRate ?? 0}%`;
+    });
+    const details = document.querySelector("#archive-recovery-detail");
+    if (details) details.textContent = `기록 ${summary?.clearedCount ?? 0}/${this.stages.length} · 기억 조각 ${summary?.fragmentCount ?? 0}/${this.stages.length}`;
+    const ending = document.querySelector("#archive-ending-status");
+    if (ending) {
+      ending.hidden = !summary?.allCleared;
+      ending.textContent = summary?.ending === "complete" ? "ALL RECORDS RESTORED · 2026년, 별일이 다 있었네."
+        : summary?.ending === "normal" ? "ARCHIVE RESTORED · 남은 기억을 복구할 수 있습니다."
+          : "RECOVERY INCOMPLETE · SOME MEMORIES WERE LOST";
+    }
 
     if (this.stages.length === 0) {
       const loading = document.createElement("div");
@@ -80,25 +82,28 @@ class MainMenuFlow {
       card.type = "button";
       card.className = "stage-select-card";
       card.dataset.stageId = stage.id;
+      const status = progress?.status(stage.id) || "DAMAGED";
+      const full = status === "FULLY RESTORED";
+      card.dataset.recovery = full ? "full" : status === "PARTIALLY RESTORED" ? "partial" : "damaged";
 
       const number = document.createElement("span");
       number.className = "stage-number";
-      number.textContent = `STAGE ${stage.number}`;
+      number.textContent = `RECORD ${stage.number} · ${full ? "◆" : "◇"}`;
 
       const title = document.createElement("strong");
-      title.textContent = stage.title;
+      title.textContent = full ? `${stage.recordSymbol} ${stage.title}` : "DAMAGED RECORD";
 
       const description = document.createElement("span");
       description.className = "stage-description";
-      description.textContent = stage.objective;
+      description.textContent = `${full ? stage.code : `??? · ${stage.title}`} — ${stage.objective}`;
 
       const duration = document.createElement("span");
       duration.className = "stage-duration";
-      duration.textContent = "20.26 SEC";
+      duration.textContent = `${status} · 20.26 SEC`;
 
       const controls = document.createElement("span");
       controls.className = "stage-controls";
-      controls.textContent = stage.controls;
+      controls.textContent = `${stage.controls} · ${stage.anomaly}`;
 
       card.append(number, title, description, controls, duration);
       card.addEventListener("click", () => this.startStage(stage.id));
