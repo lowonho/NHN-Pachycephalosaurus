@@ -4,6 +4,9 @@
  */
 
 const UI = Object.freeze({
+  titleScreen: document.querySelector("#title-screen"),
+  titleStartButton: document.querySelector("#title-start-button"),
+
   appShell: document.querySelector(".app-shell"),
   gameContainer: document.querySelector("#game-container"),
 
