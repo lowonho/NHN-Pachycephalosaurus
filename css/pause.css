@@ -1,0 +1,74 @@
+.pause-button {
+  position: absolute;
+  z-index: 12;
+  top: clamp(72px, 12%, 148px);
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(4, 17, 47, 0.86);
+  color: #fff;
+  cursor: pointer;
+  font: 800 0.8rem/1 var(--font-ui);
+  backdrop-filter: blur(8px);
+}
+
+.pause-button[hidden] {
+  display: none;
+}
+
+.pause-button:hover,
+.pause-button:focus-visible {
+  border-color: var(--cyan);
+  outline: 3px solid rgba(78, 239, 255, 0.3);
+  outline-offset: 2px;
+}
+
+.pause-backdrop {
+  position: fixed;
+  z-index: 32;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(1, 7, 24, 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.pause-backdrop.hidden {
+  display: none;
+}
+
+.pause-dialog {
+  width: min(460px, 100%);
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: #071532;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.56);
+  text-align: center;
+}
+
+.pause-dialog h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 7vw, 3.3rem);
+  font-weight: 400;
+}
+
+.pause-dialog p:not(.modal-step) {
+  margin: 12px 0 24px;
+  color: #c3d1ed;
+}
+
+@media (max-width: 560px) {
+  .pause-button {
+    top: 62px;
+    right: 8px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+}

@@ -36,10 +36,26 @@ class ModalFlow {
 
   open() {
     this.ui.modal?.classList.remove("hidden");
+    this.ui.appShell?.setAttribute("inert", "");
   }
 
   close() {
     this.ui.modal?.classList.add("hidden");
+    this.ui.appShell?.removeAttribute("inert");
+  }
+
+  showIntro() {
+    const { ui } = this;
+    this.step = MODAL_STEP.INTRO;
+    ui.calibrationVisual.classList.remove("listening");
+    ui.modalStep.textContent = this.strings.intro.step;
+    ui.modalTitle.textContent = this.strings.intro.title;
+    ui.modalCopy.textContent = this.strings.intro.copy;
+    ui.calibrationResult.textContent = "";
+    ui.primaryButton.textContent = this.strings.buttons.connect;
+    ui.primaryButton.disabled = false;
+    ui.secondaryButton.hidden = false;
+    ui.secondaryButton.textContent = this.strings.buttons.keyboard;
   }
 
   onPrimary() {

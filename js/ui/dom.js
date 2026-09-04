@@ -7,6 +7,16 @@ const UI = Object.freeze({
   titleScreen: document.querySelector("#title-screen"),
   titleStartButton: document.querySelector("#title-start-button"),
 
+  mainMenu: document.querySelector("#main-menu"),
+  mainSettingsButton: document.querySelector("#main-settings-button"),
+  mainSettingsPanel: document.querySelector("#main-settings-panel"),
+  mainPlayButton: document.querySelector("#main-play-button"),
+  mainMicButton: document.querySelector("#main-mic-button"),
+  stageGeojeButton: document.querySelector("#stage-geoje-button"),
+  masterVolume: document.querySelector("#master-volume"),
+  masterVolumeValue: document.querySelector("#master-volume-value"),
+  muteToggle: document.querySelector("#mute-toggle"),
+
   appShell: document.querySelector(".app-shell"),
   gameContainer: document.querySelector("#game-container"),
 
@@ -28,4 +38,9 @@ const UI = Object.freeze({
   secondaryButton: document.querySelector("#secondary-button"),
   calibrationVisual: document.querySelector("#calibration-visual"),
   calibrationResult: document.querySelector("#calibration-result"),
+
+  pauseButton: document.querySelector("#pause-button"),
+  pauseModal: document.querySelector("#pause-modal"),
+  resumeButton: document.querySelector("#resume-button"),
+  pauseMainButton: document.querySelector("#pause-main-button"),
 });

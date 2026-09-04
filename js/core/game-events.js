@@ -14,12 +14,17 @@ const GAME_EVENTS = Object.freeze({
 
   // 스테이지 흐름
   STAGE_START: "stage:start", // { voiceEnabled }
+  STAGE_PAUSE: "stage:pause", // {}
+  STAGE_RESUME: "stage:resume", // { voiceEnabled }
   STAGE_CLEAR: "stage:clear", // { elapsed }
   STAGE_FAIL: "stage:fail", // {}
 
   // 외부 요청(UI → 씬)
   REQUEST_START: "request:start", // { voiceEnabled }
   REQUEST_RESTART: "request:restart", // {}
+  REQUEST_PAUSE: "request:pause", // {}
+  REQUEST_RESUME: "request:resume", // {}
+  REQUEST_MAIN_MENU: "request:main-menu", // {}
 
   // 타이머
   TIMER_TICK: "timer:tick", // { remainingMs } — 매 프레임, payload 재사용됨

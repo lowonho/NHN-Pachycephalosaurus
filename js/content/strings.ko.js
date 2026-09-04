@@ -5,6 +5,12 @@
  */
 
 const STRINGS = Object.freeze({
+  intro: Object.freeze({
+    step: "STAGE 01",
+    title: "목소리로 포토존까지!",
+    copy: "먼저 편안한 중간음을 측정합니다. 측정된 목소리를 기준으로 낮은 음·중간 음·높은 음을 나눠 점프 높이에 반영해요.",
+  }),
+
   status: Object.freeze({
     idle: "마이크 연결 전",
     measuring: "마이크 연결됨 · 중간음 측정 중",

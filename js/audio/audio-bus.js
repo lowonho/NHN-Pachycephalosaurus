@@ -40,6 +40,19 @@ class AudioBus {
     }
   }
 
+  pausePlayback() {
+    this.scene?.sound?.pauseAll();
+  }
+
+  resumePlayback() {
+    this.resume();
+    this.scene?.sound?.resumeAll();
+  }
+
+  stopPlayback() {
+    this.scene?.sound?.stopAll();
+  }
+
   isReady(key) {
     return Boolean(key) && Boolean(this.scene?.cache?.audio?.exists(key));
   }

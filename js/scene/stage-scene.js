@@ -9,6 +9,7 @@
 const STAGE_STATE = Object.freeze({
   WAITING: "WAITING",
   PLAYING: "PLAYING",
+  PAUSED: "PAUSED",
   ENDED: "ENDED",
 });
 
@@ -20,6 +21,7 @@ class StageScene extends Phaser.Scene {
     this.voiceEnabled = false;
     this.warningFired = false;
     this.wasGrounded = true;
+    this.pausedAt = 0;
 
     // 매 프레임 발행하는 이벤트의 payload는 재사용한다.
     this.syncPayload = { x: 0, y: 0, velocityX: 0 };
@@ -27,6 +29,9 @@ class StageScene extends Phaser.Scene {
 
     gameEvents.on(GAME_EVENTS.REQUEST_START, ({ voiceEnabled }) => this.startStage(voiceEnabled));
     gameEvents.on(GAME_EVENTS.REQUEST_RESTART, () => this.restartStage());
+    gameEvents.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pauseStage());
+    gameEvents.on(GAME_EVENTS.REQUEST_RESUME, () => this.resumeStage());
+    gameEvents.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.returnToMain());
     gameEvents.on(GAME_EVENTS.COMMAND_RECOGNIZED, (payload) => this.applyCommand(payload));
   }
 
@@ -138,6 +143,7 @@ class StageScene extends Phaser.Scene {
     this.moveDirection = 0;
     this.warningFired = false;
     this.wasGrounded = true;
+    this.pausedAt = 0;
     this.startedAt = performance.now();
 
     this.player.body.reset(geo.player.startX, geo.player.startY);
@@ -229,6 +235,35 @@ class StageScene extends Phaser.Scene {
     this.physics.pause();
   }
 
+  pauseStage() {
+    if (this.state !== STAGE_STATE.PLAYING) return;
+    this.state = STAGE_STATE.PAUSED;
+    this.pausedAt = performance.now();
+    this.moveDirection = 0;
+    this.player.setVelocityX(0);
+    this.physics.pause();
+    voiceController.stopRecognition();
+    gameEvents.emit(GAME_EVENTS.STAGE_PAUSE, {});
+  }
+
+  resumeStage() {
+    if (this.state !== STAGE_STATE.PAUSED) return;
+    this.startedAt += performance.now() - this.pausedAt;
+    this.pausedAt = 0;
+    this.state = STAGE_STATE.PLAYING;
+    this.physics.resume();
+
+    if (this.voiceEnabled) {
+      const started = voiceController.startRecognition();
+      hudStatus.set(
+        started,
+        started ? STRINGS.status.listening : STRINGS.status.recognitionUnsupported,
+      );
+    }
+
+    gameEvents.emit(GAME_EVENTS.STAGE_RESUME, { voiceEnabled: this.voiceEnabled });
+  }
+
   clearStage() {
     if (this.state !== STAGE_STATE.PLAYING) return;
     const elapsed = ((performance.now() - this.startedAt) / 1000).toFixed(2);
@@ -252,5 +287,14 @@ class StageScene extends Phaser.Scene {
     window.clearTimeout(this.resultTimeout);
     voiceController.stopRecognition();
     this.scene.restart({ autoStart: true, voiceEnabled: this.voiceEnabled });
+  }
+
+  returnToMain() {
+    window.clearTimeout(this.resultTimeout);
+    voiceController.stopRecognition();
+    this.moveDirection = 0;
+    this.state = STAGE_STATE.WAITING;
+    this.physics.pause();
+    this.scene.restart();
   }
 }

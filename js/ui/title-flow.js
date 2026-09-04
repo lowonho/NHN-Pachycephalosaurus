@@ -19,4 +19,4 @@ class TitleFlow {
   }
 }
 
-const titleFlow = new TitleFlow(UI, modalFlow);
+const titleFlow = new TitleFlow(UI, mainMenuFlow);
