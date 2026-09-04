@@ -45,7 +45,7 @@ const STAGES = [
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
-    objective: "네 개의 발판을 올라 상단 비콘에 접촉하세요.",
+    objective: "좁은 발판 끝에서 점프해 네 번의 상승을 연결하세요.",
     anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",
@@ -387,6 +387,65 @@ function riskLabel(presses) {
 
 
 
+/* Source: gravity-core.mjs */
+const GRAVITY_COURSE = {
+  jumpSpeed: 430, moveSpeed: 190, baseGravity: 720, gravityStep: 80, maxGravity: 1040,
+  start: { x: 95, y: 483 },
+  goal: { x: 745, y: 132, minX: 735 },
+  platforms: [
+    { x: 30, y: 500, w: 900, h: 20 },
+    { x: 185, y: 416, w: 70, h: 16 },
+    { x: 360, y: 332, w: 62, h: 16 },
+    { x: 530, y: 248, w: 60, h: 16 },
+    { x: 695, y: 164, w: 85, h: 16, goal: true },
+  ],
+};
+
+function createGravityState() {
+  return { ...GRAVITY_COURSE.start, width: 26, height: 34, vx: 0, vy: 0,
+    direction: null, onGround: true, support: GRAVITY_COURSE.platforms[0],
+    gravity: GRAVITY_COURSE.baseGravity, platforms: GRAVITY_COURSE.platforms };
+}
+
+function applyGravityJump(state, actions) {
+  state.gravity = Math.min(GRAVITY_COURSE.maxGravity, GRAVITY_COURSE.baseGravity + (actions - 1) * GRAVITY_COURSE.gravityStep);
+  if (!state.onGround) return false;
+  state.vy = -GRAVITY_COURSE.jumpSpeed;
+  state.onGround = false;
+  state.support = null;
+  return true;
+}
+
+function stepGravity(s, dt) {
+  const previousBottom = s.y + s.height / 2;
+  s.vx = s.direction === "left" ? -GRAVITY_COURSE.moveSpeed : s.direction === "right" ? GRAVITY_COURSE.moveSpeed : 0;
+  s.x = Math.max(61, Math.min(899, s.x + s.vx * dt));
+  // Integrate constant gravity exactly so tight jumps stay possible at 40–120Hz.
+  s.y += s.vy * dt + s.gravity * dt * dt / 2;
+  s.vy += s.gravity * dt;
+  if (s.onGround && s.support && (s.x + s.width / 2 <= s.support.x || s.x - s.width / 2 >= s.support.x + s.support.w)) {
+    s.onGround = false;
+    s.support = null;
+  }
+  let landed = false;
+  if (s.vy >= 0) for (const platform of s.platforms) {
+    const horizontal = s.x + s.width / 2 > platform.x && s.x - s.width / 2 < platform.x + platform.w;
+    if (horizontal && previousBottom <= platform.y + 3 && s.y + s.height / 2 >= platform.y) {
+      landed = !s.onGround;
+      s.y = platform.y - s.height / 2;
+      s.vy = 0;
+      s.onGround = true;
+      s.support = platform;
+      break;
+    }
+  }
+  if (s.y > 600) {
+    Object.assign(s, GRAVITY_COURSE.start, { vx: 0, vy: 0, onGround: true, support: s.platforms[0] });
+  }
+  return { landed, cleared: Boolean(s.support?.goal && s.onGround && s.x >= GRAVITY_COURSE.goal.minX) };
+}
+
+
 /* Source: progress.mjs */
 const RECORD_STATUS = Object.freeze({
   DAMAGED: "DAMAGED", PARTIAL: "PARTIALLY RESTORED", FULL: "FULLY RESTORED", LOST: "RECORD LOST",
@@ -433,7 +492,7 @@ function createProgressStore(stageIds, storage = null) {
 // Initial placements only. Change these independently of the physics and maps.
 const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
-  gravity: { x: 85, y: 387, radius: 12, hint: "첫 발판 왼쪽의 조각에 접촉" },
+  gravity: { x: 824, y: 78, radius: 12, hint: "마지막 발판에서 추가 점프 후 귀환" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
   friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
@@ -867,22 +926,19 @@ class ArchiveGame extends Phaser.Scene {
     this.actions = 0;
     this.risk = 0;
     this.anomaly = "중력 1.0×";
-    const platforms = [
-      { x: 30, y: 500, w: 900, h: 20 },
-      { x: 120, y: 415, w: 170, h: 16 },
-      { x: 335, y: 330, w: 170, h: 16 },
-      { x: 545, y: 245, w: 170, h: 16 },
-      { x: 755, y: 160, w: 155, h: 16, goal: true },
-    ];
+    const platforms = GRAVITY_COURSE.platforms;
     this.drawWalls(platforms, 0x3f4f65, 0x8399b4);
-    this.add.text(850, 112, "GRAVITY BEACON", { fontFamily: "monospace", fontSize: "10px", color: "#93fca0" }).setOrigin(0.5);
-    this.drawGoal(850, 128, 19, "TOP");
+    const markers = this.add.graphics().setDepth(3);
+    platforms.slice(1, -1).forEach((platform, index) => {
+      markers.lineStyle(3, 0xffcf83, 0.9).lineBetween(platform.x + platform.w - 14, platform.y, platform.x + platform.w, platform.y);
+      this.add.text(platform.x + platform.w / 2, platform.y + 23, `0${index + 1}`, { fontFamily: "monospace", fontSize: "12px", color: "#9caec6" }).setOrigin(0.5);
+    });
+    this.add.text(390, 480, "발판 끝에서 도약 · 공중에서 방향 조절", { fontFamily: "sans-serif", fontSize: "14px", color: "#a6c2d9" }).setOrigin(0.5);
+    this.add.text(840, 120, "MEMORY ↑", { fontFamily: "monospace", fontSize: "11px", color: "#ffd27c" }).setOrigin(0.5);
+    this.drawGoal(GRAVITY_COURSE.goal.x, GRAVITY_COURSE.goal.y, 19, "TOP");
     this.gravityArrows = this.add.graphics().setDepth(2);
-    this.state = {
-      x: 75, y: 483, width: 26, height: 34, vx: 0, vy: 0,
-      direction: null, onGround: true, support: platforms[0], gravity: 720, platforms,
-    };
-    this.player = this.add.rectangle(75, 483, 26, 34, 0xe9f6ff).setStrokeStyle(3, 0x7bc8ff).setDepth(5);
+    this.state = createGravityState();
+    this.player = this.add.rectangle(this.state.x, this.state.y, 26, 34, 0xe9f6ff).setStrokeStyle(3, 0x7bc8ff).setDepth(5);
   }
 
   gravityPress(direction) {
@@ -892,13 +948,8 @@ class ArchiveGame extends Phaser.Scene {
   gravityJump() {
     const state = this.state;
     this.actions += 1;
-    state.gravity = 720 + (this.actions - 1) * 112;
-    if (state.onGround) {
-      state.vy = -430;
-      state.onGround = false;
-      state.support = null;
-    }
-    this.risk = clamp((state.gravity - 720) / 780 * 100, 0, 100);
+    applyGravityJump(state, this.actions);
+    this.risk = clamp((state.gravity - GRAVITY_COURSE.baseGravity) / (GRAVITY_COURSE.maxGravity - GRAVITY_COURSE.baseGravity) * 100, 0, 100);
     this.anomaly = `중력 ${(state.gravity / 720).toFixed(1)}×`;
     this.setCorruption(this.risk * 0.7);
     emit("archive-sfx", { name: "action" });
@@ -906,41 +957,10 @@ class ArchiveGame extends Phaser.Scene {
 
   updateGravity(dt) {
     const s = this.state;
-    const previousBottom = s.y + s.height / 2;
-    s.vx = s.direction === "left" ? -190 : s.direction === "right" ? 190 : 0;
-    s.vy += s.gravity * dt;
-    s.x = clamp(s.x + s.vx * dt, 48 + s.width / 2, 912 - s.width / 2);
-    s.y += s.vy * dt;
-    const newBottom = s.y + s.height / 2;
-
-    if (s.onGround && s.support && (s.x + s.width / 2 < s.support.x || s.x - s.width / 2 > s.support.x + s.support.w)) {
-      s.onGround = false;
-      s.support = null;
-    }
-    if (s.vy >= 0) {
-      for (const platform of s.platforms) {
-        const horizontal = s.x + s.width / 2 > platform.x && s.x - s.width / 2 < platform.x + platform.w;
-        if (horizontal && previousBottom <= platform.y + 3 && newBottom >= platform.y) {
-          s.y = platform.y - s.height / 2;
-          s.vy = 0;
-          s.onGround = true;
-          s.support = platform;
-          this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
-          if (platform.goal && s.x > 810) this.finish(true);
-          break;
-        }
-      }
-    }
-    if (s.y > HEIGHT + 60) {
-      s.x = 75;
-      s.y = 483;
-      s.vx = 0;
-      s.vy = 0;
-      s.onGround = true;
-      s.support = s.platforms[0];
-    }
+    const result = stepGravity(s, dt);
+    if (result.landed) this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
     this.player.setPosition(s.x, s.y);
-    if (s.support?.goal && s.x > 810) this.finish(true);
+    if (result.cleared) this.finish(true);
     this.gravityArrows.clear().lineStyle(2, 0xffb35d, 0.18 + this.risk / 170);
     for (let x = 72; x < 930; x += 74) {
       const length = 18 + this.risk * 0.28;

@@ -111,6 +111,9 @@ try {
   await evaluate("document.querySelector('[data-stage-id=gravity]').click()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.mode"), "playing");
+  await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
+  await screen("gravity-course");
+  await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
   await evaluate("testScene.finish(false); document.querySelector('#primary-button').click()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.remaining"), 20.26);

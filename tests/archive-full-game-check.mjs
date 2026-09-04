@@ -1,4 +1,5 @@
 import { STAGES } from "../js/archive/data.mjs";
+import { GRAVITY_COURSE } from "../js/archive/gravity-core.mjs";
 
 const LIMIT = 20.26;
 const dt = 1 / 240;
@@ -36,8 +37,8 @@ function boundaryWalls() {
 }
 
 function verifyGravity() {
-  const gaps = [85, 85, 85, 85];
-  const heights = gaps.map((_, index) => 430 ** 2 / (2 * (720 + index * 112)));
+  const gaps = GRAVITY_COURSE.platforms.slice(1).map((platform, i) => GRAVITY_COURSE.platforms[i].y - platform.y);
+  const heights = gaps.map((_, index) => GRAVITY_COURSE.jumpSpeed ** 2 / (2 * Math.min(GRAVITY_COURSE.maxGravity, GRAVITY_COURSE.baseGravity + index * GRAVITY_COURSE.gravityStep)));
   return {
     passed: heights.every((height, index) => height >= gaps[index]),
     detail: `최소 점프 여유 ${(Math.min(...heights.map((height, index) => height - gaps[index]))).toFixed(1)}px`,

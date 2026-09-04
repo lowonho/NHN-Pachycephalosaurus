@@ -1,6 +1,7 @@
 import { STAGES } from "./data.mjs";
 import { createProgressStore } from "./progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
+import { GRAVITY_COURSE, createGravityState, applyGravityJump, stepGravity } from "./gravity-core.mjs";
 import { audio } from "./audio.mjs";
 import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS, ROUTE, FRAGMENT_ROUTE } from "./level-data.mjs";
 import { createBallState, multiplierForPresses, registerDirection, releaseDirection, riskLabel, stepBall } from "./physics-core.mjs";
@@ -418,22 +419,19 @@ class ArchiveGame extends Phaser.Scene {
     this.actions = 0;
     this.risk = 0;
     this.anomaly = "중력 1.0×";
-    const platforms = [
-      { x: 30, y: 500, w: 900, h: 20 },
-      { x: 120, y: 415, w: 170, h: 16 },
-      { x: 335, y: 330, w: 170, h: 16 },
-      { x: 545, y: 245, w: 170, h: 16 },
-      { x: 755, y: 160, w: 155, h: 16, goal: true },
-    ];
+    const platforms = GRAVITY_COURSE.platforms;
     this.drawWalls(platforms, 0x3f4f65, 0x8399b4);
-    this.add.text(850, 112, "GRAVITY BEACON", { fontFamily: "monospace", fontSize: "10px", color: "#93fca0" }).setOrigin(0.5);
-    this.drawGoal(850, 128, 19, "TOP");
+    const markers = this.add.graphics().setDepth(3);
+    platforms.slice(1, -1).forEach((platform, index) => {
+      markers.lineStyle(3, 0xffcf83, 0.9).lineBetween(platform.x + platform.w - 14, platform.y, platform.x + platform.w, platform.y);
+      this.add.text(platform.x + platform.w / 2, platform.y + 23, `0${index + 1}`, { fontFamily: "monospace", fontSize: "12px", color: "#9caec6" }).setOrigin(0.5);
+    });
+    this.add.text(390, 480, "발판 끝에서 도약 · 공중에서 방향 조절", { fontFamily: "sans-serif", fontSize: "14px", color: "#a6c2d9" }).setOrigin(0.5);
+    this.add.text(840, 120, "MEMORY ↑", { fontFamily: "monospace", fontSize: "11px", color: "#ffd27c" }).setOrigin(0.5);
+    this.drawGoal(GRAVITY_COURSE.goal.x, GRAVITY_COURSE.goal.y, 19, "TOP");
     this.gravityArrows = this.add.graphics().setDepth(2);
-    this.state = {
-      x: 75, y: 483, width: 26, height: 34, vx: 0, vy: 0,
-      direction: null, onGround: true, support: platforms[0], gravity: 720, platforms,
-    };
-    this.player = this.add.rectangle(75, 483, 26, 34, 0xe9f6ff).setStrokeStyle(3, 0x7bc8ff).setDepth(5);
+    this.state = createGravityState();
+    this.player = this.add.rectangle(this.state.x, this.state.y, 26, 34, 0xe9f6ff).setStrokeStyle(3, 0x7bc8ff).setDepth(5);
   }
 
   gravityPress(direction) {
@@ -443,13 +441,8 @@ class ArchiveGame extends Phaser.Scene {
   gravityJump() {
     const state = this.state;
     this.actions += 1;
-    state.gravity = 720 + (this.actions - 1) * 112;
-    if (state.onGround) {
-      state.vy = -430;
-      state.onGround = false;
-      state.support = null;
-    }
-    this.risk = clamp((state.gravity - 720) / 780 * 100, 0, 100);
+    applyGravityJump(state, this.actions);
+    this.risk = clamp((state.gravity - GRAVITY_COURSE.baseGravity) / (GRAVITY_COURSE.maxGravity - GRAVITY_COURSE.baseGravity) * 100, 0, 100);
     this.anomaly = `중력 ${(state.gravity / 720).toFixed(1)}×`;
     this.setCorruption(this.risk * 0.7);
     emit("archive-sfx", { name: "action" });
@@ -457,41 +450,10 @@ class ArchiveGame extends Phaser.Scene {
 
   updateGravity(dt) {
     const s = this.state;
-    const previousBottom = s.y + s.height / 2;
-    s.vx = s.direction === "left" ? -190 : s.direction === "right" ? 190 : 0;
-    s.vy += s.gravity * dt;
-    s.x = clamp(s.x + s.vx * dt, 48 + s.width / 2, 912 - s.width / 2);
-    s.y += s.vy * dt;
-    const newBottom = s.y + s.height / 2;
-
-    if (s.onGround && s.support && (s.x + s.width / 2 < s.support.x || s.x - s.width / 2 > s.support.x + s.support.w)) {
-      s.onGround = false;
-      s.support = null;
-    }
-    if (s.vy >= 0) {
-      for (const platform of s.platforms) {
-        const horizontal = s.x + s.width / 2 > platform.x && s.x - s.width / 2 < platform.x + platform.w;
-        if (horizontal && previousBottom <= platform.y + 3 && newBottom >= platform.y) {
-          s.y = platform.y - s.height / 2;
-          s.vy = 0;
-          s.onGround = true;
-          s.support = platform;
-          this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
-          if (platform.goal && s.x > 810) this.finish(true);
-          break;
-        }
-      }
-    }
-    if (s.y > HEIGHT + 60) {
-      s.x = 75;
-      s.y = 483;
-      s.vx = 0;
-      s.vy = 0;
-      s.onGround = true;
-      s.support = s.platforms[0];
-    }
+    const result = stepGravity(s, dt);
+    if (result.landed) this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
     this.player.setPosition(s.x, s.y);
-    if (s.support?.goal && s.x > 810) this.finish(true);
+    if (result.cleared) this.finish(true);
     this.gravityArrows.clear().lineStyle(2, 0xffb35d, 0.18 + this.risk / 170);
     for (let x = 72; x < 930; x += 74) {
       const length = 18 + this.risk * 0.28;
