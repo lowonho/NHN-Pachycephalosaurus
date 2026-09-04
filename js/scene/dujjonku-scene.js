@@ -70,6 +70,8 @@ class DujjonkuScene extends Phaser.Scene {
     this.projectile = null;
     this.projectileSettledAt = 0;
     this.projectileFiredAt = 0;
+    this.pendingDestructions = [];
+    this.destructionFlushTimer = 0;
     this.warningFired = false;
     this.micReady = false;
     this.timerActive = false;
@@ -472,9 +474,11 @@ class DujjonkuScene extends Phaser.Scene {
     if (!block.active || block.getData("destroyed")) return;
     block.setData("destroyed", true);
     this.remainingBlocks = Math.max(0, this.remainingBlocks - 1);
-    this.spawnBurst(block.x, block.y, block.getData("blockType") === "stone" ? 0x9ba9ba : 0xd99555, 8);
-    block.destroy();
-    this.checkClearCondition();
+    this.queueDestruction(
+      block,
+      block.getData("blockType") === "stone" ? 0x9ba9ba : 0xd99555,
+      8,
+    );
   }
 
   damageMonster(monster, impact, other) {
@@ -490,8 +494,41 @@ class DujjonkuScene extends Phaser.Scene {
     if (!monster.active || monster.getData("destroyed")) return;
     monster.setData("destroyed", true);
     this.remainingMonsters = Math.max(0, this.remainingMonsters - 1);
-    this.spawnBurst(monster.x, monster.y, 0xb8d96b, 14);
-    monster.destroy();
+    this.queueDestruction(monster, 0xb8d96b, 14);
+  }
+
+  queueDestruction(target, color, particleCount) {
+    this.pendingDestructions.push({
+      target,
+      x: target.x,
+      y: target.y,
+      color,
+      particleCount,
+    });
+    if (!this.destructionFlushTimer) {
+      // Matter의 충돌/바디 동기화 호출 스택이 전부 끝난 뒤 제거해야
+      // Phaser가 이미 파괴된 body.position을 다시 읽지 않는다.
+      this.destructionFlushTimer = window.setTimeout(() => {
+        this.destructionFlushTimer = 0;
+        if (this.scene?.isActive()) this.flushPendingDestructions();
+      }, 0);
+    }
+  }
+
+  flushPendingDestructions() {
+    window.clearTimeout(this.destructionFlushTimer);
+    this.destructionFlushTimer = 0;
+    if (!this.pendingDestructions?.length) return;
+    const pending = this.pendingDestructions.splice(0);
+    pending.forEach(({ target, x, y, color, particleCount }) => {
+      this.spawnBurst(x, y, color, particleCount);
+      if (target.active) {
+        // Monster squash/ block flash tweens can otherwise update a destroyed
+        // Matter sprite and try to read its already-removed body.position.
+        this.tweens.killTweensOf(target);
+        target.destroy();
+      }
+    });
     this.checkClearCondition();
   }
 
@@ -566,12 +603,16 @@ class DujjonkuScene extends Phaser.Scene {
     }));
     report("initial");
     this.removeMonster(this.monsters[0]);
+    this.flushPendingDestructions();
     report("one-monster-destroyed");
     this.monsters.slice(1).forEach((monster) => this.removeMonster(monster));
+    this.flushPendingDestructions();
     report("all-monsters-destroyed");
     this.blocks.slice(0, -1).forEach((block) => this.destroyBlock(block));
+    this.flushPendingDestructions();
     report("one-block-left");
     this.destroyBlock(this.blocks[this.blocks.length - 1]);
+    this.flushPendingDestructions();
     report("all-targets-destroyed");
   }
 
@@ -674,6 +715,13 @@ class DujjonkuScene extends Phaser.Scene {
       this.chargePercent = 0;
       this.statusText.setText("‘두’라고 말해 다음 두쫀쿠를 장전하세요!");
       this.updateStateHud();
+      if (this.debugVoice) {
+        console.info("[두쫀쿠 다음 발 진단]", JSON.stringify({
+          state: this.voiceState,
+          shotsLeft: this.shotsLeft,
+          ended: this.ended,
+        }));
+      }
     });
   }
 
@@ -826,6 +874,9 @@ class DujjonkuScene extends Phaser.Scene {
     this.stageRunning = false;
     this.ended = true;
     this.matter?.world?.off("collisionstart", this.handleCollision, this);
+    window.clearTimeout(this.destructionFlushTimer);
+    this.destructionFlushTimer = 0;
+    this.pendingDestructions = [];
     this.input?.keyboard?.removeAllListeners();
     document.body.classList.remove("dujjonku-active");
   }
