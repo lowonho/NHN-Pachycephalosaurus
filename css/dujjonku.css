@@ -28,7 +28,8 @@
 .stage-select-screen .main-menu-card {
   /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
   margin: auto;
-  width: min(920px, 100%);
+  /* 카드 3장이 각각 220px 안팎(= 이전 폭의 70%)을 가져가는 폭. */
+  width: min(790px, 100%);
   padding: clamp(24px, 5vw, 44px);
   border: 1px solid var(--line);
   border-radius: calc(var(--radius-card) + 4px);
@@ -42,7 +43,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: clamp(10px, 1.6vw, 16px);
   margin-bottom: 22px;
 }
 
@@ -61,11 +62,11 @@
   line-height: 1;
 }
 
-/* 스테이지 카드는 세로로 긴 판때기 2장을 좌우로 나란히 세운다. */
+/* 스테이지 카드는 세로로 긴 판때기 3장을 좌우로 나란히 세운다. */
 .stage-select-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(12px, 2vw, 20px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(10px, 1.6vw, 18px);
   width: 100%;
 }
 
@@ -75,7 +76,7 @@
   /* 번호 · 제목 · 설명(남는 높이) · 러닝타임 — 러닝타임이 카드 바닥에 붙는다. */
   grid-template-rows: auto auto 1fr auto;
   width: 100%;
-  /* 세로형 비율. 카드 두 장이 같은 높이로 서도록 최소 높이를 잡는다. */
+  /* 세로형 비율. 카드 세 장이 같은 높이로 서도록 최소 높이를 잡는다. */
   min-height: clamp(280px, 46vh, 420px);
   padding: 24px 20px;
   border: 2px solid var(--cyan);
@@ -92,38 +93,41 @@
 .stage-select-card::after {
   content: "선택됨";
   position: absolute;
-  top: 18px;
-  right: 18px;
-  padding: 5px 9px;
+  top: 16px;
+  right: 16px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: var(--yellow);
   color: var(--ink);
-  font: 900 0.72rem/1 var(--font-ui);
+  font: 900 0.62rem/1 var(--font-ui);
 }
 
+/* 카드가 좁아진 만큼 라벨류도 같이 줄인다. 자간이 넓으면 금방 두 줄로 접힌다. */
 .stage-number,
 .stage-duration {
   color: var(--cyan);
-  font: 800 0.72rem/1 var(--font-ui);
-  letter-spacing: 0.14em;
+  font: 800 0.58rem/1.3 var(--font-ui);
+  letter-spacing: 0.08em;
 }
 
 .stage-select-card strong {
   margin: 12px 0 6px;
   font-family: var(--font-display);
-  /* 카드 폭이 절반이므로 메인 화면 제목보다 한 단계 작게 잡는다. */
-  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  /* 좁아진 카드(약 220px) 안에서 "거제 야호!"가 한 줄에 들어가는 크기. */
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
   font-weight: 400;
   line-height: 1.05;
 }
 
 .stage-description {
   color: #c3d1ed;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .stage-duration {
   align-self: end;
-  padding-top: 22px;
+  padding-top: 16px;
 }
 
 /* 선택 완료 · 메인 화면으로 — 가로 한 줄. */
@@ -166,6 +170,27 @@
   box-shadow: 0 12px 34px rgba(244, 126, 167, 0.24);
 }
 
+/* 아직 비어 있는 칸 — 점선 테두리로 "채울 자리"라는 걸 보여 준다. */
+.stage-select-card.stage-select-card--soon {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: default;
+}
+
+.stage-select-card--soon strong {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.stage-select-card--soon .stage-number,
+.stage-select-card--soon .stage-duration {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.stage-select-card--soon .stage-description {
+  color: rgba(255, 255, 255, 0.38);
+}
+
 body.dujjonku-active .pitch-panel,
 body.dujjonku-active .command-deck,
 body.dujjonku-active .system-status {
@@ -190,7 +215,7 @@ body.dujjonku-active .pause-button {
 
   .stage-select-card strong {
     margin-block: 7px 3px;
-    font-size: 1.7rem;
+    font-size: 1.5rem;
   }
 
   .stage-duration {
@@ -198,7 +223,14 @@ body.dujjonku-active .pause-button {
   }
 }
 
-/* 좁은 화면에서는 두 장을 나란히 세울 폭이 안 나오므로 한 줄에 한 장씩. */
+/* 세 장을 나란히 세우기엔 좁은 폭 — 두 줄로 접는다. */
+@media (max-width: 900px) {
+  .stage-select-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 더 좁으면 한 줄에 한 장씩. */
 @media (max-width: 620px) {
   .stage-select-grid {
     grid-template-columns: minmax(0, 1fr);

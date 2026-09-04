@@ -26,6 +26,9 @@ class ModalFlow {
     this.stageId = "geoje";
     this.returnFocus = null;
 
+    // 측정은 도중에 뒤로 나갈 수 있다. 나간 뒤 늦게 끝난 측정이 화면을 덮어쓰지 않도록 회차를 센다.
+    this.calibrationRun = 0;
+
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
 
@@ -121,13 +124,19 @@ class ModalFlow {
   onSecondary() {
     audioBus.resume();
 
-    // 조작은 음성뿐이라 마이크를 포기하면 플레이할 수 없다. 스테이지로 넘기지 않고 메인으로 되돌린다.
+    /*
+     * 조작은 음성뿐이라 마이크를 포기하면 플레이할 수 없다. 스테이지로 넘기지 않고 메인으로 되돌린다.
+     * 측정이 끝나기 전(CALIBRATING)에도 여기로 나갈 수 있다 — 목소리가 안 나오는 상황에서
+     * 2.4초가 끝나기를 기다렸다가 실패 화면을 보고서야 나갈 수 있는 건 막다른 길이었다.
+     */
     const bailOut =
       this.step === MODAL_STEP.INTRO ||
+      this.step === MODAL_STEP.CALIBRATING ||
       this.step === MODAL_STEP.CALIBRATION_FAILED ||
       this.step === MODAL_STEP.MIC_ERROR;
 
     if (bailOut) {
+      this.cancelCalibration();
       this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       return;
     }
@@ -144,13 +153,22 @@ class ModalFlow {
     this.runCalibration();
   }
 
+  /* 진행 중인 측정을 버린다. voice.calibrate()는 취소할 수 없으니 결과만 무시한다. */
+  cancelCalibration() {
+    this.calibrationRun += 1;
+    this.ui.calibrationVisual.classList.remove("listening");
+  }
+
   async runCalibration() {
     const { ui } = this;
     const copy = this.strings.calibration;
+    const run = (this.calibrationRun += 1);
 
     this.step = MODAL_STEP.CALIBRATING;
     ui.primaryButton.disabled = true;
-    ui.secondaryButton.hidden = true;
+    // 측정 중에도 뒤로 나갈 수 있어야 한다. 버튼이 사라지면 패널 높이도 같이 흔들린다.
+    ui.secondaryButton.hidden = false;
+    ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
     ui.modalStep.textContent = copy.step;
     ui.modalTitle.textContent = copy.title;
     ui.modalCopy.textContent = copy.copy;
@@ -160,6 +178,8 @@ class ModalFlow {
     try {
       if (!this.voice.stream) await this.voice.connect();
       const result = await this.voice.calibrate();
+      // 기다리는 사이 사용자가 뒤로 나갔으면 그 화면을 덮어쓰지 않는다.
+      if (run !== this.calibrationRun) return;
       ui.calibrationVisual.classList.remove("listening");
 
       if (!result.ok) {
@@ -168,6 +188,7 @@ class ModalFlow {
       }
       this.showReady(Math.round(result.pitch));
     } catch (error) {
+      if (run !== this.calibrationRun) return;
       ui.calibrationVisual.classList.remove("listening");
       this.showMicError(error);
     }

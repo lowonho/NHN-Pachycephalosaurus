@@ -1,4 +1,4 @@
-/* A(비주얼) 전용 — 리셋, 앱 셸, 헤더, 게임 카드, 도움말. */
+/* A(비주얼) 전용 — 리셋, 앱 셸, 헤더, 게임 카드, UI 배율 레이어. */
 
 * {
   box-sizing: border-box;
@@ -25,9 +25,46 @@ button {
   font: inherit;
 }
 
+/*
+ * ── UI 배율 규칙 ─────────────────────────────────────────────────────
+ *
+ * 모든 DOM UI는 1920×1080(STAGE_GEOMETRY.canvas) 설계 화면 위에 px로 그린다.
+ * 창 크기가 달라져도 안쪽 비율은 건드리지 않고 --ui-scale 하나로 통째로 줄이고 늘린다.
+ * (--ui-scale = min(창 가로/1920, 창 세로/1080) — js/art/viewport-fit.js가 넣는다.)
+ *
+ * 그래서 이 프로젝트 CSS에는 vw·vh·clamp()로 크기를 바꾸는 규칙도,
+ * 화면 폭에 따라 배치를 바꾸는 미디어 쿼리도 두지 않는다. 넣으면 창 비율이 바뀔 때
+ * UI가 늘어나거나 눌린다. 크기는 설계 좌표(px)로만 적는다.
+ *
+ * .ui-scaled — 화면 한가운데 놓이는 카드/다이얼로그에 건다. 레이아웃 폭은 설계 px
+ * 그대로 두고 그림만 균일 축소하므로, 감싸는 판은 overflow: hidden이어야 한다.
+ * (그래서 창이 작아져도 스크롤이 생기거나 버튼이 잘리지 않는다.)
+ */
+.ui-scaled {
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: center center;
+}
+
+/*
+ * HUD 레이어 — 캔버스 위에 겹치는 플레이 화면 UI(상단바·일시정지·피치 패널·명령 카드).
+ * 배율 식이 Phaser Scale.FIT과 같아서 레터박스된 캔버스와 정확히 같은 사각형에 놓인다.
+ */
+.hud-layer {
+  position: absolute;
+  z-index: 10;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--ui-scale, 1));
+  transform-origin: center center;
+  pointer-events: none;
+}
+
 .app-shell {
   position: fixed;
   inset: 0;
+  overflow: hidden;
   width: 100%;
   height: 100%;
   height: 100dvh;
@@ -63,7 +100,7 @@ button {
 h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 5vw, 3.8rem);
+  font-size: 3.8rem;
   font-weight: 400;
   line-height: 0.96;
   letter-spacing: -0.03em;
@@ -122,4 +159,3 @@ h1 span {
 #game-container canvas {
   display: block;
 }
-

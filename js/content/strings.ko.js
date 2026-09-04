@@ -60,7 +60,8 @@ const STRINGS = Object.freeze({
     retryCalibration: "다시 측정",
     reconnect: "다시 연결",
     retryStage: "다시 도전",
-    mainMenu: "메인 화면으로",
+    /* 피치 조정 UI의 보조 버튼 — 어느 단계에서 눌러도 왔던 화면으로 되돌아간다. */
+    mainMenu: "뒤로가기",
     recalibrate: "중간음 다시 측정",
 
     /* 측정을 마쳤을 때의 확인 버튼 — 피치 조정 UI가 덮은 화면(destination)마다 다르다. */

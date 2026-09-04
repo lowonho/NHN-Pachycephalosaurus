@@ -55,6 +55,15 @@
   line-height: 1.7;
 }
 
+/*
+ * 수음 전 · 수음 성공 · 수음 실패에서 패널 크기가 같아야 한다.
+ * 단계마다 달라지는 건 이 설명 문구의 줄 수뿐이라(1줄 또는 2줄) 늘 두 줄 자리를 비워 둔다.
+ * 나머지 요소(제목 한 줄, 파형, .calibration-result, 버튼 둘)는 모든 단계에서 자리를 지킨다.
+ */
+#modal-copy {
+  min-height: 3.4em;
+}
+
 .primary-button,
 .secondary-button {
   width: 100%;
@@ -107,22 +116,28 @@
   margin: 14px 0;
 }
 
+/*
+ * 색은 메인 화면 파형(.menu-wave i)과 같은 오로라 그라데이션을 쓴다.
+ * 그래서 단계 표시는 색이 아니라 밝기로 한다 — 그라데이션은 색끼리 전환되지 않는다.
+ */
 .calibration-visual span {
   width: 9px;
   height: var(--bar-min);
   border-radius: 999px;
-  background: rgba(78, 239, 255, 0.34);
-  transition: background-color 150ms linear;
+  background: linear-gradient(180deg, #ff9ad0, #8fd4ff);
+  opacity: 0.32;
+  transition: opacity 150ms linear, filter 150ms linear;
 }
 
 /* 마이크가 열려 듣는 중 — 아직 소리는 안 들어온 상태. */
 .calibration-visual.listening span {
-  background: var(--cyan);
+  opacity: 1;
 }
 
-/* 게이트를 넘는 소리가 실제로 들어오는 순간. */
+/* 게이트를 넘는 소리가 실제로 들어오는 순간 — 오로라가 한 번 더 피어오른다. */
 .calibration-visual.picking-up span {
-  background: var(--yellow);
+  opacity: 1;
+  filter: saturate(1.5) brightness(1.12) drop-shadow(0 0 7px rgba(255, 154, 208, 0.5));
 }
 
 .calibration-result {
