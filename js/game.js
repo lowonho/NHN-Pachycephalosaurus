@@ -40,6 +40,8 @@ class ArchiveGameBridge {
     mainMenuFlow.setStages(this.stages);
     this.syncAudio();
 
+    window.archiveAudio?.startBgm();
+
     if (this.pendingStageId) {
       const stageId = this.pendingStageId;
       this.pendingStageId = null;
@@ -49,6 +51,7 @@ class ArchiveGameBridge {
 
   start(stageId) {
     if (!stageId) return;
+    this.soundBus.startGameAudio();
     if (!this.api) {
       this.pendingStageId = stageId;
       return;
@@ -158,6 +161,7 @@ class ArchiveGameBridge {
       ? 0
       : this.soundBus.volumes.master * this.soundBus.volumes.sfx;
     window.archiveAudio?.setVolume(volume);
+    window.archiveAudio?.setBgmVolume(this.soundBus.channelVolume("bgm"));
   }
 }
 
@@ -168,6 +172,7 @@ viewportFitter.start();
 window.addEventListener("beforeunload", () => {
   viewportFitter.stop();
   audioBus.destroy();
+  window.archiveAudio?.stopBgm();
   gameEvents.emit(GAME_EVENTS.SCENE_SHUTDOWN, {});
   window.archivePhaserGame?.destroy(true);
 });

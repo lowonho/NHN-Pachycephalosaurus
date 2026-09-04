@@ -38,6 +38,23 @@ class AudioBus {
     }
   }
 
+  startGameAudio() {
+    // Starting the game explicitly enables sound, including saved silent settings.
+    this.muted = false;
+    if (this.volumes.master <= 0) this.volumes.master = 0.8;
+    if (this.volumes.bgm <= 0) this.volumes.bgm = 0.45;
+    this.save();
+    this.apply();
+    this.resume();
+    const audio = window.archiveAudio;
+    if (!audio) return;
+    audio.setBgmVolume(this.channelVolume("bgm"));
+    audio.setVolume(this.channelVolume("sfx"));
+    // Keep play() in the click/keyboard handler; do not await scene loading first.
+    audio.startBgm();
+    audio.ensureContext();
+  }
+
   pausePlayback() {
     this.scene?.sound?.pauseAll();
   }

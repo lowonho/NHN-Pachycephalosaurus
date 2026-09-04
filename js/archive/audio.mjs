@@ -2,10 +2,43 @@ class ArchiveAudio {
   constructor() {
     this.context = null;
     this.volume = 0.55;
+    this.bgm = new Audio("sounds/bgm/bgm_intro.mp3");
+    this.bgm.loop = true;
+    this.bgm.preload = "auto";
+    this.bgm.volume = 0;
+    this.bgmStarted = false;
+    this.bgmUnlockEvents = ["pointerdown", "pointerup", "click", "keydown"];
+    this.unlockBgm = () => this.startBgm();
   }
 
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, Number(value)));
+  }
+
+  setBgmVolume(value) {
+    this.bgm.volume = Math.max(0, Math.min(1, Number(value)));
+  }
+
+  startBgm() {
+    this.bgmStarted = true;
+    // Register before play settles so an early click or touch is never missed.
+    this.bgmUnlockEvents.forEach((event) => document.addEventListener(event, this.unlockBgm));
+    if (this.bgm.error) this.bgm.load();
+    return this.bgm.play().then(() => {
+      this.bgmUnlockEvents.forEach((event) => document.removeEventListener(event, this.unlockBgm));
+      return true;
+    }).catch((error) => {
+      if (this.bgmStarted && error.name !== "NotAllowedError" && error.name !== "AbortError") {
+        console.warn("[audio] BGM playback failed; retrying on the next input.", error);
+      }
+      return false;
+    });
+  }
+
+  stopBgm() {
+    this.bgmStarted = false;
+    this.bgmUnlockEvents.forEach((event) => document.removeEventListener(event, this.unlockBgm));
+    this.bgm.pause();
   }
 
   ensureContext() {
@@ -13,7 +46,7 @@ class ArchiveAudio {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (AudioContext) this.context = new AudioContext();
     }
-    if (this.context?.state === "suspended") this.context.resume();
+    if (this.context?.state === "suspended") this.context.resume().catch(() => {});
     return this.context;
   }
 

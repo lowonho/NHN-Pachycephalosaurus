@@ -127,6 +127,31 @@ try {
   await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click()");
   assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
+  await start('bounce');
+  await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
+  await screen('bounce-course');
+  await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
+  for (const memory of [false, true]) {
+    await start('bounce');
+    const route = await evaluate(`(() => {
+      for (let i = 0; i < 1216 && testScene.mode === 'playing'; i++) {
+        const s = testScene.state;
+        let target = { p1: 145, p2: 265, p3: 447, p4: 583, p5: 675, p6: 810 }[s.lastLanding] ?? 211;
+        if (${memory} && !testScene.fragmentCollected && s.lastLanding === 'p4') target = 447;
+        archiveGame.release('left'); archiveGame.release('right');
+        if (Math.abs(target - s.x) >= 2) archiveGame.press(target > s.x ? 'right' : 'left');
+        testScene.update(0, 1000 / 60);
+      }
+      return { mode: testScene.mode, fragment: testScene.fragmentCollected, title: UI.modalTitle.textContent };
+    })()`);
+    assert.deepEqual(route, { mode: 'done', fragment: memory, title: memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED' });
+  }
+  await start('bounce');
+  await evaluate("Object.assign(testScene.state, { x: 575, y: 560, vy: 150 }); testScene.update(0, 25)");
+  assert.equal(await evaluate('UI.modalTitle.textContent'), 'RECORD LOST');
+  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate('testScene.state.bounces'), 0);
+  assert.equal(await evaluate('testScene.fragmentCollected'), false);
   for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
     await start(stage);
     assert.equal(await evaluate("testScene.timePenalty"), 0, `${stage}: time penalty reset`);

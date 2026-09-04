@@ -2,6 +2,7 @@ import { STAGES } from "./data.mjs";
 import { createProgressStore } from "./progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
 import { GRAVITY_COURSE, createGravityState, applyGravityJump, stepGravity } from "./gravity-core.mjs";
+import { BOUNCE_COURSE, createBounceState, stepBounce } from "./bounce-core.mjs";
 import { audio } from "./audio.mjs";
 import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS, ROUTE, FRAGMENT_ROUTE } from "./level-data.mjs";
 import { createBallState, multiplierForPresses, registerDirection, releaseDirection, riskLabel, stepBall } from "./physics-core.mjs";
@@ -245,6 +246,7 @@ class ArchiveGame extends Phaser.Scene {
     const handlers = {
       maze: () => this.mazePress(direction),
       gravity: () => this.gravityPress(direction),
+      bounce: () => { if (direction === "left" || direction === "right") this.state.direction = direction; },
       friction: () => this.frictionPress(direction),
       darkness: () => this.darknessPress(direction),
       rotation: () => this.rotationPress(direction),
@@ -256,6 +258,7 @@ class ArchiveGame extends Phaser.Scene {
     if (this.mode !== "playing") return;
     const handlers = {
       maze: () => releaseDirection(this.state.ball, direction),
+      bounce: () => { if (this.state.direction === direction) this.state.direction = null; },
       gravity: () => { if (this.state.direction === direction) this.state.direction = null; },
       friction: () => { if (this.state.direction === direction) this.state.direction = null; },
       darkness: () => { if (this.state.direction === direction) this.state.direction = null; },
@@ -270,7 +273,7 @@ class ArchiveGame extends Phaser.Scene {
   }
 
   pointerAction(x, y) {
-    if (this.stageId === "bounce") this.launchBounceBall(x, y);
+
     if (this.stageId === "recoil") this.fireRecoilShot(x, y);
   }
 
@@ -463,78 +466,44 @@ class ArchiveGame extends Phaser.Scene {
     }
   }
 
-  /* 03 — Restitution loop */
+  /* 03 — Growing bounce */
   buildBounce() {
     this.actions = 0;
     this.risk = 0;
-    this.anomaly = "탄성 1.0×";
-    const walls = [
-      ...boundaryWalls(28, 14),
-      { x: 424, y: 150, w: 34, h: 338 },
-      { x: 650, y: 230, w: 24, h: 282 },
-    ];
-    this.drawWalls(walls, 0x315169, 0x789bb7);
-    this.drawGoal(830, 128, 28, "CORE");
-    this.add.text(470, 126, "직선 경로 차단", { fontFamily: "monospace", fontSize: "10px", color: "#6f91a0" });
-    this.state = {
-      x: 118, y: 444, vx: 0, vy: 0, radius: 12, launched: false,
-      walls, target: { x: 830, y: 128, radius: 28 }, collisionCooldown: 0, launchAge: 0,
-    };
-    this.player = this.add.circle(118, 444, 12, 0xf0f8ff).setStrokeStyle(3, 0xb7d4ff).setDepth(5);
-    this.aimLine = this.add.graphics().setDepth(3);
-  }
-
-  launchBounceBall(x, y) {
-    const s = this.state;
-    const speed = Math.hypot(s.vx, s.vy);
-    if (s.launched && speed > 34 && s.launchAge < 0.9) return;
-    if (s.launched) {
-      s.x = 118;
-      s.y = 444;
-      s.vx = 0;
-      s.vy = 0;
+    this.anomaly = "바운스 1.0×";
+    this.state = createBounceState();
+    this.drawWalls(BOUNCE_COURSE.walls.filter(w => !w.oneWay), 0x315169, 0x789bb7);
+    this.drawWalls(BOUNCE_COURSE.walls.filter(w => w.oneWay), 0x5a4930, 0xffd27c);
+    const marks = this.add.graphics();
+    marks.lineStyle(2, 0xf47777, 0.8).lineBetween(145, 532, 930, 532);
+    for (let x = 153; x < 920; x += 24) {
+      marks.lineBetween(x, 529, x + 5, 534).lineBetween(x + 5, 534, x + 10, 529);
     }
-    const dx = x - s.x;
-    const dy = y - s.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    s.vx = dx / length * 470;
-    s.vy = dy / length * 470;
-    s.launched = true;
-    s.launchAge = 0;
-    emit("archive-sfx", { name: "action" });
+    marks.lineStyle(3, 0xffb35d, 0.7).lineBetween(650, 325, 762, 325);
+    const goal = BOUNCE_COURSE.goal;
+    this.drawGoal(goal.x, goal.y, goal.radius, "CORE");
+    this.player = this.add.circle(this.state.x, this.state.y, 12, 0xf0f8ff)
+      .setStrokeStyle(3, 0xb7d4ff).setDepth(5);
   }
 
   updateBounce(dt) {
     const s = this.state;
-    if (s.launched) s.launchAge += dt;
-    if (!s.launched || Math.hypot(s.vx, s.vy) < 34) {
-      const pointer = this.input.activePointer;
-      this.aimLine.clear().lineStyle(2, 0x7bc8ff, 0.46).lineBetween(s.x, s.y, pointer.worldX, pointer.worldY);
-    } else {
-      this.aimLine.clear();
-    }
-    s.x += s.vx * dt;
-    s.y += s.vy * dt;
-    s.collisionCooldown = Math.max(0, s.collisionCooldown - dt);
-    const restitution = clamp(0.88 + this.actions * 0.11, 0.88, 1.72);
-    for (const wall of s.walls) {
-      if (circleRectCollision(s, wall, restitution) && s.collisionCooldown <= 0) {
-        this.actions += 1;
-        s.collisionCooldown = 0.055;
-        this.risk = clamp(this.actions / 7 * 100, 0, 100);
-        this.anomaly = `탄성 ${Math.min(2.7, 1 + this.actions * 0.24).toFixed(1)}×`;
-        this.setCorruption(this.risk);
-        this.shake(55, clamp(0.0018 + this.actions * 0.00045, 0.0018, 0.006));
-        emit("archive-sfx", { name: "warning" });
+    const result = stepBounce(s, dt);
+    this.actions = s.bounces;
+    this.risk = clamp((s.bounceHeight - BOUNCE_COURSE.initialHeight) / (BOUNCE_COURSE.maxHeight - BOUNCE_COURSE.initialHeight) * 100, 0, 100);
+    this.anomaly = `바운스 ${(s.bounceHeight / BOUNCE_COURSE.initialHeight).toFixed(1)}×`;
+    this.setCorruption(this.risk * 0.25);
+    if (result.landed) {
+      emit("archive-sfx", { name: "action" });
+      if (this.settings.effects) {
+        this.tweens.killTweensOf(this.player);
+        this.player.setScale(1.18, 0.82);
+        this.tweens.add({ targets: this.player, scaleX: 1, scaleY: 1, duration: 150 });
       }
     }
-    const speed = Math.hypot(s.vx, s.vy);
-    if (speed > 820) {
-      s.vx = s.vx / speed * 820;
-      s.vy = s.vy / speed * 820;
-    }
-    this.player.setPosition(s.x, s.y).setScale(1 + Math.min(0.65, this.actions * 0.07));
-    if (Math.hypot(s.x - s.target.x, s.y - s.target.y) <= s.radius + s.target.radius) this.finish(true);
+    this.player.setPosition(s.x, s.y);
+    if (result.failed) this.finish(false, "추락으로 기록 소실");
+    else if (result.cleared) this.finish(true);
   }
 
   /* 04 — Recoil array */

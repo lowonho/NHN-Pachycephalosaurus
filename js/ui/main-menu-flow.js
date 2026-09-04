@@ -39,7 +39,7 @@ class MainMenuFlow {
    * 뒤 화면은 보이되 만질 수는 없어야 하므로 modal-flow와 같은 방식으로 inert를 건다.
    */
   openStageSelect() {
-    this.soundBus.resume();
+    this.soundBus.startGameAudio();
     this.renderStages();
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");

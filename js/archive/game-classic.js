@@ -57,13 +57,13 @@ const STAGES = [
     recordSymbol: "◉",
     number: "03",
     code: "RESTITUTION_LOOP",
-    title: "탄성 우회",
-    objective: "공을 발사해 차단벽 너머의 코어에 넣으세요.",
-    anomaly: "충돌할 때마다 탄성이 증가해 더 빠르게 튕깁니다.",
-    controls: "마우스 클릭 / 터치로 발사 방향 지정",
-    actionLabel: "충돌",
+    title: "탄성 과잉",
+    objective: "자동으로 튀는 공을 조절해 턱과 틈을 넘어 코어에 도착하세요.",
+    anomaly: "착지할 때마다 더 높이 튑니다. 천장과 추락에 주의하세요.",
+    controls: "A/D 또는 ←/→ 이동 · 자동 바운스",
+    actionLabel: "착지",
     logTitle: "탄성 채널 복구",
-    log: "충격은 사라지지 않고 다음 충격을 키웠다. 한 번의 정확한 반사가 기록을 고정했다. 복구율 42%.",
+    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다. 복구율 42%.",
   },
   {
     id: "recoil",
@@ -136,10 +136,43 @@ class ArchiveAudio {
   constructor() {
     this.context = null;
     this.volume = 0.55;
+    this.bgm = new Audio("sounds/bgm/bgm_intro.mp3");
+    this.bgm.loop = true;
+    this.bgm.preload = "auto";
+    this.bgm.volume = 0;
+    this.bgmStarted = false;
+    this.bgmUnlockEvents = ["pointerdown", "pointerup", "click", "keydown"];
+    this.unlockBgm = () => this.startBgm();
   }
 
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, Number(value)));
+  }
+
+  setBgmVolume(value) {
+    this.bgm.volume = Math.max(0, Math.min(1, Number(value)));
+  }
+
+  startBgm() {
+    this.bgmStarted = true;
+    // Register before play settles so an early click or touch is never missed.
+    this.bgmUnlockEvents.forEach((event) => document.addEventListener(event, this.unlockBgm));
+    if (this.bgm.error) this.bgm.load();
+    return this.bgm.play().then(() => {
+      this.bgmUnlockEvents.forEach((event) => document.removeEventListener(event, this.unlockBgm));
+      return true;
+    }).catch((error) => {
+      if (this.bgmStarted && error.name !== "NotAllowedError" && error.name !== "AbortError") {
+        console.warn("[audio] BGM playback failed; retrying on the next input.", error);
+      }
+      return false;
+    });
+  }
+
+  stopBgm() {
+    this.bgmStarted = false;
+    this.bgmUnlockEvents.forEach((event) => document.removeEventListener(event, this.unlockBgm));
+    this.bgm.pause();
   }
 
   ensureContext() {
@@ -147,7 +180,7 @@ class ArchiveAudio {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (AudioContext) this.context = new AudioContext();
     }
-    if (this.context?.state === "suspended") this.context.resume();
+    if (this.context?.state === "suspended") this.context.resume().catch(() => {});
     return this.context;
   }
 
@@ -453,6 +486,79 @@ function stepGravity(s, dt) {
 }
 
 
+/* Source: bounce-core.mjs */
+// Fixed horizontal control; only landings increase the next bounce height.
+const BOUNCE_COURSE = {
+  gravity: 900, moveSpeed: 185, initialHeight: 72, heightStep: 24, maxHeight: 216,
+  minimumSupportOverlap: 14,
+  start: { x: 112, y: 488 }, goal: { x: 810, y: 450, radius: 16 },
+  walls: [
+    { id: "start-floor", x: 30, y: 500, w: 115, h: 22 },
+    { id: "p1", x: 200, y: 438, w: 22, h: 16 },
+    { id: "p2", x: 135, y: 350, w: 20, h: 16 },
+    { id: "p3", x: 255, y: 238, w: 20, h: 16 },
+    { id: "p4", x: 438, y: 318, w: 18, h: 16 },
+    { id: "p5", x: 574, y: 405, w: 18, h: 16 },
+    { id: "p6", x: 665, y: 450, w: 20, h: 16 },
+    { id: "end-floor", x: 798, y: 480, w: 24, h: 20 },
+    { id: "low-ceiling", x: 650, y: 48, w: 112, h: 277 },
+  ],
+};
+
+function createBounceState() {
+  return { ...BOUNCE_COURSE.start, vx: 0,
+    vy: -Math.sqrt(2 * BOUNCE_COURSE.gravity * BOUNCE_COURSE.initialHeight),
+    radius: 12, direction: null, bounces: 0, lastLanding: null, bounceHeight: BOUNCE_COURSE.initialHeight,
+    walls: BOUNCE_COURSE.walls,
+  };
+}
+
+function stepBounce(s, dt) {
+  const result = { landed: false, ceilingHit: false, failed: false, cleared: false };
+  // Small steps prevent tunnelling through shelves and obstacle sides.
+  const steps = Math.max(1, Math.ceil(dt / (1 / 240)));
+  const h = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    s.vx = s.direction === "left" ? -BOUNCE_COURSE.moveSpeed : s.direction === "right" ? BOUNCE_COURSE.moveSpeed : 0;
+    s.x = Math.max(42, Math.min(918, s.x + s.vx * h));
+    for (const wall of s.walls) {
+      if (wall.oneWay || s.y + s.radius <= wall.y || s.y - s.radius >= wall.y + wall.h) continue;
+      if (s.x + s.radius > wall.x && s.x - s.radius < wall.x + wall.w) {
+        if (s.vx > 0) s.x = wall.x - s.radius;
+        if (s.vx < 0) s.x = wall.x + wall.w + s.radius;
+      }
+    }
+    const previousY = s.y;
+    s.y += s.vy * h + BOUNCE_COURSE.gravity * h * h / 2;
+    s.vy += BOUNCE_COURSE.gravity * h;
+    for (const wall of s.walls) {
+      const overlap = Math.min(s.x + s.radius, wall.x + wall.w) - Math.max(s.x - s.radius, wall.x);
+      if (overlap <= 0) continue;
+      if (overlap >= BOUNCE_COURSE.minimumSupportOverlap && s.vy >= 0 && previousY + s.radius <= wall.y + 0.01 && s.y + s.radius >= wall.y) {
+        s.y = wall.y - s.radius;
+        s.bounces++;
+        s.lastLanding = wall.id;
+        s.bounceHeight = Math.min(BOUNCE_COURSE.maxHeight, BOUNCE_COURSE.initialHeight + s.bounces * BOUNCE_COURSE.heightStep);
+        s.vy = -Math.sqrt(2 * BOUNCE_COURSE.gravity * s.bounceHeight);
+        result.landed = true;
+        break;
+      }
+      if (!wall.oneWay && s.vy < 0 && previousY - s.radius >= wall.y + wall.h - 0.01 && s.y - s.radius <= wall.y + wall.h) {
+        s.y = wall.y + wall.h + s.radius;
+        s.vy = 0; // Ceiling absorbs the impact instead of starting a ricochet chain.
+        result.ceilingHit = true;
+        break;
+      }
+    }
+    if (s.y < 48) { s.y = 48; s.vy = Math.max(0, s.vy); }
+    result.failed = s.y - s.radius > 540;
+    result.cleared = Math.hypot(s.x - BOUNCE_COURSE.goal.x, s.y - BOUNCE_COURSE.goal.y) <= s.radius + BOUNCE_COURSE.goal.radius;
+    if (result.failed || result.cleared) break;
+  }
+  return result;
+}
+
+
 /* Source: progress.mjs */
 const RECORD_STATUS = Object.freeze({
   DAMAGED: "DAMAGED", PARTIAL: "PARTIALLY RESTORED", FULL: "FULLY RESTORED", LOST: "RECORD LOST",
@@ -500,7 +606,7 @@ function createProgressStore(stageIds, storage = null) {
 const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
   gravity: { x: 307, y: 244, radius: 12, hint: "" },
-  bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
+  bounce: { x: 447, y: 82, radius: 10, hint: "" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
   friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
   darkness: { x: 610, y: 290, radius: 12, hint: "회랑 안쪽의 조각에 접촉" },
@@ -759,6 +865,7 @@ class ArchiveGame extends Phaser.Scene {
     const handlers = {
       maze: () => this.mazePress(direction),
       gravity: () => this.gravityPress(direction),
+      bounce: () => { if (direction === "left" || direction === "right") this.state.direction = direction; },
       friction: () => this.frictionPress(direction),
       darkness: () => this.darknessPress(direction),
       rotation: () => this.rotationPress(direction),
@@ -770,6 +877,7 @@ class ArchiveGame extends Phaser.Scene {
     if (this.mode !== "playing") return;
     const handlers = {
       maze: () => releaseDirection(this.state.ball, direction),
+      bounce: () => { if (this.state.direction === direction) this.state.direction = null; },
       gravity: () => { if (this.state.direction === direction) this.state.direction = null; },
       friction: () => { if (this.state.direction === direction) this.state.direction = null; },
       darkness: () => { if (this.state.direction === direction) this.state.direction = null; },
@@ -784,7 +892,7 @@ class ArchiveGame extends Phaser.Scene {
   }
 
   pointerAction(x, y) {
-    if (this.stageId === "bounce") this.launchBounceBall(x, y);
+
     if (this.stageId === "recoil") this.fireRecoilShot(x, y);
   }
 
@@ -977,78 +1085,44 @@ class ArchiveGame extends Phaser.Scene {
     }
   }
 
-  /* 03 — Restitution loop */
+  /* 03 — Growing bounce */
   buildBounce() {
     this.actions = 0;
     this.risk = 0;
-    this.anomaly = "탄성 1.0×";
-    const walls = [
-      ...boundaryWalls(28, 14),
-      { x: 424, y: 150, w: 34, h: 338 },
-      { x: 650, y: 230, w: 24, h: 282 },
-    ];
-    this.drawWalls(walls, 0x315169, 0x789bb7);
-    this.drawGoal(830, 128, 28, "CORE");
-    this.add.text(470, 126, "직선 경로 차단", { fontFamily: "monospace", fontSize: "10px", color: "#6f91a0" });
-    this.state = {
-      x: 118, y: 444, vx: 0, vy: 0, radius: 12, launched: false,
-      walls, target: { x: 830, y: 128, radius: 28 }, collisionCooldown: 0, launchAge: 0,
-    };
-    this.player = this.add.circle(118, 444, 12, 0xf0f8ff).setStrokeStyle(3, 0xb7d4ff).setDepth(5);
-    this.aimLine = this.add.graphics().setDepth(3);
-  }
-
-  launchBounceBall(x, y) {
-    const s = this.state;
-    const speed = Math.hypot(s.vx, s.vy);
-    if (s.launched && speed > 34 && s.launchAge < 0.9) return;
-    if (s.launched) {
-      s.x = 118;
-      s.y = 444;
-      s.vx = 0;
-      s.vy = 0;
+    this.anomaly = "바운스 1.0×";
+    this.state = createBounceState();
+    this.drawWalls(BOUNCE_COURSE.walls.filter(w => !w.oneWay), 0x315169, 0x789bb7);
+    this.drawWalls(BOUNCE_COURSE.walls.filter(w => w.oneWay), 0x5a4930, 0xffd27c);
+    const marks = this.add.graphics();
+    marks.lineStyle(2, 0xf47777, 0.8).lineBetween(145, 532, 930, 532);
+    for (let x = 153; x < 920; x += 24) {
+      marks.lineBetween(x, 529, x + 5, 534).lineBetween(x + 5, 534, x + 10, 529);
     }
-    const dx = x - s.x;
-    const dy = y - s.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    s.vx = dx / length * 470;
-    s.vy = dy / length * 470;
-    s.launched = true;
-    s.launchAge = 0;
-    emit("archive-sfx", { name: "action" });
+    marks.lineStyle(3, 0xffb35d, 0.7).lineBetween(650, 325, 762, 325);
+    const goal = BOUNCE_COURSE.goal;
+    this.drawGoal(goal.x, goal.y, goal.radius, "CORE");
+    this.player = this.add.circle(this.state.x, this.state.y, 12, 0xf0f8ff)
+      .setStrokeStyle(3, 0xb7d4ff).setDepth(5);
   }
 
   updateBounce(dt) {
     const s = this.state;
-    if (s.launched) s.launchAge += dt;
-    if (!s.launched || Math.hypot(s.vx, s.vy) < 34) {
-      const pointer = this.input.activePointer;
-      this.aimLine.clear().lineStyle(2, 0x7bc8ff, 0.46).lineBetween(s.x, s.y, pointer.worldX, pointer.worldY);
-    } else {
-      this.aimLine.clear();
-    }
-    s.x += s.vx * dt;
-    s.y += s.vy * dt;
-    s.collisionCooldown = Math.max(0, s.collisionCooldown - dt);
-    const restitution = clamp(0.88 + this.actions * 0.11, 0.88, 1.72);
-    for (const wall of s.walls) {
-      if (circleRectCollision(s, wall, restitution) && s.collisionCooldown <= 0) {
-        this.actions += 1;
-        s.collisionCooldown = 0.055;
-        this.risk = clamp(this.actions / 7 * 100, 0, 100);
-        this.anomaly = `탄성 ${Math.min(2.7, 1 + this.actions * 0.24).toFixed(1)}×`;
-        this.setCorruption(this.risk);
-        this.shake(55, clamp(0.0018 + this.actions * 0.00045, 0.0018, 0.006));
-        emit("archive-sfx", { name: "warning" });
+    const result = stepBounce(s, dt);
+    this.actions = s.bounces;
+    this.risk = clamp((s.bounceHeight - BOUNCE_COURSE.initialHeight) / (BOUNCE_COURSE.maxHeight - BOUNCE_COURSE.initialHeight) * 100, 0, 100);
+    this.anomaly = `바운스 ${(s.bounceHeight / BOUNCE_COURSE.initialHeight).toFixed(1)}×`;
+    this.setCorruption(this.risk * 0.25);
+    if (result.landed) {
+      emit("archive-sfx", { name: "action" });
+      if (this.settings.effects) {
+        this.tweens.killTweensOf(this.player);
+        this.player.setScale(1.18, 0.82);
+        this.tweens.add({ targets: this.player, scaleX: 1, scaleY: 1, duration: 150 });
       }
     }
-    const speed = Math.hypot(s.vx, s.vy);
-    if (speed > 820) {
-      s.vx = s.vx / speed * 820;
-      s.vy = s.vy / speed * 820;
-    }
-    this.player.setPosition(s.x, s.y).setScale(1 + Math.min(0.65, this.actions * 0.07));
-    if (Math.hypot(s.x - s.target.x, s.y - s.target.y) <= s.radius + s.target.radius) this.finish(true);
+    this.player.setPosition(s.x, s.y);
+    if (result.failed) this.finish(false, "추락으로 기록 소실");
+    else if (result.cleared) this.finish(true);
   }
 
   /* 04 — Recoil array */
