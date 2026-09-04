@@ -5,8 +5,8 @@
 .pause-button {
   position: absolute;
   z-index: 12;
-  top: 130px;
-  right: 16px;
+  top: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
   gap: 7px;

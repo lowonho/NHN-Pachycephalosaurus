@@ -18,6 +18,7 @@ class MainMenuFlow {
     this.ui = dom;
     this.soundBus = soundBus;
     this.settings = settings;
+    this.stages = [];
 
     this.ui.mainPlayButton?.addEventListener("click", () => this.openStageSelect());
     this.ui.stageSelectBackButton?.addEventListener("click", () => this.closeStageSelect());
@@ -48,9 +49,61 @@ class MainMenuFlow {
    */
   openStageSelect() {
     this.soundBus.resume();
+    this.renderStages();
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
-    this.ui.stageSelectBackButton?.focus();
+    const firstCard = this.ui.stageSelectGrid?.querySelector("button:not(:disabled)");
+    if (firstCard) firstCard.focus();
+    else this.ui.stageSelectBackButton?.focus();
+  }
+
+  setStages(stages) {
+    this.stages = Array.isArray(stages) ? stages : [];
+    this.renderStages();
+  }
+
+  renderStages() {
+    const grid = this.ui.stageSelectGrid;
+    if (!grid) return;
+    grid.replaceChildren();
+
+    if (this.stages.length === 0) {
+      const loading = document.createElement("div");
+      loading.className = "stage-select-card stage-select-card--soon";
+      loading.innerHTML = "<span class=\"stage-number\">LOADING</span><strong>스테이지 불러오는 중</strong><span class=\"stage-description\">게임 엔진을 준비하고 있습니다.</span>";
+      grid.append(loading);
+      return;
+    }
+
+    this.stages.forEach((stage) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "stage-select-card";
+      card.dataset.stageId = stage.id;
+
+      const number = document.createElement("span");
+      number.className = "stage-number";
+      number.textContent = `STAGE ${stage.number}`;
+
+      const title = document.createElement("strong");
+      title.textContent = stage.title;
+
+      const description = document.createElement("span");
+      description.className = "stage-description";
+      description.textContent = stage.objective;
+
+      const duration = document.createElement("span");
+      duration.className = "stage-duration";
+      duration.textContent = "20.26 SEC";
+
+      const controls = document.createElement("span");
+      controls.className = "stage-controls";
+      controls.textContent = stage.controls;
+
+      card.append(number, title, description, controls, duration);
+      card.addEventListener("click", () => this.startStage(stage.id));
+      grid.append(card);
+    });
   }
 
   closeStageSelect() {
@@ -67,6 +120,7 @@ class MainMenuFlow {
   startStage(stageId) {
     this.soundBus.resume();
     this.ui.stageSelectScreen?.classList.add("hidden");
+    this.ui.appShell?.removeAttribute("inert");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
   }
 }

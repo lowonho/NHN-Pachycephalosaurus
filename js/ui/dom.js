@@ -9,8 +9,8 @@ const UI = Object.freeze({
   mainPlayButton: document.querySelector("#main-play-button"),
   mainChallengeButton: document.querySelector("#main-challenge-button"),
 
-  // 스테이지 카드는 3장 모두 준비 중이라 지금은 참조하지 않는다.
   stageSelectScreen: document.querySelector("#stage-select-screen"),
+  stageSelectGrid: document.querySelector("#stage-select-grid"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
 
   settingsBackdrop: document.querySelector("#settings-modal"),
@@ -29,6 +29,12 @@ const UI = Object.freeze({
 
   appShell: document.querySelector(".app-shell"),
   gameContainer: document.querySelector("#game-container"),
+  stageHud: document.querySelector("#stage-hud"),
+  stageHudTitle: document.querySelector("#stage-hud-title"),
+  stageHudTimer: document.querySelector("#stage-hud-timer"),
+  stageHudAction: document.querySelector("#stage-hud-action"),
+  stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
+  stageHudRisk: document.querySelector("#stage-hud-risk"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),
