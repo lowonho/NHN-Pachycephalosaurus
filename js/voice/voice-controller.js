@@ -28,6 +28,7 @@ class VoiceController {
     this.recognition = null;
     this.shouldRecognize = false;
     this.lastTrigger = new Map();
+    this.handledCommandsByResult = new Map();
     this.evaluator = new VoiceEvaluator();
 
     // 매 프레임 발행되는 이벤트라 payload 객체를 재사용해 GC 부담을 줄인다.
@@ -203,10 +204,13 @@ class VoiceController {
     this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 3;
 
+    // 같은 발화의 중간 결과와 최종 결과가 반복 전달돼도 명령은 한 번만 실행한다.
+    this.recognition.onstart = () => this.handledCommandsByResult.clear();
+
     this.recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const candidates = [...event.results[i]].map((item) => item.transcript).join(" ");
-        this.parseCommands(candidates);
+        const alternatives = [...event.results[i]];
+        alternatives.some((candidate) => this.parseCommands(candidate.transcript || "", i));
       }
     };
 
@@ -237,11 +241,28 @@ class VoiceController {
     }
   }
 
-  parseCommands(transcript) {
+  parseCommands(transcript, resultIndex = null) {
     const text = transcript.replace(/\s+/g, "").toLowerCase();
+    const hasResultIndex = Number.isInteger(resultIndex);
+    let handled = hasResultIndex ? this.handledCommandsByResult.get(resultIndex) : null;
+    let matchedAny = false;
+
+    if (hasResultIndex && !handled) {
+      handled = new Set();
+      this.handledCommandsByResult.set(resultIndex, handled);
+    }
+
     COMMAND_DICT.forEach((entry) => {
-      if (entry.words.some((word) => text.includes(word))) this.emitCommand(entry.command);
+      const matched = entry.words.some((word) => text.includes(word));
+      if (!matched) return;
+
+      matchedAny = true;
+      if (handled?.has(entry.command)) return;
+      handled?.add(entry.command);
+      this.emitCommand(entry.command);
     });
+
+    return matchedAny;
   }
 
   emitCommand(command) {
@@ -264,10 +285,12 @@ class VoiceController {
       /* no-op */
     }
     this.recognition = null;
+    this.handledCommandsByResult.clear();
   }
 
   resetCommandState() {
     this.lastTrigger.clear();
+    this.handledCommandsByResult.clear();
     this.recentPitches = [];
     this.recentVolumes = [];
     this.rms = 0;

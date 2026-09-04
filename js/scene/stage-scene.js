@@ -122,11 +122,20 @@ class StageScene extends Phaser.Scene {
     this.keyA = this.input.keyboard.addKey("A");
     this.keyD = this.input.keyboard.addKey("D");
 
-    this.input.keyboard.on("keydown-SPACE", () => this.emitKeyCommand("JUMP"));
-    this.input.keyboard.on("keydown-S", () => this.emitKeyCommand("STOP"));
-    this.input.keyboard.on("keydown-Q", () => this.emitKeyCommand("REVERSE"));
-    this.input.keyboard.on("keydown-E", () => this.emitKeyCommand("GOAL"));
-    this.input.keyboard.on("keydown-R", () => {
+    this.input.keyboard.on("keydown-SPACE", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("JUMP");
+    });
+    this.input.keyboard.on("keydown-S", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("STOP");
+    });
+    this.input.keyboard.on("keydown-Q", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("REVERSE");
+    });
+    this.input.keyboard.on("keydown-E", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("GOAL");
+    });
+    this.input.keyboard.on("keydown-R", (event) => {
+      if (event?.repeat) return;
       if (this.state === STAGE_STATE.ENDED) gameEvents.emit(GAME_EVENTS.REQUEST_RESTART, {});
     });
   }
