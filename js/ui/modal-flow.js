@@ -98,7 +98,7 @@ class ModalFlow {
       : `${stagePrefix}기록 복구 실패. 이번 시도의 조각은 저장되지 않습니다. 이전 복구 기록은 유지됩니다.`;
     ui.modalResult.textContent = success
       ? `${stage?.actionLabel || "입력"} ${actions}회${extra ? ` · ${extra}` : ""}`
-      : copy.failResult;
+      : extra || copy.failResult;
     if (timePenalty > 0) ui.modalResult.textContent += ` · 충돌 시간 차감 −${timePenalty.toFixed(2)}초`;
     if (recovery) ui.modalResult.textContent += ` · ARCHIVE RECOVERY ${recovery.recoveryRate}% · 기억 조각 ${recovery.fragmentCount}/${recovery.totalRecords}`;
     ui.primaryButton.textContent = this.strings.buttons.retryStage;

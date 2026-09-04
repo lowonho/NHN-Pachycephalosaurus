@@ -1,20 +1,19 @@
 export const GRAVITY_COURSE = {
   jumpSpeed: 430, moveSpeed: 190, baseGravity: 720, gravityStep: 80, maxGravity: 1040,
   start: { x: 95, y: 483 },
-  goal: { x: 745, y: 132, minX: 735 },
+  goal: { x: 645, y: 132, minX: 635 },
   platforms: [
-    { id: "floor", x: 30, y: 500, w: 900, h: 20 },
-    { id: "entry", x: 185, y: 416, w: 70, h: 16 },
-    { id: "middle", x: 360, y: 332, w: 62, h: 16 },
-    { id: "upper", x: 530, y: 248, w: 60, h: 16 },
-    { id: "goal", x: 695, y: 164, w: 85, h: 16, goal: true },
+    { id: "floor", x: 30, y: 500, w: 145, h: 20 },
+    { id: "entry", x: 185, y: 416, w: 40, h: 16 },
+    { id: "middle", x: 330, y: 332, w: 36, h: 16 },
+    { id: "upper", x: 470, y: 248, w: 34, h: 16 },
+    { id: "goal", x: 607, y: 164, w: 60, h: 16, goal: true },
     // Optional footholds: fewer jumps on the direct route, more choices around it.
-    { id: "bridge", x: 280, y: 370, w: 48, h: 14 },
-    { id: "left", x: 105, y: 342, w: 62, h: 14 },
-    { id: "memory", x: 230, y: 284, w: 66, h: 14 },
-    { id: "crossing", x: 375, y: 232, w: 62, h: 14 },
-    { id: "merge", x: 510, y: 190, w: 60, h: 14 },
-    { id: "catch", x: 450, y: 400, w: 68, h: 14 },
+    { id: "bridge", x: 267, y: 370, w: 26, h: 14 },
+    { id: "left", x: 95, y: 342, w: 38, h: 14 },
+    { id: "memory", x: 232, y: 284, w: 38, h: 14 },
+    { id: "crossing", x: 390, y: 232, w: 34, h: 14 },
+    { id: "merge", x: 535, y: 190, w: 32, h: 14 },
   ],
 };
 
@@ -56,8 +55,6 @@ export function stepGravity(s, dt) {
       break;
     }
   }
-  if (s.y > 600) {
-    Object.assign(s, GRAVITY_COURSE.start, { vx: 0, vy: 0, onGround: true, support: s.platforms[0] });
-  }
-  return { landed, cleared: Boolean(s.support?.goal && s.onGround && s.x >= GRAVITY_COURSE.goal.minX) };
+  return { landed, failed: s.y - s.height / 2 > 540,
+    cleared: Boolean(s.support?.goal && s.onGround && s.x >= GRAVITY_COURSE.goal.minX) };
 }

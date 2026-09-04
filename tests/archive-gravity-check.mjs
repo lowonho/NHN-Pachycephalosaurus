@@ -3,9 +3,9 @@ import { GRAVITY_COURSE as C, createGravityState, applyGravityJump, stepGravity 
 import { MEMORY_FRAGMENTS, touchesFragment } from "../js/archive/fragments.mjs";
 
 const routes = [
-  { name: '직행', full: false, hops: [['entry',150,220], ['middle',253,390], ['upper',420,560], ['goal',588,717]] },
-  { name: '중간 발판 경유', full: false, hops: [['entry',150,220], ['bridge',250,304], ['middle',326,390], ['upper',420,560], ['goal',588,717]] },
-  { name: '조각 우회', full: true, hops: [['entry',150,220], ['left',190,136], ['memory',165,263], ['crossing',294,405], ['merge',435,540], ['goal',568,717]] },
+  { name: '직행', full: false, hops: [['entry',150,205], ['middle',223,348], ['upper',364,487], ['goal',502,632]] },
+  { name: '중간 발판 경유', full: false, hops: [['entry',150,205], ['bridge',223,280], ['middle',291,348], ['upper',364,487], ['goal',502,632]] },
+  { name: '조각 우회', full: true, hops: [['entry',150,205], ['left',188,114], ['memory',131,251], ['crossing',268,407], ['merge',422,551], ['goal',565,632]] },
 ];
 function run(hz, route, wasted = 0) {
   const dt = 1 / hz, s = createGravityState();
@@ -14,6 +14,7 @@ function run(hz, route, wasted = 0) {
   const tick = () => {
     const previous = { x: s.x, y: s.y };
     const result = stepGravity(s, dt);
+    assert.ok(!result.failed, `${route.name}: fell at ${hz}Hz`);
     time += dt;
     fragment ||= touchesFragment(MEMORY_FRAGMENTS.gravity, s, previous);
     if (result.landed) visited.add(s.support.id);
@@ -34,7 +35,7 @@ function run(hz, route, wasted = 0) {
     } while (!s.onGround);
     assert.equal(s.support, target, `${route.name}: missed ${id} at ${hz}Hz`);
   }
-  walkTo(745);
+  walkTo(C.goal.x);
   tick();
   assert.ok(cleared);
   assert.equal(fragment, route.full);
@@ -50,9 +51,14 @@ for (const route of routes) {
   console.log(`PASS | 최대 중력 ${route.name} | ${result.time.toFixed(2)}초`);
 }
 const early = createGravityState();
-Object.assign(early, { x: 185, y: 399, support: C.platforms[1] });
-applyGravityJump(early, 2);
+Object.assign(early, { x: 470, y: 231, support: C.platforms[3] });
+applyGravityJump(early, 4);
 early.direction = 'right';
 for (let i = 0; i < 100 && !early.onGround; i++) stepGravity(early, 1 / 120);
-assert.notEqual(early.support, C.platforms[2]);
+assert.notEqual(early.support, C.platforms[4]);
+const fallen = createGravityState();
+Object.assign(fallen, { x: 430, y: 565, vy: 180, onGround: false, support: null });
+assert.equal(stepGravity(fallen, 1 / 60).failed, true);
+assert.ok(fallen.y > 565, 'falls must not silently respawn');
+assert.ok(C.platforms.filter(p => p.id !== 'floor' && !p.goal).every(p => p.w <= 40));
 console.log('PASS | too-early takeoff does not reach the direct route target');

@@ -114,10 +114,14 @@ try {
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
   await screen("gravity-course");
   assert.equal(await evaluate("document.querySelector('#stage-hud-fragment').textContent"), '◇ MEMORY 0/1');
-  assert.equal(await evaluate("testScene.state.platforms.length"), 11);
+  assert.equal(await evaluate("testScene.state.platforms.length"), 10);
   assert.equal(await evaluate("testScene.children.list.some(child => typeof child.text === 'string' && /MEMORY|발판 끝|^0[1-3]$/.test(child.text))"), false);
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
-  await evaluate("testScene.finish(false); document.querySelector('#primary-button').click()");
+  await evaluate("Object.assign(testScene.state, { x: 430, y: 565, vy: 180, onGround: false, support: null }); testScene.update(0, 25)");
+  assert.equal(await evaluate("UI.modalTitle.textContent"), 'RECORD LOST');
+  assert.ok((await evaluate("UI.modalResult.textContent")).includes('추락'));
+  assert.equal(await evaluate("window.archiveProgress.status('gravity')"), 'DAMAGED');
+  await evaluate("document.querySelector('#primary-button').click()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
   await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click()");

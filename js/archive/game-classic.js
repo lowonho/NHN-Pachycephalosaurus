@@ -45,7 +45,7 @@ const STAGES = [
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
-    objective: "발판 사이에서 경로를 찾아 상단 비콘에 도착하세요.",
+    objective: "좁은 발판을 연결해 상단 비콘에 도착하세요. 추락하면 복구 실패입니다.",
     anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",
@@ -391,20 +391,19 @@ function riskLabel(presses) {
 const GRAVITY_COURSE = {
   jumpSpeed: 430, moveSpeed: 190, baseGravity: 720, gravityStep: 80, maxGravity: 1040,
   start: { x: 95, y: 483 },
-  goal: { x: 745, y: 132, minX: 735 },
+  goal: { x: 645, y: 132, minX: 635 },
   platforms: [
-    { id: "floor", x: 30, y: 500, w: 900, h: 20 },
-    { id: "entry", x: 185, y: 416, w: 70, h: 16 },
-    { id: "middle", x: 360, y: 332, w: 62, h: 16 },
-    { id: "upper", x: 530, y: 248, w: 60, h: 16 },
-    { id: "goal", x: 695, y: 164, w: 85, h: 16, goal: true },
+    { id: "floor", x: 30, y: 500, w: 145, h: 20 },
+    { id: "entry", x: 185, y: 416, w: 40, h: 16 },
+    { id: "middle", x: 330, y: 332, w: 36, h: 16 },
+    { id: "upper", x: 470, y: 248, w: 34, h: 16 },
+    { id: "goal", x: 607, y: 164, w: 60, h: 16, goal: true },
     // Optional footholds: fewer jumps on the direct route, more choices around it.
-    { id: "bridge", x: 280, y: 370, w: 48, h: 14 },
-    { id: "left", x: 105, y: 342, w: 62, h: 14 },
-    { id: "memory", x: 230, y: 284, w: 66, h: 14 },
-    { id: "crossing", x: 375, y: 232, w: 62, h: 14 },
-    { id: "merge", x: 510, y: 190, w: 60, h: 14 },
-    { id: "catch", x: 450, y: 400, w: 68, h: 14 },
+    { id: "bridge", x: 267, y: 370, w: 26, h: 14 },
+    { id: "left", x: 95, y: 342, w: 38, h: 14 },
+    { id: "memory", x: 232, y: 284, w: 38, h: 14 },
+    { id: "crossing", x: 390, y: 232, w: 34, h: 14 },
+    { id: "merge", x: 535, y: 190, w: 32, h: 14 },
   ],
 };
 
@@ -446,10 +445,8 @@ function stepGravity(s, dt) {
       break;
     }
   }
-  if (s.y > 600) {
-    Object.assign(s, GRAVITY_COURSE.start, { vx: 0, vy: 0, onGround: true, support: s.platforms[0] });
-  }
-  return { landed, cleared: Boolean(s.support?.goal && s.onGround && s.x >= GRAVITY_COURSE.goal.minX) };
+  return { landed, failed: s.y - s.height / 2 > 540,
+    cleared: Boolean(s.support?.goal && s.onGround && s.x >= GRAVITY_COURSE.goal.minX) };
 }
 
 
@@ -499,7 +496,7 @@ function createProgressStore(stageIds, storage = null) {
 // Initial placements only. Change these independently of the physics and maps.
 const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
-  gravity: { x: 263, y: 260, radius: 12, hint: "" },
+  gravity: { x: 251, y: 260, radius: 12, hint: "" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
   friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
@@ -935,6 +932,7 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "중력 1.0×";
     const platforms = GRAVITY_COURSE.platforms;
     this.drawWalls(platforms, 0x3f4f65, 0x8399b4);
+    this.add.graphics().lineStyle(2, 0xff756d, 0.4).lineBetween(175, HEIGHT - 2, 930, HEIGHT - 2);
     this.drawGoal(GRAVITY_COURSE.goal.x, GRAVITY_COURSE.goal.y, 19, "TOP");
     this.gravityArrows = this.add.graphics().setDepth(2);
     this.state = createGravityState();
@@ -958,6 +956,7 @@ class ArchiveGame extends Phaser.Scene {
   updateGravity(dt) {
     const s = this.state;
     const result = stepGravity(s, dt);
+    if (result.failed) { this.finish(false, "추락으로 기록 소실"); return; }
     if (result.landed) this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
     this.player.setPosition(s.x, s.y);
     if (result.cleared) this.finish(true);
