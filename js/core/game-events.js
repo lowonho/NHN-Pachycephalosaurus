@@ -28,6 +28,11 @@ const GAME_EVENTS = Object.freeze({
   REQUEST_RESTART: "request:restart", // {}
   REQUEST_PAUSE: "request:pause", // {}
   REQUEST_RESUME: "request:resume", // {}
+  /*
+   * 스테이지를 접고 프로토콜 선택으로 돌아간다 — 판(2:26)은 그대로 이어진다.
+   * REQUEST_MAIN_MENU와 달리 예산과 복구 기록을 초기화하지 않는다.
+   */
+  REQUEST_STAGE_SELECT: "request:stage-select", // {}
   REQUEST_MAIN_MENU: "request:main-menu", // {}
 
   // 타이머

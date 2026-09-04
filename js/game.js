@@ -23,6 +23,8 @@ class ArchiveGameBridge {
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
     this.events.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pause());
     this.events.on(GAME_EVENTS.REQUEST_RESUME, () => this.resume());
+    // 프로토콜 선택으로 돌아갈 때도 스테이지는 똑같이 내린다(판 예산만 그대로 이어진다).
+    this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop());
     this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
   }

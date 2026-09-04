@@ -16,9 +16,14 @@
   /* minmax(0, 1fr) — auto 트랙으로 두면 로고 이미지의 고유 폭(960px)이
      트랙을 부풀려서 자식들의 % 폭이 화면 밖으로 넘친다. */
   grid-template-columns: minmax(0, 1fr);
+  /* 행도 minmax(0, 1fr)로 못 박는다 — auto 행은 카드 높이(설계 px)만큼 부풀어서
+     창이 그보다 짧아지면 트랙이 넘치고, place-items는 넘친 트랙을 되돌리지 못한다
+     (align-content 기본값 start = 위쪽에 붙고 아래가 잘림). 1fr이면 트랙이 항상
+     창 높이라 --ui-scale로 줄인 카드가 화면 정중앙에 남는다. */
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
-  padding: 40px 20px;
+  padding: 0 20px;
   background:
     radial-gradient(circle at 50% 30%, rgba(31, 92, 255, 0.28), transparent 42%),
     radial-gradient(circle at 14% 82%, rgba(255, 143, 197, 0.14), transparent 32%),
@@ -32,8 +37,13 @@
 .main-menu-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  /* 행도 minmax(0, 1fr)로 못 박는다 — auto 행은 카드 높이(설계 px)만큼 부풀어서
+     창이 그보다 짧아지면 트랙이 넘치고, place-items는 넘친 트랙을 되돌리지 못한다
+     (align-content 기본값 start = 위쪽에 붙고 아래가 잘림). 1fr이면 트랙이 항상
+     창 높이라 --ui-scale로 줄인 카드가 화면 정중앙에 남는다. */
+  grid-template-rows: minmax(0, 1fr);
   justify-items: center;
-  width: 640px;
+  width: 1280px;
   text-align: center;
 }
 
@@ -42,13 +52,13 @@
 /*
  * 로고 폭 — 설계 화면(1920×1080) 기준 고정값.
  *
- * 높이는 원본 비율(1.714)로 치면 332px이지만 256px로 잘라 쓴다.
+ * 높이는 원본 비율(1.714)로 치면 669px이지만 515px로 잘라 쓴다.
  * 에셋 아래쪽에 "음성 조작 밈 게임" 리본이 그려져 있는데, 음성 조작을 걷어내면서
  * 맞지 않게 된 문구라 잘라 낸다. 리본 없는 로고로 교체하면 이 높이 제한을 지운다.
  */
 .menu-logo {
-  width: 570px;
-  height: 256px;
+  width: 1146px;
+  height: 515px;
   overflow: hidden;
   margin: 0;
   line-height: 0;
@@ -57,18 +67,18 @@
 .menu-logo img {
   width: 100%;
   height: auto;
-  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 16px 44px rgba(0, 0, 0, 0.45));
 }
 
-/* ── 알약 버튼 3개 ──────────────────────────────────────────────────── */
+/* ── 알약 버튼 2개 ──────────────────────────────────────────────────── */
 
 .main-menu-actions {
   display: grid;
-  gap: 21px;
+  gap: 42px;
   /* 로고와의 간격 — 버튼 묶음을 화면 아래쪽으로 내리는 값이다. */
-  margin-top: 9px;
-  /* 버튼 3개 묶음의 폭 — 설계 화면 기준 고정값. 높이는 각 버튼의 aspect-ratio가 정한다. */
-  width: 273px;
+  margin-top: 18px;
+  /* 버튼 묶음의 폭 — 설계 화면 기준 고정값. 높이는 각 버튼의 aspect-ratio가 정한다. */
+  width: 549px;
 }
 
 /*
@@ -81,7 +91,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 28px;
   padding: 0 14%;
   border: 0;
   background-color: transparent;
@@ -91,10 +101,10 @@
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: 1.32rem;
+  font-size: 2.64rem;
   font-weight: 900;
   letter-spacing: 0.03em;
-  text-shadow: 0 0 6px rgba(90, 52, 38, 0.55), 0 2px 0 rgba(90, 52, 38, 0.85);
+  text-shadow: 0 0 12px rgba(90, 52, 38, 0.55), 0 4px 0 rgba(90, 52, 38, 0.85);
   transition: transform 140ms ease, filter 140ms ease;
 }
 
@@ -110,11 +120,6 @@
   background-image: url("../assets/images/ui/Main/button-start-blank.webp");
 }
 
-.menu-button--challenge {
-  aspect-ratio: 800 / 216.83;
-  background-image: url("../assets/images/ui/Main/button-challenge-blank.webp");
-}
-
 .menu-button--settings {
   aspect-ratio: 800 / 206.67;
   background-image: url("../assets/images/ui/Main/button-settings-blank.webp");
@@ -122,17 +127,17 @@
 
 .menu-button:not(:disabled):hover,
 .menu-button:not(:disabled):focus-visible {
-  transform: translateY(-3px);
+  transform: translateY(-6px);
 }
 
 .menu-button:not(:disabled):active {
-  transform: translateY(4px);
+  transform: translateY(8px);
   filter: brightness(0.94);
 }
 
 .menu-button:focus-visible {
-  outline: 3px solid var(--cyan);
-  outline-offset: -2px;
+  outline: 6px solid var(--cyan);
+  outline-offset: -4px;
   border-radius: 999px;
 }
 
@@ -142,19 +147,5 @@
   opacity: 0.72;
 }
 
-.menu-button-badge {
-  position: absolute;
-  top: 2%;
-  right: 9%;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--yellow);
-  color: var(--ink);
-  font-size: 0.66rem;
-  font-style: normal;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-shadow: none;
-}
 
 /* 설정 화면은 별도 다이얼로그다 — css/settings.css 참고. */

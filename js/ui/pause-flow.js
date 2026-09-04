@@ -23,6 +23,7 @@ class PauseFlow {
     this.events.on(GAME_EVENTS.STAGE_RESUME, () => this.onResumed());
     this.events.on(GAME_EVENTS.STAGE_CLEAR, () => this.onStageEnd());
     this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.onStageEnd());
+    this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.onMainMenu());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.onMainMenu());
 
     window.addEventListener("keydown", (event) => {
