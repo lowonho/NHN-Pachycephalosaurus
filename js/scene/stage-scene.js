@@ -18,6 +18,11 @@ class StageScene extends Phaser.Scene {
     super("StageScene");
     this.state = STAGE_STATE.WAITING;
     this.moveDirection = 0;
+    this.travelDirection = 1;
+    this.currentMoveSpeed = BALANCE.physics.moveSpeed;
+    this.inGoalZone = false;
+    this.jumpLocked = false;
+    this.jumpHasLeftGround = false;
     this.voiceEnabled = false;
     this.warningFired = false;
     this.wasGrounded = true;
@@ -127,7 +132,6 @@ class StageScene extends Phaser.Scene {
     const { goal } = geo.photoZone;
     this.goalZone = this.add.zone(goal.x, goal.y, goal.width, goal.height);
     this.physics.add.existing(this.goalZone, true);
-    this.physics.add.overlap(this.player, this.goalZone, () => this.clearStage());
   }
 
   bindKeyboard() {
@@ -135,9 +139,20 @@ class StageScene extends Phaser.Scene {
     this.keyA = this.input.keyboard.addKey("A");
     this.keyD = this.input.keyboard.addKey("D");
 
-    this.input.keyboard.on("keydown-SPACE", () => this.emitKeyCommand("JUMP"));
-    this.input.keyboard.on("keydown-S", () => this.emitKeyCommand("STOP"));
-    this.input.keyboard.on("keydown-R", () => {
+    this.input.keyboard.on("keydown-SPACE", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("JUMP");
+    });
+    this.input.keyboard.on("keydown-S", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("STOP");
+    });
+    this.input.keyboard.on("keydown-Q", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("REVERSE");
+    });
+    this.input.keyboard.on("keydown-E", (event) => {
+      if (!event?.repeat) this.emitKeyCommand("GOAL");
+    });
+    this.input.keyboard.on("keydown-R", (event) => {
+      if (event?.repeat) return;
       if (this.state === STAGE_STATE.ENDED) gameEvents.emit(GAME_EVENTS.REQUEST_RESTART, {});
     });
   }
@@ -147,6 +162,8 @@ class StageScene extends Phaser.Scene {
     gameEvents.emit(GAME_EVENTS.COMMAND_RECOGNIZED, {
       command,
       level: command === "JUMP" ? voiceController.getPitchLevel() : "MID",
+      volume: BALANCE.voice.movementVolumeMinRms
+        + (BALANCE.voice.movementVolumeMaxRms - BALANCE.voice.movementVolumeMinRms) * 0.5,
       source: "keyboard",
     });
   }
@@ -158,6 +175,11 @@ class StageScene extends Phaser.Scene {
     this.state = STAGE_STATE.PLAYING;
     this.voiceEnabled = voiceEnabled && Boolean(voiceController.stream);
     this.moveDirection = 0;
+    this.travelDirection = 1;
+    this.currentMoveSpeed = BALANCE.physics.moveSpeed;
+    this.inGoalZone = false;
+    this.jumpLocked = false;
+    this.jumpHasLeftGround = false;
     this.warningFired = false;
     this.wasGrounded = true;
     this.pausedAt = 0;
@@ -182,26 +204,63 @@ class StageScene extends Phaser.Scene {
     }
   }
 
-  applyCommand({ command, level = "MID" }) {
+  applyCommand({ command, level = "MID", volume }) {
     if (this.state !== STAGE_STATE.PLAYING) return;
 
-    if (command === "LEFT") this.moveDirection = -1;
-    if (command === "RIGHT") this.moveDirection = 1;
+    if (command === "MOVE") {
+      this.currentMoveSpeed = this.getMovementSpeed(volume);
+      this.moveDirection = this.travelDirection;
+      return;
+    }
+
     if (command === "STOP") {
       this.moveDirection = 0;
-      this.player.setVelocityX(0);
+      return;
+    }
+
+    if (command === "REVERSE") {
+      const velocityDirection = Math.sign(this.player.body.velocity.x);
+      const currentDirection = this.moveDirection || velocityDirection || this.travelDirection || 1;
+      this.travelDirection = -currentDirection;
+      this.moveDirection = this.travelDirection;
+      return;
+    }
+
+    if (command === "GOAL") {
+      if (this.isInGoalZone()) {
+        this.clearStage();
+      } else {
+        gameEvents.emit(GAME_EVENTS.COMMAND_REJECTED, { command, reason: "outside-goal" });
+      }
+      return;
     }
 
     if (command !== "JUMP") return;
 
-    if (!this.isGrounded()) {
+    if (this.jumpLocked || !this.isGrounded()) {
       gameEvents.emit(GAME_EVENTS.COMMAND_REJECTED, { command, reason: "airborne" });
       return;
     }
 
     const jumpPower = BALANCE.physics.jumpPower[level] || BALANCE.physics.jumpPower.MID;
+    this.jumpLocked = true;
+    this.jumpHasLeftGround = false;
     this.player.setVelocityY(jumpPower);
     gameEvents.emit(GAME_EVENTS.PLAYER_JUMP, { level, direction: this.moveDirection });
+  }
+
+  getMovementSpeed(volume) {
+    const { moveSpeed, moveSpeedMin, moveSpeedMax } = BALANCE.physics;
+    const { movementVolumeMinRms, movementVolumeMaxRms } = BALANCE.voice;
+    if (!Number.isFinite(volume)) return moveSpeed;
+
+    const range = movementVolumeMaxRms - movementVolumeMinRms;
+    const ratio = Math.max(0, Math.min(1, (volume - movementVolumeMinRms) / range));
+    return moveSpeedMin + (moveSpeedMax - moveSpeedMin) * ratio;
+  }
+
+  isInGoalZone() {
+    return Boolean(this.goalZone && this.physics.overlap(this.player, this.goalZone));
   }
 
   isGrounded() {
@@ -222,12 +281,26 @@ class StageScene extends Phaser.Scene {
 
     if (this.state !== STAGE_STATE.PLAYING) return;
 
-    if (this.cursors.left.isDown || this.keyA.isDown) this.moveDirection = -1;
-    if (this.cursors.right.isDown || this.keyD.isDown) this.moveDirection = 1;
-    if (this.moveDirection) this.player.setVelocityX(this.moveDirection * BALANCE.physics.moveSpeed);
+    if (this.cursors.left.isDown || this.keyA.isDown) {
+      this.travelDirection = -1;
+      this.moveDirection = -1;
+      this.currentMoveSpeed = BALANCE.physics.moveSpeed;
+    } else if (this.cursors.right.isDown || this.keyD.isDown) {
+      this.travelDirection = 1;
+      this.moveDirection = 1;
+      this.currentMoveSpeed = BALANCE.physics.moveSpeed;
+    }
+    if (this.moveDirection) this.player.setVelocityX(this.moveDirection * this.currentMoveSpeed);
+
+    this.inGoalZone = this.isInGoalZone();
 
     // 공중 → 지면 전환을 착지로 본다.
     const grounded = this.isGrounded();
+    if (this.jumpLocked && !grounded) this.jumpHasLeftGround = true;
+    if (grounded && this.jumpHasLeftGround) {
+      this.jumpLocked = false;
+      this.jumpHasLeftGround = false;
+    }
     if (grounded && !this.wasGrounded) gameEvents.emit(GAME_EVENTS.PLAYER_LAND, {});
     this.wasGrounded = grounded;
 
@@ -248,6 +321,9 @@ class StageScene extends Phaser.Scene {
     this.state = STAGE_STATE.ENDED;
     voiceController.stopRecognition();
     this.moveDirection = 0;
+    this.inGoalZone = false;
+    this.jumpLocked = false;
+    this.jumpHasLeftGround = false;
     this.player.setVelocity(0, 0);
     this.physics.pause();
   }
@@ -310,6 +386,10 @@ class StageScene extends Phaser.Scene {
     window.clearTimeout(this.resultTimeout);
     voiceController.stopRecognition();
     this.moveDirection = 0;
+    this.travelDirection = 1;
+    this.inGoalZone = false;
+    this.jumpLocked = false;
+    this.jumpHasLeftGround = false;
     this.state = STAGE_STATE.WAITING;
     this.physics.pause();
     this.scene.restart();

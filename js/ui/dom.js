@@ -4,17 +4,13 @@
  */
 
 const UI = Object.freeze({
-  titleScreen: document.querySelector("#title-screen"),
-  titleStartButton: document.querySelector("#title-start-button"),
-
   mainMenu: document.querySelector("#main-menu"),
-  mainMicStatus: document.querySelector("#main-mic-status"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainSettingsPanel: document.querySelector("#main-settings-panel"),
   mainPlayButton: document.querySelector("#main-play-button"),
+  mainChallengeButton: document.querySelector("#main-challenge-button"),
   mainMicButton: document.querySelector("#main-mic-button"),
   stageSelectScreen: document.querySelector("#stage-select-screen"),
-  stageSelectOpenButton: document.querySelector("#stage-select-open-button"),
   stageSelectConfirmButton: document.querySelector("#stage-select-confirm-button"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
   stageGeojeButton: document.querySelector("#stage-geoje-button"),
@@ -31,6 +27,10 @@ const UI = Object.freeze({
 
   pitchNeedle: document.querySelector("#pitch-needle"),
   pitchLabel: document.querySelector("#pitch-label"),
+  voiceWaveform: document.querySelector("#voice-waveform"),
+  voiceInputState: document.querySelector("#voice-input-state"),
+  voiceTranscriptKind: document.querySelector("#voice-transcript-kind"),
+  voiceTranscript: document.querySelector("#voice-transcript"),
   commandDeck: document.querySelector("#command-deck"),
 
   helpToggle: document.querySelector("#help-toggle"),

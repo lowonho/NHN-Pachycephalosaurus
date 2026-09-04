@@ -21,15 +21,19 @@ class VoiceController {
     this.pitch = 0;
     this.pitchSamples = [];
     this.recentPitches = [];
+    this.rms = 0;
+    this.recentVolumes = [];
     this.animationFrame = 0;
 
     this.recognition = null;
     this.shouldRecognize = false;
     this.lastTrigger = new Map();
+    this.handledCommandsByResult = new Map();
     this.evaluator = new VoiceEvaluator();
 
     // 매 프레임 발행되는 이벤트라 payload 객체를 재사용해 GC 부담을 줄인다.
     this.pitchPayload = { hz: 0, semitones: 0, level: "MID" };
+    this.inputPayload = { rms: 0, samples: null };
   }
 
   async connect() {
@@ -63,6 +67,14 @@ class VoiceController {
     const detected = this.autoCorrelate(this.buffer, this.audioContext.sampleRate);
     const now = performance.now();
 
+    this.inputPayload.rms = this.rms;
+    this.inputPayload.samples = this.buffer;
+    this.events.emit(GAME_EVENTS.VOICE_INPUT, this.inputPayload);
+
+    if (this.rms >= this.config.rmsGate) {
+      this.recentVolumes.push({ value: this.rms, time: now });
+    }
+
     if (detected > this.config.pitchMinHz && detected < this.config.pitchMaxHz) {
       this.pitch = detected;
       this.recentPitches.push({ value: detected, time: now });
@@ -73,6 +85,9 @@ class VoiceController {
 
     this.recentPitches = this.recentPitches.filter(
       (sample) => now - sample.time < this.config.recentWindowMs,
+    );
+    this.recentVolumes = this.recentVolumes.filter(
+      (sample) => now - sample.time < this.config.volumeWindowMs,
     );
     this.animationFrame = requestAnimationFrame(() => this.monitorPitch());
   }
@@ -88,6 +103,7 @@ class VoiceController {
     let rms = 0;
     for (let i = 0; i < buffer.length; i += 1) rms += buffer[i] * buffer[i];
     rms = Math.sqrt(rms / buffer.length);
+    this.rms = rms;
     if (rms < this.config.rmsGate) return -1;
 
     let start = 0;
@@ -173,6 +189,15 @@ class VoiceController {
     return this.evaluator.getLevel(this.getRecentPitch(), this.basePitch);
   }
 
+  getRecentVolume() {
+    const now = performance.now();
+    const values = this.recentVolumes
+      .filter((sample) => now - sample.time < this.config.volumeWindowMs)
+      .map((sample) => sample.value);
+    if (!values.length) return this.config.movementVolumeMinRms;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
   startRecognition() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) return false;
@@ -184,10 +209,25 @@ class VoiceController {
     this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 3;
 
+    // 같은 발화의 중간 결과와 최종 결과가 반복 전달돼도 명령은 한 번만 실행한다.
+    this.recognition.onstart = () => this.handledCommandsByResult.clear();
+
     this.recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const candidates = [...event.results[i]].map((item) => item.transcript).join(" ");
-        this.parseCommands(candidates);
+        const alternatives = [...event.results[i]];
+        let understoodText = alternatives[0]?.transcript || "";
+
+        alternatives.some((candidate) => {
+          const transcript = candidate.transcript || "";
+          if (!this.parseCommands(transcript, i)) return false;
+          understoodText = transcript;
+          return true;
+        });
+
+        this.events.emit(GAME_EVENTS.VOICE_TRANSCRIPT, {
+          text: understoodText.trim(),
+          isFinal: Boolean(event.results[i].isFinal),
+        });
       }
     };
 
@@ -218,11 +258,28 @@ class VoiceController {
     }
   }
 
-  parseCommands(transcript) {
+  parseCommands(transcript, resultIndex = null) {
     const text = transcript.replace(/\s+/g, "").toLowerCase();
+    const hasResultIndex = Number.isInteger(resultIndex);
+    let handled = hasResultIndex ? this.handledCommandsByResult.get(resultIndex) : null;
+    let matchedAny = false;
+
+    if (hasResultIndex && !handled) {
+      handled = new Set();
+      this.handledCommandsByResult.set(resultIndex, handled);
+    }
+
     COMMAND_DICT.forEach((entry) => {
-      if (entry.words.some((word) => text.includes(word))) this.emitCommand(entry.command);
+      const matched = entry.words.some((word) => text.includes(word));
+      if (!matched) return;
+
+      matchedAny = true;
+      if (handled?.has(entry.command)) return;
+      handled?.add(entry.command);
+      this.emitCommand(entry.command);
     });
+
+    return matchedAny;
   }
 
   emitCommand(command) {
@@ -232,6 +289,7 @@ class VoiceController {
     this.events.emit(GAME_EVENTS.COMMAND_RECOGNIZED, {
       command,
       level: this.getPitchLevel(),
+      volume: this.getRecentVolume(),
       source: "voice",
     });
   }
@@ -244,11 +302,15 @@ class VoiceController {
       /* no-op */
     }
     this.recognition = null;
+    this.handledCommandsByResult.clear();
   }
 
   resetCommandState() {
     this.lastTrigger.clear();
+    this.handledCommandsByResult.clear();
     this.recentPitches = [];
+    this.recentVolumes = [];
+    this.rms = 0;
   }
 
   destroy() {

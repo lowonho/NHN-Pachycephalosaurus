@@ -23,6 +23,7 @@ class ModalFlow {
     this.strings = strings;
     this.step = MODAL_STEP.INTRO;
     this.destination = "main";
+    this.stageId = "geoje";
 
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
@@ -59,10 +60,19 @@ class ModalFlow {
     ui.secondaryButton.textContent = this.strings.buttons.keyboard;
   }
 
-  beginCalibration(destination = "main") {
+  /*
+   * destination "stage"는 메인 화면의 "게임 시작"에서 들어온 경우다.
+   * 측정이 끝나면 메인으로 돌아가지 않고 곧장 해당 스테이지를 연다.
+   */
+  beginCalibration(destination = "main", stageId = "geoje") {
     this.destination = destination;
+    this.stageId = stageId;
     this.open();
     this.runCalibration();
+  }
+
+  startStage(voiceEnabled) {
+    this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled, stageId: this.stageId });
   }
 
   onPrimary() {
@@ -73,7 +83,7 @@ class ModalFlow {
       if (this.destination === "main") {
         this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       } else {
-        this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled: true });
+        this.startStage(true);
       }
       return;
     }
@@ -95,7 +105,9 @@ class ModalFlow {
       this.step === MODAL_STEP.MIC_ERROR;
 
     if (keyboardFallback) {
-      this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+      // 마이크를 포기해도 흐름은 유지한다 — 게임 시작에서 왔으면 그대로 스테이지로.
+      if (this.destination === "stage") this.startStage(false);
+      else this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       return;
     }
 

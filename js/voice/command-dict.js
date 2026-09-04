@@ -7,11 +7,11 @@
 
 const COMMAND_DICT = Object.freeze([
   Object.freeze({
-    command: "LEFT",
+    command: "MOVE",
     label: "오이데",
-    hint: "← 왼쪽",
+    hint: "▶ 음량으로 출발 속도",
     bubble: "오이데!",
-    className: "command-left",
+    className: "command-move",
     words: Object.freeze(["오이데", "오이대", "오이대요", "오이돼"]),
   }),
   Object.freeze({
@@ -24,19 +24,36 @@ const COMMAND_DICT = Object.freeze([
   }),
   Object.freeze({
     command: "STOP",
-    label: "마떼루요",
-    hint: "■ 정지",
-    bubble: "마떼루요!",
+    label: "맛떼루용",
+    hint: "■ 관성으로 감속",
+    bubble: "맛떼루용!",
     className: "command-stop",
-    words: Object.freeze(["마떼루요", "마테루요", "맛대로요", "마때루요", "기다려요"]),
+    words: Object.freeze([
+      "맛떼루용",
+      "마떼루용",
+      "마테루용",
+      "맛떼루요",
+      "마떼루요",
+      "마테루요",
+      "마때루요",
+      "기다려요",
+    ]),
   }),
   Object.freeze({
-    command: "RIGHT",
+    command: "REVERSE",
     label: "파라파라",
-    hint: "→ 오른쪽",
+    hint: "↔ 진행 방향 변경",
     bubble: "파라파라!",
-    className: "command-right",
+    className: "command-reverse",
     words: Object.freeze(["파라파라", "파라파라요", "팔아팔아", "바라바라"]),
+  }),
+  Object.freeze({
+    command: "GOAL",
+    label: "오이쉬이",
+    hint: "◎ 포토존에서 골인",
+    bubble: "오이쉬이!",
+    className: "command-goal",
+    words: Object.freeze(["오이쉬이", "오이시이", "오이시", "오이쉬", "맛있어"]),
   }),
 ]);
 
