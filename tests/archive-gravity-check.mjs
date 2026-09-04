@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { GRAVITY_COURSE as C, createGravityState, applyGravityJump, stepGravity } from "../js/archive/gravity-core.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "../js/archive/fragments.mjs";
 
+const tail = [['p5',401,453], ['p6',464,517], ['p7',527,582], ['goal',592,647]];
 const routes = [
-  { name: '직행', full: false, hops: [['entry',150,205], ['middle',223,348], ['upper',364,487], ['goal',502,632]] },
-  { name: '중간 발판 경유', full: false, hops: [['entry',150,205], ['bridge',223,280], ['middle',291,348], ['upper',364,487], ['goal',502,632]] },
-  { name: '조각 우회', full: true, hops: [['entry',150,205], ['left',188,114], ['memory',131,251], ['crossing',268,407], ['merge',422,551], ['goal',565,632]] },
+  { name: '초반 두 칸 건너뛰기', full: false, hops: [['p2',170,263], ['p4',279,392], ...tail] },
+  { name: '한 칸씩', full: false, hops: [['p1',160,198], ['p2',214,263], ['p3',279,324], ['p4',336,389], ...tail] },
+  { name: '조각 우회', full: true, hops: [['p2',170,263], ['p3',279,324], ['left',312,239], ['memory',251,304], ['merge',316,403], ['p6',414,517], ['p7',527,582], ['goal',592,647]] },
 ];
 function run(hz, route, wasted = 0) {
   const dt = 1 / hz, s = createGravityState();
@@ -46,19 +47,37 @@ for (const hz of [40, 60, 120]) for (const route of routes) {
   const result = run(hz, route);
   console.log(`PASS | ${route.name} ${hz}Hz | ${result.time.toFixed(2)}초 | 점프 ${result.actions}회`);
 }
-for (const route of routes) {
-  const result = run(60, route, 10);
-  console.log(`PASS | 최대 중력 ${route.name} | ${result.time.toFixed(2)}초`);
+for (const hz of [40, 60, 120]) {
+  const capped = run(hz, routes[1], 10);
+  console.log(`PASS | 최대 중력 한 칸씩 ${hz}Hz | ${capped.time.toFixed(2)}초`);
 }
-const early = createGravityState();
-Object.assign(early, { x: 470, y: 231, support: C.platforms[3] });
-applyGravityJump(early, 4);
-early.direction = 'right';
-for (let i = 0; i < 100 && !early.onGround; i++) stepGravity(early, 1 / 120);
-assert.notEqual(early.support, C.platforms[4]);
+
+// Same takeoff: an early jump can skip p1; a late jump cannot reach p2.
+for (const hz of [40, 60, 120]) {
+  for (const [actions, canSkip] of [[1, true], [8, false]]) {
+    const s = createGravityState();
+    s.x = 170;
+    applyGravityJump(s, actions);
+    let maxRise = 0;
+    for (let i = 0; i < hz * 2 && !s.onGround; i++) {
+      s.direction = s.x < 263 - C.moveSpeed / hz ? 'right' : null;
+      const result = stepGravity(s, 1 / hz);
+      maxRise = Math.max(maxRise, 500 - (s.y + s.height / 2));
+      if (result.failed) break;
+    }
+    assert.equal(s.support?.id === 'p2', canSkip, `${hz}Hz, jump ${actions}`);
+    assert.ok(canSkip ? maxRise >= 96 : maxRise < 96);
+  }
+}
 const fallen = createGravityState();
 Object.assign(fallen, { x: 430, y: 565, vy: 180, onGround: false, support: null });
 assert.equal(stepGravity(fallen, 1 / 60).failed, true);
-assert.ok(fallen.y > 565, 'falls must not silently respawn');
-assert.ok(C.platforms.filter(p => p.id !== 'floor' && !p.goal).every(p => p.w <= 40));
-console.log('PASS | too-early takeoff does not reach the direct route target');
+console.log('PASS | early double-step succeeds, late double-step fails, falling ends the record');
+const ledge = C.platforms.find(p => p.id === 'p7');
+for (const [offset, shouldLand] of [[-12, false], [-3, true]]) {
+  const s = createGravityState();
+  Object.assign(s, { x: ledge.x + offset, y: ledge.y - 18, vy: 120, onGround: false, support: null });
+  stepGravity(s, 0.025);
+  assert.equal(s.support === ledge, shouldLand, 'edge support needs enough overlap');
+}
+console.log('PASS | 1px edge catch rejected, stable landing accepted');

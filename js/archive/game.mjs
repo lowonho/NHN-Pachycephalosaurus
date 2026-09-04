@@ -437,7 +437,7 @@ class ArchiveGame extends Phaser.Scene {
     this.actions += 1;
     applyGravityJump(state, this.actions);
     this.risk = clamp((state.gravity - GRAVITY_COURSE.baseGravity) / (GRAVITY_COURSE.maxGravity - GRAVITY_COURSE.baseGravity) * 100, 0, 100);
-    this.anomaly = `중력 ${(state.gravity / 720).toFixed(1)}×`;
+    this.anomaly = `중력 ${(state.gravity / GRAVITY_COURSE.baseGravity).toFixed(2)}×`;
     this.setCorruption(this.risk * 0.7);
     emit("archive-sfx", { name: "action" });
   }
@@ -446,7 +446,14 @@ class ArchiveGame extends Phaser.Scene {
     const s = this.state;
     const result = stepGravity(s, dt);
     if (result.failed) { this.finish(false, "추락으로 기록 소실"); return; }
-    if (result.landed) this.shake(45, clamp(s.gravity / 500000, 0.0015, 0.004));
+    if (result.landed) {
+      this.shake(60 + this.risk * 0.4, 0.0015 + this.risk * 0.00004);
+      if (this.settings.effects) {
+        this.tweens.killTweensOf(this.player);
+        this.player.setScale(1 + this.risk * 0.0016, 1 - this.risk * 0.002);
+        this.tweens.add({ targets: this.player, scaleX: 1, scaleY: 1, duration: 130, ease: "Quad.Out" });
+      }
+    }
     this.player.setPosition(s.x, s.y);
     if (result.cleared) this.finish(true);
     this.gravityArrows.clear().lineStyle(2, 0xffb35d, 0.18 + this.risk / 170);
