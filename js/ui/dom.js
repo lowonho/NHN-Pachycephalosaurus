@@ -25,6 +25,14 @@ const UI = Object.freeze({
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
   protocolTimer: document.querySelector("#protocol-timer"),
   protocolProgress: document.querySelector("#protocol-progress"),
+
+  /*
+   * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
+   * 복구율은 메인 화면과 프로토콜 선택 화면 두 곳에 같이 뜨므로 목록으로 받는다.
+   */
+  archiveRecoveryRates: document.querySelectorAll("[data-archive-recovery]"),
+  archiveRecoveryDetail: document.querySelector("#archive-recovery-detail"),
+  archiveEndingStatus: document.querySelector("#archive-ending-status"),
   recoveryFailed: document.querySelector("#recovery-failed"),
   recoveryFailedButton: document.querySelector("#recovery-failed-button"),
 

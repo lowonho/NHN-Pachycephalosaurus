@@ -75,6 +75,14 @@ class MainMenuFlow {
   setStages(stages) {
     this.protocolSelect.setStages(stages);
   }
+
+  /*
+   * 한 스테이지가 끝나 ARCHIVE 복구 기록이 갱신됐을 때 game.js가 부른다.
+   * 그 기록을 그리는 것은 프로토콜 선택 화면이므로 그대로 넘긴다.
+   */
+  renderStages() {
+    this.protocolSelect.render();
+  }
 }
 
 const mainMenuFlow = new MainMenuFlow(

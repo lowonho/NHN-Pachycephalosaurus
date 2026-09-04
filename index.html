@@ -7,7 +7,7 @@
       name="description"
       content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
     />
-    <title>20.26</title>
+    <title>2026 ARCHIVE · 20.26</title>
     <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
+    <link rel="stylesheet" href="css/archive.css" />
   </head>
   <body>
     <!--
@@ -34,18 +35,15 @@
     -->
     <div class="main-menu" id="main-menu">
       <section class="main-menu-card ui-scaled" aria-labelledby="main-menu-title">
-        <h1 class="menu-logo" id="main-menu-title">
-          <img
-            src="assets/images/ui/Main/title-logo-20-26.webp"
-            alt="20.26"
-            width="960"
-            height="560"
-          />
-        </h1>
+        <p class="archive-eyebrow">MEMORY PRESERVATION SYSTEM / 2026</p>
+        <h1 class="archive-title" id="main-menu-title">2026<br><span>ARCHIVE</span></h1>
+        <p class="archive-system-log">SYSTEM ERROR DETECTED<br>PHYSICAL DATA CORRUPTED<br>RECOVERY REQUIRED</p>
+        <p class="archive-premise">빨리 해야 하는데, 움직일수록 더 망가진다.<br>20.26초 안에 손상된 기록을 복구하세요.</p>
+        <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
 
         <div class="main-menu-actions">
           <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <span>게임 시작</span>
+            <span>기록 복구 시작</span>
           </button>
 
           <button
@@ -159,12 +157,16 @@
       1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 7개가 데스크톱 앱처럼 놓인다.
       (화면 밖의 방·책상·모니터 몸체는 전부 CSS로 그린다. 배경 일러스트 에셋은 쓰지 않는다.)
 
-      컨셉 이미지와 다른 점은 세 가지다.
+      컨셉 이미지와 다른 점은 네 가지다.
         · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 7개를 한 화면에 모두 편다.
         · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
+          다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
+          이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
         · 안내 문구는 한 줄만 왼쪽에 두고, 같은 가로 라인 오른쪽에 2:26 타이머가 온다.
+        · 표제 오른쪽에 ARCHIVE 누적 복구율이, 하단 바에 복구 등급 안내가 붙는다.
+          모두 판을 넘어 남는 기록이라 2:26·RESTORED와는 다른 숫자다.
 
-      타일 내용은 js/ui/protocol-select-flow.js가 채운다.
+      타일 내용과 ARCHIVE 복구 현황은 js/ui/protocol-select-flow.js가 채운다.
     -->
     <div class="stage-select-screen hidden" id="stage-select-screen">
       <div class="protocol-frame">
@@ -174,10 +176,18 @@
           <section class="protocol-screen" aria-labelledby="stage-select-title">
             <header class="protocol-header">
               <p class="protocol-brand">2026 ARCHIVE <span>// PROTOCOL SELECT</span></p>
-              <p class="protocol-meta">
+              <!--
+                ARCHIVE 복구 현황 — 2:26 예산과 달리 판을 넘어 남는 기록이다
+                (js/archive/progress.mjs가 localStorage에 저장한다).
+                숫자는 js/ui/protocol-select-flow.js가 채운다.
+              -->
+              <div class="protocol-archive">
                 <span class="protocol-meta-rule" aria-hidden="true"></span>
-                ARCHIVE SYSTEM v2.0.26
-              </p>
+                <div class="protocol-archive-readout">
+                  <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
+                  <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+                </div>
+              </div>
             </header>
 
             <!-- 안내 문구(좌) + 남은 복구 시간(우) — 같은 가로 라인이다. -->
@@ -201,7 +211,13 @@
             <div class="stage-select-grid" id="stage-select-grid"></div>
 
             <footer class="protocol-footer">
-              <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
+              <div class="protocol-footer-status">
+                <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
+                <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
+                <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
+                <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+                <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
+              </div>
               <button class="protocol-back" id="stage-select-back-button" type="button">
                 <span class="protocol-back-mark" aria-hidden="true">◀</span>
                 <span>뒤로</span>
@@ -271,6 +287,7 @@
             <span id="stage-hud-anomaly">대기</span>
           </div>
           <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
+          <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
         </section>
         <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
           <span aria-hidden="true">Ⅱ</span>
@@ -424,6 +441,10 @@
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/game.js"></script>
-    <script type="module" src="js/archive/game.mjs"></script>
+    <!--
+      ES modules are kept as the source/test files, while this generated classic
+      bundle also works when index.html is opened directly through file://.
+    -->
+    <script src="js/archive/game-classic.js"></script>
   </body>
 </html>

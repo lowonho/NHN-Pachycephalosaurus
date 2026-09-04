@@ -37,6 +37,25 @@ const STRINGS = Object.freeze({
     progress: (restored, total) => `RESTORED ${restored} / ${total}`,
   }),
 
+  /*
+   * ARCHIVE 복구 현황 — 프로토콜 선택 화면 오른쪽 위와 하단 바에 뜬다.
+   *
+   * 위의 protocol.progress(RESTORED n / 7)와 헷갈리기 쉬운데 성격이 다르다.
+   * 그쪽은 이번 판(2:26) 안에서 복구한 개수라 판이 끝나면 0으로 돌아가고,
+   * 여기는 localStorage에 남는 누적 기록이다(js/archive/progress.mjs).
+   *
+   * ending은 7개를 전부 복구했을 때만 뜬다 — 기억 조각을 얼마나 챙겼는지로 갈린다.
+   */
+  archive: Object.freeze({
+    rate: (percent) => `ARCHIVE RECOVERY ${percent}%`,
+    detail: (cleared, fragments, total) => `기록 ${cleared}/${total} · 기억 조각 ${fragments}/${total}`,
+    ending: Object.freeze({
+      complete: "ALL RECORDS RESTORED · 2026년, 별일이 다 있었네.",
+      normal: "ARCHIVE RESTORED · 남은 기억을 복구할 수 있습니다.",
+      incomplete: "RECOVERY INCOMPLETE · SOME MEMORIES WERE LOST",
+    }),
+  }),
+
   result: Object.freeze({
     clearStep: "STAGE CLEAR",
     clearTitle: "20.26초 안에 성공! 🎉",

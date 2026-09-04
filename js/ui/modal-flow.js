@@ -83,21 +83,22 @@ class ModalFlow {
     this.events.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {});
   }
 
-  showResult(success, { elapsed = 0, stage, actions = 0, extra = "" } = {}) {
+  showResult(success, { elapsed = 0, stage, actions = 0, extra = "", fragmentCollected = false, recovery } = {}) {
     const { ui } = this;
     const copy = this.strings.result;
     const elapsedText = Number(elapsed).toFixed(2);
     const stagePrefix = stage?.title ? `${stage.title} · ` : "";
 
     this.open();
-    ui.modalStep.textContent = success ? copy.clearStep : copy.failStep;
-    ui.modalTitle.textContent = success ? copy.clearTitle : copy.failTitle;
+    ui.modalStep.textContent = `RECORD ${stage?.number || ""} / RECOVERY RESULT`;
+    ui.modalTitle.textContent = recovery?.result || (success ? "PARTIALLY RESTORED" : "RECORD LOST");
     ui.modalCopy.textContent = success
-      ? `${stagePrefix}${copy.clearCopy(elapsedText)}`
-      : `${stagePrefix}${copy.failCopy}`;
+      ? `${fragmentCollected ? `${stage?.recordSymbol || "◆"} 기억 조각이 ARCHIVE에 저장되었습니다.` : "◇ 일부 데이터만 복구되었습니다. 조각을 획득한 뒤 목표를 달성하면 완전 복구됩니다."} ${stagePrefix}${elapsedText}초`
+      : `${stagePrefix}기록 복구 실패. 이번 시도의 조각은 저장되지 않습니다. 이전 복구 기록은 유지됩니다.`;
     ui.modalResult.textContent = success
       ? `${stage?.actionLabel || "입력"} ${actions}회${extra ? ` · ${extra}` : ""}`
       : copy.failResult;
+    if (recovery) ui.modalResult.textContent += ` · ARCHIVE RECOVERY ${recovery.recoveryRate}% · 기억 조각 ${recovery.fragmentCount}/${recovery.totalRecords}`;
     ui.primaryButton.textContent = this.strings.buttons.retryStage;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;

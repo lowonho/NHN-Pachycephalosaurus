@@ -21,6 +21,7 @@ export const PROLOGUE = [
 export const STAGES = [
   {
     id: "maze",
+    recordSymbol: "↗",
     number: "01",
     code: "VELOCITY_INDEX",
     title: "가속 미로",
@@ -33,6 +34,7 @@ export const STAGES = [
   },
   {
     id: "gravity",
+    recordSymbol: "↓",
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
@@ -45,6 +47,7 @@ export const STAGES = [
   },
   {
     id: "bounce",
+    recordSymbol: "◉",
     number: "03",
     code: "RESTITUTION_LOOP",
     title: "탄성 우회",
@@ -57,6 +60,7 @@ export const STAGES = [
   },
   {
     id: "recoil",
+    recordSymbol: "⌖",
     number: "04",
     code: "RECOIL_ARRAY",
     title: "반동 사격장",
@@ -69,6 +73,7 @@ export const STAGES = [
   },
   {
     id: "friction",
+    recordSymbol: "≈",
     number: "05",
     code: "FRICTION_DROP",
     title: "무마찰 배송",
@@ -81,6 +86,7 @@ export const STAGES = [
   },
   {
     id: "darkness",
+    recordSymbol: "☼",
     number: "06",
     code: "LIGHT_DECAY",
     title: "소실 회랑",
@@ -93,6 +99,7 @@ export const STAGES = [
   },
   {
     id: "rotation",
+    recordSymbol: "↻",
     number: "07",
     code: "ANGULAR_LOCK",
     title: "각속도 잠금",

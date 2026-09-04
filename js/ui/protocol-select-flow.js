@@ -18,6 +18,15 @@ const RECOVERY_BUDGET_MS = 146_000; // 2:26 — 20.26초 × 7 + 여유
 const RECOVERY_URGENT_MS = 30_000; // 이 아래로 떨어지면 타이머가 깜빡인다.
 
 /*
+ * ARCHIVE 복구 등급 — js/archive/progress.mjs의 RECORD_STATUS와 같은 문자열이다.
+ * 그쪽은 ES 모듈이라 클래식 스크립트인 이 파일에서 import할 수 없어 값만 옮겨 적는다.
+ * (progress.mjs의 값을 바꾸면 여기도 함께 바꿔야 한다.)
+ */
+const RECORD_DAMAGED = "DAMAGED";
+const RECORD_PARTIAL = "PARTIALLY RESTORED";
+const RECORD_FULL = "FULLY RESTORED";
+
+/*
  * 앱 아이콘 — 스테이지가 뒤트는 물리 채널 하나를 그림 하나로 보여 준다.
  * (지침 9절: 물리 상태는 숫자보다 그림으로 알린다.)
  */
@@ -214,6 +223,7 @@ class ProtocolSelectFlow {
     this.renderTiles();
     this.renderTimer();
     this.renderProgress();
+    this.renderArchive();
   }
 
   renderTimer() {
@@ -232,6 +242,42 @@ class ProtocolSelectFlow {
     window.clearTimeout(this.warnHandle);
     delete label.dataset.state;
     label.textContent = this.strings.protocol.progress(this.restored.size, this.stages.length || 7);
+  }
+
+  /*
+   * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
+   *
+   * 위의 renderProgress(RESTORED n / 7)와 성격이 다르다. 그쪽은 이번 판에서
+   * 복구한 개수라 reset()으로 0이 되고, 여기는 localStorage에 저장돼 다음 판에도 남는다.
+   *
+   * 기록은 엔진(js/archive/game.mjs)이 세우므로 엔진이 뜨기 전에는 없을 수 있다.
+   * 그때는 마크업의 기본값(0%)을 그대로 두고 아무것도 건드리지 않는다 —
+   * 0으로 덮어써도 같은 값이라 얻는 것이 없고, 엔진이 뜨면 setStages가 다시 부른다.
+   *
+   * 복구율은 메인 화면에도 같은 [data-archive-recovery]로 떠 있어서 함께 갱신된다.
+   */
+  renderArchive() {
+    const summary = window.archiveProgress?.summary();
+    if (!summary) return;
+
+    this.ui.archiveRecoveryRates?.forEach((element) => {
+      element.textContent = this.strings.archive.rate(summary.recoveryRate);
+    });
+
+    if (this.ui.archiveRecoveryDetail) {
+      this.ui.archiveRecoveryDetail.textContent = this.strings.archive.detail(
+        summary.clearedCount,
+        summary.fragmentCount,
+        summary.totalRecords,
+      );
+    }
+
+    // 엔딩 등급은 7개를 전부 복구했을 때만 뜬다.
+    const ending = this.ui.archiveEndingStatus;
+    if (ending) {
+      ending.hidden = !summary.allCleared;
+      ending.textContent = this.strings.archive.ending[summary.ending] ?? "";
+    }
   }
 
   renderTiles() {
@@ -263,6 +309,14 @@ class ProtocolSelectFlow {
     tile.dataset.stageId = stage.id;
     if (this.restored.has(stage.id)) tile.dataset.restored = "true";
 
+    /*
+     * 이 기록의 ARCHIVE 복구 등급 — 이번 판이 아니라 지금까지 남은 기록이다.
+     * 엔진이 아직 없으면 전부 DAMAGED로 그린다(엔진이 뜨면 setStages가 다시 그린다).
+     */
+    const status = window.archiveProgress?.status(stage.id) ?? RECORD_DAMAGED;
+    const full = status === RECORD_FULL;
+    tile.dataset.recovery = full ? "full" : status === RECORD_PARTIAL ? "partial" : "damaged";
+
     const icon = document.createElement("span");
     icon.className = "protocol-app-icon";
     icon.setAttribute("aria-hidden", "true");
@@ -270,7 +324,8 @@ class ProtocolSelectFlow {
 
     const code = document.createElement("span");
     code.className = "protocol-app-code";
-    code.textContent = `PROTO_${stage.number}`;
+    // ◆ 완전 복구 / ◇ 그 외 — 복구 등급을 글자 하나로 붙인다.
+    code.textContent = `PROTO_${stage.number} · ${full ? "◆" : "◇"}`;
 
     const title = document.createElement("strong");
     title.className = "protocol-app-title";
