@@ -18,7 +18,8 @@
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/main-menu.css" />
-    <link rel="stylesheet" href="css/stage-select.css" />
+    <link rel="stylesheet" href="css/cutscene.css" />
+    <link rel="stylesheet" href="css/protocol-select.css" />
     <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/settings.css" />
@@ -46,24 +47,6 @@
           </button>
 
           <button
-            class="menu-button menu-button--challenge"
-            id="main-challenge-button"
-            type="button"
-            disabled
-            aria-describedby="main-challenge-note"
-          >
-            <img
-              class="menu-button-icon"
-              src="assets/images/ui/Main/icon-trophy.webp"
-              alt=""
-              width="160"
-              height="147"
-            />
-            <span>챌린지 모드</span>
-            <em class="menu-button-badge" id="main-challenge-note">준비 중</em>
-          </button>
-
-          <button
             class="menu-button menu-button--settings"
             id="main-settings-button"
             type="button"
@@ -83,31 +66,197 @@
       </section>
     </div>
 
-    <!-- 스테이지 데이터는 7개 스테이지 엔진이 준비되면 동적으로 채운다. -->
+    <!--
+      컷신 — assets/images/concept/cutscene.png의 UI 배치를 따른다.
+      "게임 시작"을 누르면 스테이지 선택 앞에 한 번 나오고, 끝나거나 SKIP하면 스테이지 선택으로 넘어간다.
+
+      컨셉 이미지와 다른 점은 두 가지다.
+        · 배경 일러스트는 아직 없다. 검정 한 장이고, 준비되면 .cutscene-backdrop에 물린다.
+        · 우측 시스템 패널(RECORD CORRUPTED · STAGE_03 등)은 넣지 않는다.
+
+      대사는 js/content/strings.ko.js의 STRINGS.cutscene.script가 채운다(여기에 적지 않는다).
+    -->
+    <div class="cutscene hidden" id="cutscene" role="dialog" aria-modal="true" aria-label="컷신" tabindex="-1">
+      <div class="cutscene-frame">
+        <div class="cutscene-backdrop" aria-hidden="true"></div>
+
+        <div class="cutscene-brand" aria-hidden="true">
+          <p class="cutscene-brand-title">2026 ARCHIVE</p>
+          <div class="cutscene-brand-rule"></div>
+          <p class="cutscene-brand-sub">VOICE × PLAY × MEMORIES</p>
+          <p class="cutscene-brand-note">RECORDING<br />OUR FUN<br />AGAIN.</p>
+        </div>
+
+        <div class="cutscene-slate">
+          <span class="cutscene-chapter" id="cutscene-chapter">CUTSCENE 01 // SYSTEM ALERT</span>
+          <button
+            class="cutscene-button cutscene-button--slate"
+            id="cutscene-skip-top-button"
+            type="button"
+          >
+            <span>SKIP</span>
+            <span class="cutscene-button-mark" aria-hidden="true">▶▶</span>
+          </button>
+        </div>
+
+        <!-- 지나간 대사. LOG 버튼으로 열고 닫는다. -->
+        <section class="cutscene-log" id="cutscene-log" aria-label="지나간 대사" hidden>
+          <h2 class="cutscene-log-title">LOG</h2>
+          <ul class="cutscene-log-list" id="cutscene-log-list"></ul>
+        </section>
+
+        <div class="cutscene-dialogue">
+          <div class="cutscene-speaker">
+            <span class="cutscene-speaker-name" id="cutscene-speaker-name"></span>
+            <span class="cutscene-wave" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+            </span>
+          </div>
+
+          <div class="cutscene-panel" id="cutscene-panel" data-state="typing">
+            <span class="cutscene-panel-tag" aria-hidden="true">2026 ARCHIVE</span>
+            <p class="cutscene-line" id="cutscene-line" aria-live="polite"></p>
+            <span class="cutscene-next" aria-hidden="true">▼</span>
+          </div>
+
+          <!--
+            AUTO/LOG/SKIP은 패널 아래변에 걸터앉는다(컨셉 이미지와 같다).
+            그래서 .cutscene-panel 밖에 둔다 — 패널은 clip-path로 모서리를 깎기 때문에
+            안에 넣으면 삐져나온 절반이 잘려 나간다.
+          -->
+          <div class="cutscene-controls">
+            <button class="cutscene-button" id="cutscene-auto-button" type="button" aria-pressed="false">
+              <span class="cutscene-button-mark" aria-hidden="true">▶</span>
+              <span>AUTO</span>
+            </button>
+            <button
+              class="cutscene-button"
+              id="cutscene-log-button"
+              type="button"
+              aria-expanded="false"
+              aria-controls="cutscene-log"
+            >
+              <span class="cutscene-button-mark" aria-hidden="true">≡</span>
+              <span>LOG</span>
+            </button>
+            <button class="cutscene-button" id="cutscene-skip-button" type="button">
+              <span class="cutscene-button-mark" aria-hidden="true">▶▶</span>
+              <span>SKIP</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="cutscene-version" aria-hidden="true">
+          VER.0.1.0<br />PROJECT 20.26<br />// ARCHIVE CUTSCENE
+        </p>
+      </div>
+    </div>
+
+    <!--
+      프로토콜 선택 — assets/images/concept/stage select.png의 배치를 따른다.
+      1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 7개가 데스크톱 앱처럼 놓인다.
+      (화면 밖의 방·책상·모니터 몸체는 전부 CSS로 그린다. 배경 일러스트 에셋은 쓰지 않는다.)
+
+      컨셉 이미지와 다른 점은 네 가지다.
+        · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 7개를 한 화면에 모두 편다.
+        · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
+          다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
+          이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
+        · 안내 문구는 한 줄만 왼쪽에 두고, 같은 가로 라인 오른쪽에 2:26 타이머가 온다.
+        · 표제 오른쪽에 ARCHIVE 누적 복구율이, 하단 바에 복구 등급 안내가 붙는다.
+          모두 판을 넘어 남는 기록이라 2:26·RESTORED와는 다른 숫자다.
+
+      타일 내용과 ARCHIVE 복구 현황은 js/ui/protocol-select-flow.js가 채운다.
+    -->
     <div class="stage-select-screen hidden" id="stage-select-screen">
-      <section class="main-menu-card ui-scaled" aria-labelledby="stage-select-title">
-        <div class="main-menu-heading">
-          <div>
-            <p class="menu-kicker">2026 ARCHIVE RECORD LIST</p>
-            <h2 id="stage-select-title">손상된 기록</h2>
-            <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
-            <p id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
-            <p class="archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
-            <p id="archive-ending-status" hidden></p>
-          </div>
+      <div class="protocol-frame">
+        <div class="protocol-room" aria-hidden="true"></div>
+
+        <div class="protocol-monitor">
+          <section class="protocol-screen" aria-labelledby="stage-select-title">
+            <header class="protocol-header">
+              <p class="protocol-brand">2026 ARCHIVE <span>// PROTOCOL SELECT</span></p>
+              <!--
+                ARCHIVE 복구 현황 — 2:26 예산과 달리 판을 넘어 남는 기록이다
+                (js/archive/progress.mjs가 localStorage에 저장한다).
+                숫자는 js/ui/protocol-select-flow.js가 채운다.
+              -->
+              <div class="protocol-archive">
+                <span class="protocol-meta-rule" aria-hidden="true"></span>
+                <div class="protocol-archive-readout">
+                  <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
+                  <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+                </div>
+              </div>
+            </header>
+
+            <!-- 안내 문구(좌) + 남은 복구 시간(우) — 같은 가로 라인이다. -->
+            <div class="protocol-prompt">
+              <h2 class="protocol-prompt-text" id="stage-select-title">복구할 프로토콜을 선택하세요.</h2>
+              <!--
+                role="timer"는 aria-live가 기본 off다. output(=role status)으로 두면
+                초가 바뀔 때마다 스크린 리더가 읽어 버린다.
+              -->
+              <p
+                class="protocol-timer"
+                id="protocol-timer"
+                role="timer"
+                data-state="idle"
+                aria-label="남은 복구 시간"
+              >
+                2:26
+              </p>
+            </div>
+
+            <div class="stage-select-grid" id="stage-select-grid"></div>
+
+            <footer class="protocol-footer">
+              <div class="protocol-footer-status">
+                <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
+                <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
+                <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
+                <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+                <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
+              </div>
+              <button class="protocol-back" id="stage-select-back-button" type="button">
+                <span class="protocol-back-mark" aria-hidden="true">◀</span>
+                <span>뒤로</span>
+              </button>
+            </footer>
+
+            <!-- 스크린 질감(주사선 · 반사광). 클릭을 가로채지 않는다. -->
+            <div class="protocol-scanlines" aria-hidden="true"></div>
+            <div class="protocol-glare" aria-hidden="true"></div>
+          </section>
+
+          <p class="protocol-monitor-mark" aria-hidden="true">2026</p>
         </div>
 
-        <div class="stage-select-grid" id="stage-select-grid">
-          <div class="stage-select-card stage-select-card--soon">
-            <span class="stage-number">LOADING</span>
-            <strong>스테이지 불러오는 중</strong>
-            <span class="stage-description">게임 엔진을 준비하고 있습니다.</span>
-          </div>
+        <div class="protocol-stand" aria-hidden="true">
+          <div class="protocol-stand-neck"></div>
+          <div class="protocol-stand-base"></div>
         </div>
 
-        <div class="main-menu-actions">
-          <button class="secondary-button" id="stage-select-back-button" type="button">메인 화면으로</button>
-        </div>
+        <div class="protocol-desk" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!--
+      복구 실패 — 2:26 안에 프로토콜 7개를 전부 복구하지 못했을 때 뜬다.
+      (지침 13절의 실패 연출 문구 RECORD LOST를 그대로 쓴다.)
+    -->
+    <div
+      class="recovery-failed hidden"
+      id="recovery-failed"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="recovery-failed-title"
+    >
+      <section class="recovery-failed-dialog ui-scaled">
+        <p class="recovery-failed-code">RECORD LOST</p>
+        <h2 class="recovery-failed-title" id="recovery-failed-title">복구 실패</h2>
+        <p class="recovery-failed-copy">2:26 안에 모든 프로토콜을 복구하지 못했습니다.</p>
+        <button class="primary-button" id="recovery-failed-button" type="button">메인 화면으로</button>
       </section>
     </div>
 
@@ -263,6 +412,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
+    <script src="js/config/protocols.js"></script>
     <script src="js/content/strings.ko.js"></script>
 
     <!-- C1 · 이미지 에셋 / C2 · 사운드 에셋 -->
@@ -286,6 +436,8 @@
     <!-- B · 기능 -->
     <script src="js/ui/modal-flow.js"></script>
     <script src="js/ui/settings-flow.js"></script>
+    <script src="js/ui/cutscene-flow.js"></script>
+    <script src="js/ui/protocol-select-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/game.js"></script>

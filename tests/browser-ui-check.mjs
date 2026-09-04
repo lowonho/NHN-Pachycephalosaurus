@@ -78,7 +78,9 @@ check("게임 엔진 로드", initial.gameReady && initial.phaserReady, JSON.str
 check("7개 스테이지 카드 생성", initial.cards === 7, `${initial.cards}개`);
 check("Phaser 캔버스 생성", initial.canvas === 1, `${initial.canvas}개`);
 
+// "게임 시작" → 컷신 → 프로토콜 선택. 컷신은 SKIP으로 건너뛴다.
 await evaluate("document.querySelector('#main-play-button').click()");
+await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
 await wait(80);
 const selectState = await evaluate(`({
   visible: !document.querySelector('#stage-select-screen').classList.contains('hidden'),

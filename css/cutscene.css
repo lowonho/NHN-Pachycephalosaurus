@@ -1,0 +1,402 @@
+/*
+ * A(비주얼) 전용 — 컷신(대사 출력) 화면.
+ * 배치 기준: assets/images/concept/cutscene.png
+ *   좌상단 아카이브 표제 → 우상단 챕터 슬레이트 + SKIP
+ *   → 하단 대사 블록(이름표 + 본문 패널 + AUTO/LOG/SKIP) → 좌하단 버전 표기.
+ *
+ * 컨셉 이미지의 배경 일러스트와 우측 시스템 패널(RECORD CORRUPTED 등)은 아직 넣지 않는다.
+ * 지금은 배경이 검정 한 장이고, 그 위에 대사 UI만 얹는다.
+ * 배경 그림이 준비되면 .cutscene-backdrop 한 곳에만 이미지를 물리면 된다.
+ *
+ * 크기는 전부 1920×1080 설계 좌표(px)다 — css/base.css의 "UI 배율 규칙"을 따른다.
+ * .cutscene-frame이 그 설계 화면 한 장이고, --ui-scale로 통째로 균일 축소된다.
+ */
+
+.cutscene {
+  /* 컷신 전용 팔레트 — 컨셉 이미지의 시안 홀로그램 톤. */
+  --cut-line: #57e8ff;
+  --cut-line-soft: rgba(87, 232, 255, 0.34);
+  --cut-glass: rgba(6, 24, 58, 0.82);
+  --cut-glass-deep: rgba(3, 14, 38, 0.9);
+  --cut-text: #eaf7ff;
+  --cut-dim: #8fb6d8;
+
+  position: fixed;
+  z-index: 38;
+  inset: 0;
+  overflow: hidden;
+  /* 배경 그림이 들어오기 전까지의 바탕. 컷신은 화면을 통째로 덮는다. */
+  background: #000;
+}
+
+.cutscene.hidden {
+  display: none;
+}
+
+/* 화면을 열 때 포커스를 받는 자리일 뿐이라 테두리는 그리지 않는다. */
+.cutscene:focus {
+  outline: none;
+}
+
+/*
+ * 설계 화면 한 장. .hud-layer와 같은 방식으로 1920×1080을 중앙에 놓고 통째로 줄인다.
+ * (창 비율이 달라지면 위아래·좌우에 여백이 생긴다 — .cutscene의 검정 바탕이 그 자리다.)
+ */
+.cutscene-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--ui-scale, 1));
+  transform-origin: center center;
+}
+
+/* 배경 자리 — 나중에 background-image만 갈아 끼운다. */
+.cutscene-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+/* ── 좌상단 표제 ────────────────────────────────────────────────────── */
+
+.cutscene-brand {
+  position: absolute;
+  top: 26px;
+  left: 44px;
+}
+
+.cutscene-brand-title {
+  margin: 0;
+  color: var(--cut-text);
+  font: 900 46px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 24px rgba(87, 232, 255, 0.5);
+}
+
+/* 표제 아래 눈금 — 컨셉 이미지의 바코드 같은 짧은 선 묶음. */
+.cutscene-brand-rule {
+  width: 148px;
+  height: 9px;
+  margin: 9px 0 7px;
+  background: repeating-linear-gradient(90deg, var(--cut-line) 0 3px, transparent 3px 8px);
+  opacity: 0.75;
+}
+
+.cutscene-brand-sub {
+  margin: 0;
+  color: var(--cut-dim);
+  font: 700 15px/1.5 var(--font-ui);
+  letter-spacing: 0.24em;
+}
+
+.cutscene-brand-note {
+  margin: 16px 0 0;
+  color: var(--cut-dim);
+  font: 700 15px/1.5 var(--font-ui);
+  letter-spacing: 0.16em;
+}
+
+/* ── 우상단 슬레이트 ────────────────────────────────────────────────── */
+
+.cutscene-slate {
+  position: absolute;
+  top: 28px;
+  right: 44px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.cutscene-chapter {
+  display: grid;
+  place-items: center;
+  padding: 0 22px;
+  border: 1px solid var(--cut-line-soft);
+  background: var(--cut-glass);
+  color: var(--cut-dim);
+  font: 700 17px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+}
+
+/* ── 하단 대사 블록 ─────────────────────────────────────────────────── */
+
+/*
+ * 좌우 위치는 컨셉 이미지 비율 그대로다 — 왼쪽 1/3은 인물 일러스트 자리로 비워 둔다.
+ * 배경 그림이 들어와도 이 블록은 그 위에 그대로 얹힌다.
+ */
+.cutscene-dialogue {
+  position: absolute;
+  bottom: 92px;
+  left: 592px;
+  width: 1148px;
+}
+
+/*
+ * 이름표 — 본문 패널 위에 걸쳐 앉는 홀로그램 탭.
+ * inline-flex로 두면 인라인 baseline 여백이 아래에 1~4px 생겨 패널 윗변과 사이가 뜬다.
+ * 블록 레벨 flex + fit-content 폭이면 그 틈 없이 패널에 딱 붙는다.
+ */
+.cutscene-speaker {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 20px;
+  height: 62px;
+  margin-left: 26px;
+  padding: 0 30px;
+  border: 2px solid var(--cut-line);
+  border-bottom: 0;
+  /* 위쪽 두 모서리를 깎아 낸 탭 모양 — 컨셉 이미지와 같다. */
+  clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%, 0 16px);
+  background: var(--cut-glass-deep);
+}
+
+.cutscene-speaker-name {
+  color: var(--cut-text);
+  font: 800 30px/1 var(--font-body);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 이름표 오른쪽의 음성 파형 마크. */
+.cutscene-wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+}
+
+.cutscene-wave i {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--cut-line);
+  transform-origin: center;
+  animation: cutscene-wave 900ms ease-in-out infinite;
+}
+
+.cutscene-wave i:nth-child(1) { animation-delay: 0ms; }
+.cutscene-wave i:nth-child(2) { animation-delay: 120ms; }
+.cutscene-wave i:nth-child(3) { animation-delay: 240ms; }
+.cutscene-wave i:nth-child(4) { animation-delay: 360ms; }
+.cutscene-wave i:nth-child(5) { animation-delay: 480ms; }
+.cutscene-wave i:nth-child(6) { animation-delay: 600ms; }
+
+@keyframes cutscene-wave {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* 본문 패널 */
+.cutscene-panel {
+  position: relative;
+  min-height: 196px;
+  padding: 34px 60px 34px 52px;
+  border: 2px solid var(--cut-line);
+  /* 오른쪽 아래 모서리만 크게 깎는다 — 컨셉 이미지와 같은 비대칭 컷. */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%);
+  background: var(--cut-glass);
+  box-shadow: 0 0 42px rgba(87, 232, 255, 0.16), inset 0 0 60px rgba(87, 232, 255, 0.05);
+}
+
+/* 본문 왼쪽의 짧은 시안 악센트 바. */
+.cutscene-panel::before {
+  content: "";
+  position: absolute;
+  top: 38px;
+  left: 26px;
+  width: 4px;
+  height: 62px;
+  background: var(--cut-line);
+}
+
+.cutscene-panel-tag {
+  position: absolute;
+  top: 12px;
+  right: 26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--cut-dim);
+  font: 700 15px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+}
+
+.cutscene-panel-tag::after {
+  content: "";
+  width: 92px;
+  height: 12px;
+  background: repeating-linear-gradient(90deg, var(--cut-line) 0 2px, transparent 2px 6px);
+  opacity: 0.65;
+}
+
+.cutscene-line {
+  margin: 0;
+  /* 한 줄짜리 대사에서도 패널이 쪼그라들지 않게 세 줄 자리를 비워 둔다. */
+  min-height: 3.3em;
+  color: var(--cut-text);
+  font: 400 36px/1.65 var(--font-body);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+  /* 줄바꿈은 대본이 정한다. 대본의 줄바꿈 문자를 그대로 살린다. */
+  white-space: pre-wrap;
+}
+
+/* "다음" 삼각형 — 타자 효과가 끝난 뒤에만 보인다. */
+.cutscene-next {
+  position: absolute;
+  right: 34px;
+  /* 아래변에 걸터앉는 AUTO/LOG/SKIP 줄(패널 안쪽으로 23px 들어온다) 위로 비켜 둔다. */
+  bottom: 48px;
+  color: var(--cut-line);
+  font-size: 24px;
+  line-height: 1;
+  opacity: 0;
+  animation: cutscene-next 1100ms ease-in-out infinite;
+}
+
+.cutscene-panel[data-state="done"] .cutscene-next {
+  opacity: 1;
+}
+
+@keyframes cutscene-next {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+/* ── AUTO / LOG / SKIP ──────────────────────────────────────────────── */
+
+/*
+ * 패널 아래변에 걸터앉는다 — 컨셉 이미지와 같은 위치다.
+ * 버튼 높이(46px)의 절반만큼 아래로 내려 아래변이 버튼 한가운데를 지나게 한다.
+ * 기준은 .cutscene-dialogue이고 그 아래변이 곧 패널의 아래변이다.
+ */
+.cutscene-controls {
+  position: absolute;
+  right: 42px;
+  bottom: -23px;
+  display: flex;
+  gap: 12px;
+}
+
+.cutscene-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 152px;
+  height: 46px;
+  padding: 0;
+  border: 2px solid var(--cut-line);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  background: var(--cut-glass-deep);
+  color: var(--cut-text);
+  font: 800 17px/1 var(--font-ui);
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background 140ms, color 140ms, box-shadow 140ms;
+}
+
+.cutscene-button:hover,
+.cutscene-button:focus-visible {
+  outline: none;
+  background: rgba(87, 232, 255, 0.2);
+  box-shadow: 0 0 22px rgba(87, 232, 255, 0.35);
+}
+
+/* AUTO 켜짐 · LOG 열림 — 눌린 상태를 채운 색으로 알린다. */
+.cutscene-button[aria-pressed="true"],
+.cutscene-button[aria-expanded="true"] {
+  background: var(--cut-line);
+  color: #04142e;
+}
+
+.cutscene-button-mark {
+  font-size: 15px;
+}
+
+/* 우상단 SKIP — 슬레이트 높이에 맞춰 늘어나는 변형. */
+.cutscene-button--slate {
+  width: 118px;
+  height: auto;
+  font-size: 16px;
+}
+
+/* ── 로그(지나간 대사) ──────────────────────────────────────────────── */
+
+.cutscene-log {
+  position: absolute;
+  top: 130px;
+  right: 44px;
+  bottom: 240px;
+  width: 760px;
+  padding: 26px 30px;
+  overflow-y: auto;
+  border: 2px solid var(--cut-line);
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+  background: var(--cut-glass-deep);
+}
+
+.cutscene-log[hidden] {
+  display: none;
+}
+
+.cutscene-log-title {
+  margin: 0 0 16px;
+  color: var(--cut-line);
+  font: 800 18px/1 var(--font-ui);
+  letter-spacing: 0.2em;
+}
+
+.cutscene-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cutscene-log-list li {
+  padding: 14px 0;
+  border-top: 1px solid var(--cut-line-soft);
+  color: var(--cut-text);
+  font: 400 22px/1.6 var(--font-body);
+  white-space: pre-wrap;
+}
+
+.cutscene-log-list strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--cut-line);
+  font: 800 18px/1 var(--font-body);
+  letter-spacing: 0.06em;
+}
+
+.cutscene-log-empty {
+  margin: 0;
+  color: var(--cut-dim);
+  font: 400 20px/1.6 var(--font-body);
+}
+
+/* ── 좌하단 버전 표기 ───────────────────────────────────────────────── */
+
+.cutscene-version {
+  position: absolute;
+  bottom: 30px;
+  left: 44px;
+  margin: 0;
+  color: var(--cut-dim);
+  font: 700 15px/1.6 var(--font-ui);
+  letter-spacing: 0.14em;
+}

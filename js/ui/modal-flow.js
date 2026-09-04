@@ -22,6 +22,7 @@ class ModalFlow {
     // 시작·재시작 요청이 어디서 오든 모달은 여기서 닫는다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.close());
+    this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.close());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.close());
 
     this.events.on(GAME_EVENTS.STAGE_CLEAR, (detail = {}) => this.showResult(true, detail));
@@ -71,10 +72,15 @@ class ModalFlow {
     this.events.emit(GAME_EVENTS.REQUEST_RESTART, {});
   }
 
+  /*
+   * 프로토콜 선택으로 — 메인 화면이 아니다.
+   * 2:26 예산이 한 판 전체를 재고 있어서 메인으로 나가면 그 판이 끝나기 때문이다.
+   * (메인으로 나가는 길은 프로토콜 선택의 "뒤로"가 맡는다.)
+   */
   onSecondary() {
     if (!this.isOpen()) return;
     audioBus.resume();
-    this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+    this.events.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {});
   }
 
   showResult(success, { elapsed = 0, stage, actions = 0, extra = "", fragmentCollected = false, recovery } = {}) {
@@ -96,7 +102,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.retryStage;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
+    ui.secondaryButton.textContent = this.strings.buttons.stageSelect;
   }
 }
 
