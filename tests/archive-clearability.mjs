@@ -13,7 +13,11 @@ function simulate(route, dt, reactionDelay = 0) {
     const sign = ['right', 'down'].includes(waypoint.input) ? 1 : -1;
     const velocity = Math.abs(axis === 'x' ? state.vx : state.vy);
     const distance = (waypoint[axis] - state[axis]) * sign;
-    const stoppingDistance = velocity * velocity / (2 * dragForPresses(state.presses));
+    // Anticipate half a frame of acceleration; later bends have much more
+    // inertia, so a purely continuous stopping estimate reacts too late.
+    const drag = dragForPresses(state.presses);
+    const stoppingDistance = velocity * velocity / (2 * drag)
+      + PHYSICS.baseAcceleration * state.multiplier * dt * velocity / (2 * drag);
     if (!braking && distance <= stoppingDistance + velocity * dt - velocity * reactionDelay) {
       state.input = null;
       braking = true;

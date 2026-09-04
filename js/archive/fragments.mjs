@@ -1,6 +1,6 @@
 // Initial placements only. Change these independently of the physics and maps.
 export const MEMORY_FRAGMENTS = Object.freeze({
-  maze: { x: 830, y: 420, radius: 14, hint: "오른쪽 조각 획득 후 귀환" },
+  maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
   gravity: { x: 85, y: 387, radius: 12, hint: "첫 발판 왼쪽의 조각에 접촉" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },

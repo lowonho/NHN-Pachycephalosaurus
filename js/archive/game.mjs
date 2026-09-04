@@ -2,7 +2,7 @@ import { STAGES } from "./data.mjs";
 import { createProgressStore } from "./progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
 import { audio } from "./audio.mjs";
-import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS } from "./level-data.mjs";
+import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS, ROUTE, FRAGMENT_ROUTE } from "./level-data.mjs";
 import { createBallState, multiplierForPresses, registerDirection, releaseDirection, riskLabel, stepBall } from "./physics-core.mjs";
 
 const WIDTH = VIEWPORT.width;
@@ -333,14 +333,18 @@ class ArchiveGame extends Phaser.Scene {
     this.drawWalls(WALLS, 0x164d48, 0x4ca78f);
     this.drawGoal(GOAL.x, GOAL.y, GOAL.radius);
     const guide = this.add.graphics().setDepth(1);
-    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y)
-      .lineTo(400, 450).lineTo(400, 215).lineTo(GOAL.x, GOAL.y).strokePath();
-    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(740, 215).lineTo(830, 215).lineTo(830, 390).strokePath();
-    this.add.text(175, 405, "01  HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
-    this.add.text(395, 370, "02  TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
-    this.add.text(660, 165, "BRAKE TO RESTORE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
-    this.add.text(825, 270, "MEMORY ↓", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
-    this.add.text(180, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "16px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
+    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y);
+    for (const point of ROUTE) guide.lineTo(point.x, point.y);
+    guide.strokePath();
+    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(GOAL.x, GOAL.y);
+    for (const point of FRAGMENT_ROUTE.slice(4)) guide.lineTo(point.x, point.y);
+    guide.strokePath();
+    this.add.text(175, 405, "HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(300, 365, "TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(515, 290, "TURN ↓", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(GOAL.x, GOAL.y - 48, "BRAKE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
+    this.add.text(850, 365, "MEMORY ↑", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
+    this.add.text(128, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "15px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
     this.state = {
       ball: createBallState(),
       goalHold: 0,

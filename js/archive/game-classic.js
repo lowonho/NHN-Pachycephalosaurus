@@ -190,7 +190,7 @@ const audio = new ArchiveAudio();
 const VIEWPORT = { width: 960, height: 540 };
 const BALL_RADIUS = 12;
 const START = { x: 100, y: 450 };
-const GOAL = { x: 665, y: 215, radius: 30 };
+const GOAL = { x: 715, y: 420, radius: 30 };
 
 const PHYSICS = {
   timeLimit: 20.26,
@@ -204,28 +204,32 @@ const PHYSICS = {
   wallImpactCooldown: 0.45,
 };
 
-// Record 01: two broad corners, then a choice between braking at RESTORE
-// and travelling into the side bay for a fragment. No invisible boundaries.
+// Record 01: four broad S-bends, then an optional loop around the side island.
+// Alternating dividers make the bends real without tightening the first turns.
 const WALLS = [
   { x: 32, y: 126, w: 896, h: 14, kind: "outer" },
   { x: 32, y: 498, w: 896, h: 14, kind: "outer" },
   { x: 32, y: 126, w: 14, h: 386, kind: "outer" },
   { x: 914, y: 126, w: 14, h: 386, kind: "outer" },
-  { x: 46, y: 140, w: 264, h: 212, kind: "divider" },
-  { x: 490, y: 310, w: 240, h: 188, kind: "divider" },
+  { x: 46, y: 140, w: 164, h: 212, kind: "divider" },
+  { x: 400, y: 290, w: 25, h: 208, kind: "divider" },
+  { x: 610, y: 140, w: 25, h: 212, kind: "divider" },
+  { x: 775, y: 295, w: 25, h: 45, kind: "divider" },
 ];
 
 const ROUTE = [
-  { x: 400, y: 450, input: "right" },
-  { x: 400, y: 215, input: "up" },
+  { x: 300, y: 450, input: "right" },
+  { x: 300, y: 215, input: "up" },
+  { x: 515, y: 215, input: "right" },
+  { x: 515, y: 420, input: "down" },
   { ...GOAL, input: "right" },
 ];
 const FRAGMENT_ROUTE = [
-  ...ROUTE.slice(0, 2),
-  { x: 830, y: 215, input: "right" },
-  { x: 830, y: 420, input: "down" },
-  { x: 830, y: 215, input: "up" },
-  { ...GOAL, input: "left" },
+  ...ROUTE.slice(0, 4),
+  { x: 840, y: 420, input: "right" },
+  { x: 840, y: 210, input: "up" },
+  { x: 715, y: 210, input: "left" },
+  { ...GOAL, input: "down" },
 ];
 
 
@@ -428,7 +432,7 @@ function createProgressStore(stageIds, storage = null) {
 /* Source: fragments.mjs */
 // Initial placements only. Change these independently of the physics and maps.
 const MEMORY_FRAGMENTS = Object.freeze({
-  maze: { x: 830, y: 420, radius: 14, hint: "오른쪽 조각 획득 후 귀환" },
+  maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
   gravity: { x: 85, y: 387, radius: 12, hint: "첫 발판 왼쪽의 조각에 접촉" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
@@ -778,14 +782,18 @@ class ArchiveGame extends Phaser.Scene {
     this.drawWalls(WALLS, 0x164d48, 0x4ca78f);
     this.drawGoal(GOAL.x, GOAL.y, GOAL.radius);
     const guide = this.add.graphics().setDepth(1);
-    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y)
-      .lineTo(400, 450).lineTo(400, 215).lineTo(GOAL.x, GOAL.y).strokePath();
-    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(740, 215).lineTo(830, 215).lineTo(830, 390).strokePath();
-    this.add.text(175, 405, "01  HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
-    this.add.text(395, 370, "02  TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
-    this.add.text(660, 165, "BRAKE TO RESTORE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
-    this.add.text(825, 270, "MEMORY ↓", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
-    this.add.text(180, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "16px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
+    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y);
+    for (const point of ROUTE) guide.lineTo(point.x, point.y);
+    guide.strokePath();
+    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(GOAL.x, GOAL.y);
+    for (const point of FRAGMENT_ROUTE.slice(4)) guide.lineTo(point.x, point.y);
+    guide.strokePath();
+    this.add.text(175, 405, "HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(300, 365, "TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(515, 290, "TURN ↓", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(GOAL.x, GOAL.y - 48, "BRAKE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
+    this.add.text(850, 365, "MEMORY ↑", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
+    this.add.text(128, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "15px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
     this.state = {
       ball: createBallState(),
       goalHold: 0,
