@@ -97,7 +97,12 @@ class DujjonkuVoiceController {
     if (this.destroyed || !this.analyser) return;
     const now = performance.now();
     const rms = this.readRms();
-    const above = rms >= this.threshold;
+    // 발성이 시작된 뒤에는 더 낮은 종료 기준을 사용해 긴 "쫀~" 도중의
+    // 짧은 음량 흔들림이 발성 종료와 자동 발사로 오인되지 않게 한다.
+    const activeThreshold = this.voiceActive
+      ? this.threshold * this.config.activeThresholdRatio
+      : this.threshold;
+    const above = rms >= activeThreshold;
     const normalized = Phaser.Math.Clamp(
       (rms - this.noiseFloor) / Math.max(0.025, this.threshold * 3 - this.noiseFloor),
       0,

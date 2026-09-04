@@ -63,6 +63,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.paused = false;
     this.shotsLeft = DUJJONKU_CONFIG.shots;
     this.chargeMs = 0;
+    this.chargeHoldMs = 0;
     this.chargePercent = 0;
     this.voiceLevel = 0;
     this.currentAngle = DUJJONKU_CONFIG.launcher.minAngle;
@@ -76,6 +77,9 @@ class DujjonkuScene extends Phaser.Scene {
     this.micReady = false;
     this.timerActive = false;
     this.waitingVoiceStartedAt = 0;
+    this.awaitingVoiceRelease = false;
+    this.maxChargeNotified = false;
+    this.debugChargeHeld = false;
     this.lastActionAt = 0;
     this.waveSamples = new Array(36).fill(0);
     this.updateStateHud();
@@ -256,7 +260,7 @@ class DujjonkuScene extends Phaser.Scene {
     if (!this.isActiveStage()) return;
     const now = performance.now();
     if (now - this.lastActionAt < 220) return;
-    if (word === "DU" && this.voiceState === DUJJONKU_STATE.WAITING) {
+    if (word === "DU" && this.voiceState === DUJJONKU_STATE.WAITING && !this.awaitingVoiceRelease) {
       this.lastActionAt = now;
       this.loadProjectile();
     } else if (word === "KU" && (
@@ -274,6 +278,7 @@ class DujjonkuScene extends Phaser.Scene {
 
   onVoiceStart() {
     if (!this.isActiveStage()) return;
+    if (this.awaitingVoiceRelease) return;
     if (this.voiceState === DUJJONKU_STATE.WAITING) {
       this.waitingVoiceStartedAt = performance.now();
     } else if (this.voiceState === DUJJONKU_STATE.LOADED) {
@@ -283,6 +288,15 @@ class DujjonkuScene extends Phaser.Scene {
 
   onVoiceEnd() {
     if (!this.isActiveStage()) return;
+    if (this.awaitingVoiceRelease) {
+      this.awaitingVoiceRelease = false;
+      this.waitingVoiceStartedAt = 0;
+      this.lastActionAt = performance.now();
+      if (this.voiceState === DUJJONKU_STATE.WAITING) {
+        this.statusText.setText("‘두’라고 말해 다음 두쫀쿠를 장전하세요!");
+      }
+      return;
+    }
     if (this.voiceState === DUJJONKU_STATE.WAITING && this.waitingVoiceStartedAt) {
       const spokenMs = performance.now() - this.waitingVoiceStartedAt;
       this.waitingVoiceStartedAt = 0;
@@ -294,11 +308,13 @@ class DujjonkuScene extends Phaser.Scene {
   }
 
   loadProjectile() {
-    if (this.voiceState !== DUJJONKU_STATE.WAITING || this.shotsLeft <= 0) return;
+    if (this.voiceState !== DUJJONKU_STATE.WAITING || this.shotsLeft <= 0 || this.awaitingVoiceRelease) return;
     this.voiceState = DUJJONKU_STATE.LOADED;
     this.waitingVoiceStartedAt = 0;
     this.chargeMs = 0;
+    this.chargeHoldMs = 0;
     this.chargePercent = 0;
+    this.maxChargeNotified = false;
     // 장전 중에는 물리 바디가 구조물/월드와 상호작용하지 않는 순수 표시 객체를 쓴다.
     this.projectile = this.add.image(
       DUJJONKU_CONFIG.launcher.x,
@@ -313,6 +329,7 @@ class DujjonkuScene extends Phaser.Scene {
   beginCharge() {
     if (this.voiceState !== DUJJONKU_STATE.LOADED) return;
     this.voiceState = DUJJONKU_STATE.CHARGING;
+    this.chargeHoldMs = 0;
     this.statusText.setText("쫀——! 소리를 놓으면 발사해요");
     this.updateStateHud();
   }
@@ -382,6 +399,36 @@ class DujjonkuScene extends Phaser.Scene {
         }));
       }));
     }
+  }
+
+  breakProjectile() {
+    if (this.voiceState !== DUJJONKU_STATE.CHARGING || !this.projectile) return;
+    this.voiceState = DUJJONKU_STATE.RESETTING;
+    this.awaitingVoiceRelease = true;
+    this.shotsLeft = Math.max(0, this.shotsLeft - 1);
+    const breakX = this.projectile.x;
+    const breakY = this.projectile.y;
+    this.projectile.destroy();
+    this.projectile = null;
+    this.spawnBurst(breakX, breakY, 0xf47fa8, 14);
+    this.statusText.setText("너무 오래 당겨 고무줄이 끊어졌어요!").setColor("#b53f5f");
+    this.lastActionAt = performance.now();
+    this.updateStateHud();
+
+    this.time.delayedCall(DUJJONKU_CONFIG.charge.breakResetDelayMs, () => {
+      if (this.ended) return;
+      if (this.shotsLeft <= 0) return this.failStage("두쫀쿠를 모두 사용했어요!");
+      this.voiceState = DUJJONKU_STATE.WAITING;
+      this.chargeMs = 0;
+      this.chargeHoldMs = 0;
+      this.chargePercent = 0;
+      this.statusText.setColor("#69485c").setText(
+        this.awaitingVoiceRelease
+          ? "목소리를 놓은 뒤 다시 ‘두’라고 말해 주세요"
+          : "‘두’라고 말해 다음 두쫀쿠를 장전하세요!",
+      );
+      this.updateStateHud();
+    });
   }
 
   createCollisionRules() {
@@ -591,7 +638,47 @@ class DujjonkuScene extends Phaser.Scene {
       });
     } else if (autoVoice === "clear-check") {
       this.time.delayedCall(500, () => this.runClearConditionDebug());
+    } else if (autoVoice === "overcharge") {
+      this.time.delayedCall(700, () => this.loadProjectile());
+      this.time.delayedCall(900, () => {
+        this.debugChargeHeld = true;
+        this.voice && (this.voice.voiceActive = true);
+        this.onVoiceStart();
+      });
+      this.time.delayedCall(4100, () => this.reportChargeDebug("max-charge-held"));
+      this.time.delayedCall(5550, () => this.reportChargeDebug("overcharge-broken"));
+      this.time.delayedCall(6500, () => {
+        this.debugChargeHeld = false;
+        this.voice && (this.voice.voiceActive = false);
+        this.onVoiceEnd();
+      });
+      this.time.delayedCall(6900, () => this.reportChargeDebug("ready-after-release"));
+    } else if (autoVoice === "release-check") {
+      this.time.delayedCall(700, () => this.loadProjectile());
+      this.time.delayedCall(900, () => {
+        this.debugChargeHeld = true;
+        this.onVoiceStart();
+      });
+      this.time.delayedCall(2700, () => this.reportChargeDebug("charging-before-release"));
+      this.time.delayedCall(2800, () => {
+        this.debugChargeHeld = false;
+        this.onVoiceEnd();
+      });
+      this.time.delayedCall(3000, () => this.reportChargeDebug("fired-on-release"));
+      this.time.delayedCall(7600, () => this.reportChargeDebug("ready-after-shot"));
     }
+  }
+
+  reportChargeDebug(step) {
+    console.info("[두쫀쿠 충전 진단]", JSON.stringify({
+      step,
+      state: this.voiceState,
+      chargePercent: Math.round(this.chargePercent),
+      chargeHoldMs: Math.round(this.chargeHoldMs),
+      shotsLeft: this.shotsLeft,
+      hasProjectile: Boolean(this.projectile?.active),
+      angle: Math.round(this.currentAngle),
+    }));
   }
 
   runClearConditionDebug() {
@@ -647,7 +734,7 @@ class DujjonkuScene extends Phaser.Scene {
       return;
     }
 
-    if (this.voiceState === DUJJONKU_STATE.LOADED || this.voiceState === DUJJONKU_STATE.CHARGING) {
+    if (this.voiceState === DUJJONKU_STATE.CHARGING) {
       const degreesPerMs = (cfg.launcher.maxAngle - cfg.launcher.minAngle) / (cfg.launcher.angleSweepMs / 2);
       this.currentAngle += degreesPerMs * delta * this.angleDirection;
       if (this.currentAngle >= cfg.launcher.maxAngle || this.currentAngle <= cfg.launcher.minAngle) {
@@ -655,9 +742,17 @@ class DujjonkuScene extends Phaser.Scene {
         this.angleDirection *= -1;
       }
     }
-    if (this.voiceState === DUJJONKU_STATE.CHARGING && this.voice?.voiceActive) {
+    if (this.voiceState === DUJJONKU_STATE.CHARGING && (this.voice?.voiceActive || this.debugChargeHeld)) {
+      this.chargeHoldMs += delta;
       this.chargeMs = Math.min(cfg.charge.maxMs, this.chargeMs + delta);
       this.chargePercent = Phaser.Math.Clamp(this.chargeMs / cfg.charge.maxMs * 100, 0, 100);
+      if (this.chargePercent >= 100 && !this.maxChargeNotified) {
+        this.maxChargeNotified = true;
+        this.statusText.setText("최대 장력! 놓거나 ‘쿠’를 말하면 발사해요");
+      }
+      if (this.chargeHoldMs >= cfg.charge.breakMs) {
+        this.breakProjectile();
+      }
     }
     if (this.projectile && (this.voiceState === DUJJONKU_STATE.LOADED || this.voiceState === DUJJONKU_STATE.CHARGING)) {
       const pull = Phaser.Math.Linear(8, 105, this.chargePercent / 100);
@@ -712,6 +807,7 @@ class DujjonkuScene extends Phaser.Scene {
       if (this.shotsLeft <= 0) return this.failStage("두쫀쿠를 모두 사용했어요!");
       this.voiceState = DUJJONKU_STATE.WAITING;
       this.chargeMs = 0;
+      this.chargeHoldMs = 0;
       this.chargePercent = 0;
       this.statusText.setText("‘두’라고 말해 다음 두쫀쿠를 장전하세요!");
       this.updateStateHud();
