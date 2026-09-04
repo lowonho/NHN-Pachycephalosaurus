@@ -79,6 +79,8 @@ class DujjonkuScene extends Phaser.Scene {
     this.waitingVoiceStartedAt = 0;
     this.awaitingVoiceRelease = false;
     this.maxChargeNotified = false;
+    this.waitingForKu = false;
+    this.kuAttemptStartedAt = 0;
     this.debugChargeHeld = false;
     this.lastActionAt = 0;
     this.waveSamples = new Array(36).fill(0);
@@ -259,6 +261,14 @@ class DujjonkuScene extends Phaser.Scene {
   onVoiceWord(word) {
     if (!this.isActiveStage()) return;
     const now = performance.now();
+    if (this.debugVoice) {
+      console.info("[두쫀쿠 단어 진단]", JSON.stringify({
+        word,
+        state: this.voiceState,
+        waitingForKu: this.waitingForKu,
+        hasFreshKuVoice: Boolean(this.kuAttemptStartedAt && now - this.kuAttemptStartedAt <= 1600),
+      }));
+    }
     if (now - this.lastActionAt < 220) return;
     if (word === "DU" && this.voiceState === DUJJONKU_STATE.WAITING && !this.awaitingVoiceRelease) {
       this.lastActionAt = now;
@@ -266,6 +276,9 @@ class DujjonkuScene extends Phaser.Scene {
     } else if (
       word === "KU" &&
       this.voiceState === DUJJONKU_STATE.CHARGING &&
+      this.waitingForKu &&
+      this.kuAttemptStartedAt &&
+      now - this.kuAttemptStartedAt <= 1600 &&
       this.chargeMs >= DUJJONKU_CONFIG.charge.minMs
     ) {
       this.lastActionAt = now;
@@ -280,6 +293,9 @@ class DujjonkuScene extends Phaser.Scene {
       this.waitingVoiceStartedAt = performance.now();
     } else if (this.voiceState === DUJJONKU_STATE.LOADED) {
       this.beginCharge();
+    } else if (this.voiceState === DUJJONKU_STATE.CHARGING && this.waitingForKu) {
+      this.kuAttemptStartedAt = performance.now();
+      this.statusText.setText("‘쿠’ 발음을 기다리는 중…");
     }
   }
 
@@ -301,6 +317,10 @@ class DujjonkuScene extends Phaser.Scene {
       if (spokenMs >= 80 && spokenMs <= 1250) this.loadProjectile();
     } else if (this.voiceState === DUJJONKU_STATE.CHARGING) {
       this.chargeHoldMs = 0;
+      if (!this.waitingForKu) {
+        this.waitingForKu = true;
+        this.kuAttemptStartedAt = 0;
+      }
       this.statusText.setText("장력 유지 중… 짧게 ‘쿠!’ 하면 발사해요");
     }
   }
@@ -313,6 +333,8 @@ class DujjonkuScene extends Phaser.Scene {
     this.chargeHoldMs = 0;
     this.chargePercent = 0;
     this.maxChargeNotified = false;
+    this.waitingForKu = false;
+    this.kuAttemptStartedAt = 0;
     // 장전 중에는 물리 바디가 구조물/월드와 상호작용하지 않는 순수 표시 객체를 쓴다.
     this.projectile = this.add.image(
       DUJJONKU_CONFIG.launcher.x,
@@ -328,13 +350,17 @@ class DujjonkuScene extends Phaser.Scene {
     if (this.voiceState !== DUJJONKU_STATE.LOADED) return;
     this.voiceState = DUJJONKU_STATE.CHARGING;
     this.chargeHoldMs = 0;
-    this.statusText.setText("쫀——! 소리를 놓으면 발사해요");
+    this.waitingForKu = false;
+    this.kuAttemptStartedAt = 0;
+    this.statusText.setText("쫀——! 원하는 만큼 당긴 뒤 놓고 ‘쿠!’");
     this.updateStateHud();
   }
 
   fireProjectile() {
     if (this.voiceState !== DUJJONKU_STATE.CHARGING || !this.projectile) return;
     this.voiceState = DUJJONKU_STATE.FIRED;
+    this.waitingForKu = false;
+    this.kuAttemptStartedAt = 0;
     const cfg = DUJJONKU_CONFIG;
     const percent = Math.max(cfg.charge.minimumPercent, this.chargePercent);
     const power = Phaser.Math.Linear(cfg.launcher.minPower, cfg.launcher.maxPower, percent / 100);
@@ -403,6 +429,8 @@ class DujjonkuScene extends Phaser.Scene {
     if (this.voiceState !== DUJJONKU_STATE.CHARGING || !this.projectile) return;
     this.voiceState = DUJJONKU_STATE.RESETTING;
     this.awaitingVoiceRelease = true;
+    this.waitingForKu = false;
+    this.kuAttemptStartedAt = 0;
     this.shotsLeft = Math.max(0, this.shotsLeft - 1);
     const breakX = this.projectile.x;
     const breakY = this.projectile.y;
@@ -601,7 +629,10 @@ class DujjonkuScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-D", () => this.onVoiceWord("DU"));
     this.input.keyboard.on("keydown-SPACE", () => this.onVoiceStart());
     this.input.keyboard.on("keyup-SPACE", () => this.onVoiceEnd());
-    this.input.keyboard.on("keydown-K", () => this.onVoiceWord("KU"));
+    this.input.keyboard.on("keydown-K", () => {
+      if (this.waitingForKu) this.kuAttemptStartedAt = performance.now();
+      this.onVoiceWord("KU");
+    });
     this.add.text(25, 1040, "VOICE DEBUG", { fontSize: "16px", color: "#ffffff55" }).setDepth(50);
     const autoVoice = new URLSearchParams(window.location.search).get("autoVoice");
     if (autoVoice === "1") {
@@ -658,13 +689,23 @@ class DujjonkuScene extends Phaser.Scene {
         this.onVoiceStart();
       });
       this.time.delayedCall(2700, () => this.reportChargeDebug("charging-before-release"));
+      this.time.delayedCall(2750, () => this.onVoiceWord("KU"));
       this.time.delayedCall(2800, () => {
         this.debugChargeHeld = false;
         this.voice && (this.voice.voiceActive = false);
         this.onVoiceEnd();
       });
       this.time.delayedCall(3000, () => this.reportChargeDebug("held-after-release"));
+      this.time.delayedCall(3200, () => {
+        this.debugChargeHeld = true;
+        this.voice && (this.voice.voiceActive = true);
+        this.onVoiceStart();
+      });
       this.time.delayedCall(3300, () => this.onVoiceWord("KU"));
+      this.time.delayedCall(3400, () => {
+        this.debugChargeHeld = false;
+        this.voice && (this.voice.voiceActive = false);
+      });
       this.time.delayedCall(3500, () => this.reportChargeDebug("fired-on-ku"));
       this.time.delayedCall(7600, () => this.reportChargeDebug("ready-after-shot"));
     }
@@ -679,6 +720,8 @@ class DujjonkuScene extends Phaser.Scene {
       shotsLeft: this.shotsLeft,
       hasProjectile: Boolean(this.projectile?.active),
       angle: Math.round(this.currentAngle),
+      waitingForKu: this.waitingForKu,
+      hasKuAttempt: Boolean(this.kuAttemptStartedAt),
     }));
   }
 
@@ -735,7 +778,9 @@ class DujjonkuScene extends Phaser.Scene {
       return;
     }
 
-    const chargeInputActive = Boolean(this.voice?.voiceActive || this.debugChargeHeld);
+    const chargeInputActive = Boolean(
+      (this.voice?.voiceActive || this.debugChargeHeld) && !this.waitingForKu,
+    );
     if (this.voiceState === DUJJONKU_STATE.CHARGING && chargeInputActive) {
       const degreesPerMs = (cfg.launcher.maxAngle - cfg.launcher.minAngle) / (cfg.launcher.angleSweepMs / 2);
       this.currentAngle += degreesPerMs * delta * this.angleDirection;
@@ -811,6 +856,8 @@ class DujjonkuScene extends Phaser.Scene {
       this.chargeMs = 0;
       this.chargeHoldMs = 0;
       this.chargePercent = 0;
+      this.waitingForKu = false;
+      this.kuAttemptStartedAt = 0;
       this.statusText.setText("‘두’라고 말해 다음 두쫀쿠를 장전하세요!");
       this.updateStateHud();
       if (this.debugVoice) {
