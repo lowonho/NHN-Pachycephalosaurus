@@ -24,6 +24,7 @@ class ModalFlow {
     this.step = MODAL_STEP.INTRO;
     this.destination = "main";
     this.stageId = "geoje";
+    this.returnFocus = null;
 
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
@@ -36,14 +37,35 @@ class ModalFlow {
     this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.showResult(false));
   }
 
+  isOpen() {
+    return Boolean(this.ui.modal) && !this.ui.modal.classList.contains("hidden");
+  }
+
+  /*
+   * 이 모달은 자기를 부른 화면을 지우지 않는다. 메인 화면의 "게임 시작"에서 왔으면
+   * 메인 화면 위에, 설정의 "마이크 조정"에서 왔으면 설정 화면 위에 그대로 덮인다.
+   * 뒤 화면은 보이되 만질 수는 없어야 하므로 inert로 잠가 둔다.
+   */
+  lockBackground(locked) {
+    [this.ui.appShell, this.ui.mainMenu, this.ui.settingsBackdrop].forEach((element) => {
+      if (!element) return;
+      if (locked) element.setAttribute("inert", "");
+      else element.removeAttribute("inert");
+    });
+  }
+
   open() {
+    // 뒤 화면을 inert로 잠그면 거기 있던 포커스가 풀린다. 닫을 때 되돌려 준다.
+    this.returnFocus = document.activeElement;
     this.ui.modal?.classList.remove("hidden");
-    this.ui.appShell?.setAttribute("inert", "");
+    this.lockBackground(true);
   }
 
   close() {
     this.ui.modal?.classList.add("hidden");
-    this.ui.appShell?.removeAttribute("inert");
+    this.lockBackground(false);
+    if (this.returnFocus?.isConnected) this.returnFocus.focus();
+    this.returnFocus = null;
   }
 
   showIntro() {
@@ -61,8 +83,10 @@ class ModalFlow {
   }
 
   /*
-   * destination "stage"는 메인 화면의 "게임 시작"에서 들어온 경우다.
-   * 측정이 끝나면 메인으로 돌아가지 않고 곧장 해당 스테이지를 연다.
+   * destination은 어느 화면 위에 덮였는지이자 측정을 마치면 돌아갈 곳이다.
+   *   "stage"    — 메인 화면의 "게임 시작". 메인으로 돌아가지 않고 곧장 스테이지를 연다.
+   *   "settings" — 설정의 "마이크 조정". 뒤에 그대로 있는 설정 화면으로 돌아간다.
+   *   "main"     — 그 밖(결과 화면의 "중간음 다시 측정"). 메인 화면으로 돌아간다.
    */
   beginCalibration(destination = "main", stageId = "geoje") {
     this.destination = destination;
@@ -80,11 +104,9 @@ class ModalFlow {
     audioBus.resume();
 
     if (this.step === MODAL_STEP.READY) {
-      if (this.destination === "main") {
-        this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
-      } else {
-        this.startStage(true);
-      }
+      // "settings"도 메인 화면 신호를 쓴다 — 설정 화면은 그 위에 그대로 남아 다시 드러난다.
+      if (this.destination === "stage") this.startStage(true);
+      else this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       return;
     }
 
@@ -186,9 +208,7 @@ class ModalFlow {
     ui.modalTitle.textContent = copy.doneTitle;
     ui.modalCopy.innerHTML = copy.doneCopyHtml;
     ui.calibrationResult.textContent = copy.doneResult(pitchHz);
-    ui.primaryButton.textContent = this.destination === "main"
-      ? this.strings.buttons.main
-      : this.strings.buttons.start;
+    ui.primaryButton.textContent = this.strings.buttons.done[this.destination];
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
     ui.secondaryButton.textContent = this.strings.buttons.recalibrate;

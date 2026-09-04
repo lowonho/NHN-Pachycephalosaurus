@@ -61,12 +61,17 @@ const STRINGS = Object.freeze({
     connect: "마이크 연결하고 시작",
     retryCalibration: "다시 측정",
     reconnect: "다시 연결",
-    start: "20.26초 도전 시작",
-    main: "메인 화면으로",
     retryStage: "다시 도전",
     keyboard: "마이크 없이 키보드로 테스트",
     continueKeyboard: "키보드 모드로 계속",
     recalibrate: "중간음 다시 측정",
+
+    /* 측정을 마쳤을 때의 확인 버튼 — 피치 조정 UI가 덮은 화면(destination)마다 다르다. */
+    done: Object.freeze({
+      stage: "20.26초 도전 시작",
+      settings: "설정으로 돌아가기",
+      main: "메인 화면으로",
+    }),
   }),
 
   stage: Object.freeze({

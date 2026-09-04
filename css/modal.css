@@ -1,8 +1,12 @@
 /* A(비주얼) 전용 — 설정/결과 모달과 캘리브레이션 비주얼. */
 
+/*
+ * 피치 조정 모달은 자기가 열리기 직전 화면을 지우지 않고 그 위에 덮는다.
+ * 그 화면은 메인(z-index 35)일 수도 설정(40)일 수도 있어서 둘보다 위여야 한다.
+ */
 .modal-backdrop {
   position: fixed;
-  z-index: 20;
+  z-index: 50;
   inset: 0;
   display: grid;
   place-items: center;

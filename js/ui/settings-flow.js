@@ -7,7 +7,8 @@
  *
  * "음성 입력 감도"만 슬라이더가 아니라 버튼이다. 감도는 숫자로 맞추는 값이 아니라
  * 중간음 측정으로 잡는 값이라, 버튼이 곧 피치 조정 화면을 연다. 실제로 화면을 넘기는 일은
- * main-menu-flow가 하고(메인 화면도 같이 닫아야 한다) 여기서는 자기 상태만 정리한다.
+ * main-menu-flow가 하고, 여기서는 자기 상태만 정리한다. 이때 설정 화면은 닫지 않는다 —
+ * 피치 조정 UI가 설정 화면 위에 덮이고, 측정이 끝나면 그대로 다시 드러난다.
  */
 
 class SettingsFlow {
@@ -16,7 +17,6 @@ class SettingsFlow {
     this.ui = dom;
     this.soundBus = soundBus;
     this.snapshot = null;
-    this.reopenAfterCalibration = false;
 
     this.sliders = [
       { channel: "master", input: dom.masterVolume, output: dom.masterVolumeValue },
@@ -45,20 +45,14 @@ class SettingsFlow {
       if (event.target === this.ui.settingsBackdrop) this.cancel();
     });
 
+    // 피치 조정 UI가 위에 덮여 있는 동안에는 Esc가 뒤 화면(설정)까지 닿으면 안 된다.
     window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen()) this.cancel();
+      if (event.key === "Escape" && this.isOpen() && !modalFlow.isOpen()) this.cancel();
     });
 
     document.addEventListener("fullscreenchange", () => this.syncFullscreen());
 
     this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
-
-    // 마이크 조정을 마치고 메인 화면으로 돌아오면 설정 화면을 다시 띄운다.
-    this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => {
-      if (!this.reopenAfterCalibration) return;
-      this.reopenAfterCalibration = false;
-      this.open();
-    });
 
     this.syncAudio();
     this.syncFullscreen();
@@ -105,10 +99,12 @@ class SettingsFlow {
     this.close();
   }
 
-  /* 마이크 조정으로 넘어갈 때 — 여기까지 만진 값은 되돌리지 않고 그대로 둔다. */
+  /*
+   * 마이크 조정으로 넘어갈 때 — 설정 화면은 그대로 두고(피치 조정 UI가 그 위에 덮인다)
+   * 되돌리기 기준점만 지금 값으로 다시 잡는다. 여기까지 만진 값은 되돌리지 않는다.
+   */
   prepareRecalibration() {
-    this.reopenAfterCalibration = true;
-    this.close({ restoreFocus: false });
+    this.snapshot = { volumes: { ...this.soundBus.volumes }, muted: this.soundBus.muted };
   }
 
   toggleFullscreen() {

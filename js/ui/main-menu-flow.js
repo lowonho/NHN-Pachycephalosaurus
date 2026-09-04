@@ -23,6 +23,9 @@ class MainMenuFlow {
 
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.open());
 
+    // 피치 조정 중에도 메인 화면은 모달 뒤에 남아 있다. 실제로 스테이지가 열릴 때 비운다.
+    this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
+
     this.open();
   }
 
@@ -36,19 +39,20 @@ class MainMenuFlow {
     this.ui.mainMenu?.classList.add("hidden");
   }
 
-  /* 게임 시작 → 피치 조정 UI. 스테이지는 측정이 끝난 뒤 modal-flow가 연다. */
+  /*
+   * 게임 시작 → 피치 조정 UI. 메인 화면은 닫지 않는다 — 피치 조정은 메인 화면 위에
+   * 덮이고, 메인 화면은 측정이 끝나 스테이지가 열릴 때(REQUEST_START) 비워진다.
+   */
   startGame() {
     this.soundBus.resume();
-    this.close();
     this.setupFlow.beginCalibration("stage", this.stageId);
   }
 
-  /* 설정의 "음성 입력 감도" 버튼 — 설정과 메인을 함께 닫고 중간음을 다시 잰다. */
+  /* 설정의 "음성 입력 감도" 버튼 — 설정 화면 위에 그대로 덮어서 중간음을 다시 잰다. */
   recalibrate() {
     this.soundBus.resume();
     this.settings.prepareRecalibration();
-    this.close();
-    this.setupFlow.beginCalibration("main");
+    this.setupFlow.beginCalibration("settings");
   }
 }
 
