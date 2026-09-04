@@ -1,12 +1,22 @@
 /* A(비주얼) 전용 — 피치 게이지. 바늘은 js/art/pitch-meter-view.js가 움직인다. */
 
 .pitch-panel {
+  position: absolute;
+  z-index: 10;
+  bottom: 94px;
+  left: 50%;
   display: grid;
   grid-template-columns: 155px 1fr;
   align-items: center;
   gap: 18px;
-  padding: 18px 22px 14px;
-  border-top: 1px solid var(--line-soft);
+  width: min(760px, calc(100% - 32px));
+  padding: 12px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: rgba(4, 17, 47, 0.86);
+  transform: translateX(-50%);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
 }
 
 .pitch-copy {
