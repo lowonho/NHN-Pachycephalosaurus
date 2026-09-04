@@ -2,7 +2,7 @@ class ArchiveAudio {
   constructor() {
     this.context = null;
     this.volume = 0.55;
-    this.bgm = new Audio("sounds/bgm/bgm_intro.mp3");
+    this.bgm = new Audio("sounds/bgm/bgm_main_theme.mp3");
     this.bgm.loop = true;
     this.bgm.preload = "auto";
     this.bgm.volume = 0;
