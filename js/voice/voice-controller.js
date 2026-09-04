@@ -259,7 +259,7 @@ class VoiceController {
   }
 
   parseCommands(transcript, resultIndex = null) {
-    const text = transcript.replace(/\s+/g, "").toLowerCase();
+    const text = transcript.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
     const hasResultIndex = Number.isInteger(resultIndex);
     let handled = hasResultIndex ? this.handledCommandsByResult.get(resultIndex) : null;
     let matchedAny = false;
@@ -270,7 +270,9 @@ class VoiceController {
     }
 
     COMMAND_DICT.forEach((entry) => {
-      const matched = entry.words.some((word) => text.includes(word));
+      const matchedWord = entry.words.some((word) => text.includes(word));
+      const matchedPattern = entry.patterns?.some((pattern) => pattern.test(text)) || false;
+      const matched = matchedWord || matchedPattern;
       if (!matched) return;
 
       matchedAny = true;
