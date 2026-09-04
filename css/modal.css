@@ -9,6 +9,10 @@
   z-index: 50;
   inset: 0;
   display: grid;
+  /* 트랙을 창 크기로 못 박는다 — auto 트랙은 다이얼로그의 설계 px만큼 부풀어서
+     창이 그보다 작아지면 위에 붙고 아래가 잘린다(css/main-menu.css 참고). */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
   padding: 0;

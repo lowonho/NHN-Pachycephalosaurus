@@ -73,12 +73,23 @@ try {
     console.log("SCREENSHOT", path);
   };
   await screen("main");
+  /*
+   * 메인 화면 → 컷신 → 프로토콜 선택. "게임 시작"은 이제 컷신을 먼저 띄우므로
+   * SKIP으로 건너뛰어야 프로토콜 선택 화면에 닿는다.
+   */
   await evaluate("document.querySelector('#main-play-button').click()");
+  await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
+  /*
+   * 2:26 예산은 프로토콜 선택을 연 순간부터 벽시계로 줄어든다. 이 스위트는
+   * 씬을 실시간이 아니라 update()로 한 걸음씩 몰기 때문에, 붙잡아 두지 않으면
+   * 7개를 도는 사이에 예산이 바닥나 복구 실패가 검사 도중에 끼어든다.
+   */
+  await evaluate("protocolSelectFlow.pauseTimer()");
   await screen("records");
-  const start = async (stage) => evaluate(`mainMenuFlow.startStage(${JSON.stringify(stage)}); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
+  const start = async (stage) => evaluate(`protocolSelectFlow.startStage(${JSON.stringify(stage)}); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
   const continueToRecords = async () => {
     const saved = await evaluate("window.archiveProgress.summary()");
-    await evaluate("document.querySelector('#result-continue-button').click()");
+    await evaluate("document.querySelector('#secondary-button').click()");
     assert.deepEqual(await evaluate(`({
       resultHidden: UI.modal.classList.contains('hidden'),
       recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
@@ -88,6 +99,7 @@ try {
       cardFocused: Boolean(document.activeElement?.dataset.stageId),
     })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
     assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
+    await evaluate("protocolSelectFlow.pauseTimer()");
   };
   await start("maze");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
@@ -124,7 +136,7 @@ try {
   await evaluate("document.querySelector('#primary-button').click()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
-  await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click()");
+  await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click(); document.querySelector('#stage-select-back-button').click()");
   assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   await start('bounce');

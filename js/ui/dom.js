@@ -7,11 +7,34 @@ const UI = Object.freeze({
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),
-  mainChallengeButton: document.querySelector("#main-challenge-button"),
+
+  cutscene: document.querySelector("#cutscene"),
+  cutsceneChapter: document.querySelector("#cutscene-chapter"),
+  cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
+  cutscenePanel: document.querySelector("#cutscene-panel"),
+  cutsceneLine: document.querySelector("#cutscene-line"),
+  cutsceneAutoButton: document.querySelector("#cutscene-auto-button"),
+  cutsceneLogButton: document.querySelector("#cutscene-log-button"),
+  cutsceneSkipButton: document.querySelector("#cutscene-skip-button"),
+  cutsceneSkipTopButton: document.querySelector("#cutscene-skip-top-button"),
+  cutsceneLog: document.querySelector("#cutscene-log"),
+  cutsceneLogList: document.querySelector("#cutscene-log-list"),
 
   stageSelectScreen: document.querySelector("#stage-select-screen"),
   stageSelectGrid: document.querySelector("#stage-select-grid"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
+  protocolTimer: document.querySelector("#protocol-timer"),
+  protocolProgress: document.querySelector("#protocol-progress"),
+
+  /*
+   * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
+   * 복구율은 메인 화면과 프로토콜 선택 화면 두 곳에 같이 뜨므로 목록으로 받는다.
+   */
+  archiveRecoveryRates: document.querySelectorAll("[data-archive-recovery]"),
+  archiveRecoveryDetail: document.querySelector("#archive-recovery-detail"),
+  archiveEndingStatus: document.querySelector("#archive-ending-status"),
+  recoveryFailed: document.querySelector("#recovery-failed"),
+  recoveryFailedButton: document.querySelector("#recovery-failed-button"),
 
   settingsBackdrop: document.querySelector("#settings-modal"),
   settingsDialog: document.querySelector("#settings-dialog"),
@@ -42,7 +65,6 @@ const UI = Object.freeze({
   modalTitle: document.querySelector("#modal-title"),
   modalCopy: document.querySelector("#modal-copy"),
   modalResult: document.querySelector("#modal-result"),
-  resultContinueButton: document.querySelector("#result-continue-button"),
   primaryButton: document.querySelector("#primary-button"),
   secondaryButton: document.querySelector("#secondary-button"),
 
