@@ -13,14 +13,14 @@ const GAME_EVENTS = Object.freeze({
   SCENE_SHUTDOWN: "scene:shutdown", // { scene }
 
   // 스테이지 흐름
-  STAGE_START: "stage:start", // { voiceEnabled }
+  STAGE_START: "stage:start", // { stageId? }
   STAGE_PAUSE: "stage:pause", // {}
-  STAGE_RESUME: "stage:resume", // { voiceEnabled }
+  STAGE_RESUME: "stage:resume", // {}
   STAGE_CLEAR: "stage:clear", // { elapsed }
   STAGE_FAIL: "stage:fail", // {}
 
   // 외부 요청(UI → 씬)
-  REQUEST_START: "request:start", // { voiceEnabled }
+  REQUEST_START: "request:start", // { stageId }
   REQUEST_RESTART: "request:restart", // {}
   REQUEST_PAUSE: "request:pause", // {}
   REQUEST_RESUME: "request:resume", // {}

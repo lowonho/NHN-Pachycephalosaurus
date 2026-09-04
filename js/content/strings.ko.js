@@ -16,9 +16,7 @@ const STRINGS = Object.freeze({
     measuring: "마이크 연결됨 · 중간음 측정 중",
     calibrated: (hz) => `중간음 ${hz} Hz 설정 완료`,
     listening: "듣는 중 · 명령어를 말해보세요",
-    recognitionUnsupported: "음성 인식 미지원 · 키보드 테스트 중",
-    recognitionUnavailable: "음성 인식 미지원 · 키보드 테스트 가능",
-    keyboardMode: "키보드 테스트 중",
+    recognitionUnsupported: "음성 인식을 지원하지 않는 브라우저예요",
     recognitionDenied: "음성 인식 권한이 필요해요",
     micDenied: "마이크 권한 확인 필요",
     clear: (elapsed) => `CLEAR · ${elapsed}초`,
@@ -62,8 +60,7 @@ const STRINGS = Object.freeze({
     retryCalibration: "다시 측정",
     reconnect: "다시 연결",
     retryStage: "다시 도전",
-    keyboard: "마이크 없이 키보드로 테스트",
-    continueKeyboard: "키보드 모드로 계속",
+    mainMenu: "메인 화면으로",
     recalibrate: "중간음 다시 측정",
 
     /* 측정을 마쳤을 때의 확인 버튼 — 피치 조정 UI가 덮은 화면(destination)마다 다르다. */

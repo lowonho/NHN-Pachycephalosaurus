@@ -29,7 +29,7 @@ class ModalFlow {
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
 
-    // 시작·재시작 요청이 어디서 오든(버튼이든 R키든) 모달은 여기서 닫는다.
+    // 시작·재시작 요청이 어디서 오든 모달은 여기서 닫는다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.close());
 
@@ -79,7 +79,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.connect;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.keyboard;
+    ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
   }
 
   /*
@@ -95,8 +95,8 @@ class ModalFlow {
     this.runCalibration();
   }
 
-  startStage(voiceEnabled) {
-    this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled, stageId: this.stageId });
+  startStage() {
+    this.events.emit(GAME_EVENTS.REQUEST_START, { stageId: this.stageId });
   }
 
   onPrimary() {
@@ -105,7 +105,7 @@ class ModalFlow {
 
     if (this.step === MODAL_STEP.READY) {
       // "settings"도 메인 화면 신호를 쓴다 — 설정 화면은 그 위에 그대로 남아 다시 드러난다.
-      if (this.destination === "stage") this.startStage(true);
+      if (this.destination === "stage") this.startStage();
       else this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       return;
     }
@@ -121,15 +121,14 @@ class ModalFlow {
   onSecondary() {
     audioBus.resume();
 
-    const keyboardFallback =
+    // 조작은 음성뿐이라 마이크를 포기하면 플레이할 수 없다. 스테이지로 넘기지 않고 메인으로 되돌린다.
+    const bailOut =
       this.step === MODAL_STEP.INTRO ||
       this.step === MODAL_STEP.CALIBRATION_FAILED ||
       this.step === MODAL_STEP.MIC_ERROR;
 
-    if (keyboardFallback) {
-      // 마이크를 포기해도 흐름은 유지한다 — 게임 시작에서 왔으면 그대로 스테이지로.
-      if (this.destination === "stage") this.startStage(false);
-      else this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+    if (bailOut) {
+      this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
       return;
     }
 
@@ -185,7 +184,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.retryCalibration;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.continueKeyboard;
+    ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
   }
 
   showMicError(error) {
@@ -199,7 +198,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.reconnect;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.continueKeyboard;
+    ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
 
     this.events.emit(GAME_EVENTS.MIC_FAILED, { message: this.strings.status.micDenied });
   }

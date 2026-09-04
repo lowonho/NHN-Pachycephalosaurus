@@ -27,10 +27,10 @@ const game = new Phaser.Game({
 });
 
 // 두쫀쿠는 기존 Arcade Scene과 물리 시스템을 공유하지 않고 필요할 때만 시작한다.
-gameEvents.on(GAME_EVENTS.REQUEST_START, ({ stageId, voiceEnabled }) => {
+gameEvents.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => {
   if (stageId !== "dujjonku") return;
   if (game.scene.isActive("StageScene")) game.scene.stop("StageScene");
-  game.scene.start("DujjonkuScene", { autoStart: true, voiceEnabled });
+  game.scene.start("DujjonkuScene", { autoStart: true });
 });
 
 // 자동화/개발 테스트 전용 진입점. 일반 URL에서는 실행되지 않는다.
@@ -41,7 +41,7 @@ if (debugParams.get("debugVoice") === "1" && debugParams.get("stage") === "dujjo
     UI.mainMenu?.classList.add("hidden");
     UI.stageSelectScreen?.classList.add("hidden");
     UI.appShell?.removeAttribute("inert");
-    gameEvents.emit(GAME_EVENTS.REQUEST_START, { stageId: "dujjonku", voiceEnabled: true });
+    gameEvents.emit(GAME_EVENTS.REQUEST_START, { stageId: "dujjonku" });
   }, 80);
 } else if (debugParams.get("debugVoice") === "1" && debugParams.get("stage") === "geoje") {
   window.setTimeout(() => {
@@ -49,17 +49,9 @@ if (debugParams.get("debugVoice") === "1" && debugParams.get("stage") === "dujjo
     UI.mainMenu?.classList.add("hidden");
     UI.stageSelectScreen?.classList.add("hidden");
     UI.appShell?.removeAttribute("inert");
-    gameEvents.emit(GAME_EVENTS.REQUEST_START, { stageId: "geoje", voiceEnabled: false });
+    gameEvents.emit(GAME_EVENTS.REQUEST_START, { stageId: "geoje" });
   }, 80);
 }
-
-// 도움말 토글 — 펼치면 부가 UI 높이가 변하므로 레이아웃을 다시 계산한다.
-UI.helpToggle?.addEventListener("click", () => {
-  const expanded = UI.helpToggle.getAttribute("aria-expanded") === "true";
-  UI.helpToggle.setAttribute("aria-expanded", String(!expanded));
-  UI.helpCopy.hidden = expanded;
-  viewportFitter.fit();
-});
 
 viewportFitter.start();
 

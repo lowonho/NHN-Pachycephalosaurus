@@ -1,17 +1,24 @@
 /* 두쫀쿠 선택 화면과 플레이 중 DOM 오버레이 조정. 게임 HUD는 Phaser 캔버스에 그린다. */
 
+/*
+ * 스테이지 선택은 메인 화면(z-index 35) 위에 덮는 오버레이다.
+ * 배경은 불투명 판이 아니라 반투명 스크림 — 뒤에 메인 화면이 비쳐 보여야 한다.
+ */
 .stage-select-screen {
   position: fixed;
   z-index: 36;
   inset: 0;
-  display: grid;
-  place-items: center;
-  overflow-y: auto;
+  /* flex + 자식의 margin:auto — 내용이 화면보다 커져도 위쪽이 잘리지 않는 중앙 정렬. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
   padding: 24px;
   background:
-    radial-gradient(circle at 50% 25%, rgba(31, 92, 255, 0.3), transparent 34%),
-    radial-gradient(circle at 12% 80%, rgba(78, 239, 255, 0.14), transparent 28%),
-    #02091d;
+    radial-gradient(circle at 50% 25%, rgba(31, 92, 255, 0.32), transparent 38%),
+    radial-gradient(circle at 12% 80%, rgba(78, 239, 255, 0.16), transparent 30%),
+    rgba(2, 9, 29, 0.78);
+  backdrop-filter: blur(10px) saturate(1.15);
 }
 
 .stage-select-screen.hidden {
@@ -19,6 +26,8 @@
 }
 
 .stage-select-screen .main-menu-card {
+  /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
+  margin: auto;
   width: min(920px, 100%);
   padding: clamp(24px, 5vw, 44px);
   border: 1px solid var(--line);
@@ -52,11 +61,23 @@
   line-height: 1;
 }
 
+/* 스테이지 카드는 세로로 긴 판때기 2장을 좌우로 나란히 세운다. */
+.stage-select-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(12px, 2vw, 20px);
+  width: 100%;
+}
+
 .stage-select-card {
   position: relative;
   display: grid;
+  /* 번호 · 제목 · 설명(남는 높이) · 러닝타임 — 러닝타임이 카드 바닥에 붙는다. */
+  grid-template-rows: auto auto 1fr auto;
   width: 100%;
-  padding: 24px;
+  /* 세로형 비율. 카드 두 장이 같은 높이로 서도록 최소 높이를 잡는다. */
+  min-height: clamp(280px, 46vh, 420px);
+  padding: 24px 20px;
   border: 2px solid var(--cyan);
   border-radius: 20px;
   background:
@@ -90,8 +111,10 @@
 .stage-select-card strong {
   margin: 12px 0 6px;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 6vw, 3rem);
+  /* 카드 폭이 절반이므로 메인 화면 제목보다 한 단계 작게 잡는다. */
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
   font-weight: 400;
+  line-height: 1.05;
 }
 
 .stage-description {
@@ -99,15 +122,26 @@
 }
 
 .stage-duration {
-  margin-top: 22px;
+  align-self: end;
+  padding-top: 22px;
 }
 
+/* 선택 완료 · 메인 화면으로 — 가로 한 줄. */
 .stage-select-screen .main-menu-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(10px, 1.6vw, 16px);
+  width: 100%;
   margin-top: 18px;
 }
 
-.stage-select-card + .stage-select-card {
-  margin-top: 14px;
+.stage-select-screen .main-menu-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 260px;
+  /* modal.css의 .secondary-button 세로 간격은 한 줄 배치에서 쓰지 않는다. */
+  margin-top: 0;
 }
 
 .stage-select-card:not(.selected) {
@@ -134,9 +168,7 @@
 
 body.dujjonku-active .pitch-panel,
 body.dujjonku-active .command-deck,
-body.dujjonku-active .system-status,
-body.dujjonku-active .help-toggle,
-body.dujjonku-active .help-copy {
+body.dujjonku-active .system-status {
   display: none !important;
 }
 
@@ -149,21 +181,34 @@ body.dujjonku-active .pause-button {
   box-shadow: 0 5px 0 #a95378;
 }
 
+/* 낮은 화면에서는 카드를 눌러 담는다. 정렬은 margin:auto가 계속 중앙을 잡는다. */
 @media (max-height: 760px) {
-  .stage-select-screen {
-    align-items: start;
-  }
-
   .stage-select-card {
+    min-height: 240px;
     padding-block: 16px;
   }
 
   .stage-select-card strong {
     margin-block: 7px 3px;
-    font-size: 2rem;
+    font-size: 1.7rem;
   }
 
   .stage-duration {
-    margin-top: 10px;
+    padding-top: 10px;
+  }
+}
+
+/* 좁은 화면에서는 두 장을 나란히 세울 폭이 안 나오므로 한 줄에 한 장씩. */
+@media (max-width: 620px) {
+  .stage-select-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stage-select-card {
+    min-height: 0;
+  }
+
+  .stage-duration {
+    padding-top: 14px;
   }
 }

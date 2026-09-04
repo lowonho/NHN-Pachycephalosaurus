@@ -98,8 +98,11 @@
 /* ── 프레임 ─────────────────────────────────────────────────────────── */
 
 .settings-frame {
-  /* 프레임은 다이얼로그 padding-top 바로 아래에서 시작한다(알약이 그 위를 덮는다). */
-  padding: clamp(6px, 1.4vh, 12px) clamp(2px, 1.2vw, 10px) 2px;
+  /*
+   * 프레임은 다이얼로그 padding-top 바로 아래에서 시작한다(알약이 그 위를 덮는다).
+   * 위쪽 여백을 아래쪽보다 크게 둬서 행 묶음을 알약에서 떼어 놓는다.
+   */
+  padding: clamp(18px, 3.2vh, 28px) clamp(2px, 1.2vw, 10px) clamp(4px, 0.9vh, 9px);
   border: clamp(26px, 7.2vw, 38px) solid transparent;
   /* 별 띠는 stretch로 늘리면 길쭉해지므로 round로 타일링한다. */
   border-image: url("../assets/images/ui/settings/panel-frame.png") 115 fill round;

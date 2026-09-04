@@ -1,6 +1,6 @@
 /* global Phaser */
 /*
- * 기능(B) 전용 — 물리·상태머신·타이머·입력.
+ * 기능(B) 전용 — 물리·상태머신·타이머. 입력은 음성 명령(COMMAND_RECOGNIZED)뿐이다.
  *
  * 이 파일에는 색·폰트·좌표 리터럴이 없다. 배치는 config/stage-geometry.js,
  * 밸런스는 config/balance.js, 연출과 사운드는 gameEvents 구독자가 담당한다.
@@ -23,7 +23,6 @@ class StageScene extends Phaser.Scene {
     this.inGoalZone = false;
     this.jumpLocked = false;
     this.jumpHasLeftGround = false;
-    this.voiceEnabled = false;
     this.warningFired = false;
     this.wasGrounded = true;
     this.pausedAt = 0;
@@ -32,12 +31,12 @@ class StageScene extends Phaser.Scene {
     this.syncPayload = { x: 0, y: 0, velocityX: 0 };
     this.tickPayload = { remainingMs: BALANCE.stage.timeMs };
 
-    gameEvents.on(GAME_EVENTS.REQUEST_START, ({ voiceEnabled, stageId = "geoje" }) => {
+    gameEvents.on(GAME_EVENTS.REQUEST_START, ({ stageId = "geoje" } = {}) => {
       if (stageId !== "geoje") return;
       if (!this.scene?.isActive()) {
-        this.scene.start("StageScene", { autoStart: true, voiceEnabled });
+        this.scene.start("StageScene", { autoStart: true });
       } else {
-        this.startStage(voiceEnabled);
+        this.startStage();
       }
     });
     gameEvents.on(GAME_EVENTS.REQUEST_RESTART, () => {
@@ -59,7 +58,6 @@ class StageScene extends Phaser.Scene {
 
   init(data = {}) {
     this.autoStart = Boolean(data.autoStart);
-    this.autoStartVoiceEnabled = Boolean(data.voiceEnabled);
   }
 
   preload() {
@@ -77,7 +75,6 @@ class StageScene extends Phaser.Scene {
     this.createObstacleBodies(geo);
     this.createPlayer(geo);
     this.createGoalZone(geo);
-    this.bindKeyboard();
 
     // 설정 화면이 떠 있는 동안 캐릭터가 먼저 떨어지지 않게 고정한다.
     this.physics.pause();
@@ -86,7 +83,7 @@ class StageScene extends Phaser.Scene {
     this.events.once("shutdown", () => gameEvents.emit(GAME_EVENTS.SCENE_SHUTDOWN, { scene: this }));
 
     if (this.autoStart) {
-      this.time.delayedCall(0, () => this.startStage(this.autoStartVoiceEnabled));
+      this.time.delayedCall(0, () => this.startStage());
     }
   }
 
@@ -134,46 +131,11 @@ class StageScene extends Phaser.Scene {
     this.physics.add.existing(this.goalZone, true);
   }
 
-  bindKeyboard() {
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.keyA = this.input.keyboard.addKey("A");
-    this.keyD = this.input.keyboard.addKey("D");
-
-    this.input.keyboard.on("keydown-SPACE", (event) => {
-      if (!event?.repeat) this.emitKeyCommand("JUMP");
-    });
-    this.input.keyboard.on("keydown-S", (event) => {
-      if (!event?.repeat) this.emitKeyCommand("STOP");
-    });
-    this.input.keyboard.on("keydown-Q", (event) => {
-      if (!event?.repeat) this.emitKeyCommand("REVERSE");
-    });
-    this.input.keyboard.on("keydown-E", (event) => {
-      if (!event?.repeat) this.emitKeyCommand("GOAL");
-    });
-    this.input.keyboard.on("keydown-R", (event) => {
-      if (event?.repeat) return;
-      if (this.state === STAGE_STATE.ENDED) gameEvents.emit(GAME_EVENTS.REQUEST_RESTART, {});
-    });
-  }
-
-  emitKeyCommand(command) {
-    if (this.state !== STAGE_STATE.PLAYING) return;
-    gameEvents.emit(GAME_EVENTS.COMMAND_RECOGNIZED, {
-      command,
-      level: command === "JUMP" ? voiceController.getPitchLevel() : "MID",
-      volume: BALANCE.voice.movementVolumeMinRms
-        + (BALANCE.voice.movementVolumeMaxRms - BALANCE.voice.movementVolumeMinRms) * 0.5,
-      source: "keyboard",
-    });
-  }
-
-  startStage(voiceEnabled = true) {
+  startStage() {
     const geo = STAGE_GEOMETRY;
 
     voiceController.resetCommandState();
     this.state = STAGE_STATE.PLAYING;
-    this.voiceEnabled = voiceEnabled && Boolean(voiceController.stream);
     this.moveDirection = 0;
     this.travelDirection = 1;
     this.currentMoveSpeed = BALANCE.physics.moveSpeed;
@@ -191,17 +153,13 @@ class StageScene extends Phaser.Scene {
     this.publishSync();
     this.physics.resume();
 
-    gameEvents.emit(GAME_EVENTS.STAGE_START, { voiceEnabled: this.voiceEnabled });
+    gameEvents.emit(GAME_EVENTS.STAGE_START, {});
 
-    if (this.voiceEnabled) {
-      const started = voiceController.startRecognition();
-      hudStatus.set(
-        started,
-        started ? STRINGS.status.listening : STRINGS.status.recognitionUnsupported,
-      );
-    } else {
-      hudStatus.set(true, STRINGS.status.keyboardMode);
-    }
+    const started = voiceController.startRecognition();
+    hudStatus.set(
+      started,
+      started ? STRINGS.status.listening : STRINGS.status.recognitionUnsupported,
+    );
   }
 
   applyCommand({ command, level = "MID", volume }) {
@@ -281,15 +239,6 @@ class StageScene extends Phaser.Scene {
 
     if (this.state !== STAGE_STATE.PLAYING) return;
 
-    if (this.cursors.left.isDown || this.keyA.isDown) {
-      this.travelDirection = -1;
-      this.moveDirection = -1;
-      this.currentMoveSpeed = BALANCE.physics.moveSpeed;
-    } else if (this.cursors.right.isDown || this.keyD.isDown) {
-      this.travelDirection = 1;
-      this.moveDirection = 1;
-      this.currentMoveSpeed = BALANCE.physics.moveSpeed;
-    }
     if (this.moveDirection) this.player.setVelocityX(this.moveDirection * this.currentMoveSpeed);
 
     this.inGoalZone = this.isInGoalZone();
@@ -346,15 +295,13 @@ class StageScene extends Phaser.Scene {
     this.state = STAGE_STATE.PLAYING;
     this.physics.resume();
 
-    if (this.voiceEnabled) {
-      const started = voiceController.startRecognition();
-      hudStatus.set(
-        started,
-        started ? STRINGS.status.listening : STRINGS.status.recognitionUnsupported,
-      );
-    }
+    const started = voiceController.startRecognition();
+    hudStatus.set(
+      started,
+      started ? STRINGS.status.listening : STRINGS.status.recognitionUnsupported,
+    );
 
-    gameEvents.emit(GAME_EVENTS.STAGE_RESUME, { voiceEnabled: this.voiceEnabled });
+    gameEvents.emit(GAME_EVENTS.STAGE_RESUME, {});
   }
 
   clearStage() {
@@ -379,7 +326,7 @@ class StageScene extends Phaser.Scene {
   restartStage() {
     window.clearTimeout(this.resultTimeout);
     voiceController.stopRecognition();
-    this.scene.restart({ autoStart: true, voiceEnabled: this.voiceEnabled });
+    this.scene.restart({ autoStart: true });
   }
 
   returnToMain() {

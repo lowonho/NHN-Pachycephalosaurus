@@ -44,9 +44,6 @@ const UI = Object.freeze({
   voiceTranscript: document.querySelector("#voice-transcript"),
   commandDeck: document.querySelector("#command-deck"),
 
-  helpToggle: document.querySelector("#help-toggle"),
-  helpCopy: document.querySelector("#help-copy"),
-
   modal: document.querySelector("#setup-modal"),
   modalStep: document.querySelector("#modal-step"),
   modalTitle: document.querySelector("#modal-title"),

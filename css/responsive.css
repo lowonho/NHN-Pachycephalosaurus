@@ -5,6 +5,22 @@
     padding: 0;
   }
 
+  /* 좁은 화면에서는 안쪽 여백을 줄여 제목 한 줄이 들어갈 폭을 남긴다. */
+  .modal {
+    padding: 26px 20px;
+  }
+
+  .calibration-visual {
+    --bar-max: 60px;
+
+    gap: 5px;
+    height: 74px;
+  }
+
+  .calibration-visual span {
+    width: 7px;
+  }
+
   .topbar {
     top: 8px;
   }
@@ -45,21 +61,6 @@
 
   .command span {
     display: none;
-  }
-
-  .help-toggle {
-    top: 8px;
-    left: 8px;
-    max-width: 128px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .help-copy {
-    top: 50px;
-    left: 8px;
-    width: calc(100% - 16px);
   }
 }
 

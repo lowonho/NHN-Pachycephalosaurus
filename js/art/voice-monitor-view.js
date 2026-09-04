@@ -17,12 +17,12 @@ class VoiceMonitorView {
     events.on(GAME_EVENTS.VOICE_TRANSCRIPT, (payload) => this.showTranscript(payload));
     events.on(GAME_EVENTS.MIC_CONNECTED, () => this.setInputState(false, "마이크 연결됨"));
     events.on(GAME_EVENTS.MIC_FAILED, () => this.setInputState(false, "수음 불가"));
-    events.on(GAME_EVENTS.STAGE_START, ({ voiceEnabled }) => this.resetTranscript(voiceEnabled));
+    events.on(GAME_EVENTS.STAGE_START, () => this.resetTranscript());
     events.on(GAME_EVENTS.STAGE_PAUSE, () => {
       this.transcriptKind.textContent = "들은 발음";
       this.setTranscript("일시정지", true);
     });
-    events.on(GAME_EVENTS.STAGE_RESUME, ({ voiceEnabled }) => this.resetTranscript(voiceEnabled));
+    events.on(GAME_EVENTS.STAGE_RESUME, () => this.resetTranscript());
 
     this.drawIdle();
   }
@@ -73,9 +73,9 @@ class VoiceMonitorView {
     this.setTranscript(`“${text}”`, isFinal);
   }
 
-  resetTranscript(voiceEnabled) {
+  resetTranscript() {
     this.transcriptKind.textContent = "들은 발음";
-    this.setTranscript(voiceEnabled ? "말해보세요" : "키보드 테스트 모드", true);
+    this.setTranscript("말해보세요", true);
   }
 
   setTranscript(text, isFinal) {

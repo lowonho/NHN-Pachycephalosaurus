@@ -114,19 +114,21 @@
           </div>
         </div>
 
-        <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
-          <span class="stage-number">STAGE 01</span>
-          <strong>거제 야호!</strong>
-          <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
-          <span class="stage-duration">20.26 SEC</span>
-        </button>
+        <div class="stage-select-grid">
+          <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
+            <span class="stage-number">STAGE 01</span>
+            <strong>거제 야호!</strong>
+            <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
+            <span class="stage-duration">20.26 SEC</span>
+          </button>
 
-        <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
-          <span class="stage-number">STAGE 02</span>
-          <strong>두쫀쿠</strong>
-          <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
-          <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
-        </button>
+          <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
+            <span class="stage-number">STAGE 02</span>
+            <strong>두쫀쿠</strong>
+            <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
+            <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
+          </button>
+        </div>
 
         <div class="main-menu-actions">
           <button class="primary-button" id="stage-select-confirm-button" type="button">선택 완료</button>
@@ -184,16 +186,6 @@
         <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
         <div class="command-deck" id="command-deck" aria-label="음성 명령어"></div>
       </section>
-
-      <button class="help-toggle" id="help-toggle" type="button" aria-expanded="false">
-        마이크가 안 될 때 · 키보드 테스트
-      </button>
-      <div class="help-copy" id="help-copy" hidden>
-        Chrome 데스크톱을 권장합니다. 마이크가 지원되지 않으면
-        <kbd>←</kbd>/<kbd>A</kbd>, <kbd>→</kbd>/<kbd>D</kbd> 이동,
-        <kbd>Space</kbd> 점프, <kbd>S</kbd> 감속, <kbd>Q</kbd> 방향 전환,
-        <kbd>E</kbd> 골인, <kbd>R</kbd> 재도전으로 테스트할 수 있습니다.
-      </div>
     </main>
 
     <!-- 피치 조정(중간음 측정) UI — 메인 화면의 "게임 시작"과 스테이지 사이에 들어간다. -->
@@ -205,15 +197,18 @@
           먼저 편안한 중간음을 측정합니다. 측정된 목소리를 기준으로
           낮은 음·중간 음·높은 음을 나눠 점프 높이에 반영해요.
         </p>
+        <!-- 막대 개수는 자유롭게 늘리고 줄여도 된다 — art/calibration-meter-view.js가 있는 만큼 그린다. -->
         <div class="calibration-visual" id="calibration-visual" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span>
         </div>
         <p class="calibration-result" id="calibration-result"></p>
         <button class="primary-button" id="primary-button" type="button">
           마이크 연결하고 시작
         </button>
         <button class="secondary-button" id="secondary-button" type="button">
-          마이크 없이 키보드로 테스트
+          메인 화면으로
         </button>
         <p class="privacy-note">음성은 저장하지 않으며 현재 플레이에만 사용합니다.</p>
       </section>
@@ -361,6 +356,7 @@
     <script src="js/art/effects.js"></script>
     <script src="js/art/pitch-meter-view.js"></script>
     <script src="js/art/voice-monitor-view.js"></script>
+    <script src="js/art/calibration-meter-view.js"></script>
     <script src="js/art/command-deck-view.js"></script>
     <script src="js/art/viewport-fit.js"></script>
 

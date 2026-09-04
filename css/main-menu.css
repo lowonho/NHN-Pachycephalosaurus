@@ -184,9 +184,9 @@
 
 .main-menu-actions {
   display: grid;
-  gap: clamp(9px, 1.8vh, 14px);
+  gap: clamp(13.5px, 2.7vh, 21px);
   /* 음성 마크와의 간격 — 버튼 묶음을 화면 아래쪽으로 내리는 값이다. */
-  margin-top: clamp(14px, 4vh, 34px);
+  margin-top: clamp(2px, 0.8vh, 10px);
   /* 42vh 상한 — 버튼 3개 높이 합(폭 × 0.80)이 화면 절반을 넘지 않게 한다. */
   width: min(273px, 65%, 42vh);
 }

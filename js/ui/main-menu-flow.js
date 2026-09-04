@@ -36,6 +36,7 @@ class MainMenuFlow {
   open() {
     this.setupFlow.close();
     this.ui.stageSelectScreen?.classList.add("hidden");
+    this.ui.mainMenu?.removeAttribute("inert");
     this.ui.mainMenu?.classList.remove("hidden");
     this.ui.appShell?.setAttribute("inert", "");
   }
@@ -44,16 +45,20 @@ class MainMenuFlow {
     this.ui.mainMenu?.classList.add("hidden");
   }
 
-  /* 게임 시작 → 스테이지 선택. 메인 화면은 접고 선택 화면만 남긴다. */
+  /*
+   * 게임 시작 → 스테이지 선택. 메인 화면은 뒤에 그대로 두고 그 위에 덮는다.
+   * 뒤 화면은 보이되 만질 수는 없어야 하므로 modal-flow와 같은 방식으로 inert를 건다.
+   */
   openStageSelect() {
     this.soundBus.resume();
-    this.close();
+    this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
     this.ui.stageGeojeButton?.focus();
   }
 
   closeStageSelect() {
     this.ui.stageSelectScreen?.classList.add("hidden");
+    this.ui.mainMenu?.removeAttribute("inert");
     this.ui.mainMenu?.classList.remove("hidden");
     this.ui.mainPlayButton?.focus();
   }
@@ -74,6 +79,8 @@ class MainMenuFlow {
   startGame() {
     this.soundBus.resume();
     this.ui.stageSelectScreen?.classList.add("hidden");
+    // 여기서 푼 잠금은 곧바로 modal-flow가 자기 기준으로 다시 건다.
+    this.ui.mainMenu?.removeAttribute("inert");
     this.setupFlow.beginCalibration("stage", this.stageId);
   }
 

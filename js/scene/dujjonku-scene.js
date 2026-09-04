@@ -33,7 +33,6 @@ class DujjonkuScene extends Phaser.Scene {
 
   init(data = {}) {
     this.autoStart = Boolean(data.autoStart);
-    this.voiceRequested = data.voiceEnabled !== false;
   }
 
   create() {
@@ -198,7 +197,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.startedAt = performance.now();
     this.pausedDuration = 0;
     this.timerActive = this.debugVoice;
-    gameEvents.emit(GAME_EVENTS.STAGE_START, { voiceEnabled: true, stageId: "dujjonku" });
+    gameEvents.emit(GAME_EVENTS.STAGE_START, { stageId: "dujjonku" });
     this.connectVoice();
   }
 
@@ -798,7 +797,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.pausedDuration += performance.now() - this.pausedAt;
     this.paused = false;
     this.matter.world.resume();
-    gameEvents.emit(GAME_EVENTS.STAGE_RESUME, { voiceEnabled: true });
+    gameEvents.emit(GAME_EVENTS.STAGE_RESUME, {});
     this.connectVoice();
     if (this.flightExpiredWhilePaused && this.voiceState === DUJJONKU_STATE.FIRED) {
       this.flightExpiredWhilePaused = false;
@@ -808,7 +807,7 @@ class DujjonkuScene extends Phaser.Scene {
 
   restartStage() {
     this.cleanup();
-    this.scene.restart({ autoStart: true, voiceEnabled: true });
+    this.scene.restart({ autoStart: true });
   }
 
   returnToMain() {
