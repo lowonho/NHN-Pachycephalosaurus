@@ -37,7 +37,7 @@ const STRINGS = Object.freeze({
 
     doneTitle: "중간음 설정 완료!",
     doneCopyHtml:
-      "<b>파라파라</b>로 오른쪽 이동 → <b>야호</b>로 장애물을 넘고<br><b>마떼루요</b>로 포토존에 멈추세요.",
+      "<b>오이데</b>로 출발 → <b>야호</b>로 점프 → <b>파라파라</b>로 방향 전환<br>포토존 안에서 <b>오이쉬이</b>를 외치세요.",
     doneResult: (hz) => `내 기준음 ${hz} Hz · 야호를 높게 말하면 더 높이 점프!`,
 
     errorTitle: "마이크를 연결할 수 없어요",
@@ -48,12 +48,12 @@ const STRINGS = Object.freeze({
   result: Object.freeze({
     clearStep: "STAGE CLEAR",
     clearTitle: "거제~ 야호! 📸",
-    clearCopy: (elapsed) => `${elapsed}초 만에 포토존 도착! 다음에는 더 빠르게 가볼까요?`,
+    clearCopy: (elapsed) => `${elapsed}초 만에 포토존 골인! 다음에는 더 빠르게 가볼까요?`,
     clearResult: "CLEAR",
 
     failStep: "TIME OVER",
     failTitle: "포토존이 코앞인데!",
-    failCopy: "20.26초가 끝났어요. 파라파라로 달리고, 장애물 앞에서 야호를 외쳐보세요.",
+    failCopy: "20.26초가 끝났어요. 오이데로 출발하고 포토존 안에서 오이쉬이를 외쳐보세요.",
     failResult: "다시 하면 감이 올 거예요.",
   }),
 
@@ -76,7 +76,7 @@ const STRINGS = Object.freeze({
 
   stage: Object.freeze({
     label: "STAGE 01  ·  GEOJE",
-    goal: "20.26초 안에 포토존까지 가!",
+    goal: "포토존 안에서 오이쉬이를 외쳐!",
     photoZone: "PHOTO\nZONE",
     obstacleTier: Object.freeze({ LOW: "LOW", HIGH: "HIGH" }),
   }),

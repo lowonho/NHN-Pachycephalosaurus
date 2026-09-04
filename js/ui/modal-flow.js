@@ -33,8 +33,8 @@ class ModalFlow {
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.close());
 
-    this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ elapsed }) => this.showResult(true, elapsed));
-    this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.showResult(false));
+    this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ elapsed, stageId }) => this.showResult(true, elapsed, stageId));
+    this.events.on(GAME_EVENTS.STAGE_FAIL, ({ stageId } = {}) => this.showResult(false, undefined, stageId));
   }
 
   isOpen() {
@@ -134,6 +134,10 @@ class ModalFlow {
     }
 
     if (this.step === MODAL_STEP.RESULT) {
+      if (this.resultStageId === "dujjonku") {
+        this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+        return;
+      }
       this.beginCalibration("main");
       return;
     }
@@ -214,11 +218,12 @@ class ModalFlow {
     ui.secondaryButton.textContent = this.strings.buttons.recalibrate;
   }
 
-  showResult(success, elapsed) {
+  showResult(success, elapsed, stageId = "geoje") {
     const { ui } = this;
     const copy = this.strings.result;
 
     this.step = MODAL_STEP.RESULT;
+    this.resultStageId = stageId;
     this.open();
     ui.modalStep.textContent = success ? copy.clearStep : copy.failStep;
     ui.modalTitle.textContent = success ? copy.clearTitle : copy.failTitle;
@@ -227,7 +232,9 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.retryStage;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.recalibrate;
+    ui.secondaryButton.textContent = stageId === "dujjonku"
+      ? "메인 화면"
+      : this.strings.buttons.recalibrate;
   }
 }
 

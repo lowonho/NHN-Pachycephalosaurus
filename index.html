@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
+    <link rel="stylesheet" href="css/dujjonku.css" />
   </head>
   <body>
     <!--
@@ -104,6 +105,36 @@
       </section>
     </div>
 
+    <div class="stage-select-screen hidden" id="stage-select-screen">
+      <section class="main-menu-card" aria-labelledby="stage-select-title">
+        <div class="main-menu-heading">
+          <div>
+            <p class="menu-kicker">SELECT YOUR 20.26</p>
+            <h2 id="stage-select-title">스테이지 선택</h2>
+          </div>
+        </div>
+
+        <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
+          <span class="stage-number">STAGE 01</span>
+          <strong>거제 야호!</strong>
+          <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
+          <span class="stage-duration">20.26 SEC</span>
+        </button>
+
+        <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
+          <span class="stage-number">STAGE 02</span>
+          <strong>두쫀쿠</strong>
+          <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
+          <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
+        </button>
+
+        <div class="main-menu-actions">
+          <button class="primary-button" id="stage-select-confirm-button" type="button">선택 완료</button>
+          <button class="secondary-button" id="stage-select-back-button" type="button">메인 화면으로</button>
+        </div>
+      </section>
+    </div>
+
     <main class="app-shell" inert>
       <header class="topbar">
         <div>
@@ -134,6 +165,20 @@
             <span class="pitch-zone high">HIGH</span>
             <i id="pitch-needle"></i>
           </div>
+          <div class="voice-feedback">
+            <div class="voice-feedback-head">
+              <span id="voice-input-state">수음 대기</span>
+              <span id="voice-transcript-kind">들은 발음</span>
+            </div>
+            <canvas
+              id="voice-waveform"
+              width="360"
+              height="32"
+              aria-label="실시간 마이크 파형"
+              role="img"
+            ></canvas>
+            <strong id="voice-transcript" aria-live="polite">말해보세요</strong>
+          </div>
         </div>
 
         <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
@@ -145,8 +190,9 @@
       </button>
       <div class="help-copy" id="help-copy" hidden>
         Chrome 데스크톱을 권장합니다. 마이크가 지원되지 않으면
-        <kbd>←</kbd><kbd>→</kbd> 이동, <kbd>Space</kbd> 점프,
-        <kbd>S</kbd> 정지로 테스트할 수 있습니다.
+        <kbd>←</kbd>/<kbd>A</kbd>, <kbd>→</kbd>/<kbd>D</kbd> 이동,
+        <kbd>Space</kbd> 점프, <kbd>S</kbd> 감속, <kbd>Q</kbd> 방향 전환,
+        <kbd>E</kbd> 골인, <kbd>R</kbd> 재도전으로 테스트할 수 있습니다.
       </div>
     </main>
 
@@ -292,6 +338,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
+    <script src="js/config/dujjonku-config.js"></script>
     <script src="js/content/strings.ko.js"></script>
 
     <!-- C2 · 음성 사전 (아트/음성 양쪽이 참조) -->
@@ -313,6 +360,7 @@
     <script src="js/art/hud-view.js"></script>
     <script src="js/art/effects.js"></script>
     <script src="js/art/pitch-meter-view.js"></script>
+    <script src="js/art/voice-monitor-view.js"></script>
     <script src="js/art/command-deck-view.js"></script>
     <script src="js/art/viewport-fit.js"></script>
 
@@ -324,6 +372,7 @@
     <!-- C2 · 음성 입력 -->
     <script src="js/voice/voice-evaluator.js"></script>
     <script src="js/voice/voice-controller.js"></script>
+    <script src="js/voice/dujjonku-voice-controller.js"></script>
 
     <!-- B · 기능 -->
     <script src="js/ui/hud-status.js"></script>
@@ -332,6 +381,8 @@
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/scene/stage-scene.js"></script>
+    <script src="js/scene/dujjonku-objects.js"></script>
+    <script src="js/scene/dujjonku-scene.js"></script>
     <script src="js/game.js"></script>
   </body>
 </html>

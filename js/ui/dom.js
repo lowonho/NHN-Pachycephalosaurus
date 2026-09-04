@@ -9,6 +9,12 @@ const UI = Object.freeze({
   mainPlayButton: document.querySelector("#main-play-button"),
   mainChallengeButton: document.querySelector("#main-challenge-button"),
 
+  stageSelectScreen: document.querySelector("#stage-select-screen"),
+  stageSelectConfirmButton: document.querySelector("#stage-select-confirm-button"),
+  stageSelectBackButton: document.querySelector("#stage-select-back-button"),
+  stageGeojeButton: document.querySelector("#stage-geoje-button"),
+  stageDujjonkuButton: document.querySelector("#stage-dujjonku-button"),
+
   settingsBackdrop: document.querySelector("#settings-modal"),
   settingsDialog: document.querySelector("#settings-dialog"),
   masterVolume: document.querySelector("#master-volume"),
@@ -32,6 +38,10 @@ const UI = Object.freeze({
 
   pitchNeedle: document.querySelector("#pitch-needle"),
   pitchLabel: document.querySelector("#pitch-label"),
+  voiceWaveform: document.querySelector("#voice-waveform"),
+  voiceInputState: document.querySelector("#voice-input-state"),
+  voiceTranscriptKind: document.querySelector("#voice-transcript-kind"),
+  voiceTranscript: document.querySelector("#voice-transcript"),
   commandDeck: document.querySelector("#command-deck"),
 
   helpToggle: document.querySelector("#help-toggle"),
