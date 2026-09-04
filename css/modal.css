@@ -10,7 +10,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 20px;
+  overflow: hidden;
+  padding: 0;
   background: rgba(1, 7, 24, 0.76);
   backdrop-filter: blur(13px);
 }
@@ -20,7 +21,7 @@
 }
 
 .modal {
-  width: min(680px, 100%);
+  width: 680px;
   padding: 34px 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -39,13 +40,13 @@
 }
 
 /*
- * 제목은 어느 화면 폭에서도 한 줄로 떨어져야 한다. 가장 긴 문구
+ * 제목은 한 줄로 떨어져야 한다. 가장 긴 문구
  * ("마이크를 연결할 수 없어요")가 .modal 안쪽 폭에 들어가도록 크기를 잡았다.
  */
 .modal h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.9rem, 5.6vw, 2.9rem);
+  font-size: 2.9rem;
   font-weight: 400;
   line-height: 1.08;
   word-break: keep-all;

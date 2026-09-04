@@ -27,8 +27,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  overflow-y: auto;
-  padding: clamp(12px, 3vh, 28px) 14px;
+  overflow: hidden;
+  padding: 0;
   background: rgba(1, 7, 24, 0.72);
   backdrop-filter: blur(10px);
 }
@@ -39,7 +39,7 @@
 
 .settings-dialog {
   position: relative;
-  width: min(560px, 100%);
+  width: 560px;
   /*
    * 알약(높이 68) 중 프레임 위로 삐져나오는 만큼만 비운다.
    * 나머지 42px은 프레임 윗변에 겹친다 — 컨셉 이미지와 같은 비율이다.
@@ -63,13 +63,13 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  width: min(310px, 74%);
+  width: 310px;
   height: 68px;
   margin: 0;
   transform: translateX(-50%);
   color: #fff;
   font-family: var(--font-ui);
-  font-size: clamp(1.14rem, 4vw, 1.46rem);
+  font-size: 1.46rem;
   font-weight: 900;
   letter-spacing: 0.2em;
   text-shadow: 0 2px 6px rgba(84, 38, 145, 0.55);
@@ -102,8 +102,8 @@
    * 프레임은 다이얼로그 padding-top 바로 아래에서 시작한다(알약이 그 위를 덮는다).
    * 위쪽 여백을 아래쪽보다 크게 둬서 행 묶음을 알약에서 떼어 놓는다.
    */
-  padding: clamp(18px, 3.2vh, 28px) clamp(2px, 1.2vw, 10px) clamp(4px, 0.9vh, 9px);
-  border: clamp(26px, 7.2vw, 38px) solid transparent;
+  padding: 28px 10px 9px;
+  border: 38px solid transparent;
   /* 별 띠는 stretch로 늘리면 길쭉해지므로 round로 타일링한다. */
   border-image: url("../assets/images/ui/settings/panel-frame.png") 115 fill round;
 }
@@ -112,7 +112,7 @@
 
 .settings-rows {
   display: grid;
-  gap: clamp(6px, 1.3vh, 10px);
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -128,9 +128,9 @@
   display: grid;
   grid-template-columns: 32px minmax(84px, 1.1fr) minmax(0, 2fr) 34px;
   align-items: center;
-  gap: clamp(7px, 2vw, 13px);
+  gap: 13px;
   min-height: 54px;
-  padding: 0 clamp(11px, 3vw, 18px);
+  padding: 0 18px;
 }
 
 /* 원본 1489×160, 모서리 반지름 ≈ 45. 높이 54 → 배율 0.34 → 슬라이스 15px. */
@@ -151,7 +151,7 @@
 .settings-row-label {
   color: var(--settings-ink);
   font-family: var(--font-ui);
-  font-size: clamp(0.82rem, 2.7vw, 1rem);
+  font-size: 1rem;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -159,7 +159,7 @@
 .settings-row-value {
   color: var(--settings-value);
   font-family: var(--font-ui);
-  font-size: clamp(0.86rem, 2.7vw, 1.04rem);
+  font-size: 1.04rem;
   font-weight: 900;
   text-align: right;
 }
@@ -261,7 +261,7 @@
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: clamp(0.76rem, 2.5vw, 0.92rem);
+  font-size: 0.92rem;
   font-weight: 900;
   white-space: nowrap;
   transition: transform 120ms ease, box-shadow 120ms ease;
@@ -324,8 +324,8 @@
 .settings-actions {
   display: flex;
   justify-content: center;
-  gap: clamp(8px, 2.4vw, 14px);
-  margin-top: clamp(10px, 2vh, 16px);
+  gap: 14px;
+  margin-top: 16px;
 }
 
 .settings-action {
@@ -344,7 +344,7 @@
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: clamp(0.92rem, 3vw, 1.1rem);
+  font-size: 1.1rem;
   font-weight: 900;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.26);
   transition: transform 120ms ease;
@@ -387,53 +387,4 @@
 .settings-backdrop :focus-visible:not(.settings-dialog) {
   outline: 3px solid var(--settings-focus);
   outline-offset: 3px;
-}
-
-@media (max-width: 420px) {
-  /* 라벨이 제 칸을 넘어 슬라이더에 붙지 않도록 라벨 칸을 넓히고 슬라이더를 줄인다. */
-  .settings-row {
-    grid-template-columns: 26px minmax(80px, 1.2fr) minmax(0, 1.1fr) 26px;
-    gap: 5px;
-    min-height: 48px;
-    padding: 0 9px;
-  }
-
-  .settings-row-icon {
-    width: 26px;
-    height: 26px;
-  }
-
-  .settings-pill-button {
-    min-height: 30px;
-    padding: 0 11px;
-  }
-
-  .settings-switch {
-    width: 66px;
-    height: 29px;
-  }
-
-  .settings-action {
-    gap: 6px;
-    padding: 0 8px;
-    font-size: 0.86rem;
-  }
-
-  .settings-action img {
-    width: 21px;
-    height: 19px;
-  }
-
-  .settings-title {
-    height: 60px;
-  }
-
-  .settings-title::before {
-    border-width: 29px;
-    border-image-width: 29px;
-  }
-
-  .settings-dialog {
-    padding-top: 23px;
-  }
 }

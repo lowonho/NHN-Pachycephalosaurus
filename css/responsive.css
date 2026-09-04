@@ -1,68 +1,12 @@
-@media (max-width: 720px) {
-  .app-shell {
-    width: 100%;
-    height: 100%;
-    padding: 0;
-  }
-
-  /* 좁은 화면에서는 안쪽 여백을 줄여 제목 한 줄이 들어갈 폭을 남긴다. */
-  .modal {
-    padding: 26px 20px;
-  }
-
-  .calibration-visual {
-    --bar-max: 60px;
-
-    gap: 5px;
-    height: 74px;
-  }
-
-  .calibration-visual span {
-    width: 7px;
-  }
-
-  .topbar {
-    top: 8px;
-  }
-
-  .system-status {
-    padding: 8px 10px;
-    font-size: 0.76rem;
-  }
-
-  .pitch-panel {
-    bottom: 62px;
-    grid-template-columns: 90px 1fr;
-    gap: 8px;
-    width: calc(100% - 16px);
-    padding: 9px 11px;
-  }
-
-  .voice-feedback {
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(100px, 0.7fr) minmax(130px, 1fr);
-  }
-
-  .command-deck {
-    grid-template-columns: repeat(5, 1fr);
-    bottom: 8px;
-    gap: 5px;
-    width: calc(100% - 16px);
-  }
-
-  .command {
-    padding: 8px 5px;
-    text-align: center;
-  }
-
-  .command b {
-    font-size: 0.9rem;
-  }
-
-  .command span {
-    display: none;
-  }
-}
+/*
+ * A(비주얼) 전용 — 화면 폭에 따라 배치를 바꾸는 규칙은 두지 않는다.
+ *
+ * 모든 UI는 1920×1080 설계 화면 위에 px로 그리고 --ui-scale로 통째로 균일 축소된다
+ * (css/base.css의 "UI 배율 규칙" 참고). 여기에 브레이크포인트를 다시 넣으면
+ * 창 비율이 달라질 때 UI가 늘어나거나 눌리므로 넣지 않는다.
+ *
+ * 사용자 설정에 반응하는 쿼리(모션 최소화 등)만 남긴다.
+ */
 
 @media (prefers-reduced-motion: reduce) {
   *,

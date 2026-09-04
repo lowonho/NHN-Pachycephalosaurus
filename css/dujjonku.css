@@ -12,8 +12,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
-  padding: 24px;
+  overflow: hidden;
+  padding: 0;
   background:
     radial-gradient(circle at 50% 25%, rgba(31, 92, 255, 0.32), transparent 38%),
     radial-gradient(circle at 12% 80%, rgba(78, 239, 255, 0.16), transparent 30%),
@@ -29,8 +29,8 @@
   /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
   margin: auto;
   /* 카드 3장이 각각 220px 안팎(= 이전 폭의 70%)을 가져가는 폭. */
-  width: min(790px, 100%);
-  padding: clamp(24px, 5vw, 44px);
+  width: 790px;
+  padding: 44px;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius-card) + 4px);
   background: rgba(5, 20, 52, 0.94);
@@ -43,7 +43,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: clamp(10px, 1.6vw, 16px);
+  gap: 16px;
   margin-bottom: 22px;
 }
 
@@ -57,7 +57,7 @@
 .main-menu-heading h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 7vw, 3.6rem);
+  font-size: 3.6rem;
   font-weight: 400;
   line-height: 1;
 }
@@ -66,7 +66,7 @@
 .stage-select-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(10px, 1.6vw, 18px);
+  gap: 18px;
   width: 100%;
 }
 
@@ -77,7 +77,7 @@
   grid-template-rows: auto auto 1fr auto;
   width: 100%;
   /* 세로형 비율. 카드 세 장이 같은 높이로 서도록 최소 높이를 잡는다. */
-  min-height: clamp(280px, 46vh, 420px);
+  min-height: 420px;
   padding: 24px 20px;
   border: 2px solid var(--cyan);
   border-radius: 20px;
@@ -114,7 +114,7 @@
   margin: 12px 0 6px;
   font-family: var(--font-display);
   /* 좁아진 카드(약 220px) 안에서 "거제 야호!"가 한 줄에 들어가는 크기. */
-  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  font-size: 1.6rem;
   font-weight: 400;
   line-height: 1.05;
 }
@@ -135,7 +135,7 @@
   display: flex;
   align-items: stretch;
   justify-content: center;
-  gap: clamp(10px, 1.6vw, 16px);
+  gap: 16px;
   width: 100%;
   margin-top: 18px;
 }
@@ -204,43 +204,4 @@ body.dujjonku-active .pause-button {
   background: #ed7fa5;
   color: #fff;
   box-shadow: 0 5px 0 #a95378;
-}
-
-/* 낮은 화면에서는 카드를 눌러 담는다. 정렬은 margin:auto가 계속 중앙을 잡는다. */
-@media (max-height: 760px) {
-  .stage-select-card {
-    min-height: 240px;
-    padding-block: 16px;
-  }
-
-  .stage-select-card strong {
-    margin-block: 7px 3px;
-    font-size: 1.5rem;
-  }
-
-  .stage-duration {
-    padding-top: 10px;
-  }
-}
-
-/* 세 장을 나란히 세우기엔 좁은 폭 — 두 줄로 접는다. */
-@media (max-width: 900px) {
-  .stage-select-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* 더 좁으면 한 줄에 한 장씩. */
-@media (max-width: 620px) {
-  .stage-select-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .stage-select-card {
-    min-height: 0;
-  }
-
-  .stage-duration {
-    padding-top: 14px;
-  }
 }

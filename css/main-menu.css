@@ -17,8 +17,8 @@
      트랙을 부풀려서 자식들의 % 폭이 화면 밖으로 넘친다. */
   grid-template-columns: minmax(0, 1fr);
   place-items: center;
-  overflow-y: auto;
-  padding: clamp(16px, 4vh, 40px) 20px;
+  overflow: hidden;
+  padding: 40px 20px;
   background:
     radial-gradient(circle at 50% 30%, rgba(31, 92, 255, 0.28), transparent 42%),
     radial-gradient(circle at 14% 82%, rgba(255, 143, 197, 0.14), transparent 32%),
@@ -33,15 +33,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  width: min(640px, 100%);
+  width: 640px;
   text-align: center;
 }
 
 /* ── 로고 (리본 카피 포함) ──────────────────────────────────────────── */
 
-/* 68vh 상한은 로고 높이(= 폭 / 1.714)를 화면의 40% 아래로 묶어두기 위한 것이다. */
+/* 로고 폭 — 설계 화면(1920×1080) 기준 고정값. 높이는 원본 비율(1.714)이 정한다. */
 .menu-logo {
-  width: min(570px, 94%, 68vh);
+  width: 570px;
   margin: 0;
   line-height: 0;
 }
@@ -58,8 +58,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(10px, 3vw, 20px);
-  margin: clamp(8px, 2vh, 16px) 0 clamp(10px, 2.4vh, 20px);
+  gap: 20px;
+  margin: 16px 0 20px;
 }
 
 /* 가로 길이는 막대 굵기를 놔둔 채 간격만 벌려서 늘린다.
@@ -67,12 +67,12 @@
 .menu-wave {
   display: flex;
   align-items: center;
-  gap: clamp(5.6px, 1.53vw, 9.67px);
-  height: clamp(27px, 6.75vw, 39px);
+  gap: 9.67px;
+  height: 39px;
 }
 
 .menu-wave i {
-  width: clamp(4.6px, 1.15vw, 6.9px);
+  width: 6.9px;
   height: 30%;
   border-radius: 999px;
   background: linear-gradient(180deg, #ff9ad0, #8fd4ff);
@@ -103,8 +103,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(47px, 10.8vw, 65px);
-  height: clamp(47px, 10.8vw, 65px);
+  width: 65px;
+  height: 65px;
   border: 3px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   background: radial-gradient(circle at 50% 28%, #ffffff, #ffe7f2);
@@ -177,18 +177,18 @@
 /* 원의 56% 크기. 퍼센트 높이는 grid item에서 해석되지 않아 절대값으로 잡는다. */
 .menu-mic img {
   width: auto;
-  height: clamp(26px, 6vw, 36px);
+  height: 36px;
 }
 
 /* ── 알약 버튼 3개 ──────────────────────────────────────────────────── */
 
 .main-menu-actions {
   display: grid;
-  gap: clamp(13.5px, 2.7vh, 21px);
+  gap: 21px;
   /* 음성 마크와의 간격 — 버튼 묶음을 화면 아래쪽으로 내리는 값이다. */
-  margin-top: clamp(2px, 0.8vh, 10px);
-  /* 42vh 상한 — 버튼 3개 높이 합(폭 × 0.80)이 화면 절반을 넘지 않게 한다. */
-  width: min(273px, 65%, 42vh);
+  margin-top: 9px;
+  /* 버튼 3개 묶음의 폭 — 설계 화면 기준 고정값. 높이는 각 버튼의 aspect-ratio가 정한다. */
+  width: 273px;
 }
 
 /*
@@ -201,7 +201,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(8px, 2vw, 14px);
+  gap: 14px;
   padding: 0 14%;
   border: 0;
   background-color: transparent;
@@ -211,7 +211,7 @@
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: clamp(1.02rem, 3vw, 1.32rem);
+  font-size: 1.32rem;
   font-weight: 900;
   letter-spacing: 0.03em;
   text-shadow: 0 0 6px rgba(90, 52, 38, 0.55), 0 2px 0 rgba(90, 52, 38, 0.85);
@@ -278,9 +278,3 @@
 }
 
 /* 설정 화면은 별도 다이얼로그다 — css/settings.css 참고. */
-
-@media (max-width: 560px) {
-  .main-menu {
-    padding: 14px 12px;
-  }
-}

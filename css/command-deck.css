@@ -1,5 +1,6 @@
 /*
  * A(비주얼) 전용 — 명령어 카드.
+ * 좌표·크기는 .hud-layer의 1920×1080 설계 화면 기준 px다.
  * 카드 DOM은 js/art/command-deck-view.js가 COMMAND_DICT로 생성한다.
  */
 
@@ -11,7 +12,7 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
-  width: min(1160px, calc(100% - 32px));
+  width: 1160px;
   padding: 0;
   transform: translateX(-50%);
   pointer-events: none;

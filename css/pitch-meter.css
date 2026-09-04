@@ -1,4 +1,5 @@
-/* A(비주얼) 전용 — 피치 게이지. 바늘은 js/art/pitch-meter-view.js가 움직인다. */
+/* A(비주얼) 전용 — 피치 게이지. 바늘은 js/art/pitch-meter-view.js가 움직인다.
+   좌표·크기는 .hud-layer의 1920×1080 설계 화면 기준 px다. */
 
 .pitch-panel {
   position: absolute;
@@ -9,7 +10,7 @@
   grid-template-columns: 130px minmax(280px, 1fr) minmax(260px, 0.9fr);
   align-items: center;
   gap: 18px;
-  width: min(1080px, calc(100% - 32px));
+  width: 1080px;
   padding: 12px 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
