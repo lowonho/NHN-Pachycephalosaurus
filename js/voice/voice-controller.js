@@ -33,6 +33,7 @@ class VoiceController {
 
     // 매 프레임 발행되는 이벤트라 payload 객체를 재사용해 GC 부담을 줄인다.
     this.pitchPayload = { hz: 0, semitones: 0, level: "MID" };
+    this.inputPayload = { rms: 0, samples: null };
   }
 
   async connect() {
@@ -65,6 +66,10 @@ class VoiceController {
     this.analyser.getFloatTimeDomainData(this.buffer);
     const detected = this.autoCorrelate(this.buffer, this.audioContext.sampleRate);
     const now = performance.now();
+
+    this.inputPayload.rms = this.rms;
+    this.inputPayload.samples = this.buffer;
+    this.events.emit(GAME_EVENTS.VOICE_INPUT, this.inputPayload);
 
     if (this.rms >= this.config.rmsGate) {
       this.recentVolumes.push({ value: this.rms, time: now });
@@ -210,7 +215,19 @@ class VoiceController {
     this.recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const alternatives = [...event.results[i]];
-        alternatives.some((candidate) => this.parseCommands(candidate.transcript || "", i));
+        let understoodText = alternatives[0]?.transcript || "";
+
+        alternatives.some((candidate) => {
+          const transcript = candidate.transcript || "";
+          if (!this.parseCommands(transcript, i)) return false;
+          understoodText = transcript;
+          return true;
+        });
+
+        this.events.emit(GAME_EVENTS.VOICE_TRANSCRIPT, {
+          text: understoodText.trim(),
+          isFinal: Boolean(event.results[i].isFinal),
+        });
       }
     };
 

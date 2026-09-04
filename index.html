@@ -126,6 +126,20 @@
             <span class="pitch-zone high">HIGH</span>
             <i id="pitch-needle"></i>
           </div>
+          <div class="voice-feedback">
+            <div class="voice-feedback-head">
+              <span id="voice-input-state">수음 대기</span>
+              <span id="voice-transcript-kind">들은 발음</span>
+            </div>
+            <canvas
+              id="voice-waveform"
+              width="360"
+              height="32"
+              aria-label="실시간 마이크 파형"
+              role="img"
+            ></canvas>
+            <strong id="voice-transcript" aria-live="polite">말해보세요</strong>
+          </div>
         </div>
 
         <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
@@ -206,6 +220,7 @@
     <script src="js/art/hud-view.js"></script>
     <script src="js/art/effects.js"></script>
     <script src="js/art/pitch-meter-view.js"></script>
+    <script src="js/art/voice-monitor-view.js"></script>
     <script src="js/art/command-deck-view.js"></script>
     <script src="js/art/viewport-fit.js"></script>
 

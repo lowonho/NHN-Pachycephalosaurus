@@ -30,6 +30,10 @@ const UI = Object.freeze({
 
   pitchNeedle: document.querySelector("#pitch-needle"),
   pitchLabel: document.querySelector("#pitch-label"),
+  voiceWaveform: document.querySelector("#voice-waveform"),
+  voiceInputState: document.querySelector("#voice-input-state"),
+  voiceTranscriptKind: document.querySelector("#voice-transcript-kind"),
+  voiceTranscript: document.querySelector("#voice-transcript"),
   commandDeck: document.querySelector("#command-deck"),
 
   helpToggle: document.querySelector("#help-toggle"),

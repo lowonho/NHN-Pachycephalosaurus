@@ -42,6 +42,8 @@ const GAME_EVENTS = Object.freeze({
 
   // 음성 입력
   VOICE_PITCH: "voice:pitch", // { hz, semitones, level } — 매 프레임, payload 재사용됨
+  VOICE_INPUT: "voice:input", // { rms, samples } — 실시간 마이크 파형, payload 재사용됨
+  VOICE_TRANSCRIPT: "voice:transcript", // { text, isFinal } — 브라우저가 인식한 발음
   VOICE_TOO_QUIET: "voice:too-quiet", // {}
   MIC_CONNECTED: "mic:connected", // {}
   MIC_CALIBRATED: "mic:calibrated", // { pitch, samples }
