@@ -3,11 +3,18 @@ export const GRAVITY_COURSE = {
   start: { x: 95, y: 483 },
   goal: { x: 745, y: 132, minX: 735 },
   platforms: [
-    { x: 30, y: 500, w: 900, h: 20 },
-    { x: 185, y: 416, w: 70, h: 16 },
-    { x: 360, y: 332, w: 62, h: 16 },
-    { x: 530, y: 248, w: 60, h: 16 },
-    { x: 695, y: 164, w: 85, h: 16, goal: true },
+    { id: "floor", x: 30, y: 500, w: 900, h: 20 },
+    { id: "entry", x: 185, y: 416, w: 70, h: 16 },
+    { id: "middle", x: 360, y: 332, w: 62, h: 16 },
+    { id: "upper", x: 530, y: 248, w: 60, h: 16 },
+    { id: "goal", x: 695, y: 164, w: 85, h: 16, goal: true },
+    // Optional footholds: fewer jumps on the direct route, more choices around it.
+    { id: "bridge", x: 280, y: 370, w: 48, h: 14 },
+    { id: "left", x: 105, y: 342, w: 62, h: 14 },
+    { id: "memory", x: 230, y: 284, w: 66, h: 14 },
+    { id: "crossing", x: 375, y: 232, w: 62, h: 14 },
+    { id: "merge", x: 510, y: 190, w: 60, h: 14 },
+    { id: "catch", x: 450, y: 400, w: 68, h: 14 },
   ],
 };
 

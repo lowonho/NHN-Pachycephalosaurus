@@ -113,6 +113,9 @@ try {
   assert.equal(await evaluate("testScene.mode"), "playing");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
   await screen("gravity-course");
+  assert.equal(await evaluate("document.querySelector('#stage-hud-fragment').textContent"), '◇ MEMORY 0/1');
+  assert.equal(await evaluate("testScene.state.platforms.length"), 11);
+  assert.equal(await evaluate("testScene.children.list.some(child => typeof child.text === 'string' && /MEMORY|발판 끝|^0[1-3]$/.test(child.text))"), false);
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
   await evaluate("testScene.finish(false); document.querySelector('#primary-button').click()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");

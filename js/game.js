@@ -104,7 +104,7 @@ class ArchiveGameBridge {
     }
     const fragmentHud = document.querySelector("#stage-hud-fragment");
     if (fragmentHud) {
-      fragmentHud.textContent = fragmentCollected ? "◆ MEMORY 1/1 · 목표 달성 시 저장" : `◇ MEMORY 0/1 · ${fragmentHint}`;
+      fragmentHud.textContent = fragmentCollected ? "◆ MEMORY 1/1 · 목표 달성 시 저장" : `◇ MEMORY 0/1${fragmentHint ? ` · ${fragmentHint}` : ""}`;
       fragmentHud.dataset.collected = String(fragmentCollected);
     }
 

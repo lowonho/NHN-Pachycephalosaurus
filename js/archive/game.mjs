@@ -421,13 +421,6 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "중력 1.0×";
     const platforms = GRAVITY_COURSE.platforms;
     this.drawWalls(platforms, 0x3f4f65, 0x8399b4);
-    const markers = this.add.graphics().setDepth(3);
-    platforms.slice(1, -1).forEach((platform, index) => {
-      markers.lineStyle(3, 0xffcf83, 0.9).lineBetween(platform.x + platform.w - 14, platform.y, platform.x + platform.w, platform.y);
-      this.add.text(platform.x + platform.w / 2, platform.y + 23, `0${index + 1}`, { fontFamily: "monospace", fontSize: "12px", color: "#9caec6" }).setOrigin(0.5);
-    });
-    this.add.text(390, 480, "발판 끝에서 도약 · 공중에서 방향 조절", { fontFamily: "sans-serif", fontSize: "14px", color: "#a6c2d9" }).setOrigin(0.5);
-    this.add.text(840, 120, "MEMORY ↑", { fontFamily: "monospace", fontSize: "11px", color: "#ffd27c" }).setOrigin(0.5);
     this.drawGoal(GRAVITY_COURSE.goal.x, GRAVITY_COURSE.goal.y, 19, "TOP");
     this.gravityArrows = this.add.graphics().setDepth(2);
     this.state = createGravityState();

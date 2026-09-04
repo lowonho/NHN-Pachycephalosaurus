@@ -38,7 +38,7 @@ export const STAGES = [
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
-    objective: "좁은 발판 끝에서 점프해 네 번의 상승을 연결하세요.",
+    objective: "발판 사이에서 경로를 찾아 상단 비콘에 도착하세요.",
     anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",

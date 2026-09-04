@@ -37,7 +37,7 @@ function boundaryWalls() {
 }
 
 function verifyGravity() {
-  const gaps = GRAVITY_COURSE.platforms.slice(1).map((platform, i) => GRAVITY_COURSE.platforms[i].y - platform.y);
+  const gaps = GRAVITY_COURSE.platforms.slice(1, 5).map((platform, i) => GRAVITY_COURSE.platforms[i].y - platform.y);
   const heights = gaps.map((_, index) => GRAVITY_COURSE.jumpSpeed ** 2 / (2 * Math.min(GRAVITY_COURSE.maxGravity, GRAVITY_COURSE.baseGravity + index * GRAVITY_COURSE.gravityStep)));
   return {
     passed: heights.every((height, index) => height >= gaps[index]),

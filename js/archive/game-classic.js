@@ -45,7 +45,7 @@ const STAGES = [
     number: "02",
     code: "GRAVITY_STACK",
     title: "중력 타워",
-    objective: "좁은 발판 끝에서 점프해 네 번의 상승을 연결하세요.",
+    objective: "발판 사이에서 경로를 찾아 상단 비콘에 도착하세요.",
     anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",
@@ -393,11 +393,18 @@ const GRAVITY_COURSE = {
   start: { x: 95, y: 483 },
   goal: { x: 745, y: 132, minX: 735 },
   platforms: [
-    { x: 30, y: 500, w: 900, h: 20 },
-    { x: 185, y: 416, w: 70, h: 16 },
-    { x: 360, y: 332, w: 62, h: 16 },
-    { x: 530, y: 248, w: 60, h: 16 },
-    { x: 695, y: 164, w: 85, h: 16, goal: true },
+    { id: "floor", x: 30, y: 500, w: 900, h: 20 },
+    { id: "entry", x: 185, y: 416, w: 70, h: 16 },
+    { id: "middle", x: 360, y: 332, w: 62, h: 16 },
+    { id: "upper", x: 530, y: 248, w: 60, h: 16 },
+    { id: "goal", x: 695, y: 164, w: 85, h: 16, goal: true },
+    // Optional footholds: fewer jumps on the direct route, more choices around it.
+    { id: "bridge", x: 280, y: 370, w: 48, h: 14 },
+    { id: "left", x: 105, y: 342, w: 62, h: 14 },
+    { id: "memory", x: 230, y: 284, w: 66, h: 14 },
+    { id: "crossing", x: 375, y: 232, w: 62, h: 14 },
+    { id: "merge", x: 510, y: 190, w: 60, h: 14 },
+    { id: "catch", x: 450, y: 400, w: 68, h: 14 },
   ],
 };
 
@@ -492,7 +499,7 @@ function createProgressStore(stageIds, storage = null) {
 // Initial placements only. Change these independently of the physics and maps.
 const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
-  gravity: { x: 824, y: 78, radius: 12, hint: "마지막 발판에서 추가 점프 후 귀환" },
+  gravity: { x: 263, y: 260, radius: 12, hint: "" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
   friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
@@ -928,13 +935,6 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "중력 1.0×";
     const platforms = GRAVITY_COURSE.platforms;
     this.drawWalls(platforms, 0x3f4f65, 0x8399b4);
-    const markers = this.add.graphics().setDepth(3);
-    platforms.slice(1, -1).forEach((platform, index) => {
-      markers.lineStyle(3, 0xffcf83, 0.9).lineBetween(platform.x + platform.w - 14, platform.y, platform.x + platform.w, platform.y);
-      this.add.text(platform.x + platform.w / 2, platform.y + 23, `0${index + 1}`, { fontFamily: "monospace", fontSize: "12px", color: "#9caec6" }).setOrigin(0.5);
-    });
-    this.add.text(390, 480, "발판 끝에서 도약 · 공중에서 방향 조절", { fontFamily: "sans-serif", fontSize: "14px", color: "#a6c2d9" }).setOrigin(0.5);
-    this.add.text(840, 120, "MEMORY ↑", { fontFamily: "monospace", fontSize: "11px", color: "#ffd27c" }).setOrigin(0.5);
     this.drawGoal(GRAVITY_COURSE.goal.x, GRAVITY_COURSE.goal.y, 19, "TOP");
     this.gravityArrows = this.add.graphics().setDepth(2);
     this.state = createGravityState();
