@@ -17,7 +17,12 @@ class AudioBus {
     this.events = events;
     this.scene = null;
     this.volumes = { master: 0.8, bgm: 0.45, sfx: 0.9 };
+    // 마스터 뮤트. 켜지면 채널 설정과 무관하게 전부 조용해진다.
     this.muted = false;
+    // 채널별 뮤트. 설정 화면의 볼륨 줄마다 붙은 전원 토글이 여기를 건드린다.
+    // 볼륨 값을 0으로 떨어뜨리지 않고 따로 두는 이유는, 껐다 켰을 때
+    // 사용자가 맞춰 둔 볼륨이 그대로 돌아와야 하기 때문이다.
+    this.channelMuted = { bgm: false, sfx: false };
     this.duckTimer = 0;
     this.duckFactor = 1;
 
@@ -73,9 +78,14 @@ class AudioBus {
   }
 
   channelVolume(channel) {
-    if (this.muted) return 0;
+    if (this.isChannelMuted(channel)) return 0;
     const base = this.volumes[channel] ?? 1;
     return this.volumes.master * base * (channel === "bgm" ? this.duckFactor : 1);
+  }
+
+  // master는 별도 채널이 아니라 전체를 덮는 스위치라 this.muted가 곧 답이다.
+  isChannelMuted(channel) {
+    return this.muted || Boolean(this.channelMuted[channel]);
   }
 
   setVolume(channel, value) {
@@ -86,6 +96,16 @@ class AudioBus {
 
   setMuted(muted) {
     this.muted = Boolean(muted);
+    this.save();
+    this.apply();
+  }
+
+  setChannelMuted(channel, muted) {
+    if (channel === "master") {
+      this.setMuted(muted);
+      return;
+    }
+    this.channelMuted[channel] = Boolean(muted);
     this.save();
     this.apply();
   }
@@ -105,7 +125,11 @@ class AudioBus {
     if (!this.scene?.sound) return;
     this.scene.sound.mute = this.muted;
     this.scene.sound.volume = this.volumes.master;
-    this.events.emit(GAME_EVENTS.AUDIO_VOLUME_CHANGED, { ...this.volumes, muted: this.muted });
+    this.events.emit(GAME_EVENTS.AUDIO_VOLUME_CHANGED, {
+      ...this.volumes,
+      muted: this.muted,
+      channelMuted: { ...this.channelMuted },
+    });
   }
 
   load() {
@@ -114,6 +138,8 @@ class AudioBus {
       if (saved) {
         this.volumes = { ...this.volumes, ...saved.volumes };
         this.muted = Boolean(saved.muted);
+        // channelMuted가 없던 시절에 저장된 값도 그대로 읽힌다(전부 켜짐으로 시작).
+        this.channelMuted = { ...this.channelMuted, ...saved.channelMuted };
       }
     } catch (_) {
       /* 저장값이 깨졌으면 기본값을 쓴다 */
@@ -124,7 +150,11 @@ class AudioBus {
     try {
       window.localStorage.setItem(
         AUDIO_STORAGE_KEY,
-        JSON.stringify({ volumes: this.volumes, muted: this.muted }),
+        JSON.stringify({
+          volumes: this.volumes,
+          muted: this.muted,
+          channelMuted: this.channelMuted,
+        }),
       );
     } catch (_) {
       /* 시크릿 모드 등에서 실패해도 재생에는 영향이 없다 */

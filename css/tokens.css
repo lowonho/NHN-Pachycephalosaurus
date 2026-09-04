@@ -1,5 +1,20 @@
 /* A(비주얼) 전용 — 디자인 토큰. 캔버스 쪽 팔레트는 js/art/theme.js에 같은 값이 있다. */
 
+/* 게임 공용 웹폰트 — 얇은 글씨(Galmuri11) / 굵은 글씨(NeoDunggeunGothicPro) */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri11.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NeoDunggeunGothicPro';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/NeoDunggeunmoPro-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
@@ -19,7 +34,7 @@
   --radius-card: 24px;
   --radius-control: 14px;
 
-  --font-display: "Black Han Sans", sans-serif;
-  --font-body: "Gowun Dodum", system-ui, sans-serif;
-  --font-ui: system-ui, sans-serif;
+  --font-display: "NeoDunggeunGothicPro", "Galmuri11", sans-serif;
+  --font-body: "Galmuri11", system-ui, sans-serif;
+  --font-ui: "Galmuri11", system-ui, sans-serif;
 }

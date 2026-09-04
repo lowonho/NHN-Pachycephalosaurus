@@ -60,7 +60,7 @@ try {
   await send("Runtime.enable");
   await send("Page.enable");
   await send("Network.enable");
-  await send("Network.setBlockedURLs", { urls: ["*fonts.googleapis.com*", "*fonts.gstatic.com*"] });
+  await send("Network.setBlockedURLs", { urls: ["*fonts.googleapis.com*", "*fonts.gstatic.com*", "*cdn.jsdelivr.net*"] });
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);

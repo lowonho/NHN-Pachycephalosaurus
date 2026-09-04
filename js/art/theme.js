@@ -27,7 +27,7 @@ const THEME = Object.freeze({
   }),
 
   font: Object.freeze({
-    display: "Arial Black, sans-serif",
+    display: "NeoDunggeunGothicPro, Galmuri11, sans-serif",
   }),
 
   // setDepth로 z순서를 명시한다. 뷰들이 서로 다른 시점에 그려져도 순서가 어긋나지 않는다.

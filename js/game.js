@@ -159,10 +159,8 @@ class ArchiveGameBridge {
   }
 
   syncAudio() {
-    const volume = this.soundBus.muted
-      ? 0
-      : this.soundBus.volumes.master * this.soundBus.volumes.sfx;
-    window.archiveAudio?.setVolume(volume);
+    // channelVolume이 마스터 뮤트와 채널 뮤트를 모두 반영한다.
+    window.archiveAudio?.setVolume(this.soundBus.channelVolume("sfx"));
     window.archiveAudio?.setBgmVolume(this.soundBus.channelVolume("bgm"));
   }
 }

@@ -83,18 +83,43 @@ class ProtocolSelectFlow {
   open() {
     this.soundBus.resume();
     this.render();
-    // 뒤 화면(메인·플레이)은 보이더라도 만질 수 없어야 한다.
+    // 뒤 화면(메인)은 보이더라도 만질 수 없어야 한다.
     this.ui.mainMenu?.setAttribute("inert", "");
-    this.ui.appShell?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
+    this.showScreen("select");
     this.startTimer();
 
     const firstTile = this.ui.stageSelectGrid?.querySelector("button:not(:disabled)");
     (firstTile ?? this.ui.stageSelectBackButton)?.focus();
   }
 
+  /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
   close() {
+    this.showScreen("select");
     this.ui.stageSelectScreen?.classList.add("hidden");
+  }
+
+  /*
+   * 모니터 스크린 안에서 프로토콜 선택과 플레이가 자리를 바꾼다.
+   * 모니터·방·책상은 두 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
+   */
+  showScreen(mode) {
+    const playing = mode === "play";
+    if (this.ui.protocolScreen) this.ui.protocolScreen.dataset.mode = mode;
+
+    if (this.ui.appShell) {
+      this.ui.appShell.hidden = !playing;
+      if (playing) this.ui.appShell.removeAttribute("inert");
+      else this.ui.appShell.setAttribute("inert", "");
+    }
+
+    /*
+     * Phaser는 부팅할 때 부모(#game-container)를 재는데, 그때 모니터가 아직
+     * display:none이라 0×0으로 읽힌다. 스크린이 처음 보이는 이 시점에 다시 재게 한다.
+     * (한 번이면 충분하다 — 부모의 레이아웃 크기는 1440×810로 고정이고,
+     *  창 크기 변화는 조상의 --ui-scale 변환이 흡수한다.)
+     */
+    if (playing) window.archivePhaserGame?.scale?.refresh();
   }
 
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
@@ -130,8 +155,8 @@ class ProtocolSelectFlow {
     }
 
     this.soundBus.resume();
-    this.close();
-    this.ui.appShell?.removeAttribute("inert");
+    // 모니터는 그대로 두고 스크린 안쪽만 플레이로 바꾼다.
+    this.showScreen("play");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
   }
 
