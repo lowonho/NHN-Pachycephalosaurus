@@ -1,0 +1,125 @@
+/* A(비주얼) 전용 — 설정/결과 모달과 캘리브레이션 비주얼. */
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(1, 7, 24, 0.76);
+  backdrop-filter: blur(13px);
+}
+
+.modal-backdrop.hidden {
+  display: none;
+}
+
+.modal {
+  width: min(520px, 100%);
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(145deg, rgba(39, 93, 255, 0.22), transparent 45%),
+    #071532;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.56);
+  text-align: center;
+}
+
+.modal-step {
+  margin: 0 0 8px;
+  color: var(--cyan);
+  font: 800 0.78rem/1 var(--font-ui);
+  letter-spacing: 0.18em;
+}
+
+.modal h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 7vw, 3.15rem);
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.modal p {
+  line-height: 1.7;
+}
+
+.primary-button,
+.secondary-button {
+  width: 100%;
+  min-height: 52px;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.primary-button {
+  border: 0;
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: 0 10px 28px rgba(255, 224, 75, 0.22);
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.secondary-button {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #fff;
+}
+
+.privacy-note {
+  margin: 14px 0 0 !important;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* 마이크가 듣는 동안 움직이는 막대 — .listening은 ui/modal-flow.js가 토글한다. */
+.calibration-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 62px;
+  margin: 12px 0;
+}
+
+.calibration-visual span {
+  width: 8px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+.calibration-visual.listening span {
+  animation: voice-wave 800ms ease-in-out infinite alternate;
+}
+
+.calibration-visual span:nth-child(2),
+.calibration-visual span:nth-child(4) {
+  animation-delay: -220ms;
+}
+
+.calibration-visual span:nth-child(3) {
+  animation-delay: -420ms;
+}
+
+@keyframes voice-wave {
+  to {
+    height: 56px;
+    background: var(--yellow);
+  }
+}
+
+.calibration-result {
+  min-height: 28px;
+  margin: 0 0 10px;
+  color: var(--yellow);
+  font-weight: 700;
+}

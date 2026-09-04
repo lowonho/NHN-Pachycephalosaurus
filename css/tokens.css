@@ -1,0 +1,25 @@
+/* A(비주얼) 전용 — 디자인 토큰. 캔버스 쪽 팔레트는 js/art/theme.js에 같은 값이 있다. */
+
+:root {
+  color-scheme: dark;
+
+  --ink: #061537;
+  --paper: #f7fbff;
+  --blue: #1f5cff;
+  --cyan: #4eefff;
+  --coral: #ff5f6f;
+  --yellow: #ffe04b;
+  --panel: rgba(5, 20, 52, 0.9);
+
+  --line-soft: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.18);
+  --text-dim: #b4c3e4;
+  --text-muted: #91a1c5;
+
+  --radius-card: 24px;
+  --radius-control: 14px;
+
+  --font-display: "Black Han Sans", sans-serif;
+  --font-body: "Gowun Dodum", system-ui, sans-serif;
+  --font-ui: system-ui, sans-serif;
+}

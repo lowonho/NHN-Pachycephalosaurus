@@ -14,8 +14,11 @@
       href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
-    <link rel="stylesheet" href="css/voice-ui.css" />
+    <link rel="stylesheet" href="css/pitch-meter.css" />
+    <link rel="stylesheet" href="css/command-deck.css" />
+    <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/responsive.css" />
   </head>
   <body>
@@ -47,24 +50,8 @@
           </div>
         </div>
 
-        <div class="command-deck" aria-label="음성 명령어">
-          <article class="command command-left">
-            <b>오이데</b>
-            <span>← 왼쪽</span>
-          </article>
-          <article class="command command-jump">
-            <b>야호!</b>
-            <span>↑ 점프 · 높게 말할수록 높이</span>
-          </article>
-          <article class="command command-stop">
-            <b>마떼루요</b>
-            <span>■ 정지</span>
-          </article>
-          <article class="command command-right">
-            <b>파라파라</b>
-            <span>→ 오른쪽</span>
-          </article>
-        </div>
+        <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
+        <div class="command-deck" id="command-deck" aria-label="음성 명령어"></div>
       </section>
 
       <button class="help-toggle" id="help-toggle" type="button" aria-expanded="false">
@@ -92,18 +79,60 @@
         <button class="primary-button" id="primary-button" type="button">
           마이크 연결하고 시작
         </button>
-        <button class="secondary-button" id="secondary-button" type="button" data-action="keyboard">
+        <button class="secondary-button" id="secondary-button" type="button">
           마이크 없이 키보드로 테스트
         </button>
         <p class="privacy-note">음성은 저장하지 않으며 현재 플레이에만 사용합니다.</p>
       </section>
     </div>
 
+    <!--
+      로드 순서 규칙: 아래로 갈수록 위의 전역에 의존한다.
+      새 파일을 추가할 때는 자기 트랙 블록 안에 넣는다.
+    -->
     <script src="vendor/phaser.min.js"></script>
-    <script src="js/asset-manager.js"></script>
-    <script src="js/voice-evaluator.js"></script>
-    <script src="js/voice-controller.js"></script>
-    <script src="js/mic-test-controller.js"></script>
+
+    <!-- 공통 계약 (동결) -->
+    <script src="js/core/game-events.js"></script>
+    <script src="js/config/stage-geometry.js"></script>
+    <script src="js/config/balance.js"></script>
+    <script src="js/content/strings.ko.js"></script>
+
+    <!-- C2 · 음성 사전 (아트/음성 양쪽이 참조) -->
+    <script src="js/voice/command-dict.js"></script>
+
+    <!-- C1 · 이미지 에셋 / C2 · 사운드 에셋 -->
+    <script src="js/assets/image-manifest.js"></script>
+    <script src="js/assets/audio-manifest.js"></script>
+    <script src="js/assets/asset-loader.js"></script>
+
+    <!-- B · DOM 참조 (아트 뷰가 참조하므로 먼저 로드) -->
+    <script src="js/ui/dom.js"></script>
+
+    <!-- A · 비주얼 -->
+    <script src="js/art/theme.js"></script>
+    <script src="js/art/sprite-animations.js"></script>
+    <script src="js/art/stage-view.js"></script>
+    <script src="js/art/player-view.js"></script>
+    <script src="js/art/hud-view.js"></script>
+    <script src="js/art/effects.js"></script>
+    <script src="js/art/pitch-meter-view.js"></script>
+    <script src="js/art/command-deck-view.js"></script>
+    <script src="js/art/viewport-fit.js"></script>
+
+    <!-- C2 · 사운드 -->
+    <script src="js/audio/audio-bus.js"></script>
+    <script src="js/audio/sfx-player.js"></script>
+    <script src="js/audio/bgm-player.js"></script>
+
+    <!-- C2 · 음성 입력 -->
+    <script src="js/voice/voice-evaluator.js"></script>
+    <script src="js/voice/voice-controller.js"></script>
+
+    <!-- B · 기능 -->
+    <script src="js/ui/hud-status.js"></script>
+    <script src="js/ui/modal-flow.js"></script>
+    <script src="js/scene/stage-scene.js"></script>
     <script src="js/game.js"></script>
   </body>
 </html>

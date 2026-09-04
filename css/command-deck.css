@@ -1,0 +1,52 @@
+/*
+ * A(비주얼) 전용 — 명령어 카드.
+ * 카드 DOM은 js/art/command-deck-view.js가 COMMAND_DICT로 생성한다.
+ */
+
+.command-deck {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 10px 18px 18px;
+}
+
+.command {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-control);
+  background: rgba(255, 255, 255, 0.055);
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.command b,
+.command span {
+  display: block;
+}
+
+.command b {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+.command span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #b8c6e5;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command.active {
+  transform: translateY(-3px);
+  border-color: var(--cyan);
+  background: rgba(78, 239, 255, 0.18);
+  box-shadow: 0 9px 26px rgba(78, 239, 255, 0.14);
+}
+
+.command-jump.active {
+  border-color: var(--yellow);
+  background: rgba(255, 224, 75, 0.18);
+}

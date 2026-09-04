@@ -1,13 +1,4 @@
-:root {
-  color-scheme: dark;
-  --ink: #061537;
-  --paper: #f7fbff;
-  --blue: #1f5cff;
-  --cyan: #4eefff;
-  --coral: #ff5f6f;
-  --yellow: #ffe04b;
-  --panel: rgba(5, 20, 52, 0.9);
-}
+/* A(비주얼) 전용 — 리셋, 앱 셸, 헤더, 게임 카드, 도움말. */
 
 * {
   box-sizing: border-box;
@@ -25,7 +16,7 @@ body {
     radial-gradient(circle at 90% 80%, rgba(255, 95, 111, 0.18), transparent 30%),
     #030b23;
   color: var(--paper);
-  font-family: "Gowun Dodum", system-ui, sans-serif;
+  font-family: var(--font-body);
 }
 
 button {
@@ -33,7 +24,10 @@ button {
 }
 
 .app-shell {
-  /* 넓고 낮은 데스크톱 창에서도 전체 조작부가 세로 화면 안에 들어오게 한다. */
+  /*
+   * 폭은 js/art/viewport-fit.js가 실측해 인라인으로 덮어쓴다.
+   * 아래 값은 스크립트가 실행되기 전 첫 페인트용 근사치다.
+   */
   width: min(1920px, calc(100% - 32px), 120vh);
   width: min(1920px, calc(100% - 32px), 120dvh);
   margin: 0 auto;
@@ -51,7 +45,7 @@ button {
 .eyebrow {
   margin: 0 0 3px;
   color: var(--cyan);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -59,7 +53,7 @@ button {
 
 h1 {
   margin: 0;
-  font-family: "Black Han Sans", sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(2rem, 5vw, 3.8rem);
   font-weight: 400;
   line-height: 0.96;
@@ -77,7 +71,7 @@ h1 span {
   gap: 9px;
   min-height: 38px;
   padding: 9px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(4, 17, 47, 0.78);
   font-size: 0.9rem;
@@ -98,8 +92,8 @@ h1 span {
 
 .game-card {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
   background: var(--panel);
   box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
 }
@@ -116,14 +110,13 @@ h1 span {
   height: 100% !important;
 }
 
-
 .help-toggle {
   display: block;
   margin: 16px auto 0;
   padding: 8px 12px;
   border: 0;
   background: transparent;
-  color: #b4c3e4;
+  color: var(--text-dim);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -147,86 +140,5 @@ kbd {
   border-radius: 6px;
   background: #14264f;
   color: #fff;
-  font-family: system-ui, sans-serif;
-}
-
-.modal-backdrop {
-  position: fixed;
-  z-index: 20;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(1, 7, 24, 0.76);
-  backdrop-filter: blur(13px);
-}
-
-.modal-backdrop.hidden {
-  display: none;
-}
-
-.modal {
-  width: min(520px, 100%);
-  padding: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 24px;
-  background:
-    linear-gradient(145deg, rgba(39, 93, 255, 0.22), transparent 45%),
-    #071532;
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.56);
-  text-align: center;
-}
-
-.modal-step {
-  margin: 0 0 8px;
-  color: var(--cyan);
-  font: 800 0.78rem/1 system-ui, sans-serif;
-  letter-spacing: 0.18em;
-}
-
-.modal h2 {
-  margin: 0;
-  font-family: "Black Han Sans", sans-serif;
-  font-size: clamp(2rem, 7vw, 3.15rem);
-  font-weight: 400;
-  line-height: 1.08;
-}
-
-.modal p {
-  line-height: 1.7;
-}
-
-
-.primary-button,
-.secondary-button {
-  width: 100%;
-  min-height: 52px;
-  border-radius: 14px;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.primary-button {
-  border: 0;
-  background: var(--yellow);
-  color: var(--ink);
-  box-shadow: 0 10px 28px rgba(255, 224, 75, 0.22);
-}
-
-.primary-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.secondary-button {
-  margin-top: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: transparent;
-  color: #fff;
-}
-
-.privacy-note {
-  margin: 14px 0 0 !important;
-  color: #91a1c5;
-  font-size: 0.78rem;
+  font-family: var(--font-ui);
 }
