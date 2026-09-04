@@ -21,6 +21,8 @@ class VoiceController {
     this.pitch = 0;
     this.pitchSamples = [];
     this.recentPitches = [];
+    this.rms = 0;
+    this.recentVolumes = [];
     this.animationFrame = 0;
 
     this.recognition = null;
@@ -63,6 +65,10 @@ class VoiceController {
     const detected = this.autoCorrelate(this.buffer, this.audioContext.sampleRate);
     const now = performance.now();
 
+    if (this.rms >= this.config.rmsGate) {
+      this.recentVolumes.push({ value: this.rms, time: now });
+    }
+
     if (detected > this.config.pitchMinHz && detected < this.config.pitchMaxHz) {
       this.pitch = detected;
       this.recentPitches.push({ value: detected, time: now });
@@ -73,6 +79,9 @@ class VoiceController {
 
     this.recentPitches = this.recentPitches.filter(
       (sample) => now - sample.time < this.config.recentWindowMs,
+    );
+    this.recentVolumes = this.recentVolumes.filter(
+      (sample) => now - sample.time < this.config.volumeWindowMs,
     );
     this.animationFrame = requestAnimationFrame(() => this.monitorPitch());
   }
@@ -88,6 +97,7 @@ class VoiceController {
     let rms = 0;
     for (let i = 0; i < buffer.length; i += 1) rms += buffer[i] * buffer[i];
     rms = Math.sqrt(rms / buffer.length);
+    this.rms = rms;
     if (rms < this.config.rmsGate) return -1;
 
     let start = 0;
@@ -173,6 +183,15 @@ class VoiceController {
     return this.evaluator.getLevel(this.getRecentPitch(), this.basePitch);
   }
 
+  getRecentVolume() {
+    const now = performance.now();
+    const values = this.recentVolumes
+      .filter((sample) => now - sample.time < this.config.volumeWindowMs)
+      .map((sample) => sample.value);
+    if (!values.length) return this.config.movementVolumeMinRms;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
   startRecognition() {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) return false;
@@ -232,6 +251,7 @@ class VoiceController {
     this.events.emit(GAME_EVENTS.COMMAND_RECOGNIZED, {
       command,
       level: this.getPitchLevel(),
+      volume: this.getRecentVolume(),
       source: "voice",
     });
   }
@@ -249,6 +269,8 @@ class VoiceController {
   resetCommandState() {
     this.lastTrigger.clear();
     this.recentPitches = [];
+    this.recentVolumes = [];
+    this.rms = 0;
   }
 
   destroy() {

@@ -31,7 +31,7 @@ const GAME_EVENTS = Object.freeze({
   TIMER_WARNING: "timer:warning", // {} — 임계 진입 시 1회만
 
   // 명령
-  COMMAND_RECOGNIZED: "command:recognized", // { command, level, source }
+  COMMAND_RECOGNIZED: "command:recognized", // { command, level, volume, source }
   COMMAND_REJECTED: "command:rejected", // { command, reason }
 
   // 플레이어

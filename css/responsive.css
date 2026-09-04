@@ -22,7 +22,7 @@
   }
 
   .command-deck {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     bottom: 8px;
     gap: 5px;
     width: calc(100% - 16px);

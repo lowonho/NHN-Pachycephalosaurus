@@ -9,9 +9,9 @@
   bottom: 12px;
   left: 50%;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
-  width: min(920px, calc(100% - 32px));
+  width: min(1160px, calc(100% - 32px));
   padding: 0;
   transform: translateX(-50%);
   pointer-events: none;
