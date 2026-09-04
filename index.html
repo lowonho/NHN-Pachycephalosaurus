@@ -286,6 +286,10 @@
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/game.js"></script>
-    <script type="module" src="js/archive/game.mjs"></script>
+    <!--
+      ES modules are kept as the source/test files, while this generated classic
+      bundle also works when index.html is opened directly through file://.
+    -->
+    <script src="js/archive/game-classic.js"></script>
   </body>
 </html>
