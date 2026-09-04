@@ -33,15 +33,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  width: min(560px, 100%);
+  width: min(640px, 100%);
   text-align: center;
 }
 
 /* ── 로고 (리본 카피 포함) ──────────────────────────────────────────── */
 
-/* 62vh 상한은 로고 높이(= 폭 / 1.714)를 화면의 36% 아래로 묶어두기 위한 것이다. */
+/* 68vh 상한은 로고 높이(= 폭 / 1.714)를 화면의 40% 아래로 묶어두기 위한 것이다. */
 .menu-logo {
-  width: min(540px, 96%, 62vh);
+  width: min(570px, 94%, 68vh);
   margin: 0;
   line-height: 0;
 }
@@ -62,11 +62,13 @@
   margin: clamp(8px, 2vh, 16px) 0 clamp(10px, 2.4vh, 20px);
 }
 
+/* 가로 길이는 막대 굵기를 놔둔 채 간격만 벌려서 늘린다.
+   막대까지 같이 굵히면 낮아진 높이와 겹쳐 뭉툭해 보인다. */
 .menu-wave {
   display: flex;
   align-items: center;
-  gap: clamp(4.6px, 1.27vw, 8.05px);
-  height: clamp(36px, 9vw, 52px);
+  gap: clamp(5.6px, 1.53vw, 9.67px);
+  height: clamp(27px, 6.75vw, 39px);
 }
 
 .menu-wave i {
@@ -101,8 +103,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(52px, 12vw, 72px);
-  height: clamp(52px, 12vw, 72px);
+  width: clamp(47px, 10.8vw, 65px);
+  height: clamp(47px, 10.8vw, 65px);
   border: 3px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   background: radial-gradient(circle at 50% 28%, #ffffff, #ffe7f2);
@@ -175,7 +177,7 @@
 /* 원의 56% 크기. 퍼센트 높이는 grid item에서 해석되지 않아 절대값으로 잡는다. */
 .menu-mic img {
   width: auto;
-  height: clamp(29px, 6.7vw, 40px);
+  height: clamp(26px, 6vw, 36px);
 }
 
 /* ── 알약 버튼 3개 ──────────────────────────────────────────────────── */
@@ -183,8 +185,10 @@
 .main-menu-actions {
   display: grid;
   gap: clamp(9px, 1.8vh, 14px);
-  /* 66vh 상한 — 버튼 3개 높이 합(폭 × 0.66)이 화면 절반을 넘지 않게 한다. */
-  width: min(357px, 85%, 66vh);
+  /* 음성 마크와의 간격 — 버튼 묶음을 화면 아래쪽으로 내리는 값이다. */
+  margin-top: clamp(14px, 4vh, 34px);
+  /* 46vh 상한 — 버튼 3개 높이 합(폭 × 0.73)이 화면 절반을 넘지 않게 한다. */
+  width: min(273px, 65%, 46vh);
 }
 
 /*
@@ -220,19 +224,19 @@
   filter: drop-shadow(0 2px 3px rgba(90, 52, 38, 0.35));
 }
 
-/* aspect-ratio 분모 = 에셋 원본 높이 × 0.7 */
+/* aspect-ratio 분모 = 에셋 원본 높이 × 0.77 */
 .menu-button--play {
-  aspect-ratio: 800 / 177.8;
+  aspect-ratio: 800 / 195.58;
   background-image: url("../assets/images/ui/Main/button-start-blank.webp");
 }
 
 .menu-button--challenge {
-  aspect-ratio: 800 / 179.2;
+  aspect-ratio: 800 / 197.12;
   background-image: url("../assets/images/ui/Main/button-challenge-blank.webp");
 }
 
 .menu-button--settings {
-  aspect-ratio: 800 / 170.8;
+  aspect-ratio: 800 / 187.88;
   background-image: url("../assets/images/ui/Main/button-settings-blank.webp");
 }
 
