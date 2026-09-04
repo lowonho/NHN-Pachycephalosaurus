@@ -15,8 +15,8 @@ const DUJJONKU_CONFIG = Object.freeze({
     minAngle: 22,
     maxAngle: 58,
     angleSweepMs: 3100,
-    minPower: 10.5,
-    maxPower: 24,
+    minPower: 14,
+    maxPower: 32,
   }),
   voice: Object.freeze({
     fftSize: 1024,
@@ -31,8 +31,8 @@ const DUJJONKU_CONFIG = Object.freeze({
   }),
   projectile: Object.freeze({
     radius: 29,
-    settleSpeed: 0.32,
-    settleMs: 850,
+    settleSpeed: 0.38,
+    settleMs: 1050,
     resetDelayMs: 520,
   }),
 });

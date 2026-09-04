@@ -50,18 +50,26 @@ function createDujjonkuTextures(scene) {
 
 function addDujjonkuBlock(scene, type, x, y, options = {}) {
   const settings = {
-    wood: { texture: DUJJONKU_TEXTURES.wood, hp: 48, density: 0.0013, restitution: 0.16 },
-    stone: { texture: DUJJONKU_TEXTURES.stone, hp: 125, density: 0.0058, restitution: 0.05 },
-    star: { texture: DUJJONKU_TEXTURES.star, hp: 70, density: 0.0024, restitution: 0.22 },
+    wood: { texture: DUJJONKU_TEXTURES.wood, hp: 52, density: 0.0009, restitution: 0.22, friction: 0.5 },
+    stone: { texture: DUJJONKU_TEXTURES.stone, hp: 150, density: 0.0065, restitution: 0.04, friction: 0.82 },
+    star: { texture: DUJJONKU_TEXTURES.star, hp: 78, density: 0.0018, restitution: 0.3, friction: 0.58 },
   }[type];
   const block = scene.matter.add.image(x, y, settings.texture, null, {
     density: settings.density,
-    friction: 0.72,
-    frictionAir: 0.015,
+    friction: settings.friction,
+    frictionStatic: settings.friction + 0.18,
+    frictionAir: type === "stone" ? 0.02 : 0.008,
     restitution: settings.restitution,
   });
   block.setDataEnabled();
-  block.setData({ kind: "block", blockType: type, hp: settings.hp, maxHp: settings.hp, destroyed: false });
+  block.setData({
+    kind: "block",
+    blockType: type,
+    hp: settings.hp,
+    maxHp: settings.hp,
+    destroyed: false,
+    lastImpactAt: 0,
+  });
   if (options.angle) block.setAngle(options.angle);
   if (options.scaleX || options.scaleY) block.setScale(options.scaleX || 1, options.scaleY || 1);
   return block;
@@ -70,10 +78,11 @@ function addDujjonkuBlock(scene, type, x, y, options = {}) {
 function addDujjonkuMonster(scene, x, y) {
   const monster = scene.matter.add.image(x, y, DUJJONKU_TEXTURES.monster, null, {
     shape: { type: "circle", radius: 34 },
-    density: 0.0018,
-    friction: 0.7,
-    frictionAir: 0.012,
-    restitution: 0.28,
+    density: 0.00135,
+    friction: 0.58,
+    frictionStatic: 0.76,
+    frictionAir: 0.008,
+    restitution: 0.34,
   });
   monster.setDataEnabled();
   monster.setData({ kind: "monster", hp: 45, destroyed: false });

@@ -325,10 +325,10 @@ class DujjonkuScene extends Phaser.Scene {
       null,
       {
         shape: { type: "circle", radius: 27 },
-        density: .002,
-        restitution: .72,
-        friction: .4,
-        frictionAir: .008,
+        density: .0048,
+        restitution: .52,
+        friction: .28,
+        frictionAir: .004,
       },
     ).setDepth(12).setDataEnabled();
     this.projectile.setData({ kind: "projectile" });
@@ -367,7 +367,9 @@ class DujjonkuScene extends Phaser.Scene {
       if (!a || !b) return;
       const aKind = a.getData?.("kind");
       const bKind = b.getData?.("kind");
-      const impact = Math.max(pair.bodyA.speed || 0, pair.bodyB.speed || 0);
+      const velocityA = pair.bodyA.velocity || { x: 0, y: 0 };
+      const velocityB = pair.bodyB.velocity || { x: 0, y: 0 };
+      const impact = Math.hypot(velocityA.x - velocityB.x, velocityA.y - velocityB.y);
       if (aKind === "block") this.damageBlock(a, impact, b);
       if (bKind === "block") this.damageBlock(b, impact, a);
       if (aKind === "monster") this.damageMonster(a, impact, b);
@@ -376,12 +378,51 @@ class DujjonkuScene extends Phaser.Scene {
   }
 
   damageBlock(block, impact, other) {
-    if (block.getData("destroyed") || impact < 2.2) return;
-    const multiplier = other?.getData?.("kind") === "projectile" ? 3.1 : 1.35;
+    if (block.getData("destroyed") || impact < 1.15) return;
+    const sourceKind = other?.getData?.("kind");
+    this.transferImpact(block, other, impact);
+    const resistance = { wood: 1.9, star: 1.25, stone: 0.52 }[block.getData("blockType")] || 1;
+    const multiplier = sourceKind === "projectile" ? resistance : resistance * 0.62;
     block.setData("hp", block.getData("hp") - impact * multiplier);
-    this.tweens.add({ targets: block, alpha: .55, duration: 55, yoyo: true });
+    const flashAlpha = block.getData("blockType") === "stone" ? .72 : .48;
+    this.tweens.add({ targets: block, alpha: flashAlpha, duration: 65, yoyo: true });
+    if (sourceKind === "projectile" && impact > 5) {
+      this.cameras.main.shake(95, Phaser.Math.Clamp(impact / 1800, .003, .014));
+      this.spawnImpactSpecks(block.x, block.y, block.getData("blockType"));
+    }
     if (block.getData("blockType") === "star" && impact > 4.5) this.starBurst(block, impact);
     if (block.getData("hp") <= 0) this.destroyBlock(block);
+  }
+
+  transferImpact(block, source, impact) {
+    if (!block?.active || !source?.body) return;
+    const sourceVelocity = source.body.velocity || { x: 0, y: 0 };
+    const speed = Math.hypot(sourceVelocity.x, sourceVelocity.y) || 1;
+    const type = block.getData("blockType");
+    const mobility = { wood: 1, star: .82, stone: .24 }[type] || .7;
+    const force = Phaser.Math.Clamp((.012 + impact * .00075) * mobility, .003, .038);
+    block.applyForce({
+      x: sourceVelocity.x / speed * force,
+      y: sourceVelocity.y / speed * force - .0015 * mobility,
+    });
+    const offset = Phaser.Math.Clamp((source.y - block.y) / 90, -1, 1);
+    const spin = Phaser.Math.Clamp((sourceVelocity.x / speed) * offset * .11 * mobility, -.13, .13);
+    block.setAngularVelocity(Phaser.Math.Clamp((block.body.angularVelocity || 0) + spin, -.18, .18));
+  }
+
+  spawnImpactSpecks(x, y, type) {
+    const color = { wood: 0xf4bd77, stone: 0xd9e1e9, star: 0xffe16c }[type] || 0xffffff;
+    for (let i = 0; i < 5; i += 1) {
+      const speck = this.add.circle(x, y, Phaser.Math.Between(3, 6), color).setDepth(19);
+      this.tweens.add({
+        targets: speck,
+        x: x + Phaser.Math.Between(-55, 55),
+        y: y + Phaser.Math.Between(-70, 25),
+        alpha: 0,
+        duration: 260,
+        onComplete: () => speck.destroy(),
+      });
+    }
   }
 
   starBurst(star, impact) {
@@ -391,9 +432,10 @@ class DujjonkuScene extends Phaser.Scene {
       if (!block.active || block === star) return;
       const distance = Phaser.Math.Distance.Between(star.x, star.y, block.x, block.y);
       if (distance > 230) return;
-      const force = Math.max(.002, (230 - distance) / 36000);
+      const force = Math.max(.006, (230 - distance) / 10500);
       const angle = Phaser.Math.Angle.Between(star.x, star.y, block.x, block.y);
-      block.applyForce({ x: Math.cos(angle) * force, y: Math.sin(angle) * force - .002 });
+      block.applyForce({ x: Math.cos(angle) * force, y: Math.sin(angle) * force - .006 });
+      block.setAngularVelocity(Phaser.Math.FloatBetween(-.14, .14));
       block.setData("hp", block.getData("hp") - impact * 1.8);
       if (block.getData("hp") <= 0) this.destroyBlock(block);
     });
@@ -466,6 +508,15 @@ class DujjonkuScene extends Phaser.Scene {
       this.time.delayedCall(2850, () => {
         this.voice && (this.voice.voiceActive = false);
         this.onVoiceEnd();
+      });
+    } else if (autoVoice === "impact") {
+      this.time.delayedCall(700, () => this.loadProjectile());
+      this.time.delayedCall(1050, () => {
+        this.beginCharge();
+        this.currentAngle = 22;
+        this.chargeMs = DUJJONKU_CONFIG.charge.maxMs;
+        this.chargePercent = 100;
+        this.fireProjectile();
       });
     }
   }
