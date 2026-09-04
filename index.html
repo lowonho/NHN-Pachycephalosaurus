@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="css/command-deck.css" />
     <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/pause.css" />
+    <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
   </head>
   <body>
@@ -32,52 +33,36 @@
     <div class="main-menu" id="main-menu">
       <section class="main-menu-card" aria-labelledby="main-menu-title">
         <h1 class="menu-logo" id="main-menu-title">
-          <svg class="menu-logo-crown" viewBox="0 0 64 44" aria-hidden="true" focusable="false">
-            <path
-              d="M4 40 L2 8 L18 20 L32 2 L46 20 L62 8 L60 40 Z"
-              fill="#ffd75e"
-              stroke="#ffffff"
-              stroke-width="3.5"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span class="menu-logo-digits">
-            <span class="menu-digit pink" data-text="20">20</span><span class="menu-digit dot" data-text=".">.</span><span class="menu-digit blue" data-text="26">26</span>
-          </span>
-          <svg class="menu-logo-star" viewBox="0 0 48 46" aria-hidden="true" focusable="false">
-            <path
-              d="M24 2 L30.4 16.6 L46 18.4 L34.4 29 L37.6 44.4 L24 36.6 L10.4 44.4 L13.6 29 L2 18.4 L17.6 16.6 Z"
-              fill="#ffd75e"
-              stroke="#ffffff"
-              stroke-width="3.5"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <img
+            src="assets/images/ui/Main/title-logo-20-26.webp"
+            alt="20.26 음성 조작 밈 게임"
+            width="960"
+            height="560"
+          />
         </h1>
-
-        <p class="menu-ribbon"><span>음성 조작 밈 게임</span></p>
 
         <div class="menu-voice-mark" aria-hidden="true">
           <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
           <span class="menu-mic">
-            <svg viewBox="0 0 24 32" focusable="false">
-              <rect x="7.5" y="1.5" width="9" height="17" rx="4.5" />
-              <path d="M3 14.5a9 9 0 0 0 18 0" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M12 23.5v6" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M7 30.5h10" fill="none" stroke-width="2.6" stroke-linecap="round" />
-            </svg>
+            <img
+              src="assets/images/ui/Main/icon-microphone.webp"
+              alt=""
+              width="107"
+              height="160"
+            />
           </span>
           <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         </div>
 
         <div class="main-menu-actions">
           <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <svg class="menu-button-icon" viewBox="0 0 24 32" aria-hidden="true" focusable="false">
-              <rect x="7.5" y="1.5" width="9" height="17" rx="4.5" />
-              <path d="M3 14.5a9 9 0 0 0 18 0" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M12 23.5v6" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M7 30.5h10" fill="none" stroke-width="2.6" stroke-linecap="round" />
-            </svg>
+            <img
+              class="menu-button-icon"
+              src="assets/images/ui/Main/icon-microphone.webp"
+              alt=""
+              width="107"
+              height="160"
+            />
             <span>게임 시작</span>
           </button>
 
@@ -88,20 +73,13 @@
             disabled
             aria-describedby="main-challenge-note"
           >
-            <svg class="menu-button-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <path d="M9 3h14v9a7 7 0 0 1-14 0Z" />
-              <path
-                d="M9 6H4.5v3a5.5 5.5 0 0 0 5 5.4M23 6h4.5v3a5.5 5.5 0 0 1-5 5.4"
-                fill="none"
-                stroke-width="2.4"
-              />
-              <path
-                d="M16 19v5M10.5 29h11l-1.5-5h-8Z"
-                fill="none"
-                stroke-width="2.4"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <img
+              class="menu-button-icon"
+              src="assets/images/ui/Main/icon-trophy.webp"
+              alt=""
+              width="160"
+              height="147"
+            />
             <span>챌린지 모드</span>
             <em class="menu-button-badge" id="main-challenge-note">준비 중</em>
           </button>
@@ -111,26 +89,17 @@
             id="main-settings-button"
             type="button"
             aria-expanded="false"
-            aria-controls="main-settings-panel"
+            aria-controls="settings-modal"
           >
-            <svg class="menu-button-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <path
-                d="M16 2.5l2.4 3.7 4.3-1 .6 4.4 4.2 1.4-2.1 3.9 2.1 3.9-4.2 1.4-.6 4.4-4.3-1L16 27.3l-2.4-3.7-4.3 1-.6-4.4-4.2-1.4 2.1-3.9-2.1-3.9 4.2-1.4.6-4.4 4.3 1Z"
-              />
-              <circle cx="16" cy="14.9" r="4.4" fill="#8f6bd8" />
-            </svg>
+            <img
+              class="menu-button-icon"
+              src="assets/images/ui/Main/icon-settings.webp"
+              alt=""
+              width="160"
+              height="161"
+            />
             <span>설정</span>
           </button>
-        </div>
-
-        <div class="main-settings-panel" id="main-settings-panel" hidden>
-          <label for="master-volume">전체 음량 <output id="master-volume-value">80%</output></label>
-          <input id="master-volume" type="range" min="0" max="100" step="5" value="80" />
-          <label class="mute-setting" for="mute-toggle">
-            <input id="mute-toggle" type="checkbox" />
-            모든 소리 끄기
-          </label>
-          <button class="secondary-button" id="main-mic-button" type="button">중간음 다시 측정</button>
         </div>
       </section>
     </div>
@@ -215,6 +184,105 @@
     </div>
 
     <!--
+      설정 — assets/images/concept/setting.png의 배치를 그대로 따른다.
+      프레임·행 슬롯·아이콘·노브·토글·버튼은 assets/images/ui/settings/*.png 에셋이다.
+
+      컨셉 이미지와 다른 점은 두 가지다.
+        · "음성 입력 감도"는 슬라이더가 아니라 버튼이다. 감도는 숫자로 맞추는 값이 아니라
+          중간음 측정으로 잡는 값이라, 버튼이 곧바로 피치 조정 화면을 연다.
+        · "도움말" 행은 넣지 않는다.
+    -->
+    <div class="settings-backdrop hidden" id="settings-modal">
+      <section
+        class="settings-dialog"
+        id="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabindex="-1"
+      >
+        <h2 class="settings-title" id="settings-title">
+          <img src="assets/images/ui/settings/icon-gear.png" alt="" width="209" height="215" />
+          <span>설정</span>
+        </h2>
+
+        <div class="settings-frame">
+          <ul class="settings-rows">
+            <li class="settings-row">
+              <!-- 스피커 아이콘이 곧 음소거 버튼이다(컨셉 이미지에는 별도 음소거 행이 없다). -->
+              <button
+                class="settings-row-icon settings-mute"
+                id="settings-mute-button"
+                type="button"
+                aria-pressed="false"
+                aria-label="모든 소리 끄기"
+              >
+                <img src="assets/images/ui/settings/icon-volume.png" alt="" width="188" height="189" />
+              </button>
+              <label class="settings-row-label" for="master-volume">마스터 볼륨</label>
+              <input class="settings-slider" id="master-volume" type="range" min="0" max="100" step="1" value="80" />
+              <output class="settings-row-value" id="master-volume-value" for="master-volume">80</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-bgm.png" alt="" width="188" height="188" />
+              <label class="settings-row-label" for="bgm-volume">BGM</label>
+              <input class="settings-slider" id="bgm-volume" type="range" min="0" max="100" step="1" value="45" />
+              <output class="settings-row-value" id="bgm-volume-value" for="bgm-volume">45</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-sfx.png" alt="" width="187" height="188" />
+              <label class="settings-row-label" for="sfx-volume">효과음</label>
+              <input class="settings-slider" id="sfx-volume" type="range" min="0" max="100" step="1" value="90" />
+              <output class="settings-row-value" id="sfx-volume-value" for="sfx-volume">90</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-mic.png" alt="" width="184" height="184" />
+              <span class="settings-row-label" id="settings-mic-label">음성 입력 감도</span>
+              <button
+                class="settings-pill-button"
+                id="settings-mic-button"
+                type="button"
+                aria-describedby="settings-mic-label"
+              >
+                <span>마이크 조정</span>
+                <b aria-hidden="true">›</b>
+              </button>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.png" alt="" width="182" height="183" />
+              <span class="settings-row-label" id="settings-fullscreen-label">전체 화면</span>
+              <button
+                class="settings-switch"
+                id="settings-fullscreen-toggle"
+                type="button"
+                role="switch"
+                aria-checked="false"
+                aria-labelledby="settings-fullscreen-label"
+              >
+                <span id="settings-fullscreen-state">OFF</span>
+              </button>
+            </li>
+          </ul>
+
+          <div class="settings-actions">
+            <button class="settings-action settings-action--apply" id="settings-apply-button" type="button">
+              <img src="assets/images/ui/settings/icon-check.png" alt="" width="175" height="153" />
+              <span>적용</span>
+            </button>
+            <button class="settings-action settings-action--back" id="settings-back-button" type="button">
+              <img src="assets/images/ui/settings/icon-undo.png" alt="" width="176" height="164" />
+              <span>뒤로가기</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!--
       로드 순서 규칙: 아래로 갈수록 위의 전역에 의존한다.
       새 파일을 추가할 때는 자기 트랙 블록 안에 넣는다.
     -->
@@ -260,6 +328,7 @@
     <!-- B · 기능 -->
     <script src="js/ui/hud-status.js"></script>
     <script src="js/ui/modal-flow.js"></script>
+    <script src="js/ui/settings-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/scene/stage-scene.js"></script>

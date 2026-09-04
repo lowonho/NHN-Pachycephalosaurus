@@ -1,0 +1,438 @@
+/*
+ * A(비주얼) 전용 — 설정 다이얼로그.
+ * 배치 기준: assets/images/concept/setting.png
+ *   타이틀 알약 → 별 테두리 프레임 → 크림색 행 슬롯 6줄 → 적용/뒤로가기.
+ *
+ * 조각 에셋은 assets/images/ui/settings/*.png 이고, 원본 시트
+ * settings_ui_assets_2k.png(2048×2048)에서 잘라낸 것이라 좌표·비율이 그대로다.
+ *
+ * 늘어나는 조각(프레임·행 슬롯·알약·버튼)은 전부 border-image 9-슬라이스로 쓴다.
+ * 배경으로 늘리면 둥근 모서리가 찌그러진다. 슬라이스 값은 원본 픽셀 기준이고,
+ * border-width는 "원본 슬라이스 × 렌더 배율"이라 모서리가 정비율로 나온다.
+ *
+ * 9-슬라이스는 ::before(absolute, z-index:-1)에 건다. 요소에 직접 걸면
+ * 테두리 두께만큼 내용 영역이 먹혀서 레이아웃을 따로 잡을 수 없다.
+ * 그래서 부모에는 z-index:0으로 쌓임 맥락을 만들어 준다.
+ */
+
+.settings-backdrop {
+  --settings-ink: #5a3b2f;
+  --settings-value: #f2679b;
+  --settings-track: #efdad6;
+  --settings-fill: #fd89ae;
+  --settings-focus: #8f5bd8;
+
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: clamp(12px, 3vh, 28px) 14px;
+  background: rgba(1, 7, 24, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.settings-backdrop.hidden {
+  display: none;
+}
+
+.settings-dialog {
+  position: relative;
+  width: min(560px, 100%);
+  /* 타이틀 알약이 프레임 위로 절반쯤 걸쳐 나오는 만큼 위를 비워 둔다. */
+  padding-top: 34px;
+}
+
+/* 화면을 열 때 포커스를 받는 자리일 뿐이라 테두리는 그리지 않는다. */
+.settings-dialog:focus {
+  outline: none;
+}
+
+/* ── 타이틀 알약 ────────────────────────────────────────────────────── */
+
+.settings-title {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(310px, 74%);
+  height: 68px;
+  margin: 0;
+  transform: translateX(-50%);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: clamp(1.14rem, 4vw, 1.46rem);
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-shadow: 0 2px 6px rgba(84, 38, 145, 0.55);
+}
+
+/* letter-spacing이 마지막 글자 뒤에 남긴 여백만큼 당겨 가운데를 맞춘다. */
+.settings-title span {
+  margin-right: -0.2em;
+}
+
+/* 원본 1141×244의 캡 반지름이 곧 높이의 절반(=122)이라, 높이 68 → 슬라이스 33이 정비율. */
+.settings-title::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 33px solid transparent;
+  border-image: url("../assets/images/ui/settings/title-pill.png") 118 fill / 33px / 0 stretch;
+}
+
+.settings-title img {
+  width: 28px;
+  height: 29px;
+}
+
+/* ── 프레임 ─────────────────────────────────────────────────────────── */
+
+.settings-frame {
+  /* 알약 높이의 절반만큼 내려서 프레임 윗변에 걸치게 한다. */
+  margin-top: 34px;
+  padding: clamp(6px, 1.4vh, 12px) clamp(2px, 1.2vw, 10px) 2px;
+  border: clamp(26px, 7.2vw, 38px) solid transparent;
+  /* 별 띠는 stretch로 늘리면 길쭉해지므로 round로 타일링한다. */
+  border-image: url("../assets/images/ui/settings/panel-frame.png") 115 fill round;
+}
+
+/* ── 행 ─────────────────────────────────────────────────────────────── */
+
+.settings-rows {
+  display: grid;
+  gap: clamp(6px, 1.3vh, 10px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * 컬럼 폭을 내용이 아니라 고정값으로 잡아야 행끼리 세로줄이 맞는다.
+ * (행마다 별도의 그리드라 auto/max-content를 쓰면 줄이 어긋난다.)
+ */
+.settings-row {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(84px, 1.1fr) minmax(0, 2fr) 34px;
+  align-items: center;
+  gap: clamp(7px, 2vw, 13px);
+  min-height: 54px;
+  padding: 0 clamp(11px, 3vw, 18px);
+}
+
+/* 원본 1489×160, 모서리 반지름 ≈ 45. 높이 54 → 배율 0.34 → 슬라이스 15px. */
+.settings-row::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 15px solid transparent;
+  border-image: url("../assets/images/ui/settings/row-slot.png") 45 fill / 15px / 0 stretch;
+}
+
+.settings-row-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.settings-row-label {
+  color: var(--settings-ink);
+  font-family: var(--font-ui);
+  font-size: clamp(0.82rem, 2.7vw, 1rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.settings-row-value {
+  color: var(--settings-value);
+  font-family: var(--font-ui);
+  font-size: clamp(0.86rem, 2.7vw, 1.04rem);
+  font-weight: 900;
+  text-align: right;
+}
+
+/* 스피커 아이콘 겸 음소거 버튼. */
+.settings-mute {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.settings-mute img {
+  width: 100%;
+  height: 100%;
+  transition: filter 140ms ease, opacity 140ms ease;
+}
+
+.settings-mute[aria-pressed="true"] img {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+/* ── 슬라이더 ───────────────────────────────────────────────────────── */
+
+/*
+ * 채움 비율은 트랙 배경 그라디언트로 그린다. --p(0~1)는 settings-flow.js가 넣는다.
+ * 노브 폭(28px)의 절반을 보정해야 발바닥 중심과 색 경계가 맞는다.
+ */
+.settings-slider {
+  --p: 0.8;
+
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--settings-fill) calc(14px + (100% - 28px) * var(--p)),
+    var(--settings-track) calc(14px + (100% - 28px) * var(--p))
+  );
+}
+
+.settings-slider::-moz-range-track {
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--settings-fill) calc(14px + (100% - 28px) * var(--p)),
+    var(--settings-track) calc(14px + (100% - 28px) * var(--p))
+  );
+}
+
+/* 발바닥 노브 원본 190×169 → 28×25로 비율 유지. */
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 25px;
+  margin-top: -8px;
+  border: 0;
+  background: url("../assets/images/ui/settings/knob-paw.png") center / contain no-repeat;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 28px;
+  height: 25px;
+  border: 0;
+  background: url("../assets/images/ui/settings/knob-paw.png") center / contain no-repeat;
+}
+
+/* ── 음성 입력 감도 버튼 ────────────────────────────────────────────── */
+
+/*
+ * 컨셉의 "보기" 알약과 같은 자리·같은 모양이되, 마이크 행이라 핑크로 쓴다.
+ * 시트에는 파랑/회색 알약만 있어서 이 버튼만 CSS로 그린다.
+ */
+.settings-pill-button {
+  display: inline-flex;
+  grid-column: 3 / -1;
+  align-items: center;
+  justify-self: end;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 15px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff9cc4, #f4467f);
+  box-shadow: 0 3px 0 #cd2c62, 0 7px 14px rgba(244, 70, 127, 0.3);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: clamp(0.76rem, 2.5vw, 0.92rem);
+  font-weight: 900;
+  white-space: nowrap;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.settings-pill-button b {
+  margin-top: -0.16em;
+  font-size: 1.2em;
+}
+
+.settings-pill-button:hover,
+.settings-pill-button:focus-visible {
+  transform: translateY(-2px);
+}
+
+.settings-pill-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #cd2c62;
+}
+
+/* ── 전체 화면 스위치 ───────────────────────────────────────────────── */
+
+/* 켜짐(핑크)은 노브가 오른쪽, 꺼짐(회색)은 왼쪽이라 글자를 반대편에 둔다. */
+.settings-switch {
+  position: relative;
+  grid-column: 3 / -1;
+  justify-self: end;
+  width: 74px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: url("../assets/images/ui/settings/toggle-off.png") center / 100% 100% no-repeat;
+  cursor: pointer;
+}
+
+.settings-switch[aria-checked="true"] {
+  background-image: url("../assets/images/ui/settings/toggle-on.png");
+}
+
+.settings-switch span {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transform: translateY(-50%);
+}
+
+.settings-switch[aria-checked="true"] span {
+  right: auto;
+  left: 13px;
+}
+
+/* ── 적용 / 뒤로가기 ────────────────────────────────────────────────── */
+
+.settings-actions {
+  display: flex;
+  justify-content: center;
+  gap: clamp(8px, 2.4vw, 14px);
+  margin-top: clamp(10px, 2vh, 16px);
+}
+
+.settings-action {
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 190px;
+  min-height: 52px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: clamp(0.92rem, 3vw, 1.1rem);
+  font-weight: 900;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.26);
+  transition: transform 120ms ease;
+}
+
+/* 원본 688×213 / 641×212, 캡 반지름 ≈ 높이의 절반. 높이 52 → 슬라이스 26px. */
+.settings-action::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 26px solid transparent;
+}
+
+.settings-action--apply::before {
+  border-image: url("../assets/images/ui/settings/button-apply.png") 104 fill / 26px / 0 stretch;
+}
+
+.settings-action--back::before {
+  border-image: url("../assets/images/ui/settings/button-back.png") 104 fill / 26px / 0 stretch;
+}
+
+.settings-action img {
+  width: 24px;
+  height: 22px;
+}
+
+.settings-action:hover,
+.settings-action:focus-visible {
+  transform: translateY(-2px);
+}
+
+.settings-action:active {
+  transform: translateY(2px);
+}
+
+/* ── 포커스 ─────────────────────────────────────────────────────────── */
+
+/* 다이얼로그 자체는 화면을 열 때 포커스를 받는 자리라 링을 그리지 않는다. */
+.settings-backdrop :focus-visible:not(.settings-dialog) {
+  outline: 3px solid var(--settings-focus);
+  outline-offset: 3px;
+}
+
+@media (max-width: 420px) {
+  /* 라벨이 제 칸을 넘어 슬라이더에 붙지 않도록 라벨 칸을 넓히고 슬라이더를 줄인다. */
+  .settings-row {
+    grid-template-columns: 26px minmax(80px, 1.2fr) minmax(0, 1.1fr) 26px;
+    gap: 5px;
+    min-height: 48px;
+    padding: 0 9px;
+  }
+
+  .settings-row-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .settings-pill-button {
+    min-height: 30px;
+    padding: 0 11px;
+  }
+
+  .settings-switch {
+    width: 66px;
+    height: 29px;
+  }
+
+  .settings-action {
+    gap: 6px;
+    padding: 0 8px;
+    font-size: 0.86rem;
+  }
+
+  .settings-action img {
+    width: 21px;
+    height: 19px;
+  }
+
+  .settings-title {
+    height: 60px;
+  }
+
+  .settings-title::before {
+    border-width: 29px;
+    border-image-width: 29px;
+  }
+
+  .settings-dialog {
+    padding-top: 30px;
+  }
+
+  .settings-frame {
+    margin-top: 30px;
+  }
+}
