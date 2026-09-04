@@ -66,6 +66,15 @@ class DujjonkuScene extends Phaser.Scene {
     this.chargeHoldMs = 0;
     this.chargePercent = 0;
     this.voiceLevel = 0;
+    this.voiceActive = false;
+    this.voiceThreshold = DUJJONKU_CONFIG.voice.minimumThreshold;
+    this.noiseFloor = 0.01;
+    this.noiseSamples = [];
+    this.noiseCalibrationEndsAt = 0;
+    this.voiceAboveSince = 0;
+    this.voiceBelowSince = 0;
+    this.lastVoiceEndAt = 0;
+    this.voiceSubscriptions = [];
     this.currentAngle = DUJJONKU_CONFIG.launcher.minAngle;
     this.angleDirection = 1;
     this.projectile = null;
@@ -206,37 +215,131 @@ class DujjonkuScene extends Phaser.Scene {
     this.startedAt = performance.now();
     this.pausedDuration = 0;
     this.timerActive = this.debugVoice;
-    gameEvents.emit(GAME_EVENTS.STAGE_START, { voiceEnabled: true, stageId: "dujjonku" });
+    gameEvents.emit(GAME_EVENTS.STAGE_START, { voiceEnabled: this.voiceRequested, stageId: "dujjonku" });
     this.connectVoice();
   }
 
-  async connectVoice() {
-    this.voice?.destroy();
+  async connectVoice(recalibrateNoise = true) {
+    this.disconnectVoice();
     this.statusText.setText("쉿! 주변 소음을 잠깐 측정하고 있어요…").setColor("#69485c");
     this.retryButton?.destroy();
     this.retryButton = null;
-    this.voice = new DujjonkuVoiceController({
-      onCalibrating: () => this.statusText?.setText("쉿! 주변 소음 측정 중…"),
-      onReady: () => {
-        this.micReady = true;
-        if (!this.timerActive) {
-          this.startedAt = performance.now();
-          this.pausedDuration = 0;
-          this.timerActive = true;
-        }
-        this.statusText?.setText("‘두’라고 말해 두쫀쿠를 장전하세요!").setColor("#4f7757");
-      },
-      onLevel: (payload) => this.onVoiceLevel(payload),
-      onVoiceStart: () => this.onVoiceStart(),
-      onVoiceEnd: () => this.onVoiceEnd(),
-      onWord: (word) => this.onVoiceWord(word),
-      onError: (message) => this.showMicError(message),
-      onRecognitionUnavailable: () => this.statusText?.setText("음성 단어 인식 미지원 · 마이크 발성 감지는 작동합니다"),
-    });
     try {
-      await this.voice.connect();
+      if (!voiceController.stream) await voiceController.connect();
+      this.voiceSubscriptions = [
+        gameEvents.on(GAME_EVENTS.VOICE_INPUT, (payload) => this.onSharedVoiceInput(payload)),
+        gameEvents.on(GAME_EVENTS.VOICE_TRANSCRIPT, (payload) => this.onSharedTranscript(payload)),
+        gameEvents.on(GAME_EVENTS.MIC_FAILED, ({ message }) => this.showMicError(message)),
+      ];
+      if (this.debugVoice) {
+        console.info("[두쫀쿠 공통 음성 엔진 진단]", JSON.stringify({
+          sharedStream: Boolean(voiceController.stream),
+          sharedAnalyser: Boolean(voiceController.analyser),
+          inputSubscriptions: this.voiceSubscriptions.length,
+        }));
+      }
+      if (recalibrateNoise || !this.micReady) {
+        this.beginNoiseCalibration();
+      } else {
+        this.timerActive = true;
+        this.statusText.setText("‘두’라고 말해 두쫀쿠를 장전하세요!").setColor("#4f7757");
+      }
+      if (!voiceController.startRecognition()) {
+        this.statusText.setText("음성 단어 인식을 지원하는 Chrome 또는 Edge가 필요합니다");
+      }
     } catch (error) {
       this.showMicError(error.message);
+    }
+  }
+
+  disconnectVoice() {
+    voiceController.stopRecognition();
+    this.voiceSubscriptions?.forEach((unsubscribe) => unsubscribe());
+    this.voiceSubscriptions = [];
+    this.voiceActive = false;
+    this.voiceAboveSince = 0;
+    this.voiceBelowSince = 0;
+  }
+
+  beginNoiseCalibration() {
+    this.micReady = false;
+    this.noiseSamples = [];
+    this.noiseCalibrationEndsAt = performance.now() + DUJJONKU_CONFIG.voice.noiseSampleMs;
+    this.statusText.setText("쉿! 주변 소음 측정 중…").setColor("#69485c");
+  }
+
+  finishNoiseCalibration() {
+    const samples = [...this.noiseSamples].sort((a, b) => a - b);
+    const percentile = samples[Math.floor(samples.length * 0.8)] || 0.01;
+    const config = DUJJONKU_CONFIG.voice;
+    this.noiseFloor = Math.max(0.003, percentile);
+    this.voiceThreshold = Math.max(
+      config.minimumThreshold,
+      this.noiseFloor * config.thresholdMultiplier + config.thresholdOffset,
+    );
+    this.noiseCalibrationEndsAt = 0;
+    this.micReady = true;
+    if (!this.timerActive) {
+      this.startedAt = performance.now();
+      this.pausedDuration = 0;
+      this.timerActive = true;
+    }
+    this.statusText.setText("‘두’라고 말해 두쫀쿠를 장전하세요!").setColor("#4f7757");
+  }
+
+  onSharedVoiceInput(payload) {
+    if (!this.isActiveStage()) return;
+    const now = performance.now();
+    const rms = Number(payload?.rms) || 0;
+    if (this.noiseCalibrationEndsAt) {
+      this.noiseSamples.push(rms);
+      this.onVoiceLevel({ normalized: 0 });
+      if (now >= this.noiseCalibrationEndsAt) this.finishNoiseCalibration();
+      return;
+    }
+
+    const config = DUJJONKU_CONFIG.voice;
+    const activeThreshold = this.voiceActive
+      ? this.voiceThreshold * config.activeThresholdRatio
+      : this.voiceThreshold;
+    const above = rms >= activeThreshold;
+    const normalized = Phaser.Math.Clamp(
+      (rms - this.noiseFloor) / Math.max(0.025, this.voiceThreshold * 3 - this.noiseFloor),
+      0,
+      1,
+    );
+    this.onVoiceLevel({ normalized });
+
+    if (above) {
+      this.voiceBelowSince = 0;
+      if (!this.voiceAboveSince) this.voiceAboveSince = now;
+      if (!this.voiceActive && now - this.voiceAboveSince >= config.startHoldMs) {
+        this.voiceActive = true;
+        this.onVoiceStart();
+      }
+      return;
+    }
+
+    this.voiceAboveSince = 0;
+    if (!this.voiceBelowSince) this.voiceBelowSince = now;
+    if (this.voiceActive && now - this.voiceBelowSince >= config.silenceHoldMs) {
+      this.voiceActive = false;
+      if (now - this.lastVoiceEndAt >= config.cooldownMs) {
+        this.lastVoiceEndAt = now;
+        this.onVoiceEnd();
+      }
+    }
+  }
+
+  onSharedTranscript(payload = {}) {
+    if (!this.isActiveStage()) return;
+    const alternatives = payload.alternatives?.length ? payload.alternatives : [payload.text || ""];
+    const texts = alternatives.map((text) => text.replace(/\s+/g, "").toLowerCase());
+    if (texts.some((text) => ["두", "둘", "듀", "뚜", "2", "two"].some((word) => text.includes(word)))) {
+      this.onVoiceWord("DU");
+    }
+    if (texts.some((text) => /^(?:ㅋ+|[쿠쿡큐크끄코카키케]+|ku+|koo+)$/.test(text))) {
+      this.onVoiceWord("KU");
     }
   }
 
@@ -249,7 +352,7 @@ class DujjonkuScene extends Phaser.Scene {
       fontFamily: "Gowun Dodum, sans-serif", fontStyle: "bold", fontSize: "28px", color: "#ffffff",
       backgroundColor: "#e96f9a", padding: { x: 22, y: 12 },
     }).setOrigin(.5).setDepth(35).setInteractive({ useHandCursor: true });
-    this.retryButton.on("pointerdown", () => this.connectVoice());
+    this.retryButton.on("pointerdown", () => this.connectVoice(true));
   }
 
   onVoiceLevel(payload) {
@@ -638,22 +741,22 @@ class DujjonkuScene extends Phaser.Scene {
     if (autoVoice === "1") {
       this.time.delayedCall(1100, () => this.onVoiceWord("DU"));
       this.time.delayedCall(1450, () => {
-        this.voice && (this.voice.voiceActive = true);
+        this.voiceActive = true;
         this.onVoiceStart();
       });
       this.time.delayedCall(2850, () => {
-        this.voice && (this.voice.voiceActive = false);
+        this.voiceActive = false;
         this.onVoiceEnd();
       });
     } else if (autoVoice === "amplitude") {
       this.time.delayedCall(900, () => this.onVoiceStart());
       this.time.delayedCall(1220, () => this.onVoiceEnd());
       this.time.delayedCall(1600, () => {
-        this.voice && (this.voice.voiceActive = true);
+        this.voiceActive = true;
         this.onVoiceStart();
       });
       this.time.delayedCall(2850, () => {
-        this.voice && (this.voice.voiceActive = false);
+        this.voiceActive = false;
         this.onVoiceEnd();
       });
     } else if (autoVoice === "impact") {
@@ -671,14 +774,14 @@ class DujjonkuScene extends Phaser.Scene {
       this.time.delayedCall(700, () => this.loadProjectile());
       this.time.delayedCall(900, () => {
         this.debugChargeHeld = true;
-        this.voice && (this.voice.voiceActive = true);
+        this.voiceActive = true;
         this.onVoiceStart();
       });
       this.time.delayedCall(4100, () => this.reportChargeDebug("max-charge-held"));
       this.time.delayedCall(6100, () => this.reportChargeDebug("overcharge-broken"));
       this.time.delayedCall(7000, () => {
         this.debugChargeHeld = false;
-        this.voice && (this.voice.voiceActive = false);
+        this.voiceActive = false;
         this.onVoiceEnd();
       });
       this.time.delayedCall(7400, () => this.reportChargeDebug("ready-after-release"));
@@ -692,19 +795,19 @@ class DujjonkuScene extends Phaser.Scene {
       this.time.delayedCall(2750, () => this.onVoiceWord("KU"));
       this.time.delayedCall(2800, () => {
         this.debugChargeHeld = false;
-        this.voice && (this.voice.voiceActive = false);
+        this.voiceActive = false;
         this.onVoiceEnd();
       });
       this.time.delayedCall(3000, () => this.reportChargeDebug("held-after-release"));
       this.time.delayedCall(3200, () => {
         this.debugChargeHeld = true;
-        this.voice && (this.voice.voiceActive = true);
+        this.voiceActive = true;
         this.onVoiceStart();
       });
       this.time.delayedCall(3300, () => this.onVoiceWord("KU"));
       this.time.delayedCall(3400, () => {
         this.debugChargeHeld = false;
-        this.voice && (this.voice.voiceActive = false);
+        this.voiceActive = false;
       });
       this.time.delayedCall(3500, () => this.reportChargeDebug("fired-on-ku"));
       this.time.delayedCall(7600, () => this.reportChargeDebug("ready-after-shot"));
@@ -779,7 +882,7 @@ class DujjonkuScene extends Phaser.Scene {
     }
 
     const chargeInputActive = Boolean(
-      (this.voice?.voiceActive || this.debugChargeHeld) && !this.waitingForKu,
+      (this.voiceActive || this.debugChargeHeld) && !this.waitingForKu,
     );
     if (this.voiceState === DUJJONKU_STATE.CHARGING && chargeInputActive) {
       const degreesPerMs = (cfg.launcher.maxAngle - cfg.launcher.minAngle) / (cfg.launcher.angleSweepMs / 2);
@@ -956,8 +1059,7 @@ class DujjonkuScene extends Phaser.Scene {
   endStage() {
     this.ended = true;
     this.stageRunning = false;
-    this.voice?.destroy();
-    this.voice = null;
+    this.disconnectVoice();
     this.matter.world.pause();
   }
 
@@ -981,8 +1083,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.paused = true;
     this.pausedAt = performance.now();
     this.matter.world.pause();
-    this.voice?.destroy();
-    this.voice = null;
+    this.disconnectVoice();
     gameEvents.emit(GAME_EVENTS.STAGE_PAUSE, {});
   }
 
@@ -992,7 +1093,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.paused = false;
     this.matter.world.resume();
     gameEvents.emit(GAME_EVENTS.STAGE_RESUME, { voiceEnabled: true });
-    this.connectVoice();
+    this.connectVoice(false);
     if (this.flightExpiredWhilePaused && this.voiceState === DUJJONKU_STATE.FIRED) {
       this.flightExpiredWhilePaused = false;
       this.prepareNextShot();
@@ -1014,8 +1115,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.flightTimeout = null;
     window.clearTimeout(this.flightWallTimeout);
     this.flightWallTimeout = 0;
-    this.voice?.destroy();
-    this.voice = null;
+    this.disconnectVoice();
     this.stageRunning = false;
     this.ended = true;
     this.matter?.world?.off("collisionstart", this.handleCollision, this);

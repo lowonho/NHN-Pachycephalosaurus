@@ -227,6 +227,7 @@ class VoiceController {
         this.events.emit(GAME_EVENTS.VOICE_TRANSCRIPT, {
           text: understoodText.trim(),
           isFinal: Boolean(event.results[i].isFinal),
+          alternatives: alternatives.map((candidate) => candidate.transcript.trim()),
         });
       }
     };
