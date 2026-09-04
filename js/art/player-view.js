@@ -21,6 +21,7 @@ class PlayerView {
     this.events.on(GAME_EVENTS.PLAYER_SYNC, (payload) => this.sync(payload));
     this.events.on(GAME_EVENTS.PLAYER_JUMP, (payload) => this.playJump(payload));
     this.events.on(GAME_EVENTS.COMMAND_RECOGNIZED, (payload) => this.showCommand(payload));
+    this.events.on(GAME_EVENTS.VOICE_ONSET, () => this.playAnticipation());
   }
 
   build(scene) {
@@ -116,6 +117,22 @@ class PlayerView {
       scaleY: 1,
       duration: 180,
       ease: "Back.easeOut",
+    });
+  }
+
+  playAnticipation() {
+    if (!this.icon) return;
+    // 음성 인식 결과(수백ms~1s 지연)를 기다리지 않고, 마이크가 발화를 감지한
+    // 즉시 살짝 반응해서 "말하자마자 반응한다"는 체감을 만든다. 실제 명령
+    // 판정과 물리 반응은 그대로 COMMAND_RECOGNIZED 이후에만 적용된다.
+    if (this.anticipationTween) this.anticipationTween.stop();
+    this.icon.setScale(1);
+    this.anticipationTween = this.scene.tweens.add({
+      targets: this.icon,
+      scaleX: { from: 0.92, to: 1 },
+      scaleY: { from: 1.06, to: 1 },
+      duration: 90,
+      ease: "Quad.easeOut",
     });
   }
 

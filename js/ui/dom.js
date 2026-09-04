@@ -22,6 +22,7 @@ const UI = Object.freeze({
 
   pitchNeedle: document.querySelector("#pitch-needle"),
   pitchLabel: document.querySelector("#pitch-label"),
+  pitchPanel: document.querySelector(".pitch-panel"),
   voiceWaveform: document.querySelector("#voice-waveform"),
   voiceInputState: document.querySelector("#voice-input-state"),
   voiceTranscriptKind: document.querySelector("#voice-transcript-kind"),
@@ -30,6 +31,7 @@ const UI = Object.freeze({
 
   helpToggle: document.querySelector("#help-toggle"),
   helpCopy: document.querySelector("#help-copy"),
+  systemStatus: document.querySelector(".system-status"),
 
   modal: document.querySelector("#setup-modal"),
   modalStep: document.querySelector("#modal-step"),

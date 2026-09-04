@@ -60,7 +60,14 @@ class StageScene extends Phaser.Scene {
     createPhysicsTextures(this);
 
     this.physics.world.setBounds(0, 0, geo.world.width, geo.world.height);
-    this.cameras.main.setBounds(0, 0, geo.world.width, geo.canvas.height).setScroll(0, 0);
+    this.cameras.main
+      .setBounds(
+        0,
+        geo.camera.minScrollY,
+        geo.world.width,
+        geo.canvas.height + geo.camera.maxScrollY - geo.camera.minScrollY,
+      )
+      .setScroll(0, 0);
 
     // 아트/사운드 트랙이 표시 객체와 재생 계층을 만드는 시점.
     gameEvents.emit(GAME_EVENTS.SCENE_CREATE, { scene: this });
@@ -229,6 +236,7 @@ class StageScene extends Phaser.Scene {
 
     this.movingPlatform.setPosition(geo.movingPlatform.x, geo.movingPlatform.y).refreshBody();
     this.cameras.main.setScroll(0, 0);
+    this.updateCamera(true);
     this.events.emit(GEOJE_STAGE_EVENTS.FACING, { direction: 1 });
     this.publishSync();
     this.physics.resume();
@@ -246,11 +254,11 @@ class StageScene extends Phaser.Scene {
     }
   }
 
-  applyCommand({ command, level = "MID", volume }) {
+  applyCommand({ command, level = "MID" }) {
     if (this.state !== STAGE_STATE.PLAYING || this.isInputLocked()) return;
 
     if (command === "MOVE") {
-      this.currentMoveSpeed = this.getMovementSpeed(volume);
+      this.currentMoveSpeed = BALANCE.physics.moveSpeed;
       this.moveDirection = this.travelDirection;
       return;
     }
@@ -299,16 +307,6 @@ class StageScene extends Phaser.Scene {
     this.jumpHasLeftGround = false;
     this.player.setVelocityY(jumpPower);
     gameEvents.emit(GAME_EVENTS.PLAYER_JUMP, { level, direction: this.moveDirection });
-  }
-
-  getMovementSpeed(volume) {
-    const { moveSpeed, moveSpeedMin, moveSpeedMax } = BALANCE.physics;
-    const { movementVolumeMinRms, movementVolumeMaxRms } = BALANCE.voice;
-    if (!Number.isFinite(volume)) return moveSpeed;
-
-    const range = movementVolumeMaxRms - movementVolumeMinRms;
-    const ratio = Math.max(0, Math.min(1, (volume - movementVolumeMinRms) / range));
-    return moveSpeedMin + (moveSpeedMax - moveSpeedMin) * ratio;
   }
 
   isInputLocked() {
@@ -465,6 +463,7 @@ class StageScene extends Phaser.Scene {
     this.wasGrounded = true;
     this.events.emit(GEOJE_STAGE_EVENTS.FALL_COMPLETE, { x: target.x, y: target.y });
     this.events.emit(GEOJE_STAGE_EVENTS.FACING, { direction: this.travelDirection });
+    this.updateCamera(true);
   }
 
   updateMovingPlatform(delta) {
@@ -543,6 +542,7 @@ class StageScene extends Phaser.Scene {
 
   updateCamera(immediate = false) {
     const { camera, canvas, world } = STAGE_GEOMETRY;
+    const safeArea = viewportFitter.getCameraSafeArea();
     const direction = this.phase === GEOJE_PHASE.UPPER ? -1 : this.travelDirection;
     const targetCenter = this.player.x + direction * camera.lookAhead;
     const targetScroll = Phaser.Math.Clamp(
@@ -550,10 +550,17 @@ class StageScene extends Phaser.Scene {
       0,
       world.width - canvas.width,
     );
+    const targetScrollY = Phaser.Math.Clamp(
+      this.player.y - safeArea.centerY,
+      camera.minScrollY,
+      camera.maxScrollY,
+    );
     this.cameras.main.scrollX = immediate
       ? targetScroll
       : Phaser.Math.Linear(this.cameras.main.scrollX, targetScroll, camera.lerp);
-    this.cameras.main.scrollY = 0;
+    this.cameras.main.scrollY = immediate
+      ? targetScrollY
+      : Phaser.Math.Linear(this.cameras.main.scrollY, targetScrollY, camera.lerp);
   }
 
   publishSync() {
@@ -679,6 +686,7 @@ class StageScene extends Phaser.Scene {
     this.player.body.setVelocity(0, 0);
     this.events.emit(GEOJE_STAGE_EVENTS.FACING, { direction: 1 });
     this.events.emit(GEOJE_STAGE_EVENTS.CLEAR_POSE, { player: pose, npc: npcPose });
+    this.updateCamera(true);
     this.publishSync();
     this.endStage(GEOJE_PHASE.CLEAR);
 

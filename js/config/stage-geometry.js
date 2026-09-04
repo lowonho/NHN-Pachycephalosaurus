@@ -104,7 +104,13 @@ const STAGE_GEOMETRY = (() => {
       npcPose: Object.freeze({ x: 565, y: 390 }),
     }),
 
-    camera: Object.freeze({ lookAhead: 320, lerp: 0.075 }),
+    camera: Object.freeze({
+      lookAhead: 320,
+      lerp: 0.075,
+      fallbackCenterY: 520,
+      minScrollY: -440,
+      maxScrollY: 540,
+    }),
 
     hud: Object.freeze({
       stageLabel: Object.freeze({ x: 57, y: 48 }),

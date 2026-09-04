@@ -27,6 +27,7 @@ class VoiceController {
 
     this.recognition = null;
     this.shouldRecognize = false;
+    this.voiceActive = false;
     this.lastTrigger = new Map();
     this.handledCommandsByResult = new Map();
     this.evaluator = new VoiceEvaluator();
@@ -73,6 +74,14 @@ class VoiceController {
 
     if (this.rms >= this.config.rmsGate) {
       this.recentVolumes.push({ value: this.rms, time: now });
+      // 인식 결과를 기다리지 않고, 게이트를 넘는 순간 바로 "듣고 있다"는 신호를 보낸다.
+      // ASR 지연(수백ms~1s)을 체감상 가리기 위한 즉시 피드백용 이벤트다.
+      if (this.shouldRecognize && !this.voiceActive) {
+        this.voiceActive = true;
+        this.events.emit(GAME_EVENTS.VOICE_ONSET, {});
+      }
+    } else {
+      this.voiceActive = false;
     }
 
     if (detected > this.config.pitchMinHz && detected < this.config.pitchMaxHz) {
@@ -305,6 +314,7 @@ class VoiceController {
     }
     this.recognition = null;
     this.handledCommandsByResult.clear();
+    this.voiceActive = false;
   }
 
   resetCommandState() {
@@ -313,6 +323,7 @@ class VoiceController {
     this.recentPitches = [];
     this.recentVolumes = [];
     this.rms = 0;
+    this.voiceActive = false;
   }
 
   destroy() {

@@ -13,8 +13,6 @@ const BALANCE = Object.freeze({
   physics: Object.freeze({
     gravityY: 2325,
     moveSpeed: 368,
-    moveSpeedMin: 260,
-    moveSpeedMax: 520,
     maxVelocityX: 560,
     maxVelocityY: 1500,
     dragX: 1875,
