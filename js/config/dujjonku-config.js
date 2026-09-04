@@ -6,6 +6,7 @@ const DUJJONKU_CONFIG = Object.freeze({
   shots: 6,
   charge: Object.freeze({
     minMs: 180,
+    kuMinChargeMs: 600,
     maxMs: 3000,
     breakMs: 5000,
     breakResetDelayMs: 850,
