@@ -12,6 +12,7 @@ class MainMenuFlow {
     this.ui.mainPlayButton?.addEventListener("click", () => this.startGame());
     this.ui.stageSelectOpenButton?.addEventListener("click", () => this.openStageSelect());
     this.ui.stageGeojeButton?.addEventListener("click", () => this.selectGeoje());
+    this.ui.stageDujjonkuButton?.addEventListener("click", () => this.selectStage("dujjonku"));
     this.ui.stageSelectConfirmButton?.addEventListener("click", () => this.closeStageSelect());
     this.ui.stageSelectBackButton?.addEventListener("click", () => this.closeStageSelect());
     this.ui.mainMicButton?.addEventListener("click", () => this.recalibrate());
@@ -64,9 +65,16 @@ class MainMenuFlow {
   }
 
   selectGeoje() {
-    this.selectedStage = "geoje";
-    this.ui.stageGeojeButton?.classList.add("selected");
-    this.ui.stageGeojeButton?.setAttribute("aria-pressed", "true");
+    this.selectStage("geoje");
+  }
+
+  selectStage(stageId) {
+    this.selectedStage = stageId;
+    const geojeSelected = stageId === "geoje";
+    this.ui.stageGeojeButton?.classList.toggle("selected", geojeSelected);
+    this.ui.stageGeojeButton?.setAttribute("aria-pressed", String(geojeSelected));
+    this.ui.stageDujjonkuButton?.classList.toggle("selected", !geojeSelected);
+    this.ui.stageDujjonkuButton?.setAttribute("aria-pressed", String(!geojeSelected));
   }
 
   recalibrate() {

@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/responsive.css" />
+    <link rel="stylesheet" href="css/dujjonku.css" />
   </head>
   <body>
     <div class="title-screen" id="title-screen">
@@ -87,6 +88,13 @@
           <strong>거제 야호!</strong>
           <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
           <span class="stage-duration">20.26 SEC</span>
+        </button>
+
+        <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
+          <span class="stage-number">STAGE 02</span>
+          <strong>두쫀쿠</strong>
+          <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
+          <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
         </button>
 
         <div class="main-menu-actions">
@@ -184,6 +192,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
+    <script src="js/config/dujjonku-config.js"></script>
     <script src="js/content/strings.ko.js"></script>
 
     <!-- C2 · 음성 사전 (아트/음성 양쪽이 참조) -->
@@ -216,6 +225,7 @@
     <!-- C2 · 음성 입력 -->
     <script src="js/voice/voice-evaluator.js"></script>
     <script src="js/voice/voice-controller.js"></script>
+    <script src="js/voice/dujjonku-voice-controller.js"></script>
 
     <!-- B · 기능 -->
     <script src="js/ui/hud-status.js"></script>
@@ -224,6 +234,8 @@
     <script src="js/ui/title-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
     <script src="js/scene/stage-scene.js"></script>
+    <script src="js/scene/dujjonku-objects.js"></script>
+    <script src="js/scene/dujjonku-scene.js"></script>
     <script src="js/game.js"></script>
   </body>
 </html>

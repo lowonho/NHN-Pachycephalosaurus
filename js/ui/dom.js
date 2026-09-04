@@ -18,6 +18,7 @@ const UI = Object.freeze({
   stageSelectConfirmButton: document.querySelector("#stage-select-confirm-button"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
   stageGeojeButton: document.querySelector("#stage-geoje-button"),
+  stageDujjonkuButton: document.querySelector("#stage-dujjonku-button"),
   masterVolume: document.querySelector("#master-volume"),
   masterVolumeValue: document.querySelector("#master-volume-value"),
   muteToggle: document.querySelector("#mute-toggle"),

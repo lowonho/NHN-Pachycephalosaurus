@@ -27,12 +27,29 @@ class StageScene extends Phaser.Scene {
     this.syncPayload = { x: 0, y: 0, velocityX: 0 };
     this.tickPayload = { remainingMs: BALANCE.stage.timeMs };
 
-    gameEvents.on(GAME_EVENTS.REQUEST_START, ({ voiceEnabled }) => this.startStage(voiceEnabled));
-    gameEvents.on(GAME_EVENTS.REQUEST_RESTART, () => this.restartStage());
-    gameEvents.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pauseStage());
-    gameEvents.on(GAME_EVENTS.REQUEST_RESUME, () => this.resumeStage());
-    gameEvents.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.returnToMain());
-    gameEvents.on(GAME_EVENTS.COMMAND_RECOGNIZED, (payload) => this.applyCommand(payload));
+    gameEvents.on(GAME_EVENTS.REQUEST_START, ({ voiceEnabled, stageId = "geoje" }) => {
+      if (stageId !== "geoje") return;
+      if (!this.scene?.isActive()) {
+        this.scene.start("StageScene", { autoStart: true, voiceEnabled });
+      } else {
+        this.startStage(voiceEnabled);
+      }
+    });
+    gameEvents.on(GAME_EVENTS.REQUEST_RESTART, () => {
+      if (this.scene?.isActive()) this.restartStage();
+    });
+    gameEvents.on(GAME_EVENTS.REQUEST_PAUSE, () => {
+      if (this.scene?.isActive()) this.pauseStage();
+    });
+    gameEvents.on(GAME_EVENTS.REQUEST_RESUME, () => {
+      if (this.scene?.isActive()) this.resumeStage();
+    });
+    gameEvents.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => {
+      if (this.scene?.isActive()) this.returnToMain();
+    });
+    gameEvents.on(GAME_EVENTS.COMMAND_RECOGNIZED, (payload) => {
+      if (this.scene?.isActive()) this.applyCommand(payload);
+    });
   }
 
   init(data = {}) {
