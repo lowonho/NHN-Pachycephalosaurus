@@ -12,7 +12,10 @@ const COMMAND_DICT = Object.freeze([
     hint: "▶ 음량으로 출발 속도",
     bubble: "오이데!",
     className: "command-move",
-    words: Object.freeze(["오이데", "오이대", "오이대요", "오이돼"]),
+    words: Object.freeze(["오이데", "오이대", "오이대요", "오이돼", "오이데요", "오이뎌"]),
+    // ko-KR 인식이 "오이데"를 "오이대/오이돼"처럼 받아쓰는 경우까지 허용한다.
+    // "이"는 필수로 남겨 "어디"처럼 흔한 단어와 겹치지 않게 한다.
+    patterns: Object.freeze([/(?:오|어)이(?:데|대|돼|뎌)(?:요|용|여)?/]),
   }),
   Object.freeze({
     command: "JUMP",
@@ -20,7 +23,8 @@ const COMMAND_DICT = Object.freeze([
     hint: "↑ 점프 · 높게 말할수록 높이",
     bubble: "야호!",
     className: "command-jump",
-    words: Object.freeze(["야호", "야오", "야호오"]),
+    words: Object.freeze(["야호", "야오", "야호오", "야허", "여호"]),
+    patterns: Object.freeze([/(?:야|여)(?:호|허)(?:오|우)?/]),
   }),
   Object.freeze({
     command: "STOP",
@@ -51,7 +55,8 @@ const COMMAND_DICT = Object.freeze([
     hint: "↔ 진행 방향 변경",
     bubble: "파라파라!",
     className: "command-reverse",
-    words: Object.freeze(["파라파라", "파라파라요", "팔아팔아", "바라바라"]),
+    words: Object.freeze(["파라파라", "파라파라요", "팔아팔아", "바라바라", "빠라빠라"]),
+    patterns: Object.freeze([/(?:파|바|빠)라(?:파|바|빠)라(?:요)?/]),
   }),
   Object.freeze({
     command: "GOAL",
@@ -59,7 +64,10 @@ const COMMAND_DICT = Object.freeze([
     hint: "◎ 포토존에서 골인",
     bubble: "오이쉬이!",
     className: "command-goal",
-    words: Object.freeze(["오이쉬이", "오이시이", "오이시", "오이쉬", "맛있어"]),
+    words: Object.freeze(["오이쉬이", "오이시이", "오이시", "오이쉬", "맛있어", "오이쉬여"]),
+    // "오이쉬이"의 "쉬" 발음이 "시/쉐/셔"로 잘못 받아쓰기되는 경우까지 허용한다.
+    // "이"는 필수로 남겨 "오시다"처럼 흔한 단어와 겹치지 않게 한다.
+    patterns: Object.freeze([/(?:오|어)이(?:쉬|시|쉐|셔)이?/]),
   }),
 ]);
 
