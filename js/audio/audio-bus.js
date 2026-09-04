@@ -1,15 +1,13 @@
 /*
  * C2(사운드) 전용 — 볼륨·뮤트·재생 정책의 단일 창구.
  *
- * ⚠️ 마이크 입력과 스피커 출력이 충돌하는 지점이라 주의가 필요하다.
- *  1) AudioContext 2개  — voice-controller가 마이크용으로 1개, Phaser가 출력용으로 1개를 만든다.
- *                         attachContext()로 마이크 컨텍스트를 Phaser에 넘겨 하나로 합치는 것을
- *                         시도하되, Phaser 3.90에서 동작하는지 실측 후 확정한다.
- *  2) 에코 오인식      — BGM이 스피커→마이크로 되돌아가 "야호"로 오인식될 수 있다.
- *                         duck()으로 명령 인식 직후 잠시 볼륨을 낮춘다.
- *  3) 점프음 자기유발  — 효과음이 70~520Hz(피치 감지 대역)에 걸리면 스스로 명령을 만든다.
- *                         해당 대역을 피해 사운드를 설계한다.
- *  4) autoplay 정책    — 사용자 제스처 전에는 컨텍스트가 suspended다. resume()을 버튼 클릭에 건다.
+ * 주의할 점
+ *  1) autoplay 정책 — 사용자 제스처 전에는 AudioContext가 suspended다.
+ *                     resume()을 버튼 클릭에 걸어 둔다(메인 화면·모달 버튼).
+ *  2) duck()        — 특정 순간에만 BGM을 잠깐 낮추는 유틸. 지금은 부르는 곳이 없고,
+ *                     필요한 연출이 생기면 그 이벤트에 연결한다.
+ *
+ * 저장 키(AUDIO_STORAGE_KEY)를 바꾸면 사용자가 맞춰 둔 볼륨이 초기화되므로 그대로 둔다.
  */
 
 const AUDIO_STORAGE_KEY = "geoje-yaho.audio";
@@ -75,7 +73,7 @@ class AudioBus {
     this.apply();
   }
 
-  // 마이크가 듣는 동안 BGM을 잠시 낮춰 에코 오인식을 줄인다.
+  // 필요한 순간에 BGM만 잠시 낮춘다. 현재 호출부 없음.
   duck(factor = 0.35, durationMs = 450) {
     this.duckFactor = factor;
     this.apply();

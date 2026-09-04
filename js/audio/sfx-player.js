@@ -18,9 +18,6 @@ class SfxPlayer {
         this.play(resolved);
       });
     });
-
-    // 명령을 인식한 직후에는 BGM을 잠깐 낮춰 다음 발화가 잘 들리게 한다.
-    events.on(GAME_EVENTS.COMMAND_RECOGNIZED, () => this.bus.duck());
   }
 
   play(key, config = {}) {

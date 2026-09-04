@@ -1,7 +1,11 @@
+/*
+ * 일시정지 버튼은 .hud-layer(1920×1080 설계 화면) 안에 있으므로 좌표는 설계 px다.
+ * 레이어가 pointer-events: none이라 클릭을 받을 이 버튼만 auto로 되돌린다.
+ */
 .pause-button {
   position: absolute;
   z-index: 12;
-  top: clamp(72px, 12%, 148px);
+  top: 130px;
   right: 16px;
   display: flex;
   align-items: center;
@@ -13,6 +17,7 @@
   color: #fff;
   cursor: pointer;
   font: 800 0.8rem/1 var(--font-ui);
+  pointer-events: auto;
   backdrop-filter: blur(8px);
 }
 
@@ -33,7 +38,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 20px;
+  overflow: hidden;
+  padding: 0;
   background: rgba(1, 7, 24, 0.8);
   backdrop-filter: blur(12px);
 }
@@ -43,7 +49,7 @@
 }
 
 .pause-dialog {
-  width: min(460px, 100%);
+  width: 460px;
   padding: 34px;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -55,20 +61,11 @@
 .pause-dialog h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 7vw, 3.3rem);
+  font-size: 3.3rem;
   font-weight: 400;
 }
 
 .pause-dialog p:not(.modal-step) {
   margin: 12px 0 24px;
   color: #c3d1ed;
-}
-
-@media (max-width: 560px) {
-  .pause-button {
-    top: 62px;
-    right: 8px;
-    padding: 8px 10px;
-    font-size: 0.72rem;
-  }
 }

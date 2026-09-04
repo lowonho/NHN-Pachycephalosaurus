@@ -1,0 +1,164 @@
+/*
+ * A(비주얼) 전용 — 스테이지 선택 화면.
+ *
+ * 게임 내용을 다시 정하는 중이라 지금은 카드 3장이 모두 "준비 중"이다.
+ * 카드가 실제로 눌리게 될 때를 위해 기본 카드 스타일과 준비 중 스타일을 나눠 둔다.
+ * (이전에는 이 규칙들이 css/dujjonku.css 안에 있었다.)
+ */
+
+/*
+ * 스테이지 선택은 메인 화면(z-index 35) 위에 덮는 오버레이다.
+ * 배경은 불투명 판이 아니라 반투명 스크림 — 뒤에 메인 화면이 비쳐 보여야 한다.
+ */
+.stage-select-screen {
+  position: fixed;
+  z-index: 36;
+  inset: 0;
+  /* flex + 자식의 margin:auto — 내용이 화면보다 커져도 위쪽이 잘리지 않는 중앙 정렬. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(31, 92, 255, 0.32), transparent 38%),
+    radial-gradient(circle at 12% 80%, rgba(78, 239, 255, 0.16), transparent 30%),
+    rgba(2, 9, 29, 0.78);
+  backdrop-filter: blur(10px) saturate(1.15);
+}
+
+.stage-select-screen.hidden {
+  display: none;
+}
+
+.stage-select-screen .main-menu-card {
+  /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
+  margin: auto;
+  /* 카드 3장이 각각 220px 안팎을 가져가는 폭. */
+  width: 790px;
+  padding: 44px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius-card) + 4px);
+  background: rgba(5, 20, 52, 0.94);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.52);
+  justify-items: stretch;
+  text-align: left;
+}
+
+.main-menu-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.menu-kicker {
+  margin: 0 0 7px;
+  color: var(--cyan);
+  font: 800 0.76rem/1 var(--font-ui);
+  letter-spacing: 0.18em;
+}
+
+.main-menu-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 3.6rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* 스테이지 카드는 세로로 긴 판때기 3장을 좌우로 나란히 세운다. */
+.stage-select-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  width: 100%;
+}
+
+.stage-select-card {
+  position: relative;
+  display: grid;
+  /* 번호 · 제목 · 설명(남는 높이) · 러닝타임 — 러닝타임이 카드 바닥에 붙는다. */
+  grid-template-rows: auto auto 1fr auto;
+  width: 100%;
+  /* 세로형 비율. 카드 세 장이 같은 높이로 서도록 최소 높이를 잡는다. */
+  min-height: 420px;
+  padding: 24px 20px;
+  border: 2px solid var(--cyan);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(31, 92, 255, 0.28), rgba(78, 239, 255, 0.08)),
+    #091b42;
+  color: var(--paper);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 12px 34px rgba(31, 92, 255, 0.18);
+}
+
+/* 카드가 좁은 만큼 라벨류도 같이 줄인다. 자간이 넓으면 금방 두 줄로 접힌다. */
+.stage-number,
+.stage-duration {
+  color: var(--cyan);
+  font: 800 0.58rem/1.3 var(--font-ui);
+  letter-spacing: 0.08em;
+}
+
+.stage-select-card strong {
+  margin: 12px 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 400;
+  line-height: 1.05;
+}
+
+.stage-description {
+  color: #c3d1ed;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.stage-duration {
+  align-self: end;
+  padding-top: 16px;
+}
+
+/* 아직 비어 있는 칸 — 점선 테두리로 "채울 자리"라는 걸 보여 준다. */
+.stage-select-card.stage-select-card--soon {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+  cursor: default;
+}
+
+.stage-select-card--soon strong {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.stage-select-card--soon .stage-number,
+.stage-select-card--soon .stage-duration {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.stage-select-card--soon .stage-description {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* 메인 화면으로 — 지금은 버튼 한 개지만 폭은 한 줄 배치 기준으로 잡아 둔다. */
+.stage-select-screen .main-menu-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.stage-select-screen .main-menu-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 260px;
+  /* modal.css의 .secondary-button 세로 간격은 한 줄 배치에서 쓰지 않는다. */
+  margin-top: 0;
+}

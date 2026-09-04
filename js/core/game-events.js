@@ -5,6 +5,10 @@
  * 1. 기능 코드는 gameEvents.emit()만 호출한다. 연출·사운드를 직접 호출하지 않는다.
  * 2. 아트/사운드 코드는 gameEvents.on()으로 구독만 한다. 물리 값을 바꾸지 않는다.
  * 3. 이 파일의 이벤트 이름과 payload 형태는 전원 합의 없이 변경하지 않는다(동결).
+ *
+ * 조작 방식과 게임 내용을 다시 정하는 중이라, 지금은 어느 게임에나 필요한
+ * 뼈대 이벤트(수명주기 · 스테이지 흐름 · 타이머 · 사운드)만 남아 있다.
+ * 입력 이벤트(옛 COMMAND_* / PLAYER_*)는 조작이 정해질 때 여기에 다시 추가한다.
  */
 
 const GAME_EVENTS = Object.freeze({
@@ -13,14 +17,14 @@ const GAME_EVENTS = Object.freeze({
   SCENE_SHUTDOWN: "scene:shutdown", // { scene }
 
   // 스테이지 흐름
-  STAGE_START: "stage:start", // { voiceEnabled }
+  STAGE_START: "stage:start", // { stageId? }
   STAGE_PAUSE: "stage:pause", // {}
-  STAGE_RESUME: "stage:resume", // { voiceEnabled }
-  STAGE_CLEAR: "stage:clear", // { elapsed }
-  STAGE_FAIL: "stage:fail", // {}
+  STAGE_RESUME: "stage:resume", // {}
+  STAGE_CLEAR: "stage:clear", // { elapsed, stageId? }
+  STAGE_FAIL: "stage:fail", // { stageId? }
 
   // 외부 요청(UI → 씬)
-  REQUEST_START: "request:start", // { voiceEnabled }
+  REQUEST_START: "request:start", // { stageId }
   REQUEST_RESTART: "request:restart", // {}
   REQUEST_PAUSE: "request:pause", // {}
   REQUEST_RESUME: "request:resume", // {}
@@ -29,25 +33,6 @@ const GAME_EVENTS = Object.freeze({
   // 타이머
   TIMER_TICK: "timer:tick", // { remainingMs } — 매 프레임, payload 재사용됨
   TIMER_WARNING: "timer:warning", // {} — 임계 진입 시 1회만
-
-  // 명령
-  COMMAND_RECOGNIZED: "command:recognized", // { command, level, volume, source }
-  COMMAND_REJECTED: "command:rejected", // { command, reason }
-
-  // 플레이어
-  PLAYER_SYNC: "player:sync", // { x, y, velocityX } — 매 프레임, payload 재사용됨
-  PLAYER_JUMP: "player:jump", // { level, direction }
-  PLAYER_LAND: "player:land", // {}
-  PLAYER_HIT_OBSTACLE: "player:hit-obstacle", // { side }
-
-  // 음성 입력
-  VOICE_PITCH: "voice:pitch", // { hz, semitones, level } — 매 프레임, payload 재사용됨
-  VOICE_INPUT: "voice:input", // { rms, samples } — 실시간 마이크 파형, payload 재사용됨
-  VOICE_TRANSCRIPT: "voice:transcript", // { text, isFinal } — 브라우저가 인식한 발음
-  VOICE_TOO_QUIET: "voice:too-quiet", // {}
-  MIC_CONNECTED: "mic:connected", // {}
-  MIC_CALIBRATED: "mic:calibrated", // { pitch, samples }
-  MIC_FAILED: "mic:failed", // { message }
 
   // 사운드
   AUDIO_VOLUME_CHANGED: "audio:volume-changed", // { master, bgm, sfx, muted }
