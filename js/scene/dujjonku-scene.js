@@ -86,6 +86,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.micReady = false;
     this.timerActive = false;
     this.waitingVoiceStartedAt = 0;
+    this.waitingVoicePeak = 0;
     this.awaitingVoiceRelease = false;
     this.maxChargeNotified = false;
     this.zzonRecognizedInCurrentVoice = false;
@@ -374,6 +375,9 @@ class DujjonkuScene extends Phaser.Scene {
 
   onVoiceLevel(payload) {
     this.voiceLevel = payload.normalized;
+    if (this.voiceState === DUJJONKU_STATE.WAITING && this.waitingVoiceStartedAt) {
+      this.waitingVoicePeak = Math.max(this.waitingVoicePeak, payload.normalized);
+    }
     this.waveSamples.push(payload.normalized);
     if (this.waveSamples.length > 36) this.waveSamples.shift();
   }
@@ -417,6 +421,7 @@ class DujjonkuScene extends Phaser.Scene {
     if (this.awaitingVoiceRelease) return;
     if (this.voiceState === DUJJONKU_STATE.WAITING) {
       this.waitingVoiceStartedAt = performance.now();
+      this.waitingVoicePeak = this.voiceLevel;
     } else if (this.voiceState === DUJJONKU_STATE.LOADED) {
       this.beginCharge();
     }
@@ -434,7 +439,17 @@ class DujjonkuScene extends Phaser.Scene {
       return;
     }
     if (this.voiceState === DUJJONKU_STATE.WAITING && this.waitingVoiceStartedAt) {
+      const spokenMs = performance.now() - this.waitingVoiceStartedAt;
       this.waitingVoiceStartedAt = 0;
+      const voiceConfig = DUJJONKU_CONFIG.voice;
+      if (
+        spokenMs >= voiceConfig.duFallbackMinMs &&
+        spokenMs <= voiceConfig.duFallbackMaxMs &&
+        this.waitingVoicePeak >= voiceConfig.duFallbackMinPeak
+      ) {
+        this.loadProjectile();
+      }
+      this.waitingVoicePeak = 0;
     } else if (this.voiceState === DUJJONKU_STATE.CHARGING) {
       this.cancelCharge();
     }
@@ -459,6 +474,7 @@ class DujjonkuScene extends Phaser.Scene {
     if (this.voiceState !== DUJJONKU_STATE.WAITING || this.shotsLeft <= 0 || this.awaitingVoiceRelease) return;
     this.voiceState = DUJJONKU_STATE.LOADED;
     this.waitingVoiceStartedAt = 0;
+    this.waitingVoicePeak = 0;
     this.chargeMs = 0;
     this.chargeHoldMs = 0;
     this.chargePercent = 0;
@@ -781,7 +797,9 @@ class DujjonkuScene extends Phaser.Scene {
       });
     } else if (autoVoice === "amplitude") {
       this.time.delayedCall(900, () => this.onVoiceStart());
+      this.time.delayedCall(1000, () => this.onVoiceLevel({ normalized: 0.8 }));
       this.time.delayedCall(1220, () => this.onVoiceEnd());
+      this.time.delayedCall(1400, () => this.reportChargeDebug("amplitude-du-loaded"));
       this.time.delayedCall(1600, () => {
         this.voiceActive = true;
         this.onVoiceStart();

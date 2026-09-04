@@ -32,6 +32,9 @@ const DUJJONKU_CONFIG = Object.freeze({
     thresholdOffset: 0.01,
     minimumThreshold: 0.018,
     cooldownMs: 520,
+    duFallbackMinMs: 80,
+    duFallbackMaxMs: 1000,
+    duFallbackMinPeak: 0.16,
   }),
   projectile: Object.freeze({
     radius: 29,
