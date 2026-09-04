@@ -20,7 +20,13 @@ const UI = Object.freeze({
   cutsceneLog: document.querySelector("#cutscene-log"),
   cutsceneLogList: document.querySelector("#cutscene-log-list"),
 
+  /*
+   * 모니터 화면 한 채. 그 안의 스크린(#protocol-screen)이 data-mode로
+   * 프로토콜 선택(#protocol-desktop)과 플레이(.app-shell) 사이를 오간다.
+   */
   stageSelectScreen: document.querySelector("#stage-select-screen"),
+  protocolScreen: document.querySelector("#protocol-screen"),
+  protocolDesktop: document.querySelector("#protocol-desktop"),
   stageSelectGrid: document.querySelector("#stage-select-grid"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
   protocolTimer: document.querySelector("#protocol-timer"),
@@ -40,11 +46,13 @@ const UI = Object.freeze({
   settingsDialog: document.querySelector("#settings-dialog"),
   masterVolume: document.querySelector("#master-volume"),
   masterVolumeValue: document.querySelector("#master-volume-value"),
+  masterVolumeToggle: document.querySelector("#master-volume-toggle"),
   bgmVolume: document.querySelector("#bgm-volume"),
   bgmVolumeValue: document.querySelector("#bgm-volume-value"),
+  bgmVolumeToggle: document.querySelector("#bgm-volume-toggle"),
   sfxVolume: document.querySelector("#sfx-volume"),
   sfxVolumeValue: document.querySelector("#sfx-volume-value"),
-  settingsMuteButton: document.querySelector("#settings-mute-button"),
+  sfxVolumeToggle: document.querySelector("#sfx-volume-toggle"),
   settingsFullscreenToggle: document.querySelector("#settings-fullscreen-toggle"),
   settingsFullscreenState: document.querySelector("#settings-fullscreen-state"),
   settingsApplyButton: document.querySelector("#settings-apply-button"),

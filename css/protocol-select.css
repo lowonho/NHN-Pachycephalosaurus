@@ -77,14 +77,18 @@
 
 /*
  * 베젤. 아래쪽만 두껍게(턱) 잡아 2026 마크가 앉을 자리를 만든다.
- * 안쪽 스크린 크기 = (1584 - 32) × (856 - 16 - 42) = 1552 × 798.
+ *
+ * 안쪽 스크린 = (1472 - 32) × (868 - 16 - 42) = 1440 × 810 — 정확히 16:9다.
+ * 이 비율은 임의로 바꾸지 않는다. 스크린이 곧 게임 화면이라서,
+ * 16:9가 아니면 Phaser(960×540 · Scale.FIT)가 레터박스 띠를 만든다.
+ * 크기를 바꿀 때는 --screen-scale(= 스크린 폭 / 1920)도 같이 맞춘다.
  */
 .protocol-monitor {
   position: absolute;
   top: 44px;
-  left: 168px;
-  width: 1584px;
-  height: 856px;
+  left: 224px;
+  width: 1472px;
+  height: 868px;
   padding: 16px 16px 42px;
   border-radius: 18px;
   background: linear-gradient(180deg, #1b2331, #0d1119 42%, #090c13);
@@ -111,17 +115,17 @@
 
 .protocol-stand-neck {
   position: absolute;
-  top: 900px;
+  top: 912px;
   left: 50%;
   width: 196px;
-  height: 66px;
+  height: 60px;
   transform: translateX(-50%);
   background: linear-gradient(90deg, #0a0d14, #1b2331 42%, #0a0d14);
 }
 
 .protocol-stand-base {
   position: absolute;
-  top: 962px;
+  top: 966px;
   left: 50%;
   width: 460px;
   height: 26px;
@@ -139,7 +143,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  height: 92px;
+  height: 88px;
   border-top: 1px solid rgba(87, 232, 255, 0.16);
   background: linear-gradient(180deg, #0a1327 0%, #050a17 70%, #03060f 100%);
 }
@@ -157,20 +161,40 @@
 
 /* ── 스크린 ────────────────────────────────────────────────────────── */
 
+/*
+ * 스크린 한 장(1440×810). 프로토콜 선택(.protocol-desktop)과
+ * 플레이(.app-shell)가 이 안에서 자리를 바꾼다 — data-mode가 정한다.
+ *
+ * --screen-scale = 1440 / 1920. 스크린 안에 얹히는 1920×1080 설계 레이어
+ * (지금은 .hud-layer 하나)를 이 배율로 줄인다. 바깥 --ui-scale은 .protocol-frame이
+ * 이미 걸었으므로 여기서 또 곱하지 않는다.
+ */
 .protocol-screen {
+  --screen-scale: 0.75;
+
   position: relative;
-  display: flex;
   width: 100%;
   height: 100%;
-  flex-direction: column;
   overflow: hidden;
-  padding: 40px 52px 34px;
   border-radius: 6px;
   background:
     radial-gradient(120% 90% at 50% 0%, rgba(31, 92, 255, 0.24), transparent 62%),
     radial-gradient(80% 60% at 50% 112%, rgba(87, 232, 255, 0.1), transparent 60%),
     #041028;
   box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+}
+
+/* 프로토콜 선택 레이어 — 스크린을 꽉 채운다. 안쪽 여백은 여기가 가진다. */
+.protocol-desktop {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  padding: 40px 52px 34px;
+}
+
+.protocol-screen[data-mode="play"] .protocol-desktop {
+  display: none;
 }
 
 /* 스크린 안쪽 격자 — 홀로그램 바탕. */
@@ -185,11 +209,34 @@
   pointer-events: none;
 }
 
-/* 주사선과 반사광은 내용 위에 얹히되 클릭을 가로채지 않는다. */
+/*
+ * 플레이 중 다이얼로그(결과 · 일시정지) 레이어.
+ * HUD와 같은 1920×1080 설계 좌표를 쓰고 스크린 배율로만 줄인다.
+ * 안쪽 .ui-scaled는 무력화한다 — 조상이 이미 --ui-scale을 걸어 두 번 줄어든다.
+ */
+.screen-overlays {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform: scale(var(--screen-scale, 1));
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.screen-overlays .modal-backdrop,
+.screen-overlays .pause-backdrop {
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* 주사선과 반사광은 스크린 안 모든 레이어 위에 얹히되 클릭을 가로채지 않는다. */
 .protocol-scanlines,
 .protocol-glare {
   position: absolute;
-  z-index: 5;
+  z-index: 30;
   inset: 0;
   pointer-events: none;
 }
@@ -201,6 +248,18 @@
 
 .protocol-glare {
   background: linear-gradient(118deg, rgba(255, 255, 255, 0.07) 0 22%, transparent 44%);
+}
+
+/*
+ * 플레이 중에는 질감을 옅게 깐다. 스크린 연출은 남기되
+ * 공·벽·목표를 읽는 데 방해가 되면 안 된다(지침 10절).
+ */
+.protocol-screen[data-mode="play"] .protocol-scanlines {
+  opacity: 0.24;
+}
+
+.protocol-screen[data-mode="play"] .protocol-glare {
+  opacity: 0.45;
 }
 
 /* 내용은 주사선(z-index 5) 아래에 깔린다. */
@@ -339,7 +398,7 @@
 /*
  * grid가 아니라 flex-wrap이다 — 마지막 줄(3개)이 가운데로 모여야
  * 데스크톱 아이콘 판처럼 보인다. grid는 남는 칸이 한쪽으로 몰린다.
- * (330×4 + 32×3 = 1416 ≤ 안쪽 폭 1448이라 첫 줄에 정확히 4개가 선다.)
+ * (310×4 + 30×3 = 1330 ≤ 안쪽 폭 1336이라 첫 줄에 정확히 4개가 선다.)
  */
 .stage-select-grid {
   display: flex;
@@ -347,12 +406,12 @@
   flex-wrap: wrap;
   align-content: center;
   justify-content: center;
-  gap: 30px 32px;
+  gap: 30px;
 }
 
 .stage-select-card {
   display: flex;
-  width: 330px;
+  width: 310px;
   height: 206px;
   flex-direction: column;
   align-items: center;

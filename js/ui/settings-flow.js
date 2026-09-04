@@ -16,21 +16,38 @@ class SettingsFlow {
     this.snapshot = null;
 
     this.sliders = [
-      { channel: "master", input: dom.masterVolume, output: dom.masterVolumeValue },
-      { channel: "bgm", input: dom.bgmVolume, output: dom.bgmVolumeValue },
-      { channel: "sfx", input: dom.sfxVolume, output: dom.sfxVolumeValue },
+      {
+        channel: "master",
+        input: dom.masterVolume,
+        output: dom.masterVolumeValue,
+        toggle: dom.masterVolumeToggle,
+      },
+      {
+        channel: "bgm",
+        input: dom.bgmVolume,
+        output: dom.bgmVolumeValue,
+        toggle: dom.bgmVolumeToggle,
+      },
+      {
+        channel: "sfx",
+        input: dom.sfxVolume,
+        output: dom.sfxVolumeValue,
+        toggle: dom.sfxVolumeToggle,
+      },
     ];
 
-    this.sliders.forEach(({ channel, input }) => {
+    this.sliders.forEach(({ channel, input, toggle }) => {
       input?.addEventListener("input", () => {
         this.soundBus.setVolume(channel, Number(input.value) / 100);
         this.syncAudio();
       });
-    });
 
-    this.ui.settingsMuteButton?.addEventListener("click", () => {
-      this.soundBus.setMuted(!this.soundBus.muted);
-      this.syncAudio();
+      // 숫자 왼쪽의 전원 토글. aria-checked가 "켜짐"이라 뮤트와는 반대다.
+      toggle?.addEventListener("click", () => {
+        const on = toggle.getAttribute("aria-checked") === "true";
+        this.soundBus.setChannelMuted(channel, on);
+        this.syncAudio();
+      });
     });
 
     this.ui.settingsFullscreenToggle?.addEventListener("click", () => this.toggleFullscreen());
@@ -65,7 +82,11 @@ class SettingsFlow {
   }
 
   open() {
-    this.snapshot = { volumes: { ...this.soundBus.volumes }, muted: this.soundBus.muted };
+    this.snapshot = {
+      volumes: { ...this.soundBus.volumes },
+      muted: this.soundBus.muted,
+      channelMuted: { ...this.soundBus.channelMuted },
+    };
     this.ui.settingsBackdrop?.classList.remove("hidden");
     this.ui.mainSettingsButton?.setAttribute("aria-expanded", "true");
     this.syncAudio();
@@ -91,6 +112,9 @@ class SettingsFlow {
       Object.entries(previous.volumes).forEach(([channel, volume]) => {
         this.soundBus.setVolume(channel, volume);
       });
+      Object.entries(previous.channelMuted).forEach(([channel, muted]) => {
+        this.soundBus.setChannelMuted(channel, muted);
+      });
       this.soundBus.setMuted(previous.muted);
     }
     this.close();
@@ -110,7 +134,7 @@ class SettingsFlow {
   }
 
   syncAudio() {
-    this.sliders.forEach(({ channel, input, output }) => {
+    this.sliders.forEach(({ channel, input, output, toggle }) => {
       const percent = Math.round((this.soundBus.volumes[channel] ?? 0) * 100);
       if (input) {
         input.value = String(percent);
@@ -118,9 +142,12 @@ class SettingsFlow {
         input.style.setProperty("--p", String(percent / 100));
       }
       if (output) output.textContent = String(percent);
-    });
 
-    this.ui.settingsMuteButton?.setAttribute("aria-pressed", String(this.soundBus.muted));
+      const on = !this.soundBus.isChannelMuted(channel);
+      toggle?.setAttribute("aria-checked", String(on));
+      // 꺼진 줄은 슬라이더와 숫자를 흐리게 둔다. css/settings.css가 읽는다.
+      toggle?.closest(".settings-row")?.setAttribute("data-muted", String(!on));
+    });
   }
 }
 

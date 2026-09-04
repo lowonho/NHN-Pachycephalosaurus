@@ -91,17 +91,42 @@ check("스테이지 카드 선택 가능", selectState.enabledCards === 7, `${se
 
 await evaluate("document.querySelector('.stage-select-card[data-stage-id=maze]').click()");
 await wait(180);
+/*
+ * 플레이는 모니터 화면 안에서 일어난다 — 모니터(#stage-select-screen)는 그대로 서 있고
+ * 스크린 안쪽만 프로토콜 선택(#protocol-desktop) → 플레이(.app-shell)로 바뀐다.
+ */
 const startState = await evaluate(`({
   mainHidden: document.querySelector('#main-menu').classList.contains('hidden'),
-  selectHidden: document.querySelector('#stage-select-screen').classList.contains('hidden'),
+  monitorVisible: !document.querySelector('#stage-select-screen').classList.contains('hidden'),
+  screenMode: document.querySelector('#protocol-screen').dataset.mode,
+  appVisible: !document.querySelector('.app-shell').hidden,
   appInteractive: !document.querySelector('.app-shell').hasAttribute('inert'),
   pauseVisible: !document.querySelector('#pause-button').hidden,
   hudVisible: !document.querySelector('#stage-hud').hidden,
   title: document.querySelector('#stage-hud-title').textContent,
   timer: Number(document.querySelector('#stage-hud-timer').textContent)
 })`);
-check("스테이지 화면 전환", startState.mainHidden && startState.selectHidden && startState.appInteractive, JSON.stringify(startState));
+check(
+  "모니터 안에서 스테이지 시작",
+  startState.mainHidden && startState.monitorVisible && startState.screenMode === "play"
+    && startState.appVisible && startState.appInteractive,
+  JSON.stringify(startState)
+);
 check("게임 HUD 연결", startState.pauseVisible && startState.hudVisible && startState.title.includes("가속 코스"), startState.title);
+
+/*
+ * 모니터 스크린은 16:9(1440×810)여서 Phaser(960×540 · Scale.FIT)가 레터박스 없이 꽉 찬다.
+ * 스크린 비율을 건드리면 여기서 먼저 터진다.
+ */
+const canvasFit = await evaluate(`(() => {
+  const screen = document.querySelector('#protocol-screen').getBoundingClientRect();
+  const canvas = document.querySelector('#game-container canvas').getBoundingClientRect();
+  return {
+    gapX: Math.round(Math.abs(screen.width - canvas.width)),
+    gapY: Math.round(Math.abs(screen.height - canvas.height))
+  };
+})()`);
+check("캔버스가 모니터 스크린을 꽉 채움", canvasFit.gapX <= 1 && canvasFit.gapY <= 1, JSON.stringify(canvasFit));
 
 await wait(350);
 const runningTimer = await evaluate("Number(document.querySelector('#stage-hud-timer').textContent)");
@@ -155,10 +180,15 @@ await evaluate("gameEvents.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {})");
 await wait(80);
 const mainState = await evaluate(`({
   mainVisible: !document.querySelector('#main-menu').classList.contains('hidden'),
+  monitorHidden: document.querySelector('#stage-select-screen').classList.contains('hidden'),
   appLocked: document.querySelector('.app-shell').hasAttribute('inert'),
   hudHidden: document.querySelector('#stage-hud').hidden
 })`);
-check("게임에서 메인으로 복귀", mainState.mainVisible && mainState.appLocked && mainState.hudHidden, JSON.stringify(mainState));
+check(
+  "게임에서 메인으로 복귀",
+  mainState.mainVisible && mainState.monitorHidden && mainState.appLocked && mainState.hudHidden,
+  JSON.stringify(mainState)
+);
 
 check("브라우저 치명 오류 없음", browserErrors.length === 0, browserErrors.join(" | "));
 

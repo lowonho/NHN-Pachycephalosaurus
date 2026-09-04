@@ -9,12 +9,6 @@
     />
     <title>2026 ARCHIVE · 20.26</title>
     <link rel="icon" href="data:," />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/main-menu.css" />
@@ -173,58 +167,132 @@
         <div class="protocol-room" aria-hidden="true"></div>
 
         <div class="protocol-monitor">
-          <section class="protocol-screen" aria-labelledby="stage-select-title">
-            <header class="protocol-header">
-              <p class="protocol-brand">2026 ARCHIVE <span>// PROTOCOL SELECT</span></p>
-              <!--
-                ARCHIVE 복구 현황 — 2:26 예산과 달리 판을 넘어 남는 기록이다
-                (js/archive/progress.mjs가 localStorage에 저장한다).
-                숫자는 js/ui/protocol-select-flow.js가 채운다.
-              -->
-              <div class="protocol-archive">
-                <span class="protocol-meta-rule" aria-hidden="true"></span>
-                <div class="protocol-archive-readout">
-                  <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
-                  <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+          <!--
+            스크린 한 장 = 16:9(1440×810). 프로토콜 선택과 플레이가 이 안에서 자리를 바꾼다.
+            data-mode="select"이면 .protocol-desktop이, "play"면 .app-shell이 보인다.
+          -->
+          <section
+            class="protocol-screen"
+            id="protocol-screen"
+            data-mode="select"
+            aria-labelledby="stage-select-title"
+          >
+            <!-- 프로토콜 선택(데스크톱) 레이어 -->
+            <div class="protocol-desktop" id="protocol-desktop">
+              <header class="protocol-header">
+                <p class="protocol-brand">2026 ARCHIVE <span>// PROTOCOL SELECT</span></p>
+                <!--
+                  ARCHIVE 복구 현황 — 2:26 예산과 달리 판을 넘어 남는 기록이다
+                  (js/archive/progress.mjs가 localStorage에 저장한다).
+                  숫자는 js/ui/protocol-select-flow.js가 채운다.
+                -->
+                <div class="protocol-archive">
+                  <span class="protocol-meta-rule" aria-hidden="true"></span>
+                  <div class="protocol-archive-readout">
+                    <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
+                    <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+                  </div>
                 </div>
-              </div>
-            </header>
+              </header>
 
-            <!-- 안내 문구(좌) + 남은 복구 시간(우) — 같은 가로 라인이다. -->
-            <div class="protocol-prompt">
-              <h2 class="protocol-prompt-text" id="stage-select-title">복구할 프로토콜을 선택하세요.</h2>
-              <!--
-                role="timer"는 aria-live가 기본 off다. output(=role status)으로 두면
-                초가 바뀔 때마다 스크린 리더가 읽어 버린다.
-              -->
-              <p
-                class="protocol-timer"
-                id="protocol-timer"
-                role="timer"
-                data-state="idle"
-                aria-label="남은 복구 시간"
-              >
-                2:26
-              </p>
+              <!-- 안내 문구(좌) + 남은 복구 시간(우) — 같은 가로 라인이다. -->
+              <div class="protocol-prompt">
+                <h2 class="protocol-prompt-text" id="stage-select-title">복구할 프로토콜을 선택하세요.</h2>
+                <!--
+                  role="timer"는 aria-live가 기본 off다. output(=role status)으로 두면
+                  초가 바뀔 때마다 스크린 리더가 읽어 버린다.
+                -->
+                <p
+                  class="protocol-timer"
+                  id="protocol-timer"
+                  role="timer"
+                  data-state="idle"
+                  aria-label="남은 복구 시간"
+                >
+                  2:26
+                </p>
+              </div>
+
+              <div class="stage-select-grid" id="stage-select-grid"></div>
+
+              <footer class="protocol-footer">
+                <div class="protocol-footer-status">
+                  <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
+                  <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
+                  <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
+                  <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+                  <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
+                </div>
+                <button class="protocol-back" id="stage-select-back-button" type="button">
+                  <span class="protocol-back-mark" aria-hidden="true">◀</span>
+                  <span>뒤로</span>
+                </button>
+              </footer>
             </div>
 
-            <div class="stage-select-grid" id="stage-select-grid"></div>
-
-            <footer class="protocol-footer">
-              <div class="protocol-footer-status">
-                <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
-                <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
-                <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
-                <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
-                <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
+            <!--
+              플레이 레이어 — 모니터 스크린이 곧 게임 화면이다.
+              스크린은 16:9(1440×810)라 Phaser(960×540 · Scale.FIT)가 레터박스 없이 꽉 찬다.
+              HUD는 1920×1080 설계 좌표 그대로 두고 스크린 배율(0.75)로만 줄인다.
+            -->
+            <main class="app-shell" id="app-shell" inert hidden>
+              <div id="game-container">
+                <div id="corruption" class="game-effect-overlay" aria-hidden="true"></div>
+                <div id="light-overlay" class="game-effect-overlay" aria-hidden="true"></div>
               </div>
-              <button class="protocol-back" id="stage-select-back-button" type="button">
-                <span class="protocol-back-mark" aria-hidden="true">◀</span>
-                <span>뒤로</span>
-              </button>
-            </footer>
 
-            <!-- 스크린 질감(주사선 · 반사광). 클릭을 가로채지 않는다. -->
+              <div class="hud-layer">
+                <section class="stage-hud" id="stage-hud" aria-live="polite" hidden>
+                  <div class="stage-hud-heading">
+                    <strong id="stage-hud-title">STAGE</strong>
+                    <output id="stage-hud-timer">20.26</output>
+                  </div>
+                  <div class="stage-hud-detail">
+                    <span id="stage-hud-action">입력 00</span>
+                    <span id="stage-hud-anomaly">대기</span>
+                  </div>
+                  <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
+                  <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
+                  <p id="stage-hud-penalty" hidden></p>
+                </section>
+                <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
+                  <span aria-hidden="true">Ⅱ</span>
+                  일시정지
+                </button>
+              </div>
+            </main>
+
+            <!--
+              플레이 중에 뜨는 다이얼로그(결과 · 일시정지)도 모니터 스크린 안이다.
+              .app-shell 바깥이라 app-shell에 inert가 걸려도 그대로 눌린다
+              (js/ui/modal-flow.js의 lockBackground · js/ui/pause-flow.js).
+              HUD와 같은 1920×1080 설계 좌표를 쓰고 스크린 배율로만 줄인다.
+            -->
+            <div class="screen-overlays">
+              <!-- 결과(복구 성공 · 실패) -->
+              <div class="modal-backdrop hidden" id="result-modal">
+                <section class="modal" aria-labelledby="modal-title">
+                  <p class="modal-step" id="modal-step">RESULT</p>
+                  <h2 id="modal-title">결과</h2>
+                  <p id="modal-copy"></p>
+                  <p class="modal-result" id="modal-result"></p>
+                  <button class="primary-button" id="primary-button" type="button">다시 도전</button>
+                  <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
+                </section>
+              </div>
+
+              <div class="pause-backdrop hidden" id="pause-modal">
+                <section class="pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+                  <p class="modal-step">PAUSED</p>
+                  <h2 id="pause-title">잠시 멈췄어요</h2>
+                  <p>타이머와 게임 진행이 멈춰 있습니다.</p>
+                  <button class="primary-button" id="resume-button" type="button">계속하기</button>
+                  <button class="secondary-button" id="pause-main-button" type="button">메인 화면으로</button>
+                </section>
+              </div>
+            </div>
+
+            <!-- 스크린 질감(주사선 · 반사광). 스크린 안 모든 레이어 위에 얹힌다. -->
             <div class="protocol-scanlines" aria-hidden="true"></div>
             <div class="protocol-glare" aria-hidden="true"></div>
           </section>
@@ -260,68 +328,11 @@
       </section>
     </div>
 
-    <main class="app-shell" inert>
-      <section class="game-card" aria-label="게임 화면">
-        <div id="game-container">
-          <div id="corruption" class="game-effect-overlay" aria-hidden="true"></div>
-          <div id="light-overlay" class="game-effect-overlay" aria-hidden="true"></div>
-        </div>
-      </section>
-
-      <!--
-        HUD 레이어 — 1920×1080 설계 좌표계 위에 얹힌다(css/base.css의 "UI 배율 규칙").
-        Phaser 캔버스와 같은 배율(--ui-scale)로 통째로 줄어들고 늘어나므로
-        창 비율이 달라져도 HUD 비율과 캔버스 위 위치가 그대로 유지된다.
-
-        음성 패널과 명령어 카드를 걷어내 지금은 일시정지 버튼만 남아 있다.
-        새 게임의 HUD 위젯은 이 레이어 안에 넣는다.
-      -->
-      <div class="hud-layer">
-        <section class="stage-hud" id="stage-hud" aria-live="polite" hidden>
-          <div class="stage-hud-heading">
-            <strong id="stage-hud-title">STAGE</strong>
-            <output id="stage-hud-timer">20.26</output>
-          </div>
-          <div class="stage-hud-detail">
-            <span id="stage-hud-action">입력 00</span>
-            <span id="stage-hud-anomaly">대기</span>
-          </div>
-          <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
-          <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
-          <p id="stage-hud-penalty" hidden></p>
-        </section>
-        <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
-          <span aria-hidden="true">Ⅱ</span>
-          일시정지
-        </button>
-      </div>
-    </main>
-
-    <!-- 결과(클리어 · 타임오버) — 스테이지가 생기면 다시 열린다. -->
-    <div class="modal-backdrop hidden" id="result-modal">
-      <section class="modal ui-scaled" aria-labelledby="modal-title">
-        <p class="modal-step" id="modal-step">RESULT</p>
-        <h2 id="modal-title">결과</h2>
-        <p id="modal-copy"></p>
-        <p class="modal-result" id="modal-result"></p>
-        <button class="primary-button" id="primary-button" type="button">다시 도전</button>
-        <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
-      </section>
-    </div>
-
-    <div class="pause-backdrop hidden" id="pause-modal">
-      <section class="pause-dialog ui-scaled" role="dialog" aria-modal="true" aria-labelledby="pause-title">
-        <p class="modal-step">PAUSED</p>
-        <h2 id="pause-title">잠시 멈췄어요</h2>
-        <p>타이머와 게임 진행이 멈춰 있습니다.</p>
-        <button class="primary-button" id="resume-button" type="button">계속하기</button>
-        <button class="secondary-button" id="pause-main-button" type="button">메인 화면으로</button>
-      </section>
-    </div>
-
     <!--
       설정 — assets/images/concept/setting.png의 배치를 따른다.
-      프레임·행 슬롯·아이콘·노브·토글·버튼은 assets/images/ui/settings/*.png 에셋이다.
+      프레임·행 슬롯·아이콘·노브·토글·버튼은 assets/images/ui/settings/*.webp 에셋이다.
+      (원본 시트 settings_ui_assets_cyber_archive_exact_2k.png을
+       scripts/slice-settings-sheet.ps1로 잘라 webp로 굽는다.)
 
       컨셉 이미지와 다른 점은 두 가지다.
         · "음성 입력 감도" 행은 음성 조작을 걷어내면서 함께 제거했다(4행 구성).
@@ -337,44 +348,83 @@
         tabindex="-1"
       >
         <h2 class="settings-title" id="settings-title">
-          <img src="assets/images/ui/settings/icon-gear.png" alt="" width="209" height="215" />
+          <img src="assets/images/ui/settings/icon-gear.webp" alt="" width="161" height="165" />
           <span>설정</span>
         </h2>
 
         <div class="settings-frame">
           <ul class="settings-rows">
+            <!--
+              볼륨 줄마다 숫자 왼쪽에 동그란 전원 토글이 붙는다. 이건 볼륨을 0으로
+              내리는 게 아니라 채널을 통째로 끄는 스위치라, 다시 켜면 맞춰 둔 볼륨이
+              그대로 돌아온다(js/audio/audio-bus.js의 channelMuted).
+              aria-checked는 "소리가 켜져 있음"이다 — 뮤트 여부의 반대다.
+            -->
             <li class="settings-row">
-              <!-- 스피커 아이콘이 곧 음소거 버튼이다(컨셉 이미지에는 별도 음소거 행이 없다). -->
-              <button
-                class="settings-row-icon settings-mute"
-                id="settings-mute-button"
-                type="button"
-                aria-pressed="false"
-                aria-label="모든 소리 끄기"
-              >
-                <img src="assets/images/ui/settings/icon-volume.png" alt="" width="188" height="189" />
-              </button>
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-volume.webp" alt="" width="170" height="173" />
               <label class="settings-row-label" for="master-volume">마스터 볼륨</label>
               <input class="settings-slider" id="master-volume" type="range" min="0" max="100" step="1" value="80" />
+              <button
+                class="settings-power"
+                id="master-volume-toggle"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-label="마스터 볼륨 켜기/끄기"
+                data-channel="master"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12 3.4v8.2" />
+                  <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+                </svg>
+              </button>
               <output class="settings-row-value" id="master-volume-value" for="master-volume">80</output>
             </li>
 
             <li class="settings-row">
-              <img class="settings-row-icon" src="assets/images/ui/settings/icon-bgm.png" alt="" width="188" height="188" />
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-bgm.webp" alt="" width="171" height="173" />
               <label class="settings-row-label" for="bgm-volume">BGM</label>
               <input class="settings-slider" id="bgm-volume" type="range" min="0" max="100" step="1" value="45" />
+              <button
+                class="settings-power"
+                id="bgm-volume-toggle"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-label="BGM 켜기/끄기"
+                data-channel="bgm"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12 3.4v8.2" />
+                  <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+                </svg>
+              </button>
               <output class="settings-row-value" id="bgm-volume-value" for="bgm-volume">45</output>
             </li>
 
             <li class="settings-row">
-              <img class="settings-row-icon" src="assets/images/ui/settings/icon-sfx.png" alt="" width="187" height="188" />
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-sfx.webp" alt="" width="170" height="173" />
               <label class="settings-row-label" for="sfx-volume">효과음</label>
               <input class="settings-slider" id="sfx-volume" type="range" min="0" max="100" step="1" value="90" />
+              <button
+                class="settings-power"
+                id="sfx-volume-toggle"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-label="효과음 켜기/끄기"
+                data-channel="sfx"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12 3.4v8.2" />
+                  <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+                </svg>
+              </button>
               <output class="settings-row-value" id="sfx-volume-value" for="sfx-volume">90</output>
             </li>
 
             <li class="settings-row">
-              <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.png" alt="" width="182" height="183" />
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.webp" alt="" width="171" height="173" />
               <span class="settings-row-label" id="settings-fullscreen-label">전체 화면</span>
               <button
                 class="settings-switch"
@@ -391,11 +441,11 @@
 
           <div class="settings-actions">
             <button class="settings-action settings-action--apply" id="settings-apply-button" type="button">
-              <img src="assets/images/ui/settings/icon-check.png" alt="" width="175" height="153" />
+              <img src="assets/images/ui/settings/icon-check.webp" alt="" width="152" height="133" />
               <span>적용</span>
             </button>
             <button class="settings-action settings-action--back" id="settings-back-button" type="button">
-              <img src="assets/images/ui/settings/icon-undo.png" alt="" width="176" height="164" />
+              <img src="assets/images/ui/settings/icon-undo.webp" alt="" width="150" height="147" />
               <span>뒤로가기</span>
             </button>
           </div>
