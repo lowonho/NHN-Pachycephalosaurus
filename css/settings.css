@@ -10,6 +10,11 @@
  * 배경으로 늘리면 둥근 모서리가 찌그러진다. 슬라이스 값은 원본 픽셀 기준이고,
  * border-width는 "원본 슬라이스 × 렌더 배율"이라 모서리가 정비율로 나온다.
  *
+ * 단, 그리는 폭(border-image-width)만 border-width보다 1px 크게 준다.
+ * 그래야 테두리 조각이 가운데(fill) 영역을 1px 덮는다. 요소 크기가 소수점으로
+ * 떨어지면 조각 사이가 반 픽셀씩 벌어져 뒤 배경이 머리카락 같은 선으로 비치는데,
+ * 이 1px 겹침이 그 틈을 메운다. 레이아웃(=border-width)은 그대로라 위치는 안 밀린다.
+ *
  * 9-슬라이스는 ::before(absolute, z-index:-1)에 건다. 요소에 직접 걸면
  * 테두리 두께만큼 내용 영역이 먹혀서 레이아웃을 따로 잡을 수 없다.
  * 그래서 부모에는 z-index:0으로 쌓임 맥락을 만들어 준다.
@@ -87,7 +92,7 @@
   z-index: -1;
   inset: 0;
   border: 33px solid transparent;
-  border-image: url("../assets/images/ui/settings/title-pill.png") 118 fill / 33px / 0 stretch;
+  border-image: url("../assets/images/ui/settings/title-pill.png") 118 fill / 34px / 0 stretch;
 }
 
 .settings-title img {
@@ -105,7 +110,7 @@
   padding: 28px 10px 9px;
   border: 38px solid transparent;
   /* 별 띠는 stretch로 늘리면 길쭉해지므로 round로 타일링한다. */
-  border-image: url("../assets/images/ui/settings/panel-frame.png") 115 fill round;
+  border-image: url("../assets/images/ui/settings/panel-frame.png") 115 fill / 39px round;
 }
 
 /* ── 행 ─────────────────────────────────────────────────────────────── */
@@ -140,7 +145,7 @@
   z-index: -1;
   inset: 0;
   border: 15px solid transparent;
-  border-image: url("../assets/images/ui/settings/row-slot.png") 45 fill / 15px / 0 stretch;
+  border-image: url("../assets/images/ui/settings/row-slot.png") 45 fill / 16px / 0 stretch;
 }
 
 .settings-row-icon {
@@ -360,11 +365,11 @@
 }
 
 .settings-action--apply::before {
-  border-image: url("../assets/images/ui/settings/button-apply.png") 104 fill / 26px / 0 stretch;
+  border-image: url("../assets/images/ui/settings/button-apply.png") 104 fill / 27px / 0 stretch;
 }
 
 .settings-action--back::before {
-  border-image: url("../assets/images/ui/settings/button-back.png") 104 fill / 26px / 0 stretch;
+  border-image: url("../assets/images/ui/settings/button-back.png") 104 fill / 27px / 0 stretch;
 }
 
 .settings-action img {
