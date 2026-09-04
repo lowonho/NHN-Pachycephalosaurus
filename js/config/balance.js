@@ -1,6 +1,9 @@
 /*
  * 기능(B) 전용 — 물리·타이밍 밸런스.
  * 이 값을 바꾸면 클리어 난이도가 변한다. 아트/사운드는 참조만 하고 수정하지 않는다.
+ *
+ * 옛 스테이지(음성 조작)의 이동 속도·점프력·피치 임계값은 게임을 새로 정하면서 걷어냈다.
+ * 20.26초 제한만은 프로젝트 주제라 그대로 둔다.
  */
 
 const BALANCE = Object.freeze({
@@ -10,40 +13,11 @@ const BALANCE = Object.freeze({
     resultDelayMs: 500,
   }),
 
+  /*
+   * Phaser Arcade의 기본 중력. 게임이 정해지면 여기에 이동 속도·점프력을 다시 채운다.
+   * Matter가 필요한 게임이면 씬 단위로 물리 엔진을 바꾸고 이 값은 무시한다.
+   */
   physics: Object.freeze({
     gravityY: 2325,
-    moveSpeed: 368,
-    moveSpeedMin: 260,
-    moveSpeedMax: 520,
-    maxVelocityX: 560,
-    maxVelocityY: 1500,
-    dragX: 1875,
-    jumpPower: Object.freeze({ LOW: -765, MID: -975, HIGH: -1238 }),
-  }),
-
-  voice: Object.freeze({
-    commandCooldownMs: 700,
-    pitchMinHz: 70,
-    pitchMaxHz: 520,
-    rmsGate: 0.018,
-    correlationThreshold: 0.2,
-    fftSize: 2048,
-    smoothingTimeConstant: 0.2,
-    recentWindowMs: 1200,
-    medianWindowMs: 900,
-    volumeWindowMs: 1600,
-    movementVolumeMinRms: 0.02,
-    movementVolumeMaxRms: 0.12,
-    restartDelayMs: 160,
-    defaultBasePitchHz: 180,
-  }),
-
-  calibration: Object.freeze({
-    durationMs: 2400,
-    minSamples: 12,
-    lowThresholdSemitones: -2.2,
-    highThresholdSemitones: 2.2,
-    outlierLowRatio: 0.72,
-    outlierHighRatio: 1.38,
   }),
 });

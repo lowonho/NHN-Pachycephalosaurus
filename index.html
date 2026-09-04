@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="목소리로 움직여 20.26초 안에 포토존에 도착하는 Phaser 3 웹게임"
+      content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
     />
-    <title>거제 야호! — 20.26초 음성 액션</title>
+    <title>20.26</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,53 +17,32 @@
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/main-menu.css" />
-    <link rel="stylesheet" href="css/pitch-meter.css" />
-    <link rel="stylesheet" href="css/command-deck.css" />
+    <link rel="stylesheet" href="css/stage-select.css" />
     <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/pause.css" />
     <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
-    <link rel="stylesheet" href="css/dujjonku.css" />
   </head>
   <body>
     <!--
-      메인 화면 — assets/images/concept/main.png의 UI 배치를 그대로 따른다.
-      위에서부터 로고 → 리본 → 음성 마크 → 버튼 3개 순서다.
+      메인 화면 — assets/images/concept/main.png의 UI 배치를 따른다.
+      위에서부터 로고 → 버튼 3개 순서다.
       컨셉 이미지의 배경 일러스트와 주변 장식은 의도적으로 넣지 않는다.
+      (음성 조작을 걷어내면서 로고 아래의 마이크·파형 마크도 함께 뺐다.)
     -->
     <div class="main-menu" id="main-menu">
       <section class="main-menu-card ui-scaled" aria-labelledby="main-menu-title">
         <h1 class="menu-logo" id="main-menu-title">
           <img
             src="assets/images/ui/Main/title-logo-20-26.webp"
-            alt="20.26 음성 조작 밈 게임"
+            alt="20.26"
             width="960"
             height="560"
           />
         </h1>
 
-        <div class="menu-voice-mark" aria-hidden="true">
-          <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-          <span class="menu-mic">
-            <img
-              src="assets/images/ui/Main/icon-microphone.webp"
-              alt=""
-              width="107"
-              height="160"
-            />
-          </span>
-          <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        </div>
-
         <div class="main-menu-actions">
           <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <img
-              class="menu-button-icon"
-              src="assets/images/ui/Main/icon-microphone.webp"
-              alt=""
-              width="107"
-              height="160"
-            />
             <span>게임 시작</span>
           </button>
 
@@ -105,6 +84,11 @@
       </section>
     </div>
 
+    <!--
+      스테이지 선택 — 게임 내용을 다시 정하는 중이라 카드 3장이 모두 준비 중이다.
+      스테이지가 정해지면 카드에서 disabled와 --soon을 떼고
+      js/ui/main-menu-flow.js에 선택·시작 배선을 다시 넣는다.
+    -->
     <div class="stage-select-screen hidden" id="stage-select-screen">
       <section class="main-menu-card ui-scaled" aria-labelledby="stage-select-title">
         <div class="main-menu-heading">
@@ -115,22 +99,21 @@
         </div>
 
         <div class="stage-select-grid">
-          <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
+          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
             <span class="stage-number">STAGE 01</span>
-            <strong>거제 야호!</strong>
-            <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
-            <span class="stage-duration">20.26 SEC</span>
+            <strong>준비 중</strong>
+            <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
+            <span class="stage-duration">COMING SOON</span>
           </button>
 
-          <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
+          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
             <span class="stage-number">STAGE 02</span>
-            <strong>두쫀쿠</strong>
-            <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
-            <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
+            <strong>준비 중</strong>
+            <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
+            <span class="stage-duration">COMING SOON</span>
           </button>
 
-          <!-- 자리만 잡아 둔 3번 칸. 스테이지가 정해지면 이 카드를 채운다. -->
-          <button class="stage-select-card stage-select-card--soon" id="stage-soon-button" type="button" disabled>
+          <button class="stage-select-card stage-select-card--soon" type="button" disabled>
             <span class="stage-number">STAGE 03</span>
             <strong>준비 중</strong>
             <span class="stage-description">새로운 20.26초를 만들고 있어요</span>
@@ -139,14 +122,13 @@
         </div>
 
         <div class="main-menu-actions">
-          <button class="primary-button" id="stage-select-confirm-button" type="button">선택 완료</button>
           <button class="secondary-button" id="stage-select-back-button" type="button">메인 화면으로</button>
         </div>
       </section>
     </div>
 
     <main class="app-shell" inert>
-      <section class="game-card" aria-label="거제 야호 게임">
+      <section class="game-card" aria-label="게임 화면">
         <div id="game-container"></div>
       </section>
 
@@ -154,79 +136,27 @@
         HUD 레이어 — 1920×1080 설계 좌표계 위에 얹힌다(css/base.css의 "UI 배율 규칙").
         Phaser 캔버스와 같은 배율(--ui-scale)로 통째로 줄어들고 늘어나므로
         창 비율이 달라져도 HUD 비율과 캔버스 위 위치가 그대로 유지된다.
+
+        음성 패널과 명령어 카드를 걷어내 지금은 일시정지 버튼만 남아 있다.
+        새 게임의 HUD 위젯은 이 레이어 안에 넣는다.
       -->
       <div class="hud-layer">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">2026 × 20.26 VOICE ACTION</p>
-            <h1>거제 <span>야호!</span></h1>
-          </div>
-          <div class="system-status" aria-live="polite">
-            <span class="status-dot" id="status-dot"></span>
-            <span id="status-label">마이크 연결 전</span>
-          </div>
-        </header>
-
         <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
           <span aria-hidden="true">Ⅱ</span>
           일시정지
         </button>
-
-        <div class="pitch-panel" aria-label="현재 목소리 높이">
-          <div class="pitch-copy">
-            <span>VOICE PITCH</span>
-            <strong id="pitch-label">READY</strong>
-          </div>
-          <div class="pitch-track" aria-hidden="true">
-            <span class="pitch-zone low">LOW</span>
-            <span class="pitch-zone mid">MID</span>
-            <span class="pitch-zone high">HIGH</span>
-            <i id="pitch-needle"></i>
-          </div>
-          <div class="voice-feedback">
-            <div class="voice-feedback-head">
-              <span id="voice-input-state">수음 대기</span>
-              <span id="voice-transcript-kind">들은 발음</span>
-            </div>
-            <canvas
-              id="voice-waveform"
-              width="360"
-              height="32"
-              aria-label="실시간 마이크 파형"
-              role="img"
-            ></canvas>
-            <strong id="voice-transcript" aria-live="polite">말해보세요</strong>
-          </div>
-        </div>
-
-        <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
-        <div class="command-deck" id="command-deck" aria-label="음성 명령어"></div>
       </div>
     </main>
 
-    <!-- 피치 조정(중간음 측정) UI — 메인 화면의 "게임 시작"과 스테이지 사이에 들어간다. -->
-    <div class="modal-backdrop hidden" id="setup-modal">
+    <!-- 결과(클리어 · 타임오버) — 스테이지가 생기면 다시 열린다. -->
+    <div class="modal-backdrop hidden" id="result-modal">
       <section class="modal ui-scaled" aria-labelledby="modal-title">
-        <p class="modal-step" id="modal-step">STAGE 01</p>
-        <h2 id="modal-title">목소리로 포토존까지!</h2>
-        <p id="modal-copy">
-          먼저 편안한 중간음을 측정합니다. 측정된 목소리를 기준으로
-          낮은 음·중간 음·높은 음을 나눠 점프 높이에 반영해요.
-        </p>
-        <!-- 막대 개수는 자유롭게 늘리고 줄여도 된다 — art/calibration-meter-view.js가 있는 만큼 그린다. -->
-        <div class="calibration-visual" id="calibration-visual" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span><span></span><span></span><span></span>
-          <span></span><span></span><span></span>
-        </div>
-        <p class="calibration-result" id="calibration-result"></p>
-        <button class="primary-button" id="primary-button" type="button">
-          마이크 연결하고 시작
-        </button>
-        <button class="secondary-button" id="secondary-button" type="button">
-          뒤로가기
-        </button>
-        <p class="privacy-note">음성은 저장하지 않으며 현재 플레이에만 사용합니다.</p>
+        <p class="modal-step" id="modal-step">RESULT</p>
+        <h2 id="modal-title">결과</h2>
+        <p id="modal-copy"></p>
+        <p class="modal-result" id="modal-result"></p>
+        <button class="primary-button" id="primary-button" type="button">다시 도전</button>
+        <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
       </section>
     </div>
 
@@ -241,12 +171,11 @@
     </div>
 
     <!--
-      설정 — assets/images/concept/setting.png의 배치를 그대로 따른다.
+      설정 — assets/images/concept/setting.png의 배치를 따른다.
       프레임·행 슬롯·아이콘·노브·토글·버튼은 assets/images/ui/settings/*.png 에셋이다.
 
       컨셉 이미지와 다른 점은 두 가지다.
-        · "음성 입력 감도"는 슬라이더가 아니라 버튼이다. 감도는 숫자로 맞추는 값이 아니라
-          중간음 측정으로 잡는 값이라, 버튼이 곧바로 피치 조정 화면을 연다.
+        · "음성 입력 감도" 행은 음성 조작을 걷어내면서 함께 제거했다(4행 구성).
         · "도움말" 행은 넣지 않는다.
     -->
     <div class="settings-backdrop hidden" id="settings-modal">
@@ -296,20 +225,6 @@
             </li>
 
             <li class="settings-row">
-              <img class="settings-row-icon" src="assets/images/ui/settings/icon-mic.png" alt="" width="184" height="184" />
-              <span class="settings-row-label" id="settings-mic-label">음성 입력 감도</span>
-              <button
-                class="settings-pill-button"
-                id="settings-mic-button"
-                type="button"
-                aria-describedby="settings-mic-label"
-              >
-                <span>마이크 조정</span>
-                <b aria-hidden="true">›</b>
-              </button>
-            </li>
-
-            <li class="settings-row">
               <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.png" alt="" width="182" height="183" />
               <span class="settings-row-label" id="settings-fullscreen-label">전체 화면</span>
               <button
@@ -349,11 +264,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
-    <script src="js/config/dujjonku-config.js"></script>
     <script src="js/content/strings.ko.js"></script>
-
-    <!-- C2 · 음성 사전 (아트/음성 양쪽이 참조) -->
-    <script src="js/voice/command-dict.js"></script>
 
     <!-- C1 · 이미지 에셋 / C2 · 사운드 에셋 -->
     <script src="js/assets/image-manifest.js"></script>
@@ -366,14 +277,6 @@
     <!-- A · 비주얼 -->
     <script src="js/art/theme.js"></script>
     <script src="js/art/sprite-animations.js"></script>
-    <script src="js/art/stage-view.js"></script>
-    <script src="js/art/player-view.js"></script>
-    <script src="js/art/hud-view.js"></script>
-    <script src="js/art/effects.js"></script>
-    <script src="js/art/pitch-meter-view.js"></script>
-    <script src="js/art/voice-monitor-view.js"></script>
-    <script src="js/art/calibration-meter-view.js"></script>
-    <script src="js/art/command-deck-view.js"></script>
     <script src="js/art/viewport-fit.js"></script>
 
     <!-- C2 · 사운드 -->
@@ -381,20 +284,12 @@
     <script src="js/audio/sfx-player.js"></script>
     <script src="js/audio/bgm-player.js"></script>
 
-    <!-- C2 · 음성 입력 -->
-    <script src="js/voice/voice-evaluator.js"></script>
-    <script src="js/voice/voice-controller.js"></script>
-    <script src="js/voice/dujjonku-voice-controller.js"></script>
-
     <!-- B · 기능 -->
-    <script src="js/ui/hud-status.js"></script>
     <script src="js/ui/modal-flow.js"></script>
     <script src="js/ui/settings-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
-    <script src="js/scene/stage-scene.js"></script>
-    <script src="js/scene/dujjonku-objects.js"></script>
-    <script src="js/scene/dujjonku-scene.js"></script>
+    <script src="js/scene/placeholder-scene.js"></script>
     <script src="js/game.js"></script>
   </body>
 </html>

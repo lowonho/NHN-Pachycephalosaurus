@@ -1,7 +1,8 @@
 /*
  * A(비주얼) 전용 — 설정 다이얼로그.
  * 배치 기준: assets/images/concept/setting.png
- *   타이틀 알약 → 별 테두리 프레임 → 크림색 행 슬롯 6줄 → 적용/뒤로가기.
+ *   타이틀 알약 → 별 테두리 프레임 → 크림색 행 슬롯 → 적용/뒤로가기.
+ *   (컨셉 이미지는 6줄이지만 음성 조작을 걷어내면서 현재는 4줄이다.)
  *
  * 조각 에셋은 assets/images/ui/settings/*.png 이고, 원본 시트
  * settings_ui_assets_2k.png(2048×2048)에서 잘라낸 것이라 좌표·비율이 그대로다.
@@ -243,48 +244,6 @@
   height: 25px;
   border: 0;
   background: url("../assets/images/ui/settings/knob-paw.png") center / contain no-repeat;
-}
-
-/* ── 음성 입력 감도 버튼 ────────────────────────────────────────────── */
-
-/*
- * 컨셉의 "보기" 알약과 같은 자리·같은 모양이되, 마이크 행이라 핑크로 쓴다.
- * 시트에는 파랑/회색 알약만 있어서 이 버튼만 CSS로 그린다.
- */
-.settings-pill-button {
-  display: inline-flex;
-  grid-column: 3 / -1;
-  align-items: center;
-  justify-self: end;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 15px;
-  border: 2px solid #fff;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ff9cc4, #f4467f);
-  box-shadow: 0 3px 0 #cd2c62, 0 7px 14px rgba(244, 70, 127, 0.3);
-  color: #fff;
-  cursor: pointer;
-  font-family: var(--font-ui);
-  font-size: 0.92rem;
-  font-weight: 900;
-  white-space: nowrap;
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-
-.settings-pill-button b {
-  margin-top: -0.16em;
-  font-size: 1.2em;
-}
-
-.settings-pill-button:hover,
-.settings-pill-button:focus-visible {
-  transform: translateY(-2px);
-}
-
-.settings-pill-button:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 #cd2c62;
 }
 
 /* ── 전체 화면 스위치 ───────────────────────────────────────────────── */

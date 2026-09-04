@@ -9,11 +9,9 @@ const UI = Object.freeze({
   mainPlayButton: document.querySelector("#main-play-button"),
   mainChallengeButton: document.querySelector("#main-challenge-button"),
 
+  // 스테이지 카드는 3장 모두 준비 중이라 지금은 참조하지 않는다.
   stageSelectScreen: document.querySelector("#stage-select-screen"),
-  stageSelectConfirmButton: document.querySelector("#stage-select-confirm-button"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
-  stageGeojeButton: document.querySelector("#stage-geoje-button"),
-  stageDujjonkuButton: document.querySelector("#stage-dujjonku-button"),
 
   settingsBackdrop: document.querySelector("#settings-modal"),
   settingsDialog: document.querySelector("#settings-dialog"),
@@ -24,7 +22,6 @@ const UI = Object.freeze({
   sfxVolume: document.querySelector("#sfx-volume"),
   sfxVolumeValue: document.querySelector("#sfx-volume-value"),
   settingsMuteButton: document.querySelector("#settings-mute-button"),
-  settingsMicButton: document.querySelector("#settings-mic-button"),
   settingsFullscreenToggle: document.querySelector("#settings-fullscreen-toggle"),
   settingsFullscreenState: document.querySelector("#settings-fullscreen-state"),
   settingsApplyButton: document.querySelector("#settings-apply-button"),
@@ -33,25 +30,13 @@ const UI = Object.freeze({
   appShell: document.querySelector(".app-shell"),
   gameContainer: document.querySelector("#game-container"),
 
-  statusDot: document.querySelector("#status-dot"),
-  statusLabel: document.querySelector("#status-label"),
-
-  pitchNeedle: document.querySelector("#pitch-needle"),
-  pitchLabel: document.querySelector("#pitch-label"),
-  voiceWaveform: document.querySelector("#voice-waveform"),
-  voiceInputState: document.querySelector("#voice-input-state"),
-  voiceTranscriptKind: document.querySelector("#voice-transcript-kind"),
-  voiceTranscript: document.querySelector("#voice-transcript"),
-  commandDeck: document.querySelector("#command-deck"),
-
-  modal: document.querySelector("#setup-modal"),
+  modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),
   modalTitle: document.querySelector("#modal-title"),
   modalCopy: document.querySelector("#modal-copy"),
+  modalResult: document.querySelector("#modal-result"),
   primaryButton: document.querySelector("#primary-button"),
   secondaryButton: document.querySelector("#secondary-button"),
-  calibrationVisual: document.querySelector("#calibration-visual"),
-  calibrationResult: document.querySelector("#calibration-result"),
 
   pauseButton: document.querySelector("#pause-button"),
   pauseModal: document.querySelector("#pause-modal"),

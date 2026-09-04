@@ -1,4 +1,10 @@
-/* 두쫀쿠 선택 화면과 플레이 중 DOM 오버레이 조정. 게임 HUD는 Phaser 캔버스에 그린다. */
+/*
+ * A(비주얼) 전용 — 스테이지 선택 화면.
+ *
+ * 게임 내용을 다시 정하는 중이라 지금은 카드 3장이 모두 "준비 중"이다.
+ * 카드가 실제로 눌리게 될 때를 위해 기본 카드 스타일과 준비 중 스타일을 나눠 둔다.
+ * (이전에는 이 규칙들이 css/dujjonku.css 안에 있었다.)
+ */
 
 /*
  * 스테이지 선택은 메인 화면(z-index 35) 위에 덮는 오버레이다.
@@ -28,7 +34,7 @@
 .stage-select-screen .main-menu-card {
   /* auto 마진이 남는 공간을 위아래·좌우로 똑같이 나눠 화면 정중앙에 세운다. */
   margin: auto;
-  /* 카드 3장이 각각 220px 안팎(= 이전 폭의 70%)을 가져가는 폭. */
+  /* 카드 3장이 각각 220px 안팎을 가져가는 폭. */
   width: 790px;
   padding: 44px;
   border: 1px solid var(--line);
@@ -90,19 +96,7 @@
   box-shadow: 0 12px 34px rgba(31, 92, 255, 0.18);
 }
 
-.stage-select-card::after {
-  content: "선택됨";
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--yellow);
-  color: var(--ink);
-  font: 900 0.62rem/1 var(--font-ui);
-}
-
-/* 카드가 좁아진 만큼 라벨류도 같이 줄인다. 자간이 넓으면 금방 두 줄로 접힌다. */
+/* 카드가 좁은 만큼 라벨류도 같이 줄인다. 자간이 넓으면 금방 두 줄로 접힌다. */
 .stage-number,
 .stage-duration {
   color: var(--cyan);
@@ -113,7 +107,6 @@
 .stage-select-card strong {
   margin: 12px 0 6px;
   font-family: var(--font-display);
-  /* 좁아진 카드(약 220px) 안에서 "거제 야호!"가 한 줄에 들어가는 크기. */
   font-size: 1.6rem;
   font-weight: 400;
   line-height: 1.05;
@@ -130,51 +123,12 @@
   padding-top: 16px;
 }
 
-/* 선택 완료 · 메인 화면으로 — 가로 한 줄. */
-.stage-select-screen .main-menu-actions {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 16px;
-  width: 100%;
-  margin-top: 18px;
-}
-
-.stage-select-screen .main-menu-actions > button {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 260px;
-  /* modal.css의 .secondary-button 세로 간격은 한 줄 배치에서 쓰지 않는다. */
-  margin-top: 0;
-}
-
-.stage-select-card:not(.selected) {
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: none;
-  filter: saturate(0.65);
-}
-
-.stage-select-card:not(.selected)::after {
-  display: none;
-}
-
-.stage-select-card.dujjonku-card {
-  background:
-    radial-gradient(circle at 88% 20%, rgba(132, 204, 255, 0.28), transparent 34%),
-    linear-gradient(135deg, rgba(244, 126, 167, 0.35), rgba(255, 229, 189, 0.12)),
-    #351e46;
-}
-
-.stage-select-card.dujjonku-card.selected {
-  border-color: #ff9fbe;
-  box-shadow: 0 12px 34px rgba(244, 126, 167, 0.24);
-}
-
 /* 아직 비어 있는 칸 — 점선 테두리로 "채울 자리"라는 걸 보여 준다. */
 .stage-select-card.stage-select-card--soon {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
   cursor: default;
 }
 
@@ -191,17 +145,20 @@
   color: rgba(255, 255, 255, 0.38);
 }
 
-body.dujjonku-active .pitch-panel,
-body.dujjonku-active .command-deck,
-body.dujjonku-active .system-status {
-  display: none !important;
+/* 메인 화면으로 — 지금은 버튼 한 개지만 폭은 한 줄 배치 기준으로 잡아 둔다. */
+.stage-select-screen .main-menu-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  margin-top: 18px;
 }
 
-body.dujjonku-active .pause-button {
-  top: 28px;
-  right: 28px;
-  border: 4px solid #fff5e9;
-  background: #ed7fa5;
-  color: #fff;
-  box-shadow: 0 5px 0 #a95378;
+.stage-select-screen .main-menu-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 260px;
+  /* modal.css의 .secondary-button 세로 간격은 한 줄 배치에서 쓰지 않는다. */
+  margin-top: 0;
 }
