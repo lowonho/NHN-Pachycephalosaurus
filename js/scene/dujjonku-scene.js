@@ -69,6 +69,7 @@ class DujjonkuScene extends Phaser.Scene {
     this.angleDirection = 1;
     this.projectile = null;
     this.projectileSettledAt = 0;
+    this.projectileFiredAt = 0;
     this.warningFired = false;
     this.micReady = false;
     this.timerActive = false;
@@ -334,6 +335,24 @@ class DujjonkuScene extends Phaser.Scene {
     this.projectile.setData({ kind: "projectile" });
     this.projectile.setVelocity(Math.cos(radians) * power, -Math.sin(radians) * power);
     this.projectile.setAngularVelocity(.13);
+    this.projectileFiredAt = this.time.now;
+    this.projectileSettledAt = 0;
+    this.flightTimeout?.remove(false);
+    this.flightTimeout = this.time.delayedCall(
+      DUJJONKU_CONFIG.projectile.maxFlightMs,
+      () => {
+        if (this.voiceState === DUJJONKU_STATE.FIRED) this.prepareNextShot();
+      },
+    );
+    window.clearTimeout(this.flightWallTimeout);
+    this.flightWallTimeout = window.setTimeout(() => {
+      if (this.voiceState !== DUJJONKU_STATE.FIRED || this.ended) return;
+      if (this.paused) {
+        this.flightExpiredWhilePaused = true;
+        return;
+      }
+      this.prepareNextShot();
+    }, DUJJONKU_CONFIG.projectile.maxFlightMs + 250);
     // 발사 순간 고무줄과 발사체의 시각적 연결을 끊는다.
     this.slingReleasedAt = this.time.now;
     this.shotsLeft -= 1;
@@ -576,13 +595,24 @@ class DujjonkuScene extends Phaser.Scene {
 
   monitorProjectile(time) {
     if (!this.projectile?.active) return this.prepareNextShot();
-    const outside = this.projectile.x > 1990 || this.projectile.x < -70 || this.projectile.y > 1140;
-    if (this.projectile.body.speed < DUJJONKU_CONFIG.projectile.settleSpeed && this.projectile.y > 650) {
+    const config = DUJJONKU_CONFIG.projectile;
+    const body = this.projectile.body;
+    const outside = this.projectile.x > 1990 || this.projectile.x < -70 ||
+      this.projectile.y > 1140 || this.projectile.y < -180;
+    const sleeping = Boolean(body?.isSleeping);
+    const stopped = sleeping || (body?.speed ?? 0) < config.settleSpeed;
+
+    // 구조물 위, 공중섬, 화면 어느 높이에서 멈춰도 다음 발사를 준비한다.
+    if (stopped) {
       if (!this.projectileSettledAt) this.projectileSettledAt = time;
     } else {
       this.projectileSettledAt = 0;
     }
-    if (outside || (this.projectileSettledAt && time - this.projectileSettledAt > DUJJONKU_CONFIG.projectile.settleMs)) {
+    const settledLongEnough = this.projectileSettledAt &&
+      time - this.projectileSettledAt > config.settleMs;
+    // 아주 약하게 계속 흔들리는 접촉 상태도 영원히 FIRED에 머물지 않게 제한한다.
+    const flightTimedOut = this.projectileFiredAt && time - this.projectileFiredAt > config.maxFlightMs;
+    if (outside || settledLongEnough || flightTimedOut) {
       this.prepareNextShot();
     }
   }
@@ -590,8 +620,17 @@ class DujjonkuScene extends Phaser.Scene {
   prepareNextShot() {
     if (this.voiceState === DUJJONKU_STATE.RESETTING) return;
     this.voiceState = DUJJONKU_STATE.RESETTING;
+    this.statusText.setText("다음 두쫀쿠 준비 중…");
+    this.updateStateHud();
     this.projectile?.destroy();
     this.projectile = null;
+    this.flightTimeout?.remove(false);
+    this.flightTimeout = null;
+    window.clearTimeout(this.flightWallTimeout);
+    this.flightWallTimeout = 0;
+    this.flightExpiredWhilePaused = false;
+    this.projectileFiredAt = 0;
+    this.projectileSettledAt = 0;
     this.time.delayedCall(DUJJONKU_CONFIG.projectile.resetDelayMs, () => {
       if (this.ended) return;
       if (this.shotsLeft <= 0) return this.failStage("두쫀쿠를 모두 사용했어요!");
@@ -723,6 +762,10 @@ class DujjonkuScene extends Phaser.Scene {
     this.matter.world.resume();
     gameEvents.emit(GAME_EVENTS.STAGE_RESUME, { voiceEnabled: true });
     this.connectVoice();
+    if (this.flightExpiredWhilePaused && this.voiceState === DUJJONKU_STATE.FIRED) {
+      this.flightExpiredWhilePaused = false;
+      this.prepareNextShot();
+    }
   }
 
   restartStage() {
@@ -736,6 +779,10 @@ class DujjonkuScene extends Phaser.Scene {
   }
 
   cleanup() {
+    this.flightTimeout?.remove(false);
+    this.flightTimeout = null;
+    window.clearTimeout(this.flightWallTimeout);
+    this.flightWallTimeout = 0;
     this.voice?.destroy();
     this.voice = null;
     this.stageRunning = false;

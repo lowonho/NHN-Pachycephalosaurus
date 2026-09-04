@@ -32,7 +32,8 @@ const DUJJONKU_CONFIG = Object.freeze({
   projectile: Object.freeze({
     radius: 29,
     settleSpeed: 0.38,
-    settleMs: 1050,
+    settleMs: 900,
+    maxFlightMs: 4200,
     resetDelayMs: 520,
   }),
 });
