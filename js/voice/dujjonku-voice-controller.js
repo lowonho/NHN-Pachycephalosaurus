@@ -149,13 +149,18 @@ class DujjonkuVoiceController {
     this.recognition.maxAlternatives = 3;
     this.recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const text = [...event.results[i]].map((result) => result.transcript).join(" ")
-          .replace(/\s+/g, "").toLowerCase();
+        const alternatives = [...event.results[i]].map((result) => result.transcript
+          .replace(/\s+/g, "").toLowerCase());
         // 짧은 한 음절은 Speech Recognition이 숫자/받침/유사음으로 반환하기 쉽다.
-        if (["두", "둘", "듀", "뚜", "2", "two"].some((word) => text.includes(word))) {
+        if (alternatives.some((text) =>
+          ["두", "둘", "듀", "뚜", "2", "two"].some((word) => text.includes(word)))) {
           this.callbacks.onWord?.("DU");
         }
-        if (["쿠", "쿡", "구", "큐", "9", "ku", "koo"].some((word) => text.includes(word))) {
+        // 노래/일반 문장 안에 우연히 포함된 음절은 제외하고, 짧게 분리된
+        // ㅋ 계열 발음만 발사 명령으로 인정한다.
+        const kuLike = alternatives.some((text) =>
+          /^(?:ㅋ+|[쿠쿡큐크끄코카키케]+|ku+|koo+)$/.test(text));
+        if (kuLike) {
           this.callbacks.onWord?.("KU");
         }
       }

@@ -263,15 +263,12 @@ class DujjonkuScene extends Phaser.Scene {
     if (word === "DU" && this.voiceState === DUJJONKU_STATE.WAITING && !this.awaitingVoiceRelease) {
       this.lastActionAt = now;
       this.loadProjectile();
-    } else if (word === "KU" && (
-      this.voiceState === DUJJONKU_STATE.LOADED || this.voiceState === DUJJONKU_STATE.CHARGING
-    )) {
-      // 음량 시작 판정보다 단어 인식이 먼저 도착하는 짧은 "쿠"도 놓치지 않는다.
-      if (this.voiceState === DUJJONKU_STATE.LOADED) {
-        this.beginCharge();
-        this.chargeMs = DUJJONKU_CONFIG.charge.minMs;
-        this.chargePercent = DUJJONKU_CONFIG.charge.minimumPercent;
-      }
+    } else if (
+      word === "KU" &&
+      this.voiceState === DUJJONKU_STATE.CHARGING &&
+      this.chargeMs >= DUJJONKU_CONFIG.charge.minMs
+    ) {
+      this.lastActionAt = now;
       this.fireProjectile();
     }
   }
@@ -303,7 +300,8 @@ class DujjonkuScene extends Phaser.Scene {
       // 단어 API가 한 음절을 놓쳐도 짧고 분명한 첫 발성은 "두"로 안전하게 보완한다.
       if (spokenMs >= 80 && spokenMs <= 1250) this.loadProjectile();
     } else if (this.voiceState === DUJJONKU_STATE.CHARGING) {
-      this.fireProjectile();
+      this.chargeHoldMs = 0;
+      this.statusText.setText("장력 유지 중… 짧게 ‘쿠!’ 하면 발사해요");
     }
   }
 
@@ -646,13 +644,13 @@ class DujjonkuScene extends Phaser.Scene {
         this.onVoiceStart();
       });
       this.time.delayedCall(4100, () => this.reportChargeDebug("max-charge-held"));
-      this.time.delayedCall(5550, () => this.reportChargeDebug("overcharge-broken"));
-      this.time.delayedCall(6500, () => {
+      this.time.delayedCall(6100, () => this.reportChargeDebug("overcharge-broken"));
+      this.time.delayedCall(7000, () => {
         this.debugChargeHeld = false;
         this.voice && (this.voice.voiceActive = false);
         this.onVoiceEnd();
       });
-      this.time.delayedCall(6900, () => this.reportChargeDebug("ready-after-release"));
+      this.time.delayedCall(7400, () => this.reportChargeDebug("ready-after-release"));
     } else if (autoVoice === "release-check") {
       this.time.delayedCall(700, () => this.loadProjectile());
       this.time.delayedCall(900, () => {
@@ -662,9 +660,12 @@ class DujjonkuScene extends Phaser.Scene {
       this.time.delayedCall(2700, () => this.reportChargeDebug("charging-before-release"));
       this.time.delayedCall(2800, () => {
         this.debugChargeHeld = false;
+        this.voice && (this.voice.voiceActive = false);
         this.onVoiceEnd();
       });
-      this.time.delayedCall(3000, () => this.reportChargeDebug("fired-on-release"));
+      this.time.delayedCall(3000, () => this.reportChargeDebug("held-after-release"));
+      this.time.delayedCall(3300, () => this.onVoiceWord("KU"));
+      this.time.delayedCall(3500, () => this.reportChargeDebug("fired-on-ku"));
       this.time.delayedCall(7600, () => this.reportChargeDebug("ready-after-shot"));
     }
   }
@@ -734,7 +735,8 @@ class DujjonkuScene extends Phaser.Scene {
       return;
     }
 
-    if (this.voiceState === DUJJONKU_STATE.CHARGING) {
+    const chargeInputActive = Boolean(this.voice?.voiceActive || this.debugChargeHeld);
+    if (this.voiceState === DUJJONKU_STATE.CHARGING && chargeInputActive) {
       const degreesPerMs = (cfg.launcher.maxAngle - cfg.launcher.minAngle) / (cfg.launcher.angleSweepMs / 2);
       this.currentAngle += degreesPerMs * delta * this.angleDirection;
       if (this.currentAngle >= cfg.launcher.maxAngle || this.currentAngle <= cfg.launcher.minAngle) {
@@ -742,7 +744,7 @@ class DujjonkuScene extends Phaser.Scene {
         this.angleDirection *= -1;
       }
     }
-    if (this.voiceState === DUJJONKU_STATE.CHARGING && (this.voice?.voiceActive || this.debugChargeHeld)) {
+    if (this.voiceState === DUJJONKU_STATE.CHARGING && chargeInputActive) {
       this.chargeHoldMs += delta;
       this.chargeMs = Math.min(cfg.charge.maxMs, this.chargeMs + delta);
       this.chargePercent = Phaser.Math.Clamp(this.chargeMs / cfg.charge.maxMs * 100, 0, 100);

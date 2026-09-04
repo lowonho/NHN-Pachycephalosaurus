@@ -7,7 +7,7 @@ const DUJJONKU_CONFIG = Object.freeze({
   charge: Object.freeze({
     minMs: 180,
     maxMs: 3000,
-    breakMs: 4500,
+    breakMs: 5000,
     breakResetDelayMs: 850,
     minimumPercent: 12,
   }),
