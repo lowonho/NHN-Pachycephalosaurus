@@ -1,12 +1,17 @@
-/* A(비주얼) 전용 — 설정/결과 모달과 캘리브레이션 비주얼. */
+/* A(비주얼) 전용 — 결과 모달. */
 
+/*
+ * 결과 모달은 자기가 열리기 직전 화면을 지우지 않고 그 위에 덮는다.
+ * 그 화면은 메인(z-index 35)일 수도 설정(40)일 수도 있어서 둘보다 위여야 한다.
+ */
 .modal-backdrop {
   position: fixed;
-  z-index: 20;
+  z-index: 50;
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 20px;
+  overflow: hidden;
+  padding: 0;
   background: rgba(1, 7, 24, 0.76);
   backdrop-filter: blur(13px);
 }
@@ -16,8 +21,8 @@
 }
 
 .modal {
-  width: min(520px, 100%);
-  padding: 30px;
+  width: 680px;
+  padding: 34px 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   background:
@@ -34,16 +39,23 @@
   letter-spacing: 0.18em;
 }
 
+/*
+ * 제목은 한 줄로 떨어져야 한다. 가장 긴 문구
+ * ("마이크를 연결할 수 없어요")가 .modal 안쪽 폭에 들어가도록 크기를 잡았다.
+ */
 .modal h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 7vw, 3.15rem);
-  font-weight: 400;
-  line-height: 1.08;
+  font-size: 2.9rem;
 }
 
 .modal p {
   line-height: 1.7;
+}
+
+/* 클리어와 타임오버에서 패널 크기가 같아야 한다. 문구 줄 수만 달라지므로 두 줄 자리를 비워 둔다. */
+#modal-copy {
+  min-height: 3.4em;
 }
 
 .primary-button,
@@ -74,50 +86,8 @@
   color: #fff;
 }
 
-.privacy-note {
-  margin: 14px 0 0 !important;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
-/* 마이크가 듣는 동안 움직이는 막대 — .listening은 ui/modal-flow.js가 토글한다. */
-.calibration-visual {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 62px;
-  margin: 12px 0;
-}
-
-.calibration-visual span {
-  width: 8px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--cyan);
-}
-
-.calibration-visual.listening span {
-  animation: voice-wave 800ms ease-in-out infinite alternate;
-}
-
-.calibration-visual span:nth-child(2),
-.calibration-visual span:nth-child(4) {
-  animation-delay: -220ms;
-}
-
-.calibration-visual span:nth-child(3) {
-  animation-delay: -420ms;
-}
-
-@keyframes voice-wave {
-  to {
-    height: 56px;
-    background: var(--yellow);
-  }
-}
-
-.calibration-result {
+/* CLEAR / 실패 한 줄 요약. */
+.modal-result {
   min-height: 28px;
   margin: 0 0 10px;
   color: var(--yellow);

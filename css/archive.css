@@ -1,0 +1,31 @@
+/* Shared archive shell; existing game viewport and settings remain supported. */
+.main-menu { background: radial-gradient(ellipse at 50% 25%, #103540 0%, #050e18 65%); }
+.archive-title { margin: 12px 0; color: #ecfaff; font: 800 112px/0.95 monospace; letter-spacing: -7px; }
+.archive-title span { font-size: 86px; color: #93fca0; letter-spacing: 5px; }
+.archive-eyebrow { color: #85b5be; font: 14px/1.5 monospace; letter-spacing: 3px; }
+.archive-system-log { color: #ffcd83; font: 16px/1.8 monospace; letter-spacing: 2px; text-align: left; border-left: 2px solid #ffcd83; padding-left: 20px; }
+.archive-premise { color: #c4d7df; font-size: 20px; line-height: 1.7; }
+.archive-recovery { color: #93fca0; font: 700 22px/1.5 monospace; margin: 14px 0 4px; }
+.main-menu .main-menu-actions { width: 350px; margin-top: 24px; gap: 14px; }
+.main-menu .menu-button { background-image: none; background-color: #12333b; border: 1px solid #3f7c87; border-radius: 8px; min-height: 65px; padding: 12px 18px; color: #ecfaff; }
+.main-menu .menu-button--play { background: #93fca0; color: #071d17; }
+.main-menu .menu-button--challenge { display: none; }
+.main-menu .menu-button-icon { width: 30px; height: 30px; object-fit: contain; }
+.stage-select-screen { background: rgba(3, 12, 20, 0.96); }
+.stage-select-screen .main-menu-card { background: #081c26; max-height: 1020px; padding: 26px 34px; }
+.stage-select-screen .main-menu-heading { margin-bottom: 14px; }
+.stage-select-screen h2 { font-size: 2.5rem; }
+#archive-recovery-detail, .archive-help { margin: 6px 0; color: #a8c6d1; font-size: 18px; }
+#archive-ending-status { color: #93fca0; font: 18px/1.5 monospace; margin: 8px 0; }
+.stage-select-card { min-height: 248px; padding: 18px; border-radius: 10px; border-color: #436673; background: #0c2632; grid-template-rows: auto auto 1fr auto auto; }
+.stage-select-card strong { font-family: monospace; font-size: 24px; line-height: 1.2; }
+.stage-select-card[data-recovery="damaged"] strong { color: #93a9b1; }
+.stage-select-card[data-recovery="partial"] { border-style: dashed; border-color: #e4bb76; }
+.stage-select-card[data-recovery="partial"] .stage-duration { color: #e4bb76; }
+.stage-select-card[data-recovery="full"] { border-color: #93fca0; background: #102f2b; }
+.stage-select-card[data-recovery="full"] .stage-duration { color: #93fca0; }
+.stage-duration { font: 700 13px/1.5 monospace; padding-top: 12px; }
+#stage-hud-fragment { margin: 10px 0 0; font-size: 18px; color: #ffd27c; }
+#stage-hud-fragment[data-collected="true"] { color: #93fca0; }
+#modal-title { font-size: 38px; overflow-wrap: anywhere; }
+#modal-copy, #modal-result { line-height: 1.65; }

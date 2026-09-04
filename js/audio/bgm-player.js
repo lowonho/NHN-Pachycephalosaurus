@@ -16,6 +16,13 @@ class BgmPlayer {
     });
 
     events.on(GAME_EVENTS.SCENE_SHUTDOWN, () => this.stop());
+
+    // 설정에서 볼륨을 움직이면 재생 중인 트랙에도 바로 반영한다.
+    events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.applyVolume());
+  }
+
+  applyVolume() {
+    this.current?.setVolume(this.bus.channelVolume("bgm"));
   }
 
   play(key, loop = true) {

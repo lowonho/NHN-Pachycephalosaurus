@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="목소리로 움직여 20.26초 안에 포토존에 도착하는 Phaser 3 웹게임"
+      content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
     />
-    <title>거제 야호! — 20.26초 음성 액션</title>
+    <title>2026 ARCHIVE · 20.26</title>
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,69 +18,31 @@
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/main-menu.css" />
-    <link rel="stylesheet" href="css/pitch-meter.css" />
-    <link rel="stylesheet" href="css/command-deck.css" />
+    <link rel="stylesheet" href="css/stage-select.css" />
     <link rel="stylesheet" href="css/modal.css" />
     <link rel="stylesheet" href="css/pause.css" />
+    <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/responsive.css" />
-    <link rel="stylesheet" href="css/dujjonku.css" />
+    <link rel="stylesheet" href="css/archive.css" />
   </head>
   <body>
     <!--
-      메인 화면 — assets/images/concept/main.png의 UI 배치를 그대로 따른다.
-      위에서부터 로고 → 리본 → 음성 마크 → 버튼 3개 순서다.
+      메인 화면 — assets/images/concept/main.png의 UI 배치를 따른다.
+      위에서부터 로고 → 버튼 3개 순서다.
       컨셉 이미지의 배경 일러스트와 주변 장식은 의도적으로 넣지 않는다.
+      (음성 조작을 걷어내면서 로고 아래의 마이크·파형 마크도 함께 뺐다.)
     -->
     <div class="main-menu" id="main-menu">
-      <section class="main-menu-card" aria-labelledby="main-menu-title">
-        <h1 class="menu-logo" id="main-menu-title">
-          <svg class="menu-logo-crown" viewBox="0 0 64 44" aria-hidden="true" focusable="false">
-            <path
-              d="M4 40 L2 8 L18 20 L32 2 L46 20 L62 8 L60 40 Z"
-              fill="#ffd75e"
-              stroke="#ffffff"
-              stroke-width="3.5"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span class="menu-logo-digits">
-            <span class="menu-digit pink" data-text="20">20</span><span class="menu-digit dot" data-text=".">.</span><span class="menu-digit blue" data-text="26">26</span>
-          </span>
-          <svg class="menu-logo-star" viewBox="0 0 48 46" aria-hidden="true" focusable="false">
-            <path
-              d="M24 2 L30.4 16.6 L46 18.4 L34.4 29 L37.6 44.4 L24 36.6 L10.4 44.4 L13.6 29 L2 18.4 L17.6 16.6 Z"
-              fill="#ffd75e"
-              stroke="#ffffff"
-              stroke-width="3.5"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </h1>
-
-        <p class="menu-ribbon"><span>음성 조작 밈 게임</span></p>
-
-        <div class="menu-voice-mark" aria-hidden="true">
-          <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-          <span class="menu-mic">
-            <svg viewBox="0 0 24 32" focusable="false">
-              <rect x="7.5" y="1.5" width="9" height="17" rx="4.5" />
-              <path d="M3 14.5a9 9 0 0 0 18 0" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M12 23.5v6" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M7 30.5h10" fill="none" stroke-width="2.6" stroke-linecap="round" />
-            </svg>
-          </span>
-          <span class="menu-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        </div>
+      <section class="main-menu-card ui-scaled" aria-labelledby="main-menu-title">
+        <p class="archive-eyebrow">MEMORY PRESERVATION SYSTEM / 2026</p>
+        <h1 class="archive-title" id="main-menu-title">2026<br><span>ARCHIVE</span></h1>
+        <p class="archive-system-log">SYSTEM ERROR DETECTED<br>PHYSICAL DATA CORRUPTED<br>RECOVERY REQUIRED</p>
+        <p class="archive-premise">빨리 해야 하는데, 움직일수록 더 망가진다.<br>20.26초 안에 손상된 기록을 복구하세요.</p>
+        <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
 
         <div class="main-menu-actions">
           <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <svg class="menu-button-icon" viewBox="0 0 24 32" aria-hidden="true" focusable="false">
-              <rect x="7.5" y="1.5" width="9" height="17" rx="4.5" />
-              <path d="M3 14.5a9 9 0 0 0 18 0" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M12 23.5v6" fill="none" stroke-width="2.6" stroke-linecap="round" />
-              <path d="M7 30.5h10" fill="none" stroke-width="2.6" stroke-linecap="round" />
-            </svg>
-            <span>게임 시작</span>
+            <span>기록 복구 시작</span>
           </button>
 
           <button
@@ -89,20 +52,13 @@
             disabled
             aria-describedby="main-challenge-note"
           >
-            <svg class="menu-button-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <path d="M9 3h14v9a7 7 0 0 1-14 0Z" />
-              <path
-                d="M9 6H4.5v3a5.5 5.5 0 0 0 5 5.4M23 6h4.5v3a5.5 5.5 0 0 1-5 5.4"
-                fill="none"
-                stroke-width="2.4"
-              />
-              <path
-                d="M16 19v5M10.5 29h11l-1.5-5h-8Z"
-                fill="none"
-                stroke-width="2.4"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <img
+              class="menu-button-icon"
+              src="assets/images/ui/Main/icon-trophy.webp"
+              alt=""
+              width="160"
+              height="147"
+            />
             <span>챌린지 모드</span>
             <em class="menu-button-badge" id="main-challenge-note">준비 중</em>
           </button>
@@ -112,151 +68,188 @@
             id="main-settings-button"
             type="button"
             aria-expanded="false"
-            aria-controls="main-settings-panel"
+            aria-controls="settings-modal"
           >
-            <svg class="menu-button-icon" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <path
-                d="M16 2.5l2.4 3.7 4.3-1 .6 4.4 4.2 1.4-2.1 3.9 2.1 3.9-4.2 1.4-.6 4.4-4.3-1L16 27.3l-2.4-3.7-4.3 1-.6-4.4-4.2-1.4 2.1-3.9-2.1-3.9 4.2-1.4.6-4.4 4.3 1Z"
-              />
-              <circle cx="16" cy="14.9" r="4.4" fill="#8f6bd8" />
-            </svg>
+            <img
+              class="menu-button-icon"
+              src="assets/images/ui/Main/icon-settings.webp"
+              alt=""
+              width="160"
+              height="161"
+            />
             <span>설정</span>
           </button>
-        </div>
-
-        <div class="main-settings-panel" id="main-settings-panel" hidden>
-          <label for="master-volume">전체 음량 <output id="master-volume-value">80%</output></label>
-          <input id="master-volume" type="range" min="0" max="100" step="5" value="80" />
-          <label class="mute-setting" for="mute-toggle">
-            <input id="mute-toggle" type="checkbox" />
-            모든 소리 끄기
-          </label>
-          <button class="secondary-button" id="main-mic-button" type="button">중간음 다시 측정</button>
         </div>
       </section>
     </div>
 
+    <!-- 스테이지 데이터는 7개 스테이지 엔진이 준비되면 동적으로 채운다. -->
     <div class="stage-select-screen hidden" id="stage-select-screen">
-      <section class="main-menu-card" aria-labelledby="stage-select-title">
+      <section class="main-menu-card ui-scaled" aria-labelledby="stage-select-title">
         <div class="main-menu-heading">
           <div>
-            <p class="menu-kicker">SELECT YOUR 20.26</p>
-            <h2 id="stage-select-title">스테이지 선택</h2>
+            <p class="menu-kicker">2026 ARCHIVE RECORD LIST</p>
+            <h2 id="stage-select-title">손상된 기록</h2>
+            <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
+            <p id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+            <p class="archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+            <p id="archive-ending-status" hidden></p>
           </div>
         </div>
 
-        <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
-          <span class="stage-number">STAGE 01</span>
-          <strong>거제 야호!</strong>
-          <span class="stage-description">목소리로 장애물을 넘어 포토존까지</span>
-          <span class="stage-duration">20.26 SEC</span>
-        </button>
-
-        <button class="stage-select-card dujjonku-card" id="stage-dujjonku-button" type="button" aria-pressed="false">
-          <span class="stage-number">STAGE 02</span>
-          <strong>두쫀쿠</strong>
-          <span class="stage-description">두 → 쫀~ → 쿠! 목소리 새총으로 피스타치오를 되찾자</span>
-          <span class="stage-duration">20.26 SEC · MATTER PHYSICS</span>
-        </button>
+        <div class="stage-select-grid" id="stage-select-grid">
+          <div class="stage-select-card stage-select-card--soon">
+            <span class="stage-number">LOADING</span>
+            <strong>스테이지 불러오는 중</strong>
+            <span class="stage-description">게임 엔진을 준비하고 있습니다.</span>
+          </div>
+        </div>
 
         <div class="main-menu-actions">
-          <button class="primary-button" id="stage-select-confirm-button" type="button">선택 완료</button>
           <button class="secondary-button" id="stage-select-back-button" type="button">메인 화면으로</button>
         </div>
       </section>
     </div>
 
     <main class="app-shell" inert>
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">2026 × 20.26 VOICE ACTION</p>
-          <h1>거제 <span>야호!</span></h1>
+      <section class="game-card" aria-label="게임 화면">
+        <div id="game-container">
+          <div id="corruption" class="game-effect-overlay" aria-hidden="true"></div>
+          <div id="light-overlay" class="game-effect-overlay" aria-hidden="true"></div>
         </div>
-        <div class="system-status" aria-live="polite">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="status-label">마이크 연결 전</span>
-        </div>
-      </header>
+      </section>
 
-      <section class="game-card" aria-label="거제 야호 게임">
-        <div id="game-container"></div>
+      <!--
+        HUD 레이어 — 1920×1080 설계 좌표계 위에 얹힌다(css/base.css의 "UI 배율 규칙").
+        Phaser 캔버스와 같은 배율(--ui-scale)로 통째로 줄어들고 늘어나므로
+        창 비율이 달라져도 HUD 비율과 캔버스 위 위치가 그대로 유지된다.
+
+        음성 패널과 명령어 카드를 걷어내 지금은 일시정지 버튼만 남아 있다.
+        새 게임의 HUD 위젯은 이 레이어 안에 넣는다.
+      -->
+      <div class="hud-layer">
+        <section class="stage-hud" id="stage-hud" aria-live="polite" hidden>
+          <div class="stage-hud-heading">
+            <strong id="stage-hud-title">STAGE</strong>
+            <output id="stage-hud-timer">20.26</output>
+          </div>
+          <div class="stage-hud-detail">
+            <span id="stage-hud-action">입력 00</span>
+            <span id="stage-hud-anomaly">대기</span>
+          </div>
+          <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
+          <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
+        </section>
         <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
           <span aria-hidden="true">Ⅱ</span>
           일시정지
         </button>
-
-        <div class="pitch-panel" aria-label="현재 목소리 높이">
-          <div class="pitch-copy">
-            <span>VOICE PITCH</span>
-            <strong id="pitch-label">READY</strong>
-          </div>
-          <div class="pitch-track" aria-hidden="true">
-            <span class="pitch-zone low">LOW</span>
-            <span class="pitch-zone mid">MID</span>
-            <span class="pitch-zone high">HIGH</span>
-            <i id="pitch-needle"></i>
-          </div>
-          <div class="voice-feedback">
-            <div class="voice-feedback-head">
-              <span id="voice-input-state">수음 대기</span>
-              <span id="voice-transcript-kind">들은 발음</span>
-            </div>
-            <canvas
-              id="voice-waveform"
-              width="360"
-              height="32"
-              aria-label="실시간 마이크 파형"
-              role="img"
-            ></canvas>
-            <strong id="voice-transcript" aria-live="polite">말해보세요</strong>
-          </div>
-        </div>
-
-        <!-- 카드는 js/art/command-deck-view.js가 js/voice/command-dict.js를 보고 채운다. -->
-        <div class="command-deck" id="command-deck" aria-label="음성 명령어"></div>
-      </section>
-
-      <button class="help-toggle" id="help-toggle" type="button" aria-expanded="false">
-        마이크가 안 될 때 · 키보드 테스트
-      </button>
-      <div class="help-copy" id="help-copy" hidden>
-        Chrome 데스크톱을 권장합니다. 마이크가 지원되지 않으면
-        <kbd>←</kbd>/<kbd>A</kbd>, <kbd>→</kbd>/<kbd>D</kbd> 이동,
-        <kbd>Space</kbd> 점프, <kbd>S</kbd> 감속, <kbd>Q</kbd> 방향 전환,
-        <kbd>E</kbd> 골인, <kbd>R</kbd> 재도전으로 테스트할 수 있습니다.
       </div>
     </main>
 
-    <!-- 피치 조정(중간음 측정) UI — 메인 화면의 "게임 시작"과 스테이지 사이에 들어간다. -->
-    <div class="modal-backdrop hidden" id="setup-modal">
-      <section class="modal" aria-labelledby="modal-title">
-        <p class="modal-step" id="modal-step">STAGE 01</p>
-        <h2 id="modal-title">목소리로 포토존까지!</h2>
-        <p id="modal-copy">
-          먼저 편안한 중간음을 측정합니다. 측정된 목소리를 기준으로
-          낮은 음·중간 음·높은 음을 나눠 점프 높이에 반영해요.
-        </p>
-        <div class="calibration-visual" id="calibration-visual" aria-hidden="true">
-          <span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <p class="calibration-result" id="calibration-result"></p>
-        <button class="primary-button" id="primary-button" type="button">
-          마이크 연결하고 시작
-        </button>
-        <button class="secondary-button" id="secondary-button" type="button">
-          마이크 없이 키보드로 테스트
-        </button>
-        <p class="privacy-note">음성은 저장하지 않으며 현재 플레이에만 사용합니다.</p>
+    <!-- 결과(클리어 · 타임오버) — 스테이지가 생기면 다시 열린다. -->
+    <div class="modal-backdrop hidden" id="result-modal">
+      <section class="modal ui-scaled" aria-labelledby="modal-title">
+        <p class="modal-step" id="modal-step">RESULT</p>
+        <h2 id="modal-title">결과</h2>
+        <p id="modal-copy"></p>
+        <p class="modal-result" id="modal-result"></p>
+        <button class="primary-button" id="primary-button" type="button">다시 도전</button>
+        <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
       </section>
     </div>
 
     <div class="pause-backdrop hidden" id="pause-modal">
-      <section class="pause-dialog" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+      <section class="pause-dialog ui-scaled" role="dialog" aria-modal="true" aria-labelledby="pause-title">
         <p class="modal-step">PAUSED</p>
         <h2 id="pause-title">잠시 멈췄어요</h2>
         <p>타이머와 게임 진행이 멈춰 있습니다.</p>
         <button class="primary-button" id="resume-button" type="button">계속하기</button>
         <button class="secondary-button" id="pause-main-button" type="button">메인 화면으로</button>
+      </section>
+    </div>
+
+    <!--
+      설정 — assets/images/concept/setting.png의 배치를 따른다.
+      프레임·행 슬롯·아이콘·노브·토글·버튼은 assets/images/ui/settings/*.png 에셋이다.
+
+      컨셉 이미지와 다른 점은 두 가지다.
+        · "음성 입력 감도" 행은 음성 조작을 걷어내면서 함께 제거했다(4행 구성).
+        · "도움말" 행은 넣지 않는다.
+    -->
+    <div class="settings-backdrop hidden" id="settings-modal">
+      <section
+        class="settings-dialog ui-scaled"
+        id="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        tabindex="-1"
+      >
+        <h2 class="settings-title" id="settings-title">
+          <img src="assets/images/ui/settings/icon-gear.png" alt="" width="209" height="215" />
+          <span>설정</span>
+        </h2>
+
+        <div class="settings-frame">
+          <ul class="settings-rows">
+            <li class="settings-row">
+              <!-- 스피커 아이콘이 곧 음소거 버튼이다(컨셉 이미지에는 별도 음소거 행이 없다). -->
+              <button
+                class="settings-row-icon settings-mute"
+                id="settings-mute-button"
+                type="button"
+                aria-pressed="false"
+                aria-label="모든 소리 끄기"
+              >
+                <img src="assets/images/ui/settings/icon-volume.png" alt="" width="188" height="189" />
+              </button>
+              <label class="settings-row-label" for="master-volume">마스터 볼륨</label>
+              <input class="settings-slider" id="master-volume" type="range" min="0" max="100" step="1" value="80" />
+              <output class="settings-row-value" id="master-volume-value" for="master-volume">80</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-bgm.png" alt="" width="188" height="188" />
+              <label class="settings-row-label" for="bgm-volume">BGM</label>
+              <input class="settings-slider" id="bgm-volume" type="range" min="0" max="100" step="1" value="45" />
+              <output class="settings-row-value" id="bgm-volume-value" for="bgm-volume">45</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-sfx.png" alt="" width="187" height="188" />
+              <label class="settings-row-label" for="sfx-volume">효과음</label>
+              <input class="settings-slider" id="sfx-volume" type="range" min="0" max="100" step="1" value="90" />
+              <output class="settings-row-value" id="sfx-volume-value" for="sfx-volume">90</output>
+            </li>
+
+            <li class="settings-row">
+              <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.png" alt="" width="182" height="183" />
+              <span class="settings-row-label" id="settings-fullscreen-label">전체 화면</span>
+              <button
+                class="settings-switch"
+                id="settings-fullscreen-toggle"
+                type="button"
+                role="switch"
+                aria-checked="false"
+                aria-labelledby="settings-fullscreen-label"
+              >
+                <span id="settings-fullscreen-state">OFF</span>
+              </button>
+            </li>
+          </ul>
+
+          <div class="settings-actions">
+            <button class="settings-action settings-action--apply" id="settings-apply-button" type="button">
+              <img src="assets/images/ui/settings/icon-check.png" alt="" width="175" height="153" />
+              <span>적용</span>
+            </button>
+            <button class="settings-action settings-action--back" id="settings-back-button" type="button">
+              <img src="assets/images/ui/settings/icon-undo.png" alt="" width="176" height="164" />
+              <span>뒤로가기</span>
+            </button>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -270,11 +263,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
-    <script src="js/config/dujjonku-config.js"></script>
     <script src="js/content/strings.ko.js"></script>
-
-    <!-- C2 · 음성 사전 (아트/음성 양쪽이 참조) -->
-    <script src="js/voice/command-dict.js"></script>
 
     <!-- C1 · 이미지 에셋 / C2 · 사운드 에셋 -->
     <script src="js/assets/image-manifest.js"></script>
@@ -287,13 +276,6 @@
     <!-- A · 비주얼 -->
     <script src="js/art/theme.js"></script>
     <script src="js/art/sprite-animations.js"></script>
-    <script src="js/art/stage-view.js"></script>
-    <script src="js/art/player-view.js"></script>
-    <script src="js/art/hud-view.js"></script>
-    <script src="js/art/effects.js"></script>
-    <script src="js/art/pitch-meter-view.js"></script>
-    <script src="js/art/voice-monitor-view.js"></script>
-    <script src="js/art/command-deck-view.js"></script>
     <script src="js/art/viewport-fit.js"></script>
 
     <!-- C2 · 사운드 -->
@@ -301,19 +283,16 @@
     <script src="js/audio/sfx-player.js"></script>
     <script src="js/audio/bgm-player.js"></script>
 
-    <!-- C2 · 음성 입력 -->
-    <script src="js/voice/voice-evaluator.js"></script>
-    <script src="js/voice/voice-controller.js"></script>
-    <script src="js/voice/dujjonku-voice-controller.js"></script>
-
     <!-- B · 기능 -->
-    <script src="js/ui/hud-status.js"></script>
     <script src="js/ui/modal-flow.js"></script>
+    <script src="js/ui/settings-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>
     <script src="js/ui/pause-flow.js"></script>
-    <script src="js/scene/stage-scene.js"></script>
-    <script src="js/scene/dujjonku-objects.js"></script>
-    <script src="js/scene/dujjonku-scene.js"></script>
     <script src="js/game.js"></script>
+    <!--
+      ES modules are kept as the source/test files, while this generated classic
+      bundle also works when index.html is opened directly through file://.
+    -->
+    <script src="js/archive/game-classic.js"></script>
   </body>
 </html>

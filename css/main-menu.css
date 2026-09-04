@@ -1,8 +1,11 @@
 /*
  * A(비주얼) 전용 — 메인 화면.
  * 배치 기준: assets/images/concept/main.png
- *   로고(20.26 + 왕관 + 별) → 리본 카피 → 파형/마이크 마크 → 알약 버튼 3개.
+ *   로고(20.26 + 리본) → 파형/마이크 마크 → 알약 버튼 3개.
  * 컨셉 이미지의 배경 일러스트·주변 장식은 넣지 않는다. UI 스택만 화면 중앙에 세운다.
+ *
+ * 로고·버튼·아이콘은 assets/images/ui/Main/*.webp 에셋을 그대로 쓴다.
+ * 모든 요소는 에셋의 원본 비율(aspect-ratio)을 그대로 유지해 찌그러지지 않게 한다.
  */
 
 .main-menu {
@@ -10,9 +13,12 @@
   z-index: 35;
   inset: 0;
   display: grid;
+  /* minmax(0, 1fr) — auto 트랙으로 두면 로고 이미지의 고유 폭(960px)이
+     트랙을 부풀려서 자식들의 % 폭이 화면 밖으로 넘친다. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
-  overflow-y: auto;
-  padding: clamp(16px, 4vh, 40px) 20px;
+  overflow: hidden;
+  padding: 40px 20px;
   background:
     radial-gradient(circle at 50% 30%, rgba(31, 92, 255, 0.28), transparent 42%),
     radial-gradient(circle at 14% 82%, rgba(255, 143, 197, 0.14), transparent 32%),
@@ -25,234 +31,93 @@
 
 .main-menu-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  width: min(560px, 100%);
+  width: 640px;
   text-align: center;
 }
 
-/* ── 로고 ───────────────────────────────────────────────────────────── */
+/* ── 로고 ──────────────────────────────────────────────────────────── */
 
+/*
+ * 로고 폭 — 설계 화면(1920×1080) 기준 고정값.
+ *
+ * 높이는 원본 비율(1.714)로 치면 332px이지만 256px로 잘라 쓴다.
+ * 에셋 아래쪽에 "음성 조작 밈 게임" 리본이 그려져 있는데, 음성 조작을 걷어내면서
+ * 맞지 않게 된 문구라 잘라 낸다. 리본 없는 로고로 교체하면 이 높이 제한을 지운다.
+ */
 .menu-logo {
-  position: relative;
+  width: 570px;
+  height: 256px;
+  overflow: hidden;
   margin: 0;
-  padding: 0 clamp(20px, 7vw, 46px);
-  font-family: var(--font-display);
-  font-size: clamp(4.6rem, 17.25vw, 8.75rem);
-  font-weight: 400;
-  line-height: 1;
+  line-height: 0;
 }
 
-.menu-logo-digits {
-  display: inline-block;
-  filter: drop-shadow(0 clamp(4px, 1vw, 8px) 0 rgba(3, 11, 35, 0.55));
-}
-
-.menu-digit {
-  position: relative;
-  display: inline-block;
-}
-
-/* 흰 테두리는 글자 뒤에 한 겹 더 깔아 만든다.
-   -webkit-text-stroke를 본체에 직접 걸면 획이 안쪽을 파먹는다. */
-.menu-digit::before {
-  content: attr(data-text);
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  -webkit-text-stroke: clamp(6px, 1.6vw, 11px) #fff;
-  color: transparent;
-}
-
-.menu-digit.pink {
-  color: #ff7ab4;
-}
-
-.menu-digit.blue {
-  color: #6fc0f7;
-}
-
-.menu-digit.dot {
-  color: #fff2f8;
-}
-
-.menu-logo-crown,
-.menu-logo-star {
-  position: absolute;
-  filter: drop-shadow(0 4px 0 rgba(3, 11, 35, 0.4));
-}
-
-.menu-logo-crown {
-  top: -0.34em;
-  left: clamp(22px, 8vw, 52px);
-  width: clamp(46px, 12vw, 78px);
-  transform: rotate(-8deg);
-}
-
-.menu-logo-star {
-  top: -0.24em;
-  right: clamp(4px, 2vw, 18px);
-  width: clamp(38px, 10vw, 62px);
-  transform: rotate(12deg);
-}
-
-/* ── 리본 카피 ──────────────────────────────────────────────────────── */
-
-.menu-ribbon {
-  position: relative;
-  margin: clamp(10px, 2.4vh, 20px) 0 0;
-  padding: clamp(8px, 1.6vw, 12px) clamp(24px, 6vw, 42px);
-  border: 2px solid #ffd0e3;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #fff8fb, #ffe4ef);
-  color: #d4568c;
-  font-family: var(--font-ui);
-  font-size: clamp(0.92rem, 2.6vw, 1.2rem);
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-}
-
-/* 좌우로 접힌 리본 꼬리. */
-.menu-ribbon::before,
-.menu-ribbon::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: clamp(14px, 3vw, 22px);
-  height: 100%;
-  background: #f7b8d3;
-  transform: translateY(-50%);
-}
-
-.menu-ribbon::before {
-  left: calc(-1 * clamp(12px, 2.6vw, 19px));
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 42% 50%);
-}
-
-.menu-ribbon::after {
-  right: calc(-1 * clamp(12px, 2.6vw, 19px));
-  clip-path: polygon(0 0, 100% 0, 58% 50%, 100% 100%, 0 100%);
-}
-
-/* ── 파형 + 마이크 마크 ─────────────────────────────────────────────── */
-
-.menu-voice-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(10px, 3vw, 20px);
-  margin: clamp(12px, 2.6vh, 22px) 0 clamp(16px, 3.4vh, 28px);
-}
-
-.menu-wave {
-  display: flex;
-  align-items: center;
-  gap: clamp(4.6px, 1.27vw, 8.05px);
-  height: clamp(36px, 9vw, 52px);
-}
-
-.menu-wave i {
-  width: clamp(4.6px, 1.15vw, 6.9px);
-  height: 30%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ff9ad0, #8fd4ff);
-  animation: menu-wave-pulse 1100ms ease-in-out infinite alternate;
-}
-
-.menu-wave i:nth-child(2) { height: 55%; animation-delay: -120ms; }
-.menu-wave i:nth-child(3) { height: 82%; animation-delay: -240ms; }
-.menu-wave i:nth-child(4) { height: 100%; animation-delay: -360ms; }
-.menu-wave i:nth-child(5) { height: 78%; animation-delay: -480ms; }
-.menu-wave i:nth-child(6) { height: 50%; animation-delay: -600ms; }
-.menu-wave i:nth-child(7) { height: 28%; animation-delay: -720ms; }
-
-/* 오른쪽 파형은 마이크를 기준으로 대칭이 되게 뒤집는다. */
-.menu-voice-mark .menu-wave:last-child {
-  transform: scaleX(-1);
-}
-
-@keyframes menu-wave-pulse {
-  to {
-    transform: scaleY(0.42);
-  }
-}
-
-.menu-mic {
-  display: grid;
-  place-items: center;
-  width: clamp(52px, 12vw, 72px);
-  aspect-ratio: 1;
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 28%, #ffffff, #ffe7f2);
-  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.1), 0 10px 26px rgba(0, 0, 0, 0.38);
-}
-
-.menu-mic svg {
-  width: 46%;
-  fill: #c25f8e;
-  stroke: #c25f8e;
+.menu-logo img {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
 }
 
 /* ── 알약 버튼 3개 ──────────────────────────────────────────────────── */
 
 .main-menu-actions {
   display: grid;
-  gap: clamp(9px, 1.8vh, 14px);
-  width: min(357px, 85%);
+  gap: 21px;
+  /* 로고와의 간격 — 버튼 묶음을 화면 아래쪽으로 내리는 값이다. */
+  margin-top: 9px;
+  /* 버튼 3개 묶음의 폭 — 설계 화면 기준 고정값. 높이는 각 버튼의 aspect-ratio가 정한다. */
+  width: 273px;
 }
 
+/*
+ * 버튼 판때기는 에셋 이미지다. 원본 비율(예: 800/254)보다 세로를 30% 눌러
+ * 알약을 납작하게 쓴다. 눌린 비율만큼 이미지도 같이 눌려야 하므로
+ * background-size는 contain이 아니라 100% 100%다.
+ */
 .menu-button {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(8px, 2vw, 14px);
-  min-height: clamp(49px, 8.55vh, 63px);
-  padding: 0 clamp(18px, 5vw, 30px);
-  border: 3px solid #fff;
-  border-radius: 999px;
+  gap: 14px;
+  padding: 0 14%;
+  border: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
   color: #fff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: clamp(1.02rem, 3vw, 1.32rem);
+  font-size: 1.32rem;
   font-weight: 900;
   letter-spacing: 0.03em;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
-  transition: transform 140ms ease, box-shadow 140ms ease;
-}
-
-/* 버튼 안쪽 점선 — 컨셉 이미지의 스티치 라인. */
-.menu-button::before {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border: 2px dashed rgba(255, 255, 255, 0.5);
-  border-radius: 999px;
-  pointer-events: none;
+  text-shadow: 0 0 6px rgba(90, 52, 38, 0.55), 0 2px 0 rgba(90, 52, 38, 0.85);
+  transition: transform 140ms ease, filter 140ms ease;
 }
 
 .menu-button-icon {
-  width: clamp(20px, 4.6vw, 26px);
-  height: clamp(24px, 5.4vw, 30px);
-  fill: currentColor;
-  stroke: currentColor;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.18));
+  width: auto;
+  height: 2.1em;
+  filter: drop-shadow(0 2px 3px rgba(90, 52, 38, 0.35));
 }
 
+/* aspect-ratio 분모 = 에셋 원본 높이 × 0.847 */
 .menu-button--play {
-  background: linear-gradient(180deg, #ff9dc6, #f7639f);
-  box-shadow: 0 7px 0 #cf3d7c, 0 16px 30px rgba(247, 99, 159, 0.28);
+  aspect-ratio: 800 / 215.14;
+  background-image: url("../assets/images/ui/Main/button-start-blank.webp");
 }
 
 .menu-button--challenge {
-  background: linear-gradient(180deg, #9fd8fb, #52a6ef);
-  box-shadow: 0 7px 0 #2d7cc2, 0 16px 30px rgba(82, 166, 239, 0.26);
+  aspect-ratio: 800 / 216.83;
+  background-image: url("../assets/images/ui/Main/button-challenge-blank.webp");
 }
 
 .menu-button--settings {
-  background: linear-gradient(180deg, #c9adf5, #9b78e6);
-  box-shadow: 0 7px 0 #6f4dbb, 0 16px 30px rgba(155, 120, 230, 0.26);
+  aspect-ratio: 800 / 206.67;
+  background-image: url("../assets/images/ui/Main/button-settings-blank.webp");
 }
 
 .menu-button:not(:disabled):hover,
@@ -262,12 +127,13 @@
 
 .menu-button:not(:disabled):active {
   transform: translateY(4px);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+  filter: brightness(0.94);
 }
 
 .menu-button:focus-visible {
   outline: 3px solid var(--cyan);
-  outline-offset: 4px;
+  outline-offset: -2px;
+  border-radius: 999px;
 }
 
 .menu-button:disabled {
@@ -278,8 +144,8 @@
 
 .menu-button-badge {
   position: absolute;
-  top: -11px;
-  right: 18px;
+  top: 2%;
+  right: 9%;
   padding: 3px 9px;
   border-radius: 999px;
   background: var(--yellow);
@@ -291,45 +157,4 @@
   text-shadow: none;
 }
 
-/* ── 설정 패널 ──────────────────────────────────────────────────────── */
-
-.main-settings-panel {
-  width: min(420px, 100%);
-  margin-top: 14px;
-  padding: 18px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-control);
-  background: rgba(4, 17, 47, 0.86);
-  text-align: left;
-}
-
-.main-settings-panel label:first-child {
-  display: flex;
-  justify-content: space-between;
-  font-weight: 800;
-}
-
-#master-volume {
-  width: 100%;
-  margin: 13px 0 17px;
-  accent-color: var(--yellow);
-}
-
-.mute-setting {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: #c3d1ed;
-}
-
-.mute-setting input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--yellow);
-}
-
-@media (max-width: 560px) {
-  .main-menu {
-    padding: 14px 12px;
-  }
-}
+/* 설정 화면은 별도 다이얼로그다 — css/settings.css 참고. */
