@@ -1,0 +1,40 @@
+@media (max-width: 720px) {
+  .app-shell {
+    width: min(100% - 18px, 1920px);
+    padding-top: 14px;
+  }
+
+  .topbar {
+    align-items: center;
+  }
+
+  .system-status {
+    padding: 8px 10px;
+    font-size: 0.76rem;
+  }
+
+  .pitch-panel {
+    grid-template-columns: 110px 1fr;
+    padding-inline: 14px;
+  }
+
+  .command-deck {
+    grid-template-columns: repeat(2, 1fr);
+    padding-inline: 12px;
+  }
+
+  .command span {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

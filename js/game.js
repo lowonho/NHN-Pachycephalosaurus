@@ -1,4 +1,4 @@
-/* global Phaser */
+/* global Phaser, VoiceController, MicTestController, preloadGameAssets */
 
 const GAME_WIDTH = 1920;
 const GAME_HEIGHT = 1080;
@@ -44,257 +44,6 @@ function fitGameToViewport() {
     ui.appShell.style.width = `${Math.max(320, fittedWidth)}px`;
   }
 }
-
-class VoiceController {
-  constructor() {
-    this.stream = null;
-    this.audioContext = null;
-    this.analyser = null;
-    this.buffer = null;
-    this.basePitch = 180;
-    this.pitch = 0;
-    this.pitchSamples = [];
-    this.recentPitches = [];
-    this.animationFrame = 0;
-    this.recognition = null;
-    this.shouldRecognize = false;
-    this.commandHandler = null;
-    this.lastTrigger = new Map();
-  }
-
-  async connect() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("이 브라우저에서는 마이크 입력을 사용할 수 없습니다.");
-    }
-
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: false,
-      },
-      video: false,
-    });
-
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    this.audioContext = new AudioContextClass();
-    await this.audioContext.resume();
-    const source = this.audioContext.createMediaStreamSource(this.stream);
-    this.analyser = this.audioContext.createAnalyser();
-    this.analyser.fftSize = 2048;
-    this.analyser.smoothingTimeConstant = 0.2;
-    source.connect(this.analyser);
-    this.buffer = new Float32Array(this.analyser.fftSize);
-    this.monitorPitch();
-  }
-
-  monitorPitch() {
-    if (!this.analyser) return;
-    this.analyser.getFloatTimeDomainData(this.buffer);
-    const detected = this.autoCorrelate(this.buffer, this.audioContext.sampleRate);
-    const now = performance.now();
-
-    if (detected > 70 && detected < 520) {
-      this.pitch = detected;
-      this.recentPitches.push({ value: detected, time: now });
-    } else {
-      this.pitch = 0;
-    }
-
-    this.recentPitches = this.recentPitches.filter((sample) => now - sample.time < 1200);
-    this.updatePitchUI();
-    this.animationFrame = requestAnimationFrame(() => this.monitorPitch());
-  }
-
-  autoCorrelate(buffer, sampleRate) {
-    let rms = 0;
-    for (let i = 0; i < buffer.length; i += 1) rms += buffer[i] * buffer[i];
-    rms = Math.sqrt(rms / buffer.length);
-    if (rms < 0.018) return -1;
-
-    let start = 0;
-    let end = buffer.length - 1;
-    const threshold = 0.2;
-    for (let i = 0; i < buffer.length / 2; i += 1) {
-      if (Math.abs(buffer[i]) < threshold) {
-        start = i;
-        break;
-      }
-    }
-    for (let i = 1; i < buffer.length / 2; i += 1) {
-      if (Math.abs(buffer[buffer.length - i]) < threshold) {
-        end = buffer.length - i;
-        break;
-      }
-    }
-
-    const trimmed = buffer.slice(start, end);
-    const correlations = new Array(trimmed.length).fill(0);
-    for (let lag = 0; lag < trimmed.length; lag += 1) {
-      for (let i = 0; i < trimmed.length - lag; i += 1) {
-        correlations[lag] += trimmed[i] * trimmed[i + lag];
-      }
-    }
-
-    let dip = 0;
-    while (dip + 1 < correlations.length && correlations[dip] > correlations[dip + 1]) dip += 1;
-    let peak = -1;
-    let peakIndex = -1;
-    for (let i = dip; i < correlations.length; i += 1) {
-      if (correlations[i] > peak) {
-        peak = correlations[i];
-        peakIndex = i;
-      }
-    }
-    if (peakIndex <= 0) return -1;
-
-    const before = correlations[peakIndex - 1] || correlations[peakIndex];
-    const after = correlations[peakIndex + 1] || correlations[peakIndex];
-    const divisor = 2 * (2 * correlations[peakIndex] - before - after);
-    const shift = divisor ? (after - before) / divisor : 0;
-    return sampleRate / (peakIndex + shift);
-  }
-
-  async calibrate(duration = 2400) {
-    this.pitchSamples = [];
-    const started = performance.now();
-    return new Promise((resolve) => {
-      const collect = () => {
-        if (this.pitch) this.pitchSamples.push(this.pitch);
-        if (performance.now() - started < duration) {
-          requestAnimationFrame(collect);
-          return;
-        }
-
-        const stable = this.trimOutliers(this.pitchSamples);
-        if (stable.length >= 12) {
-          this.basePitch = this.median(stable);
-          resolve({ ok: true, pitch: this.basePitch, samples: stable.length });
-        } else {
-          resolve({ ok: false, pitch: this.basePitch, samples: stable.length });
-        }
-      };
-      collect();
-    });
-  }
-
-  trimOutliers(values) {
-    if (!values.length) return [];
-    const center = this.median(values);
-    return values.filter((value) => value > center * 0.72 && value < center * 1.38);
-  }
-
-  median(values) {
-    const sorted = [...values].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)] || 0;
-  }
-
-  getRecentPitch() {
-    const now = performance.now();
-    const values = this.recentPitches
-      .filter((sample) => now - sample.time < 900)
-      .map((sample) => sample.value);
-    return this.median(values) || this.basePitch;
-  }
-
-  getSemitoneDifference(pitch = this.getRecentPitch()) {
-    return 12 * Math.log2(pitch / this.basePitch);
-  }
-
-  getPitchLevel() {
-    const difference = this.getSemitoneDifference();
-    if (difference < -2.2) return "LOW";
-    if (difference > 2.2) return "HIGH";
-    return "MID";
-  }
-
-  updatePitchUI() {
-    if (!this.analyser || !this.pitch) return;
-    const semitones = Math.max(-6, Math.min(6, this.getSemitoneDifference(this.pitch)));
-    const position = ((semitones + 6) / 12) * 100;
-    const level = semitones < -2.2 ? "LOW" : semitones > 2.2 ? "HIGH" : "MID";
-    ui.pitchNeedle.style.left = `${position}%`;
-    ui.pitchLabel.textContent = level;
-  }
-
-  startRecognition(handler) {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition) {
-      ui.statusLabel.textContent = "음성 인식 미지원 · 키보드 테스트 가능";
-      return false;
-    }
-
-    this.commandHandler = handler;
-    this.shouldRecognize = true;
-    this.recognition = new Recognition();
-    this.recognition.lang = "ko-KR";
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true;
-    this.recognition.maxAlternatives = 3;
-
-    this.recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const candidates = [...event.results[i]].map((item) => item.transcript).join(" ");
-        this.parseCommands(candidates);
-      }
-    };
-    this.recognition.onerror = (event) => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        this.shouldRecognize = false;
-        ui.statusLabel.textContent = "음성 인식 권한이 필요해요";
-      }
-    };
-    this.recognition.onend = () => {
-      if (this.shouldRecognize) {
-        window.setTimeout(() => {
-          try { this.recognition.start(); } catch (_) { /* already running */ }
-        }, 160);
-      }
-    };
-
-    try {
-      this.recognition.start();
-      return true;
-    } catch (_) {
-      this.shouldRecognize = false;
-      return false;
-    }
-  }
-
-  parseCommands(transcript) {
-    const text = transcript.replace(/\s+/g, "").toLowerCase();
-    const patterns = [
-      { command: "LEFT", words: ["오이데", "오이대", "오이대요", "오이돼"] },
-      { command: "JUMP", words: ["야호", "야오", "야호오"] },
-      { command: "STOP", words: ["마떼루요", "마테루요", "맛대로요", "마때루요", "기다려요"] },
-      { command: "RIGHT", words: ["파라파라", "파라파라요", "팔아팔아", "바라바라"] },
-    ];
-
-    patterns.forEach(({ command, words }) => {
-      if (words.some((word) => text.includes(word))) this.emitCommand(command);
-    });
-  }
-
-  emitCommand(command) {
-    const now = performance.now();
-    if (now - (this.lastTrigger.get(command) || 0) < 700) return;
-    this.lastTrigger.set(command, now);
-    this.commandHandler?.(command, this.getPitchLevel());
-  }
-
-  stopRecognition() {
-    this.shouldRecognize = false;
-    try { this.recognition?.stop(); } catch (_) { /* no-op */ }
-    this.recognition = null;
-    this.commandHandler = null;
-  }
-
-  resetCommandState() {
-    this.lastTrigger.clear();
-    this.recentPitches = [];
-  }
-}
-
 const voice = new VoiceController();
 let activeScene = null;
 
@@ -311,7 +60,7 @@ class GeojeStage extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("geojeSea", "assets/geoje-sea.png");
+    preloadGameAssets(this);
   }
 
   create() {
@@ -619,55 +368,6 @@ function pulseCommand(command) {
   window.setTimeout(() => element.classList.remove("active"), 430);
 }
 
-async function runCalibration() {
-  ui.primaryButton.disabled = true;
-  ui.secondaryButton.hidden = true;
-  ui.modalStep.textContent = "VOICE SETUP";
-  ui.modalTitle.textContent = "편하게 ‘아—’ 해보세요";
-  ui.modalCopy.textContent = "2.4초 동안 평소 말할 때의 편안한 높이로 길게 소리 내주세요.";
-  ui.calibrationResult.textContent = "중간음을 듣고 있어요…";
-  ui.calibrationVisual.classList.add("listening");
-
-  try {
-    if (!voice.stream) await voice.connect();
-    setSystemStatus(true, "마이크 연결됨 · 중간음 측정 중");
-    const result = await voice.calibrate();
-    ui.calibrationVisual.classList.remove("listening");
-
-    if (!result.ok) {
-      ui.modalTitle.textContent = "목소리가 잘 안 들렸어요";
-      ui.modalCopy.textContent = "마이크 가까이에서 편안하게 ‘아—’ 하고 다시 말해주세요.";
-      ui.calibrationResult.textContent = "충분한 음높이를 측정하지 못했습니다.";
-      ui.primaryButton.textContent = "다시 측정";
-      ui.primaryButton.disabled = false;
-      ui.secondaryButton.hidden = false;
-      ui.secondaryButton.textContent = "마이크 없이 키보드로 테스트";
-      ui.secondaryButton.dataset.action = "keyboard";
-      return;
-    }
-
-    ui.modalTitle.textContent = "중간음 설정 완료!";
-    ui.modalCopy.innerHTML = "<b>파라파라</b>로 오른쪽 이동 → <b>야호</b>로 장애물을 넘고<br><b>마떼루요</b>로 포토존에 멈추세요.";
-    ui.calibrationResult.textContent = `내 기준음 ${Math.round(result.pitch)} Hz · 야호를 높게 말하면 더 높이 점프!`;
-    ui.primaryButton.textContent = "20.26초 도전 시작";
-    ui.primaryButton.disabled = false;
-    ui.primaryButton.dataset.action = "start";
-    ui.secondaryButton.dataset.action = "recalibrate";
-    setSystemStatus(true, `중간음 ${Math.round(result.pitch)} Hz 설정 완료`);
-  } catch (error) {
-    ui.calibrationVisual.classList.remove("listening");
-    ui.modalTitle.textContent = "마이크를 연결할 수 없어요";
-    ui.modalCopy.textContent = "브라우저 주소창의 마이크 권한을 허용한 뒤 다시 시도해주세요.";
-    ui.calibrationResult.textContent = error.message || "마이크 권한을 확인해주세요.";
-    ui.primaryButton.textContent = "다시 연결";
-    ui.primaryButton.disabled = false;
-    ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = "마이크 없이 키보드로 테스트";
-    ui.secondaryButton.dataset.action = "keyboard";
-    setSystemStatus(false, "마이크 권한 확인 필요");
-  }
-}
-
 function showResult(success, elapsed) {
   ui.modal.classList.remove("hidden");
   ui.modalStep.textContent = success ? "STAGE CLEAR" : "TIME OVER";
@@ -684,6 +384,8 @@ function showResult(success, elapsed) {
   ui.secondaryButton.dataset.action = "recalibrate";
 }
 
+const micTest = new MicTestController(ui, voice, setSystemStatus);
+
 ui.primaryButton.addEventListener("click", () => {
   const action = ui.primaryButton.dataset.action;
   if (action === "start") {
@@ -696,7 +398,7 @@ ui.primaryButton.addEventListener("click", () => {
     activeScene?.restartStage();
     return;
   }
-  runCalibration();
+  micTest.runCalibration();
 });
 
 ui.secondaryButton.addEventListener("click", () => {
@@ -707,7 +409,7 @@ ui.secondaryButton.addEventListener("click", () => {
   }
   ui.primaryButton.dataset.action = "";
   ui.primaryButton.textContent = "다시 측정";
-  runCalibration();
+  micTest.runCalibration();
 });
 
 ui.helpToggle.addEventListener("click", () => {
@@ -723,8 +425,6 @@ document.fonts?.ready.then(fitGameToViewport);
 
 window.addEventListener("beforeunload", () => {
   window.removeEventListener("resize", fitGameToViewport);
-  voice.stopRecognition();
-  cancelAnimationFrame(voice.animationFrame);
-  voice.stream?.getTracks().forEach((track) => track.stop());
+  voice.destroy();
   game.destroy(true);
 });
