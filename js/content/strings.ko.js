@@ -33,6 +33,7 @@ const STRINGS = Object.freeze({
   protocol: Object.freeze({
     loading: "프로토콜 불러오는 중",
     restored: "복구 완료",
+    engineMissing: "복구 엔진이 아직 준비되지 않았습니다.",
     progress: (restored, total) => `RESTORED ${restored} / ${total}`,
   }),
 

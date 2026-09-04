@@ -47,12 +47,17 @@ class ProtocolSelectFlow {
     this.soundBus = soundBus;
     this.strings = strings;
 
-    this.stages = [];
+    /*
+     * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
+     * 엔진이 뜨면 setStages가 더 자세한 목록으로 갈아 끼운다.
+     */
+    this.stages = PROTOCOLS;
     this.restored = new Set();
     this.remainingMs = RECOVERY_BUDGET_MS;
     this.tickHandle = 0;
     this.lastTickAt = 0;
     this.timedOut = false;
+    this.warnHandle = 0;
 
     this.ui.recoveryFailedButton?.addEventListener("click", () => this.closeFailure());
 
@@ -92,17 +97,43 @@ class ProtocolSelectFlow {
     this.render();
   }
 
+  /*
+   * 엔진이 보고해 온 목록으로 갈아 끼운다.
+   * 빈 목록은 무시한다 — 이미 그려 둔 타일을 지우고 화면을 비우는 쪽이 더 나쁘다.
+   */
   setStages(stages) {
-    this.stages = Array.isArray(stages) ? stages : [];
+    if (!Array.isArray(stages) || stages.length === 0) return;
+    this.stages = stages;
     this.render();
   }
 
   startStage(stageId) {
     if (this.timedOut) return;
+
+    /*
+     * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
+     * 나가 버리면 빈 캔버스만 남고 일시정지 버튼도 없어서 돌아올 길이 사라진다.
+     * (엔진이 늦게 뜨는 중이거나, index.html을 file://로 열어 모듈이 막힌 경우다.)
+     */
+    if (!window.archiveGame) {
+      this.warnEngineMissing();
+      return;
+    }
+
     this.soundBus.resume();
     this.close();
     this.ui.appShell?.removeAttribute("inert");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
+  }
+
+  /* 하단 바 문구를 잠깐 경고로 바꾼다. 엔진이 도착하면 setStages가 알아서 되돌린다. */
+  warnEngineMissing() {
+    const label = this.ui.protocolProgress;
+    if (!label) return;
+    label.dataset.state = "warn";
+    label.textContent = this.strings.protocol.engineMissing;
+    window.clearTimeout(this.warnHandle);
+    this.warnHandle = window.setTimeout(() => this.renderProgress(), 2800);
   }
 
   /* ── 2:26 예산 ───────────────────────────────────────────────────── */
@@ -196,9 +227,11 @@ class ProtocolSelectFlow {
   }
 
   renderProgress() {
-    if (!this.ui.protocolProgress) return;
-    const total = this.stages.length || 7;
-    this.ui.protocolProgress.textContent = this.strings.protocol.progress(this.restored.size, total);
+    const label = this.ui.protocolProgress;
+    if (!label) return;
+    window.clearTimeout(this.warnHandle);
+    delete label.dataset.state;
+    label.textContent = this.strings.protocol.progress(this.restored.size, this.stages.length || 7);
   }
 
   renderTiles() {
