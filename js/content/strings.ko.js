@@ -62,8 +62,10 @@ const STRINGS = Object.freeze({
     retryCalibration: "다시 측정",
     reconnect: "다시 연결",
     start: "20.26초 도전 시작",
+    main: "메인 화면으로",
     retryStage: "다시 도전",
     keyboard: "마이크 없이 키보드로 테스트",
+    continueKeyboard: "키보드 모드로 계속",
     recalibrate: "중간음 다시 측정",
   }),
 

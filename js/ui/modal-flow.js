@@ -22,6 +22,7 @@ class ModalFlow {
     this.voice = voice;
     this.strings = strings;
     this.step = MODAL_STEP.INTRO;
+    this.destination = "main";
 
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
@@ -58,12 +59,22 @@ class ModalFlow {
     ui.secondaryButton.textContent = this.strings.buttons.keyboard;
   }
 
+  beginCalibration(destination = "main") {
+    this.destination = destination;
+    this.open();
+    this.runCalibration();
+  }
+
   onPrimary() {
     // 사용자 제스처 시점에 오디오 컨텍스트를 깨운다(autoplay 정책).
     audioBus.resume();
 
     if (this.step === MODAL_STEP.READY) {
-      this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled: true });
+      if (this.destination === "main") {
+        this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+      } else {
+        this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled: true });
+      }
       return;
     }
 
@@ -84,7 +95,12 @@ class ModalFlow {
       this.step === MODAL_STEP.MIC_ERROR;
 
     if (keyboardFallback) {
-      this.events.emit(GAME_EVENTS.REQUEST_START, { voiceEnabled: false });
+      this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
+      return;
+    }
+
+    if (this.step === MODAL_STEP.RESULT) {
+      this.beginCalibration("main");
       return;
     }
 
@@ -131,7 +147,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.retryCalibration;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.keyboard;
+    ui.secondaryButton.textContent = this.strings.buttons.continueKeyboard;
   }
 
   showMicError(error) {
@@ -145,7 +161,7 @@ class ModalFlow {
     ui.primaryButton.textContent = this.strings.buttons.reconnect;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = this.strings.buttons.keyboard;
+    ui.secondaryButton.textContent = this.strings.buttons.continueKeyboard;
 
     this.events.emit(GAME_EVENTS.MIC_FAILED, { message: this.strings.status.micDenied });
   }
@@ -158,7 +174,9 @@ class ModalFlow {
     ui.modalTitle.textContent = copy.doneTitle;
     ui.modalCopy.innerHTML = copy.doneCopyHtml;
     ui.calibrationResult.textContent = copy.doneResult(pitchHz);
-    ui.primaryButton.textContent = this.strings.buttons.start;
+    ui.primaryButton.textContent = this.destination === "main"
+      ? this.strings.buttons.main
+      : this.strings.buttons.start;
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
     ui.secondaryButton.textContent = this.strings.buttons.recalibrate;

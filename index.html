@@ -41,18 +41,45 @@
       <section class="main-menu-card" aria-labelledby="main-menu-title">
         <div class="main-menu-heading">
           <div>
-            <p class="menu-kicker">SELECT YOUR 20.26</p>
-            <h2 id="main-menu-title">스테이지 선택</h2>
+            <p class="menu-kicker">2026 × 20.26 VOICE ACTION</p>
+            <h2 id="main-menu-title">메인 화면</h2>
           </div>
+          <span class="mic-ready-badge" id="main-mic-status">마이크 확인 중</span>
+        </div>
+
+        <p class="main-welcome">준비가 끝났습니다. 원하는 메뉴를 선택하세요.</p>
+
+        <div class="main-menu-actions main-menu-primary-actions">
+          <button class="primary-button" id="main-play-button" type="button">게임 시작</button>
+          <button class="secondary-button" id="stage-select-open-button" type="button">스테이지 선택</button>
           <button
-            class="menu-icon-button"
+            class="secondary-button"
             id="main-settings-button"
             type="button"
             aria-expanded="false"
             aria-controls="main-settings-panel"
-          >
-            설정
-          </button>
+          >설정</button>
+        </div>
+
+        <div class="main-settings-panel" id="main-settings-panel" hidden>
+          <label for="master-volume">전체 음량 <output id="master-volume-value">80%</output></label>
+          <input id="master-volume" type="range" min="0" max="100" step="5" value="80" />
+          <label class="mute-setting" for="mute-toggle">
+            <input id="mute-toggle" type="checkbox" />
+            모든 소리 끄기
+          </label>
+          <button class="secondary-button" id="main-mic-button" type="button">중간음 재측정</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="stage-select-screen hidden" id="stage-select-screen">
+      <section class="main-menu-card" aria-labelledby="stage-select-title">
+        <div class="main-menu-heading">
+          <div>
+            <p class="menu-kicker">SELECT YOUR 20.26</p>
+            <h2 id="stage-select-title">스테이지 선택</h2>
+          </div>
         </div>
 
         <button class="stage-select-card selected" id="stage-geoje-button" type="button" aria-pressed="true">
@@ -62,18 +89,9 @@
           <span class="stage-duration">20.26 SEC</span>
         </button>
 
-        <div class="main-settings-panel" id="main-settings-panel" hidden>
-          <label for="master-volume">전체 음량 <output id="master-volume-value">80%</output></label>
-          <input id="master-volume" type="range" min="0" max="100" step="5" value="80" />
-          <label class="mute-setting" for="mute-toggle">
-            <input id="mute-toggle" type="checkbox" />
-            모든 소리 끄기
-          </label>
-        </div>
-
         <div class="main-menu-actions">
-          <button class="primary-button" id="main-play-button" type="button">선택한 스테이지 시작</button>
-          <button class="secondary-button" id="main-mic-button" type="button">마이크 설정</button>
+          <button class="primary-button" id="stage-select-confirm-button" type="button">선택 완료</button>
+          <button class="secondary-button" id="stage-select-back-button" type="button">메인 화면으로</button>
         </div>
       </section>
     </div>

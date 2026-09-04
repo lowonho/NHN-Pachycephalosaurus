@@ -1,4 +1,5 @@
-.main-menu {
+.main-menu,
+.stage-select-screen {
   position: fixed;
   z-index: 35;
   inset: 0;
@@ -12,8 +13,35 @@
     #02091d;
 }
 
-.main-menu.hidden {
+.stage-select-screen {
+  z-index: 36;
+}
+
+.main-menu.hidden,
+.stage-select-screen.hidden {
   display: none;
+}
+
+.main-welcome {
+  margin: 6px 0 24px;
+  color: #c3d1ed;
+  line-height: 1.7;
+}
+
+.mic-ready-badge {
+  flex: none;
+  padding: 8px 12px;
+  border: 1px solid rgba(78, 239, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(78, 239, 255, 0.1);
+  color: var(--cyan);
+  font: 800 0.78rem/1 var(--font-ui);
+}
+
+.mic-ready-badge.keyboard {
+  border-color: rgba(255, 224, 75, 0.42);
+  background: rgba(255, 224, 75, 0.1);
+  color: var(--yellow);
 }
 
 .main-menu-card {
@@ -146,8 +174,18 @@
   margin-top: 18px;
 }
 
+.main-menu-primary-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.main-menu-primary-actions .secondary-button {
+  margin-top: 0;
+}
+
 @media (max-width: 560px) {
-  .main-menu {
+  .main-menu,
+  .stage-select-screen {
     padding: 12px;
   }
 

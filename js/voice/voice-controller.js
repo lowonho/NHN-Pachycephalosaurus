@@ -17,6 +17,7 @@ class VoiceController {
     this.buffer = null;
 
     this.basePitch = config.defaultBasePitchHz;
+    this.isCalibrated = false;
     this.pitch = 0;
     this.pitchSamples = [];
     this.recentPitches = [];
@@ -147,6 +148,7 @@ class VoiceController {
         const stable = this.evaluator.trimOutliers(this.pitchSamples);
         if (stable.length >= BALANCE.calibration.minSamples) {
           this.basePitch = this.evaluator.median(stable);
+          this.isCalibrated = true;
           const result = { ok: true, pitch: this.basePitch, samples: stable.length };
           this.events.emit(GAME_EVENTS.MIC_CALIBRATED, result);
           resolve(result);
@@ -254,6 +256,7 @@ class VoiceController {
     cancelAnimationFrame(this.animationFrame);
     this.stream?.getTracks().forEach((track) => track.stop());
     this.stream = null;
+    this.isCalibrated = false;
     this.audioContext?.close();
     this.audioContext = null;
   }
