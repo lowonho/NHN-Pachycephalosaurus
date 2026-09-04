@@ -96,7 +96,15 @@ try {
   const before = await evaluate("testScene.remaining");
   await evaluate("archiveGameBridge.pause(); testScene.update(0, 1000)");
   assert.equal(await evaluate("testScene.remaining"), before);
-  await evaluate("archiveGameBridge.resume(); testScene.finish(true)");
+  await evaluate("archiveGameBridge.resume(); Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
+  assert.ok(Math.abs(await evaluate("testScene.remaining") - (before - 1.025)) < 0.0001);
+  assert.equal(await evaluate("testScene.timePenalty"), 1);
+  assert.equal(await evaluate("testScene.state.ball.collisions"), 1);
+  assert.ok((await evaluate("UI.stageHudPenalty.textContent")).includes('−1.00'));
+  await evaluate("for (let i = 0; i < 60; i++) testScene.update(0, 16)");
+  assert.equal(await evaluate("testScene.timePenalty"), 1);
+  assert.ok(Math.abs(await evaluate("testScene.elapsed") - 0.985) < 0.001);
+  await evaluate("testScene.finish(true)");
   assert.equal(await evaluate("UI.modalTitle.textContent"), "PARTIALLY RESTORED");
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "PARTIALLY RESTORED");
   await continueToRecords();
@@ -111,6 +119,8 @@ try {
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
     await start(stage);
+    assert.equal(await evaluate("testScene.timePenalty"), 0, `${stage}: time penalty reset`);
+    assert.equal(await evaluate("UI.stageHudPenalty.hidden"), stage !== 'maze');
     assert.equal(await evaluate("testScene.fragmentCollected"), false, `${stage}: retry resets fragment`);
     // Drive each stage's existing update method through the real collection adapter.
     await evaluate(`(() => {
@@ -140,6 +150,13 @@ try {
   assert.equal(await evaluate("UI.modalTitle.textContent"), "RECORD LOST");
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
   await continueToRecords();
+  await start('maze');
+  await evaluate("testScene.remaining = 0.5; Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
+  assert.equal(await evaluate("UI.modalTitle.textContent"), 'RECORD LOST');
+  assert.equal(await evaluate("testScene.remaining"), 0);
+  assert.equal(await evaluate("testScene.timePenalty"), 1);
+  assert.ok((await evaluate("UI.modalResult.textContent")).includes('충돌 시간 차감 −1.00초'));
+  await continueToRecords();
   await screen("restored-records");
   await send("Page.reload");
   await wait(1200);
@@ -151,7 +168,7 @@ try {
   assert.equal(await evaluate("Boolean(window.archiveGame)"), true);
   assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
   assert.deepEqual(errors, []);
-  console.log("PASS | browser: continue after partial/full/failure, select another chapter, retry/main navigation, 7 pickups, timeout, pause, persistence, file:// boot, no runtime errors");
+  console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 7 pickups, pause, persistence, file:// boot, no runtime errors");
 } finally {
   socket?.close();
   browser.kill();

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createProgressStore, PROGRESS_KEY } from "../js/archive/progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "../js/archive/fragments.mjs";
 import { STAGES } from "../js/archive/data.mjs";
-import { WALLS, MAZE_CELLS, SOLUTION_CELLS, solutionCells } from "../js/archive/level-data.mjs";
+import { WALLS, ROUTE, START } from "../js/archive/level-data.mjs";
 
 const ids = STAGES.map((stage) => stage.id);
 const memory = new Map();
@@ -46,7 +46,5 @@ assert.ok(WALLS.every((wall) => !touchesFragment(fragment, {
   x: Math.max(wall.x, Math.min(fragment.x, wall.x + wall.w)),
   y: Math.max(wall.y, Math.min(fragment.y, wall.y + wall.h)), radius: 0,
 })));
-const cell = { column: (fragment.x - 96) / 64, row: (fragment.y - 78) / 64 };
-assert.ok(!SOLUTION_CELLS.some((point) => point.column === cell.column && point.row === cell.row));
-console.log("Maze detour cells:", solutionCells(MAZE_CELLS, undefined, cell).length, "base:", SOLUTION_CELLS.length);
+for (let i = 0; i < ROUTE.length; i++) assert.ok(!touchesFragment(fragment, ROUTE[i], i ? ROUTE[i - 1] : START));
 console.log("PASS | result transitions, no downgrade/duplicates, reload, damaged/unavailable storage, ending thresholds, swept pickup, off-route maze placement");

@@ -31,6 +31,8 @@ export function createBallState() {
     multiplier: 1,
     collisions: 0,
     touchingWall: false,
+    wallContacts: new Set(),
+    impactCooldown: 0,
   };
 }
 
@@ -58,7 +60,7 @@ function resolveCircleRect(state, rect) {
   const radiusSq = BALL_RADIUS * BALL_RADIUS;
   let distanceSq = dx * dx + dy * dy;
 
-  if (distanceSq >= radiusSq) return false;
+  if (distanceSq >= radiusSq) return null;
 
   let nx;
   let ny;
@@ -88,10 +90,11 @@ function resolveCircleRect(state, rect) {
     state.vx -= velocityIntoWall * nx;
     state.vy -= velocityIntoWall * ny;
   }
-  return true;
+  return Math.max(0, -velocityIntoWall);
 }
 
 export function stepBall(state, dt, walls = WALLS) {
+  state.impactCooldown = Math.max(0, state.impactCooldown - dt);
   const vector = DIRECTION_VECTORS[state.input] ?? { x: 0, y: 0 };
   const acceleration = PHYSICS.baseAcceleration * state.multiplier;
   const drag = dragForPresses(state.presses);
@@ -113,18 +116,30 @@ export function stepBall(state, dt, walls = WALLS) {
   state.y += state.vy * dt;
 
   let frameCollisions = 0;
+  let newImpactSpeed = 0;
   for (let pass = 0; pass < 3; pass += 1) {
     let resolved = false;
     for (const wall of walls) {
-      if (resolveCircleRect(state, wall)) {
+      const impactSpeed = resolveCircleRect(state, wall);
+      if (impactSpeed !== null) {
         resolved = true;
         frameCollisions += 1;
+        if (!state.wallContacts.has(wall)) newImpactSpeed = Math.max(newImpactSpeed, impactSpeed);
       }
     }
     if (!resolved) break;
   }
-  if (frameCollisions > 0 && !state.touchingWall) state.collisions += 1;
-  state.touchingWall = frameCollisions > 0;
+  if (newImpactSpeed >= PHYSICS.wallImpactMinSpeed && state.impactCooldown <= 0) {
+    state.collisions += 1;
+    state.impactCooldown = PHYSICS.wallImpactCooldown;
+  }
+  // Exact edge contact stays latched until the ball actually leaves the wall.
+  state.wallContacts = new Set(walls.filter((wall) => {
+    const nearX = Math.max(wall.x, Math.min(state.x, wall.x + wall.w));
+    const nearY = Math.max(wall.y, Math.min(state.y, wall.y + wall.h));
+    return Math.hypot(state.x - nearX, state.y - nearY) <= BALL_RADIUS + 0.5;
+  }));
+  state.touchingWall = state.wallContacts.size > 0;
   return frameCollisions;
 }
 

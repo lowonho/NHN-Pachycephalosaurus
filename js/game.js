@@ -18,6 +18,12 @@ class ArchiveGameBridge {
     window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
     window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
     window.addEventListener("archive-stage-end", (event) => this.onStageEnd(event.detail));
+    window.addEventListener("archive-wall-hit", () => {
+      this.ui.stageHudTimer?.animate([
+        { color: "#ff947d", transform: "scale(1.15)" },
+        { color: "#ffe04b", transform: "scale(1)" },
+      ], { duration: 450 });
+    });
 
     this.events.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => this.start(stageId));
     this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
@@ -88,10 +94,14 @@ class ArchiveGameBridge {
     this.ui.stageHud?.setAttribute("hidden", "");
   }
 
-  onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "" } = {}) {
+  onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "", wallHits = null, timePenalty = 0 } = {}) {
     if (!this.currentStage) return;
     const safeRemaining = Math.max(0, Number(remaining) || 0);
     const safeRisk = Math.max(0, Math.min(100, Number(risk) || 0));
+    if (this.ui.stageHudPenalty) {
+      this.ui.stageHudPenalty.hidden = wallHits === null;
+      this.ui.stageHudPenalty.textContent = `벽 충돌 ${wallHits ?? 0}회 · 시간 차감 −${timePenalty.toFixed(2)}초`;
+    }
     const fragmentHud = document.querySelector("#stage-hud-fragment");
     if (fragmentHud) {
       fragmentHud.textContent = fragmentCollected ? "◆ MEMORY 1/1 · 목표 달성 시 저장" : `◇ MEMORY 0/1 · ${fragmentHint}`;
@@ -113,7 +123,7 @@ class ArchiveGameBridge {
     }
   }
 
-  onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false } = {}) {
+  onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false, timePenalty = 0 } = {}) {
     if (!this.currentStage || !this.active) return;
     this.active = false;
     const recovery = window.archiveProgress.record(this.currentStage.id, success, fragmentCollected);
@@ -126,6 +136,7 @@ class ArchiveGameBridge {
       extra,
       fragmentCollected,
       recovery,
+      timePenalty,
     };
     this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
   }

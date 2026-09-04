@@ -1,118 +1,75 @@
-import { GOAL, MAZE, MAZE_CELLS, PHYSICS, RECOMMENDED_INPUTS, ROUTE } from "../js/archive/level-data.mjs";
-import { createBallState, registerDirection, stepBall } from "../js/archive/physics-core.mjs";
+import assert from "node:assert/strict";
+import { GOAL, PHYSICS, ROUTE, FRAGMENT_ROUTE } from "../js/archive/level-data.mjs";
+import { createBallState, registerDirection, stepBall, dragForPresses } from "../js/archive/physics-core.mjs";
+import { MEMORY_FRAGMENTS, touchesFragment } from "../js/archive/fragments.mjs";
 
-const dt = 1 / 120;
-const OPPOSITE = { right: "left", left: "right", up: "down", down: "up" };
-
-function passedWaypoint(state, waypoint) {
-  if (waypoint.input === "right") return state.x >= waypoint.x;
-  if (waypoint.input === "left") return state.x <= waypoint.x;
-  if (waypoint.input === "up") return state.y <= waypoint.y;
-  return state.y >= waypoint.y;
-}
-
-function reachedBrakePoint(state, direction, distance) {
-  if (direction === "right") return state.x >= GOAL.x - distance;
-  if (direction === "left") return state.x <= GOAL.x + distance;
-  if (direction === "up") return state.y <= GOAL.y + distance;
-  return state.y >= GOAL.y - distance;
-}
-
-function simulate({ reactionDelay = 0, brake = true, label }) {
+function simulate(route, dt, reactionDelay = 0) {
   const state = createBallState();
-  let time = 0;
-  let routeIndex = 0;
-  let delayRemaining = null;
-  let braking = false;
-  let brakeRemaining = 0;
-  let goalHold = 0;
-  let overruns = 0;
-  let wasInsideGoal = false;
-  registerDirection(state, ROUTE[0].input);
-
-  while (time < PHYSICS.timeLimit && goalHold < PHYSICS.goalHoldSeconds) {
-    stepBall(state, dt);
-    time += dt;
-
-    const waypoint = ROUTE[routeIndex];
-    if (routeIndex < ROUTE.length - 1 && delayRemaining === null && passedWaypoint(state, waypoint)) {
-      delayRemaining = reactionDelay;
-    }
-    if (delayRemaining !== null) {
-      delayRemaining -= dt;
-      if (delayRemaining <= 0) {
-        routeIndex += 1;
-        registerDirection(state, ROUTE[routeIndex].input);
-        delayRemaining = null;
-      }
-    }
-
-    const finalDirection = ROUTE[ROUTE.length - 1].input;
-    if (
-      brake &&
-      routeIndex === ROUTE.length - 1 &&
-      !braking &&
-      reachedBrakePoint(state, finalDirection, 92)
-    ) {
+  let elapsed = 0, hold = 0, index = 0, braking = false, fragment = false;
+  registerDirection(state, route[0].input);
+  while (elapsed + state.collisions * PHYSICS.wallPenaltySeconds < PHYSICS.timeLimit && hold < PHYSICS.goalHoldSeconds) {
+    const waypoint = route[index];
+    const axis = ['left', 'right'].includes(waypoint.input) ? 'x' : 'y';
+    const sign = ['right', 'down'].includes(waypoint.input) ? 1 : -1;
+    const velocity = Math.abs(axis === 'x' ? state.vx : state.vy);
+    const distance = (waypoint[axis] - state[axis]) * sign;
+    const stoppingDistance = velocity * velocity / (2 * dragForPresses(state.presses));
+    if (!braking && distance <= stoppingDistance + velocity * dt - velocity * reactionDelay) {
+      state.input = null;
       braking = true;
-      brakeRemaining = 0.26;
-      registerDirection(state, OPPOSITE[finalDirection]);
     }
-    if (braking && brakeRemaining > 0) {
-      brakeRemaining -= dt;
-      if (brakeRemaining <= 0) state.input = null;
-    }
-
+    const previous = { x: state.x, y: state.y };
+    stepBall(state, dt);
+    elapsed += dt;
+    fragment ||= touchesFragment(MEMORY_FRAGMENTS.maze, state, previous);
     const speed = Math.hypot(state.vx, state.vy);
-    const insideGoal = Math.hypot(state.x - GOAL.x, state.y - GOAL.y) <= GOAL.radius;
-    if (insideGoal && speed <= PHYSICS.goalMaxSpeed) goalHold += dt;
-    else if (!insideGoal) goalHold = 0;
-    else goalHold = Math.max(0, goalHold - dt * 2);
-
-    if (wasInsideGoal && !insideGoal && goalHold < PHYSICS.goalHoldSeconds) overruns += 1;
-    wasInsideGoal = insideGoal;
+    const inside = Math.hypot(state.x - GOAL.x, state.y - GOAL.y) <= GOAL.radius;
+    if (inside && speed <= PHYSICS.goalMaxSpeed) hold += dt;
+    else if (!inside) hold = 0;
+    else hold = Math.max(0, hold - dt * 2);
+    if (braking && speed === 0 && index < route.length - 1) {
+      index++;
+      braking = false;
+      registerDirection(state, route[index].input);
+    }
   }
-
-  return {
-    label,
-    cleared: goalHold >= PHYSICS.goalHoldSeconds,
-    elapsed: time,
-    presses: state.presses,
-    collisions: state.collisions,
-    overruns,
-  };
+  return { cleared: hold >= PHYSICS.goalHoldSeconds, elapsed, fragment, collisions: state.collisions, presses: state.presses, x: state.x, y: state.y };
 }
 
-const clearRuns = [
-  simulate({ label: "권장 경로 + 역방향 제동", reactionDelay: 0 }),
-  simulate({ label: "회전마다 0.12초 지연 + 제동", reactionDelay: 0.12 }),
-  simulate({ label: "회전마다 0.18초 지연 + 제동", reactionDelay: 0.18 }),
-];
-const speedRun = simulate({ label: "제동 없이 고속 진입", brake: false });
-
-let deadEnds = 0;
-let junctions = 0;
-let edgeSum = 0;
-for (const row of MAZE_CELLS) {
-  for (const cell of row) {
-    const passages = Object.values(cell.walls).filter((blocked) => !blocked).length;
-    if (passages === 1) deadEnds += 1;
-    if (passages >= 3) junctions += 1;
-    edgeSum += passages;
+for (const hz of [40, 60, 120]) {
+  for (const [name, route, full] of [['일반', ROUTE, false], ['조각 왕복', FRAGMENT_ROUTE, true]]) {
+    const run = simulate(route, 1 / hz);
+    assert.ok(run.cleared, `${name} ${hz}Hz: ${JSON.stringify(run)}`);
+    assert.equal(run.fragment, full);
+    assert.equal(run.collisions, 0);
+    console.log(`PASS | ${name} ${hz}Hz | ${run.elapsed.toFixed(2)}초 | 입력 ${run.presses}회 | 충돌 ${run.collisions}`);
   }
 }
-const cellCount = MAZE.columns * MAZE.rows;
-const isPerfectMaze = edgeSum / 2 === cellCount - 1;
+const delayed = simulate(ROUTE, 1 / 60, 0.08);
+assert.ok(delayed.cleared, `늦은 제동: ${JSON.stringify(delayed)}`);
+console.log(`PASS | 제동 반응 0.08초 지연 | ${delayed.elapsed.toFixed(2)}초 | 충돌 ${delayed.collisions}`);
 
-for (const run of clearRuns) {
-  const mark = run.cleared ? "PASS" : "FAIL";
-  console.log(`${mark} | ${run.label} | ${run.elapsed.toFixed(2)}초 | 입력 ${run.presses}회 | 고속 통과 ${run.overruns}회`);
-}
-console.log(`${speedRun.cleared ? "UNEXPECTED PASS" : "EXPECTED BLOCK"} | ${speedRun.label} | ${speedRun.elapsed.toFixed(2)}초`);
-console.log(`INFO | 미로 해답 ${RECOMMENDED_INPUTS}회 + 제동 1회`);
-console.log(`${isPerfectMaze ? "PASS" : "FAIL"} | 멀티커설 미로 구조 | 막다른 길 ${deadEnds}개 | 갈림길 ${junctions}개`);
-
-if (clearRuns.some((run) => !run.cleared) || speedRun.cleared || !isPerfectMaze || deadEnds < 6 || junctions < 5) {
-  process.exitCode = 1;
-}
-
+const wall = { x: 200, y: 0, w: 20, h: 500 };
+const ball = createBallState();
+Object.assign(ball, { x: 186, y: 250, vx: 180, input: 'right' });
+stepBall(ball, 0.025, [wall]);
+assert.equal(ball.collisions, 1);
+for (let i = 0; i < 240; i++) stepBall(ball, 1 / 120, [wall]);
+assert.equal(ball.collisions, 1, 'Holding against a wall must not drain time repeatedly');
+ball.input = null;
+Object.assign(ball, { x: 150, vx: 190 });
+for (let i = 0; i < 60; i++) { ball.input = 'right'; stepBall(ball, 1 / 120, [wall]); }
+assert.equal(ball.collisions, 2, 'Leaving and hitting again must count');
+const graze = createBallState();
+Object.assign(graze, { x: 187.9, y: 100, vx: 35, vy: 180, input: 'down' });
+stepBall(graze, 0.01, [wall]);
+assert.equal(graze.collisions, 0, 'Tangential speed must not turn a light graze into a penalty');
+const corner = createBallState();
+Object.assign(corner, { x: 186, y: 186, vx: 140, vy: 140, presses: 3 });
+stepBall(corner, 0.025, [wall, { x: 0, y: 200, w: 500, h: 20 }]);
+assert.equal(corner.collisions, 1, 'Two walls in one impact count once');
+const cooldown = createBallState();
+Object.assign(cooldown, { x: 186, y: 250, vx: 180, impactCooldown: 0.3 });
+stepBall(cooldown, 0.025, [wall]);
+assert.equal(cooldown.collisions, 0);
+console.log('PASS | hard impact, sustained contact, re-entry, graze, corner deduplication, cooldown');

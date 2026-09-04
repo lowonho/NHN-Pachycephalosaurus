@@ -112,6 +112,8 @@ class ArchiveGame extends Phaser.Scene {
     this.stageId = id;
     this.mode = "ready";
     this.remaining = PHYSICS.timeLimit;
+    this.elapsed = 0;
+    this.timePenalty = 0;
     this.pausedByMenu = false;
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -198,6 +200,8 @@ class ArchiveGame extends Phaser.Scene {
       risk: this.risk ?? 0,
       fragmentCollected: this.fragmentCollected,
       fragmentHint: this.fragment?.hint,
+      wallHits: this.stageId === "maze" ? this.state.ball.collisions : null,
+      timePenalty: this.timePenalty,
     });
   }
 
@@ -216,6 +220,7 @@ class ArchiveGame extends Phaser.Scene {
     this.readKeyboard();
     if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
+    this.elapsed += Math.min(this.remaining, deltaMs / 1000);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
     if (this.remaining <= 0) { this.finish(false); this.sendHud(); return; }
     const previous = this.fragmentBody();
@@ -277,7 +282,8 @@ class ArchiveGame extends Phaser.Scene {
     if (success) this.flash(220, 147, 252, 160);
     emit("archive-stage-end", {
       success,
-      elapsed: PHYSICS.timeLimit - this.remaining,
+      elapsed: this.elapsed,
+      timePenalty: this.timePenalty,
       actions: this.actions ?? 0,
       extra,
       fragmentCollected: this.fragmentCollected,
@@ -326,6 +332,15 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "안정";
     this.drawWalls(WALLS, 0x164d48, 0x4ca78f);
     this.drawGoal(GOAL.x, GOAL.y, GOAL.radius);
+    const guide = this.add.graphics().setDepth(1);
+    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y)
+      .lineTo(400, 450).lineTo(400, 215).lineTo(GOAL.x, GOAL.y).strokePath();
+    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(740, 215).lineTo(830, 215).lineTo(830, 390).strokePath();
+    this.add.text(175, 405, "01  HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(395, 370, "02  TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(660, 165, "BRAKE TO RESTORE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
+    this.add.text(825, 270, "MEMORY ↓", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
+    this.add.text(180, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "16px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
     this.state = {
       ball: createBallState(),
       goalHold: 0,
@@ -352,7 +367,20 @@ class ArchiveGame extends Phaser.Scene {
 
   updateMaze(dt) {
     const state = this.state;
+    const previousHits = state.ball.collisions;
     stepBall(state.ball, dt);
+    if (state.ball.collisions > previousHits) {
+      this.timePenalty += PHYSICS.wallPenaltySeconds;
+      this.remaining = Math.max(0, this.remaining - PHYSICS.wallPenaltySeconds);
+      const penalty = this.add.text(clamp(state.ball.x, 85, WIDTH - 85), clamp(state.ball.y - 30, 155, HEIGHT - 60), "−1.00s", {
+        fontFamily: "monospace", fontSize: "25px", color: "#ff947d", stroke: "#07141d", strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(10);
+      this.tweens.add({ targets: penalty, y: penalty.y - 22, alpha: 0, delay: 250, duration: 500, onComplete: () => penalty.destroy() });
+      emit("archive-wall-hit", { seconds: PHYSICS.wallPenaltySeconds });
+      emit("archive-sfx", { name: "warning" });
+      this.shake(90, 0.003);
+      if (this.remaining <= 0) { this.finish(false); return; }
+    }
     state.trail.unshift({ x: state.ball.x, y: state.ball.y });
     state.trail.length = Math.min(14, 4 + Math.floor(state.ball.multiplier * 3));
     this.trailGraphics.clear();

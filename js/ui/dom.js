@@ -35,6 +35,7 @@ const UI = Object.freeze({
   stageHudAction: document.querySelector("#stage-hud-action"),
   stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
+  stageHudPenalty: document.querySelector("#stage-hud-penalty"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),

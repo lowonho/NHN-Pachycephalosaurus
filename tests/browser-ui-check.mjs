@@ -99,7 +99,7 @@ const startState = await evaluate(`({
   timer: Number(document.querySelector('#stage-hud-timer').textContent)
 })`);
 check("스테이지 화면 전환", startState.mainHidden && startState.selectHidden && startState.appInteractive, JSON.stringify(startState));
-check("게임 HUD 연결", startState.pauseVisible && startState.hudVisible && startState.title.includes("가속 미로"), startState.title);
+check("게임 HUD 연결", startState.pauseVisible && startState.hudVisible && startState.title.includes("가속 코스"), startState.title);
 
 await wait(350);
 const runningTimer = await evaluate("Number(document.querySelector('#stage-hud-timer').textContent)");
@@ -129,7 +129,7 @@ const resultState = await evaluate(`({
   copy: document.querySelector('#modal-copy').textContent,
   result: document.querySelector('#modal-result').textContent
 })`);
-check("기존 결과 UI 연결", resultState.visible && resultState.copy.includes("가속 미로"), JSON.stringify(resultState));
+check("기존 결과 UI 연결", resultState.visible && resultState.copy.includes("가속 코스"), JSON.stringify(resultState));
 
 await evaluate("document.querySelector('#primary-button').click()");
 await wait(180);

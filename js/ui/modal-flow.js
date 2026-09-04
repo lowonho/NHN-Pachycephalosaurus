@@ -84,7 +84,7 @@ class ModalFlow {
     this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, { screen: "stage-select" });
   }
 
-  showResult(success, { elapsed = 0, stage, actions = 0, extra = "", fragmentCollected = false, recovery } = {}) {
+  showResult(success, { elapsed = 0, stage, actions = 0, extra = "", fragmentCollected = false, recovery, timePenalty = 0 } = {}) {
     const { ui } = this;
     const copy = this.strings.result;
     const elapsedText = Number(elapsed).toFixed(2);
@@ -99,6 +99,7 @@ class ModalFlow {
     ui.modalResult.textContent = success
       ? `${stage?.actionLabel || "입력"} ${actions}회${extra ? ` · ${extra}` : ""}`
       : copy.failResult;
+    if (timePenalty > 0) ui.modalResult.textContent += ` · 충돌 시간 차감 −${timePenalty.toFixed(2)}초`;
     if (recovery) ui.modalResult.textContent += ` · ARCHIVE RECOVERY ${recovery.recoveryRate}% · 기억 조각 ${recovery.fragmentCount}/${recovery.totalRecords}`;
     ui.primaryButton.textContent = this.strings.buttons.retryStage;
     ui.primaryButton.disabled = false;

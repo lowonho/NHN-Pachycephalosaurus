@@ -31,9 +31,9 @@ const STAGES = [
     recordSymbol: "↗",
     number: "01",
     code: "VELOCITY_INDEX",
-    title: "가속 미로",
+    title: "가속 코스",
     objective: "공을 RESTORE 구역에서 저속으로 안정시키세요.",
-    anomaly: "방향을 누를수록 속도와 관성이 증가합니다.",
+    anomaly: "방향 입력마다 가속 · 강한 벽 충돌 −1초",
     controls: "WASD / 방향키 · 반대 방향으로 제동",
     actionLabel: "방향 입력",
     logTitle: "속도 채널 복구",
@@ -188,29 +188,9 @@ const audio = new ArchiveAudio();
 
 /* Source: level-data.mjs */
 const VIEWPORT = { width: 960, height: 540 };
-
 const BALL_RADIUS = 12;
-const MAZE = {
-  columns: 13,
-  rows: 7,
-  cell: 64,
-  x: 64,
-  y: 46,
-  wall: 10,
-};
-
-const START_CELL = { column: 0, row: 6 };
-const GOAL_CELL = { column: 9, row: 2 };
-
-function cellCenter({ column, row }) {
-  return {
-    x: MAZE.x + column * MAZE.cell + MAZE.cell / 2,
-    y: MAZE.y + row * MAZE.cell + MAZE.cell / 2,
-  };
-}
-
-const START = cellCenter(START_CELL);
-const GOAL = { ...cellCenter(GOAL_CELL), radius: 22 };
+const START = { x: 100, y: 450 };
+const GOAL = { x: 665, y: 215, radius: 30 };
 
 const PHYSICS = {
   timeLimit: 20.26,
@@ -219,167 +199,34 @@ const PHYSICS = {
   maxMultiplier: 3.35,
   goalMaxSpeed: 110,
   goalHoldSeconds: 0.35,
+  wallPenaltySeconds: 1,
+  wallImpactMinSpeed: 90,
+  wallImpactCooldown: 0.45,
 };
 
-const DIRECTIONS = [
-  { key: "up", dc: 0, dr: -1, opposite: "down" },
-  { key: "right", dc: 1, dr: 0, opposite: "left" },
-  { key: "down", dc: 0, dr: 1, opposite: "up" },
-  { key: "left", dc: -1, dr: 0, opposite: "right" },
+// Record 01: two broad corners, then a choice between braking at RESTORE
+// and travelling into the side bay for a fragment. No invisible boundaries.
+const WALLS = [
+  { x: 32, y: 126, w: 896, h: 14, kind: "outer" },
+  { x: 32, y: 498, w: 896, h: 14, kind: "outer" },
+  { x: 32, y: 126, w: 14, h: 386, kind: "outer" },
+  { x: 914, y: 126, w: 14, h: 386, kind: "outer" },
+  { x: 46, y: 140, w: 264, h: 212, kind: "divider" },
+  { x: 490, y: 310, w: 240, h: 188, kind: "divider" },
 ];
 
-function seededRandom(seed) {
-  let value = seed >>> 0;
-  return () => {
-    value = (value * 1664525 + 1013904223) >>> 0;
-    return value / 4294967296;
-  };
-}
-
-function createMaze(seed = 20260328) {
-  const random = seededRandom(seed);
-  const cells = Array.from({ length: MAZE.rows }, (_, row) =>
-    Array.from({ length: MAZE.columns }, (_, column) => ({
-      column,
-      row,
-      visited: false,
-      walls: { up: true, right: true, down: true, left: true },
-    })),
-  );
-
-  const start = cells[START_CELL.row][START_CELL.column];
-  start.visited = true;
-  const stack = [start];
-
-  while (stack.length > 0) {
-    const current = stack[stack.length - 1];
-    const candidates = DIRECTIONS
-      .map((direction) => ({
-        direction,
-        column: current.column + direction.dc,
-        row: current.row + direction.dr,
-      }))
-      .filter(({ column, row }) =>
-        column >= 0 && column < MAZE.columns && row >= 0 && row < MAZE.rows && !cells[row][column].visited,
-      );
-
-    if (candidates.length === 0) {
-      stack.pop();
-      continue;
-    }
-
-    const nextChoice = candidates[Math.floor(random() * candidates.length)];
-    const next = cells[nextChoice.row][nextChoice.column];
-    current.walls[nextChoice.direction.key] = false;
-    next.walls[nextChoice.direction.opposite] = false;
-    next.visited = true;
-    stack.push(next);
-  }
-
-  return cells;
-}
-
-const MAZE_CELLS = createMaze();
-
-function makeWallRectangles(cells) {
-  const walls = [];
-  const { x, y, cell, wall, columns, rows } = MAZE;
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const current = cells[row][column];
-      const left = x + column * cell;
-      const top = y + row * cell;
-
-      if (row === 0 && current.walls.up) {
-        walls.push({ x: left - wall / 2, y: top - wall / 2, w: cell + wall, h: wall, kind: "outer" });
-      }
-      if (column === 0 && current.walls.left) {
-        walls.push({ x: left - wall / 2, y: top - wall / 2, w: wall, h: cell + wall, kind: "outer" });
-      }
-      if (current.walls.right) {
-        walls.push({
-          x: left + cell - wall / 2,
-          y: top - wall / 2,
-          w: wall,
-          h: cell + wall,
-          kind: column === columns - 1 ? "outer" : "hedge",
-        });
-      }
-      if (current.walls.down) {
-        walls.push({
-          x: left - wall / 2,
-          y: top + cell - wall / 2,
-          w: cell + wall,
-          h: wall,
-          kind: row === rows - 1 ? "outer" : "hedge",
-        });
-      }
-    }
-  }
-  return walls;
-}
-
-const WALLS = makeWallRectangles(MAZE_CELLS);
-
-function solutionCells(cells, start = START_CELL, goal = GOAL_CELL) {
-  const startKey = `${start.column},${start.row}`;
-  const goalKey = `${goal.column},${goal.row}`;
-  const queue = [start];
-  const previous = new Map([[startKey, null]]);
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    const currentKey = `${current.column},${current.row}`;
-    if (currentKey === goalKey) break;
-    const cell = cells[current.row][current.column];
-
-    for (const direction of DIRECTIONS) {
-      if (cell.walls[direction.key]) continue;
-      const next = { column: current.column + direction.dc, row: current.row + direction.dr };
-      const key = `${next.column},${next.row}`;
-      if (previous.has(key)) continue;
-      previous.set(key, current);
-      queue.push(next);
-    }
-  }
-
-  const path = [];
-  let cursor = goal;
-  while (cursor) {
-    path.unshift(cursor);
-    cursor = previous.get(`${cursor.column},${cursor.row}`);
-  }
-  return path;
-}
-
-function directionBetween(from, to) {
-  if (to.column > from.column) return "right";
-  if (to.column < from.column) return "left";
-  if (to.row > from.row) return "down";
-  return "up";
-}
-
-function compressRoute(path) {
-  if (path.length < 2) return [];
-  const route = [];
-  let currentDirection = directionBetween(path[0], path[1]);
-
-  for (let index = 2; index < path.length; index += 1) {
-    const nextDirection = directionBetween(path[index - 1], path[index]);
-    if (nextDirection !== currentDirection) {
-      route.push({ ...cellCenter(path[index - 1]), input: currentDirection });
-      currentDirection = nextDirection;
-    }
-  }
-  route.push({ ...cellCenter(path[path.length - 1]), input: currentDirection });
-  return route;
-}
-
-const SOLUTION_CELLS = solutionCells(MAZE_CELLS);
-const ROUTE = compressRoute(SOLUTION_CELLS);
-const RECOMMENDED_INPUTS = ROUTE.length;
-
+const ROUTE = [
+  { x: 400, y: 450, input: "right" },
+  { x: 400, y: 215, input: "up" },
+  { ...GOAL, input: "right" },
+];
+const FRAGMENT_ROUTE = [
+  ...ROUTE.slice(0, 2),
+  { x: 830, y: 215, input: "right" },
+  { x: 830, y: 420, input: "down" },
+  { x: 830, y: 215, input: "up" },
+  { ...GOAL, input: "left" },
+];
 
 
 /* Source: physics-core.mjs */
@@ -415,6 +262,8 @@ function createBallState() {
     multiplier: 1,
     collisions: 0,
     touchingWall: false,
+    wallContacts: new Set(),
+    impactCooldown: 0,
   };
 }
 
@@ -442,7 +291,7 @@ function resolveCircleRect(state, rect) {
   const radiusSq = BALL_RADIUS * BALL_RADIUS;
   let distanceSq = dx * dx + dy * dy;
 
-  if (distanceSq >= radiusSq) return false;
+  if (distanceSq >= radiusSq) return null;
 
   let nx;
   let ny;
@@ -472,10 +321,11 @@ function resolveCircleRect(state, rect) {
     state.vx -= velocityIntoWall * nx;
     state.vy -= velocityIntoWall * ny;
   }
-  return true;
+  return Math.max(0, -velocityIntoWall);
 }
 
 function stepBall(state, dt, walls = WALLS) {
+  state.impactCooldown = Math.max(0, state.impactCooldown - dt);
   const vector = DIRECTION_VECTORS[state.input] ?? { x: 0, y: 0 };
   const acceleration = PHYSICS.baseAcceleration * state.multiplier;
   const drag = dragForPresses(state.presses);
@@ -497,18 +347,30 @@ function stepBall(state, dt, walls = WALLS) {
   state.y += state.vy * dt;
 
   let frameCollisions = 0;
+  let newImpactSpeed = 0;
   for (let pass = 0; pass < 3; pass += 1) {
     let resolved = false;
     for (const wall of walls) {
-      if (resolveCircleRect(state, wall)) {
+      const impactSpeed = resolveCircleRect(state, wall);
+      if (impactSpeed !== null) {
         resolved = true;
         frameCollisions += 1;
+        if (!state.wallContacts.has(wall)) newImpactSpeed = Math.max(newImpactSpeed, impactSpeed);
       }
     }
     if (!resolved) break;
   }
-  if (frameCollisions > 0 && !state.touchingWall) state.collisions += 1;
-  state.touchingWall = frameCollisions > 0;
+  if (newImpactSpeed >= PHYSICS.wallImpactMinSpeed && state.impactCooldown <= 0) {
+    state.collisions += 1;
+    state.impactCooldown = PHYSICS.wallImpactCooldown;
+  }
+  // Exact edge contact stays latched until the ball actually leaves the wall.
+  state.wallContacts = new Set(walls.filter((wall) => {
+    const nearX = Math.max(wall.x, Math.min(state.x, wall.x + wall.w));
+    const nearY = Math.max(wall.y, Math.min(state.y, wall.y + wall.h));
+    return Math.hypot(state.x - nearX, state.y - nearY) <= BALL_RADIUS + 0.5;
+  }));
+  state.touchingWall = state.wallContacts.size > 0;
   return frameCollisions;
 }
 
@@ -566,7 +428,7 @@ function createProgressStore(stageIds, storage = null) {
 /* Source: fragments.mjs */
 // Initial placements only. Change these independently of the physics and maps.
 const MEMORY_FRAGMENTS = Object.freeze({
-  maze: { x: 864, y: 206, radius: 12, hint: "샛길의 조각에 접촉" },
+  maze: { x: 830, y: 420, radius: 14, hint: "오른쪽 조각 획득 후 귀환" },
   gravity: { x: 85, y: 387, radius: 12, hint: "첫 발판 왼쪽의 조각에 접촉" },
   bounce: { x: 550, y: 400, radius: 14, hint: "공으로 조각에 접촉" },
   recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
@@ -695,6 +557,8 @@ class ArchiveGame extends Phaser.Scene {
     this.stageId = id;
     this.mode = "ready";
     this.remaining = PHYSICS.timeLimit;
+    this.elapsed = 0;
+    this.timePenalty = 0;
     this.pausedByMenu = false;
     this.children.removeAll(true);
     this.tweens.killAll();
@@ -781,6 +645,8 @@ class ArchiveGame extends Phaser.Scene {
       risk: this.risk ?? 0,
       fragmentCollected: this.fragmentCollected,
       fragmentHint: this.fragment?.hint,
+      wallHits: this.stageId === "maze" ? this.state.ball.collisions : null,
+      timePenalty: this.timePenalty,
     });
   }
 
@@ -799,6 +665,7 @@ class ArchiveGame extends Phaser.Scene {
     this.readKeyboard();
     if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
+    this.elapsed += Math.min(this.remaining, deltaMs / 1000);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
     if (this.remaining <= 0) { this.finish(false); this.sendHud(); return; }
     const previous = this.fragmentBody();
@@ -860,7 +727,8 @@ class ArchiveGame extends Phaser.Scene {
     if (success) this.flash(220, 147, 252, 160);
     emit("archive-stage-end", {
       success,
-      elapsed: PHYSICS.timeLimit - this.remaining,
+      elapsed: this.elapsed,
+      timePenalty: this.timePenalty,
       actions: this.actions ?? 0,
       extra,
       fragmentCollected: this.fragmentCollected,
@@ -909,6 +777,15 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "안정";
     this.drawWalls(WALLS, 0x164d48, 0x4ca78f);
     this.drawGoal(GOAL.x, GOAL.y, GOAL.radius);
+    const guide = this.add.graphics().setDepth(1);
+    guide.lineStyle(2, 0x56ddfb, 0.2).beginPath().moveTo(START.x, START.y)
+      .lineTo(400, 450).lineTo(400, 215).lineTo(GOAL.x, GOAL.y).strokePath();
+    guide.lineStyle(2, 0xffd27c, 0.2).beginPath().moveTo(740, 215).lineTo(830, 215).lineTo(830, 390).strokePath();
+    this.add.text(175, 405, "01  HOLD →", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(395, 370, "02  TURN ↑", { fontFamily: "monospace", fontSize: "13px", color: "#78bdc8" }).setOrigin(0.5);
+    this.add.text(660, 165, "BRAKE TO RESTORE", { fontFamily: "monospace", fontSize: "12px", color: "#93fca0" }).setOrigin(0.5);
+    this.add.text(825, 270, "MEMORY ↓", { fontFamily: "monospace", fontSize: "12px", color: "#ffd27c" }).setOrigin(0.5);
+    this.add.text(180, 230, "벽 충돌 −1.00초\n반대 방향으로 제동", { fontFamily: "sans-serif", fontSize: "16px", color: "#e1c29a", align: "center", lineSpacing: 8 }).setOrigin(0.5).setDepth(3);
     this.state = {
       ball: createBallState(),
       goalHold: 0,
@@ -935,7 +812,20 @@ class ArchiveGame extends Phaser.Scene {
 
   updateMaze(dt) {
     const state = this.state;
+    const previousHits = state.ball.collisions;
     stepBall(state.ball, dt);
+    if (state.ball.collisions > previousHits) {
+      this.timePenalty += PHYSICS.wallPenaltySeconds;
+      this.remaining = Math.max(0, this.remaining - PHYSICS.wallPenaltySeconds);
+      const penalty = this.add.text(clamp(state.ball.x, 85, WIDTH - 85), clamp(state.ball.y - 30, 155, HEIGHT - 60), "−1.00s", {
+        fontFamily: "monospace", fontSize: "25px", color: "#ff947d", stroke: "#07141d", strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(10);
+      this.tweens.add({ targets: penalty, y: penalty.y - 22, alpha: 0, delay: 250, duration: 500, onComplete: () => penalty.destroy() });
+      emit("archive-wall-hit", { seconds: PHYSICS.wallPenaltySeconds });
+      emit("archive-sfx", { name: "warning" });
+      this.shake(90, 0.003);
+      if (this.remaining <= 0) { this.finish(false); return; }
+    }
     state.trail.unshift({ x: state.ball.x, y: state.ball.y });
     state.trail.length = Math.min(14, 4 + Math.floor(state.ball.multiplier * 3));
     this.trailGraphics.clear();
