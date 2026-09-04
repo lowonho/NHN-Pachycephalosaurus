@@ -33,7 +33,9 @@ button {
 }
 
 .app-shell {
-  width: min(1920px, calc(100% - 32px));
+  /* 넓고 낮은 데스크톱 창에서도 전체 조작부가 세로 화면 안에 들어오게 한다. */
+  width: min(1920px, calc(100% - 32px), 120vh);
+  width: min(1920px, calc(100% - 32px), 120dvh);
   margin: 0 auto;
   padding: 24px 0 40px;
 }

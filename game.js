@@ -10,6 +10,8 @@ const PLAYER_START_X = 218;
 const PLAYER_START_Y = FLOOR_Y - PLAYER_HEIGHT / 2;
 
 const ui = {
+  appShell: document.querySelector(".app-shell"),
+  gameContainer: document.querySelector("#game-container"),
   modal: document.querySelector("#setup-modal"),
   modalStep: document.querySelector("#modal-step"),
   modalTitle: document.querySelector("#modal-title"),
@@ -25,6 +27,23 @@ const ui = {
   helpToggle: document.querySelector("#help-toggle"),
   helpCopy: document.querySelector("#help-copy"),
 };
+
+function fitGameToViewport() {
+  // 가로폭만 기준으로 16:9 화면을 키우면 넓고 낮은 창에서 조작부가
+  // 화면 밖으로 밀린다. 실제 부가 UI 높이를 제외한 공간에 게임을 맞춘다.
+  ui.appShell.style.width = "";
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const nonGameHeight = ui.appShell.scrollHeight - ui.gameContainer.offsetHeight;
+    const availableGameHeight = Math.max(180, window.innerHeight - nonGameHeight - 4);
+    const fittedWidth = Math.min(
+      GAME_WIDTH,
+      window.innerWidth - 32,
+      availableGameHeight * (16 / 9),
+    );
+    ui.appShell.style.width = `${Math.max(320, fittedWidth)}px`;
+  }
+}
 
 class VoiceController {
   constructor() {
@@ -237,6 +256,7 @@ class VoiceController {
       this.recognition.start();
       return true;
     } catch (_) {
+      this.shouldRecognize = false;
       return false;
     }
   }
@@ -265,6 +285,13 @@ class VoiceController {
   stopRecognition() {
     this.shouldRecognize = false;
     try { this.recognition?.stop(); } catch (_) { /* no-op */ }
+    this.recognition = null;
+    this.commandHandler = null;
+  }
+
+  resetCommandState() {
+    this.lastTrigger.clear();
+    this.recentPitches = [];
   }
 }
 
@@ -276,6 +303,11 @@ class GeojeStage extends Phaser.Scene {
     super("GeojeStage");
     this.state = "WAITING";
     this.moveDirection = 0;
+  }
+
+  init(data = {}) {
+    this.autoStart = Boolean(data.autoStart);
+    this.autoStartVoiceEnabled = Boolean(data.voiceEnabled);
   }
 
   preload() {
@@ -395,6 +427,10 @@ class GeojeStage extends Phaser.Scene {
     // 설정 화면이 떠 있는 동안 캐릭터가 먼저 떨어지지 않게 고정한다.
     this.physics.pause();
     this.syncPlayerVisuals();
+
+    if (this.autoStart) {
+      this.time.delayedCall(0, () => this.startStage(this.autoStartVoiceEnabled));
+    }
   }
 
   createObstacle(x, y, width, height, color, label) {
@@ -414,6 +450,7 @@ class GeojeStage extends Phaser.Scene {
   }
 
   startStage(voiceEnabled = true) {
+    voice.resetCommandState();
     this.state = "PLAYING";
     this.voiceEnabled = voiceEnabled && Boolean(voice.stream);
     this.moveDirection = 0;
@@ -520,7 +557,7 @@ class GeojeStage extends Phaser.Scene {
     this.cameras.main.flash(220, 255, 255, 255);
     const elapsed = ((performance.now() - this.startedAt) / 1000).toFixed(2);
     setSystemStatus(true, `CLEAR · ${elapsed}초`);
-    window.setTimeout(() => showResult(true, elapsed), 500);
+    this.resultTimeout = window.setTimeout(() => showResult(true, elapsed), 500);
   }
 
   failStage() {
@@ -529,16 +566,18 @@ class GeojeStage extends Phaser.Scene {
     voice.stopRecognition();
     this.moveDirection = 0;
     this.player.setVelocity(0, 0);
+    this.physics.pause();
     this.cameras.main.shake(240, 0.008);
     setSystemStatus(false, "TIME OVER");
-    window.setTimeout(() => showResult(false), 500);
+    this.resultTimeout = window.setTimeout(() => showResult(false), 500);
   }
 
   restartStage() {
+    window.clearTimeout(this.resultTimeout);
     voice.stopRecognition();
     const voiceEnabled = this.voiceEnabled;
-    this.scene.restart();
-    window.setTimeout(() => activeScene?.startStage(voiceEnabled), 120);
+    ui.modal.classList.add("hidden");
+    this.scene.restart({ autoStart: true, voiceEnabled });
   }
 }
 
@@ -675,9 +714,15 @@ ui.helpToggle.addEventListener("click", () => {
   const expanded = ui.helpToggle.getAttribute("aria-expanded") === "true";
   ui.helpToggle.setAttribute("aria-expanded", String(!expanded));
   ui.helpCopy.hidden = expanded;
+  fitGameToViewport();
 });
 
+fitGameToViewport();
+window.addEventListener("resize", fitGameToViewport);
+document.fonts?.ready.then(fitGameToViewport);
+
 window.addEventListener("beforeunload", () => {
+  window.removeEventListener("resize", fitGameToViewport);
   voice.stopRecognition();
   cancelAnimationFrame(voice.animationFrame);
   voice.stream?.getTracks().forEach((track) => track.stop());
