@@ -23,15 +23,18 @@ class HudView {
 
     this.stageLabel = scene.add
       .text(hud.stageLabel.x, hud.stageLabel.y, STRINGS.stage.label, this.theme.label(this.theme.text.stageLabel))
+      .setScrollFactor(0)
       .setDepth(this.theme.depth.hud);
 
     this.goalLabel = scene.add
       .text(hud.goalLabel.x, hud.goalLabel.y, STRINGS.stage.goal, this.theme.label(this.theme.text.goalLabel))
+      .setScrollFactor(0)
       .setDepth(this.theme.depth.hud);
 
     this.timerText = scene.add
       .text(hud.timer.x, hud.timer.y, this.format(BALANCE.stage.timeMs), this.theme.label(this.theme.text.timer))
       .setOrigin(hud.timer.originX, hud.timer.originY)
+      .setScrollFactor(0)
       .setDepth(this.theme.depth.hud);
   }
 

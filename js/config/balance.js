@@ -46,4 +46,18 @@ const BALANCE = Object.freeze({
     outlierLowRatio: 0.72,
     outlierHighRatio: 1.38,
   }),
+
+  // 거제 야호 스테이지 전용. 공통 물리·타이머·음성 값은 위 설정을 그대로 쓴다.
+  geoje: Object.freeze({
+    slipperyDragX: 260,
+    fishingDurationMs: 1500,
+    fallRecoveryMs: 340,
+    netStunMs: 430,
+    netCooldownMs: 1000,
+    netKnockbackX: -145,
+    netKnockbackY: -230,
+    movingPlatformPeriodMs: 2900,
+    tiltDelayMs: 520,
+    tiltSlideSpeed: 430,
+  }),
 });

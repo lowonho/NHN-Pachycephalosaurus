@@ -70,8 +70,8 @@ const STRINGS = Object.freeze({
   }),
 
   stage: Object.freeze({
-    label: "STAGE 01  ·  GEOJE",
-    goal: "포토존 안에서 오이쉬이를 외쳐!",
+    label: "STAGE 01  ·  거제 야호!",
+    goal: "낚여서 포토존까지 · 안에서 오이쉬이!",
     photoZone: "PHOTO\nZONE",
     obstacleTier: Object.freeze({ LOW: "LOW", HIGH: "HIGH" }),
   }),

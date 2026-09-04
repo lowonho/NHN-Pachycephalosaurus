@@ -57,6 +57,21 @@ class PlayerView {
 
     this.bubbleText = scene.add.text(0, 0, "", this.theme.label(this.theme.text.bubble)).setOrigin(0.5);
     this.bubble.add([backdrop, this.bubbleText]);
+
+    const face = ({ direction }) => this.setFacing(direction);
+    const dance = () => this.playFishingDance();
+    const fall = () => this.icon?.setAlpha(0);
+    const recover = () => this.playRecovery();
+    scene.events.on(GEOJE_STAGE_EVENTS.FACING, face);
+    scene.events.on(GEOJE_STAGE_EVENTS.FISHING_START, dance);
+    scene.events.on(GEOJE_STAGE_EVENTS.FALL_START, fall);
+    scene.events.on(GEOJE_STAGE_EVENTS.FALL_COMPLETE, recover);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.events.off(GEOJE_STAGE_EVENTS.FACING, face);
+      scene.events.off(GEOJE_STAGE_EVENTS.FISHING_START, dance);
+      scene.events.off(GEOJE_STAGE_EVENTS.FALL_START, fall);
+      scene.events.off(GEOJE_STAGE_EVENTS.FALL_COMPLETE, recover);
+    });
   }
 
   sync(payload) {
@@ -65,10 +80,43 @@ class PlayerView {
 
     this.glow.setPosition(payload.x, payload.y);
     this.icon.setPosition(payload.x, payload.y + player.iconOffsetY);
-    if (payload.velocityX) this.lastDirection = payload.velocityX >= 0 ? 1 : -1;
+    if (payload.velocityX) this.setFacing(payload.velocityX >= 0 ? 1 : -1);
     if (this.bubble.alpha > 0) {
       this.bubble.setPosition(payload.x, payload.y + player.bubbleOffsetY);
     }
+  }
+
+  setFacing(direction) {
+    if (!this.icon || !direction) return;
+    this.lastDirection = direction >= 0 ? 1 : -1;
+    this.icon.setFlipX(this.lastDirection < 0);
+  }
+
+  playFishingDance() {
+    if (!this.icon) return;
+    this.scene.tweens.killTweensOf(this.icon);
+    this.scene.tweens.add({
+      targets: this.icon,
+      angle: { from: -14, to: 14 },
+      scaleX: { from: 0.94, to: 1.08 },
+      scaleY: { from: 1.08, to: 0.94 },
+      duration: 150,
+      yoyo: true,
+      repeat: 4,
+      onComplete: () => this.icon?.setAngle(0).setScale(1),
+    });
+  }
+
+  playRecovery() {
+    if (!this.icon) return;
+    this.icon.setAlpha(1).setScale(0.75);
+    this.scene.tweens.add({
+      targets: this.icon,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 180,
+      ease: "Back.easeOut",
+    });
   }
 
   playJump(payload) {
