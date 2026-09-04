@@ -40,8 +40,11 @@
 .settings-dialog {
   position: relative;
   width: min(560px, 100%);
-  /* 타이틀 알약이 프레임 위로 절반쯤 걸쳐 나오는 만큼 위를 비워 둔다. */
-  padding-top: 34px;
+  /*
+   * 알약(높이 68) 중 프레임 위로 삐져나오는 만큼만 비운다.
+   * 나머지 42px은 프레임 윗변에 겹친다 — 컨셉 이미지와 같은 비율이다.
+   */
+  padding-top: 26px;
 }
 
 /* 화면을 열 때 포커스를 받는 자리일 뿐이라 테두리는 그리지 않는다. */
@@ -95,8 +98,7 @@
 /* ── 프레임 ─────────────────────────────────────────────────────────── */
 
 .settings-frame {
-  /* 알약 높이의 절반만큼 내려서 프레임 윗변에 걸치게 한다. */
-  margin-top: 34px;
+  /* 프레임은 다이얼로그 padding-top 바로 아래에서 시작한다(알약이 그 위를 덮는다). */
   padding: clamp(6px, 1.4vh, 12px) clamp(2px, 1.2vw, 10px) 2px;
   border: clamp(26px, 7.2vw, 38px) solid transparent;
   /* 별 띠는 stretch로 늘리면 길쭉해지므로 round로 타일링한다. */
@@ -429,10 +431,6 @@
   }
 
   .settings-dialog {
-    padding-top: 30px;
-  }
-
-  .settings-frame {
-    margin-top: 30px;
+    padding-top: 23px;
   }
 }
