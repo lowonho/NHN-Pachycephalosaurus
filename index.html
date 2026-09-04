@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="목소리로 움직여 20.26초 안에 포토존에 도착하는 Phaser 3 웹게임"
+    />
+    <title>거제 야호! — 20.26초 음성 액션</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">2026 × 20.26 VOICE ACTION</p>
+          <h1>거제 <span>야호!</span></h1>
+        </div>
+        <div class="system-status" aria-live="polite">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-label">마이크 연결 전</span>
+        </div>
+      </header>
+
+      <section class="game-card" aria-label="거제 야호 게임">
+        <div id="game-container"></div>
+
+        <div class="pitch-panel" aria-label="현재 목소리 높이">
+          <div class="pitch-copy">
+            <span>VOICE PITCH</span>
+            <strong id="pitch-label">READY</strong>
+          </div>
+          <div class="pitch-track" aria-hidden="true">
+            <span class="pitch-zone low">LOW</span>
+            <span class="pitch-zone mid">MID</span>
+            <span class="pitch-zone high">HIGH</span>
+            <i id="pitch-needle"></i>
+          </div>
+        </div>
+
+        <div class="command-deck" aria-label="음성 명령어">
+          <article class="command command-left">
+            <b>오이데</b>
+            <span>← 왼쪽</span>
+          </article>
+          <article class="command command-jump">
+            <b>야호!</b>
+            <span>↑ 점프 · 높게 말할수록 높이</span>
+          </article>
+          <article class="command command-stop">
+            <b>마떼루요</b>
+            <span>■ 정지</span>
+          </article>
+          <article class="command command-right">
+            <b>파라파라</b>
+            <span>→ 오른쪽</span>
+          </article>
+        </div>
+      </section>
+
+      <button class="help-toggle" id="help-toggle" type="button" aria-expanded="false">
+        마이크가 안 될 때 · 키보드 테스트
+      </button>
+      <div class="help-copy" id="help-copy" hidden>
+        Chrome 데스크톱을 권장합니다. 마이크가 지원되지 않으면
+        <kbd>←</kbd><kbd>→</kbd> 이동, <kbd>Space</kbd> 점프,
+        <kbd>S</kbd> 정지로 테스트할 수 있습니다.
+      </div>
+    </main>
+
+    <div class="modal-backdrop" id="setup-modal">
+      <section class="modal" aria-labelledby="modal-title">
+        <p class="modal-step" id="modal-step">STAGE 01</p>
+        <h2 id="modal-title">목소리로 포토존까지!</h2>
+        <p id="modal-copy">
+          먼저 편안한 중간음을 측정합니다. 측정된 목소리를 기준으로
+          낮은 음·중간 음·높은 음을 나눠 점프 높이에 반영해요.
+        </p>
+        <div class="calibration-visual" id="calibration-visual" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <p class="calibration-result" id="calibration-result"></p>
+        <button class="primary-button" id="primary-button" type="button">
+          마이크 연결하고 시작
+        </button>
+        <button class="secondary-button" id="secondary-button" type="button" data-action="keyboard">
+          마이크 없이 키보드로 테스트
+        </button>
+        <p class="privacy-note">음성은 저장하지 않으며 현재 플레이에만 사용합니다.</p>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>
