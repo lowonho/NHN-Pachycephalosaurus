@@ -147,6 +147,13 @@ class DujjonkuScene extends Phaser.Scene {
     block("wood", 1745, 708, { angle: 90 });
     block("wood", 1658, 628, { scaleX: 1.46 });
     monster(1658, 563);
+
+    // Keep the objective derived from the objects that were actually created so
+    // adding more monsters or blocks to later stages needs no clear-rule change.
+    this.totalBlocks = this.blocks.length;
+    this.totalMonsters = this.monsters.length;
+    this.remainingBlocks = this.totalBlocks;
+    this.remainingMonsters = this.totalMonsters;
   }
 
   createHud() {
@@ -174,10 +181,10 @@ class DujjonkuScene extends Phaser.Scene {
     this.waveGraphics = this.add.graphics().setDepth(27);
 
     this.statsPanel = this.add.graphics().setDepth(23);
-    this.statsPanel.fillStyle(0xfff8ec, .95).fillRoundedRect(1515, 875, 350, 170, 30);
-    this.statsPanel.lineStyle(5, 0xee9ab4).strokeRoundedRect(1515, 875, 350, 170, 30);
-    this.statsText = this.add.text(1545, 895, "", {
-      fontFamily: "Gowun Dodum, sans-serif", fontStyle: "bold", fontSize: "29px", color: "#85546b", lineSpacing: 12,
+    this.statsPanel.fillStyle(0xfff8ec, .95).fillRoundedRect(1515, 835, 350, 210, 30);
+    this.statsPanel.lineStyle(5, 0xee9ab4).strokeRoundedRect(1515, 835, 350, 210, 30);
+    this.statsText = this.add.text(1545, 853, "", {
+      fontFamily: "Gowun Dodum, sans-serif", fontStyle: "bold", fontSize: "26px", color: "#85546b", lineSpacing: 8,
     }).setDepth(26);
     this.statusText = this.add.text(960, 175, "마이크 준비 중… 주변 소음을 측정합니다", {
       fontFamily: "Gowun Dodum, sans-serif", fontStyle: "bold", fontSize: "28px", color: "#69485c",
@@ -464,8 +471,10 @@ class DujjonkuScene extends Phaser.Scene {
   destroyBlock(block) {
     if (!block.active || block.getData("destroyed")) return;
     block.setData("destroyed", true);
+    this.remainingBlocks = Math.max(0, this.remainingBlocks - 1);
     this.spawnBurst(block.x, block.y, block.getData("blockType") === "stone" ? 0x9ba9ba : 0xd99555, 8);
     block.destroy();
+    this.checkClearCondition();
   }
 
   damageMonster(monster, impact, other) {
@@ -480,9 +489,15 @@ class DujjonkuScene extends Phaser.Scene {
   removeMonster(monster) {
     if (!monster.active || monster.getData("destroyed")) return;
     monster.setData("destroyed", true);
+    this.remainingMonsters = Math.max(0, this.remainingMonsters - 1);
     this.spawnBurst(monster.x, monster.y, 0xb8d96b, 14);
     monster.destroy();
-    if (this.monsters.every((item) => !item.active || item.getData("destroyed"))) this.clearStage();
+    this.checkClearCondition();
+  }
+
+  checkClearCondition() {
+    if (this.ended) return;
+    if (this.remainingMonsters === 0 && this.remainingBlocks === 0) this.clearStage();
   }
 
   spawnBurst(x, y, color, count) {
@@ -537,7 +552,27 @@ class DujjonkuScene extends Phaser.Scene {
         this.chargePercent = 100;
         this.fireProjectile();
       });
+    } else if (autoVoice === "clear-check") {
+      this.time.delayedCall(500, () => this.runClearConditionDebug());
     }
+  }
+
+  runClearConditionDebug() {
+    const report = (step) => console.info("[두쫀쿠 클리어 조건 진단]", JSON.stringify({
+      step,
+      ended: this.ended,
+      remainingMonsters: this.remainingMonsters,
+      remainingBlocks: this.remainingBlocks,
+    }));
+    report("initial");
+    this.removeMonster(this.monsters[0]);
+    report("one-monster-destroyed");
+    this.monsters.slice(1).forEach((monster) => this.removeMonster(monster));
+    report("all-monsters-destroyed");
+    this.blocks.slice(0, -1).forEach((block) => this.destroyBlock(block));
+    report("one-block-left");
+    this.destroyBlock(this.blocks[this.blocks.length - 1]);
+    report("all-targets-destroyed");
   }
 
   update(time, delta) {
@@ -704,7 +739,10 @@ class DujjonkuScene extends Phaser.Scene {
       if (index === 0) this.waveGraphics.moveTo(x, y); else this.waveGraphics.lineTo(x, y);
     });
     this.waveGraphics.strokePath();
-    this.statsText.setText(`각도   ${Math.round(this.currentAngle)}°\n장력   ${Math.round(this.chargePercent)}%\n남은 횟수   ${this.shotsLeft}`);
+    this.statsText.setText(
+      `각도   ${Math.round(this.currentAngle)}°\n장력   ${Math.round(this.chargePercent)}%\n` +
+      `남은 횟수   ${this.shotsLeft}\n목표   젤리 ${this.remainingMonsters} · 블록 ${this.remainingBlocks}`,
+    );
   }
 
   updateStateHud() {
