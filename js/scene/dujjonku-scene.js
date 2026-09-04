@@ -325,7 +325,7 @@ class DujjonkuScene extends Phaser.Scene {
       null,
       {
         shape: { type: "circle", radius: 27 },
-        density: .0048,
+        density: .0038,
         restitution: .52,
         friction: .28,
         frictionAir: .004,
@@ -400,7 +400,7 @@ class DujjonkuScene extends Phaser.Scene {
     const speed = Math.hypot(sourceVelocity.x, sourceVelocity.y) || 1;
     const type = block.getData("blockType");
     const mobility = { wood: 1, star: .82, stone: .24 }[type] || .7;
-    const force = Phaser.Math.Clamp((.012 + impact * .00075) * mobility, .003, .038);
+    const force = Phaser.Math.Clamp((.01 + impact * .00062) * mobility, .003, .028);
     block.applyForce({
       x: sourceVelocity.x / speed * force,
       y: sourceVelocity.y / speed * force - .0015 * mobility,
@@ -452,10 +452,10 @@ class DujjonkuScene extends Phaser.Scene {
   damageMonster(monster, impact, other) {
     if (monster.getData("destroyed") || impact < 3) return;
     const source = other?.getData?.("kind");
-    const damage = impact * (source === "projectile" ? 5 : 3.2);
+    const damage = impact * (source === "projectile" ? 3 : 1.8);
     monster.setData("hp", monster.getData("hp") - damage);
     this.tweens.add({ targets: monster, scaleX: 1.22, scaleY: .78, duration: 75, yoyo: true });
-    if (monster.getData("hp") <= 0 || impact > 9.5) this.removeMonster(monster);
+    if (monster.getData("hp") <= 0 || impact > 18) this.removeMonster(monster);
   }
 
   removeMonster(monster) {

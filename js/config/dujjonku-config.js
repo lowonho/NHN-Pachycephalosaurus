@@ -15,8 +15,8 @@ const DUJJONKU_CONFIG = Object.freeze({
     minAngle: 22,
     maxAngle: 58,
     angleSweepMs: 3100,
-    minPower: 14,
-    maxPower: 32,
+    minPower: 13.5,
+    maxPower: 30,
   }),
   voice: Object.freeze({
     fftSize: 1024,

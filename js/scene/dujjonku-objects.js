@@ -85,6 +85,6 @@ function addDujjonkuMonster(scene, x, y) {
     restitution: 0.34,
   });
   monster.setDataEnabled();
-  monster.setData({ kind: "monster", hp: 45, destroyed: false });
+  monster.setData({ kind: "monster", hp: 68, destroyed: false });
   return monster;
 }
