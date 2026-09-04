@@ -76,6 +76,19 @@ try {
   await evaluate("document.querySelector('#main-play-button').click()");
   await screen("records");
   const start = async (stage) => evaluate(`mainMenuFlow.startStage(${JSON.stringify(stage)}); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
+  const continueToRecords = async () => {
+    const saved = await evaluate("window.archiveProgress.summary()");
+    await evaluate("document.querySelector('#result-continue-button').click()");
+    assert.deepEqual(await evaluate(`({
+      resultHidden: UI.modal.classList.contains('hidden'),
+      recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
+      gameLocked: UI.appShell.hasAttribute('inert'),
+      hudHidden: UI.stageHud.hidden,
+      stopped: testScene.mode === 'idle',
+      cardFocused: Boolean(document.activeElement?.dataset.stageId),
+    })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
+    assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
+  };
   await start("maze");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
   await screen("gameplay");
@@ -86,6 +99,16 @@ try {
   await evaluate("archiveGameBridge.resume(); testScene.finish(true)");
   assert.equal(await evaluate("UI.modalTitle.textContent"), "PARTIALLY RESTORED");
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "PARTIALLY RESTORED");
+  await continueToRecords();
+  await evaluate("document.querySelector('[data-stage-id=gravity]').click()");
+  assert.equal(await evaluate("testScene.stageId"), "gravity");
+  assert.equal(await evaluate("testScene.mode"), "playing");
+  await evaluate("testScene.finish(false); document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate("testScene.stageId"), "gravity");
+  assert.equal(await evaluate("testScene.remaining"), 20.26);
+  await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click()");
+  assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
+  assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
     await start(stage);
     assert.equal(await evaluate("testScene.fragmentCollected"), false, `${stage}: retry resets fragment`);
@@ -111,11 +134,12 @@ try {
   assert.equal(await evaluate("window.archiveProgress.summary().recoveryRate"), 100);
   assert.equal(await evaluate("window.archiveProgress.summary().ending"), "complete");
   await screen("result");
+  await continueToRecords();
   await start("maze");
   await evaluate("testScene.state.ball.x = testScene.fragment.x; testScene.state.ball.y = testScene.fragment.y; testScene.update(0, 16); testScene.remaining = 0.001; testScene.update(0, 16)");
   assert.equal(await evaluate("UI.modalTitle.textContent"), "RECORD LOST");
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
-  await evaluate("modalFlow.onSecondary(); document.querySelector('#main-play-button').click()");
+  await continueToRecords();
   await screen("restored-records");
   await send("Page.reload");
   await wait(1200);
@@ -127,7 +151,7 @@ try {
   assert.equal(await evaluate("Boolean(window.archiveGame)"), true);
   assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
   assert.deepEqual(errors, []);
-  console.log("PASS | browser: 7 physical pickup adapters, result/UI integration, timeout, retry reset, pause, reload persistence, file:// boot, no runtime errors");
+  console.log("PASS | browser: continue after partial/full/failure, select another chapter, retry/main navigation, 7 pickups, timeout, pause, persistence, file:// boot, no runtime errors");
 } finally {
   socket?.close();
   browser.kill();

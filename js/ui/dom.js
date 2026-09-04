@@ -41,6 +41,7 @@ const UI = Object.freeze({
   modalTitle: document.querySelector("#modal-title"),
   modalCopy: document.querySelector("#modal-copy"),
   modalResult: document.querySelector("#modal-result"),
+  resultContinueButton: document.querySelector("#result-continue-button"),
   primaryButton: document.querySelector("#primary-button"),
   secondaryButton: document.querySelector("#secondary-button"),
 

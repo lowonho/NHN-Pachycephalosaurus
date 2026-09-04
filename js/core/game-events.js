@@ -28,7 +28,7 @@ const GAME_EVENTS = Object.freeze({
   REQUEST_RESTART: "request:restart", // {}
   REQUEST_PAUSE: "request:pause", // {}
   REQUEST_RESUME: "request:resume", // {}
-  REQUEST_MAIN_MENU: "request:main-menu", // {}
+  REQUEST_MAIN_MENU: "request:main-menu", // { screen?: "stage-select" }
 
   // 타이머
   TIMER_TICK: "timer:tick", // { remainingMs } — 매 프레임, payload 재사용됨

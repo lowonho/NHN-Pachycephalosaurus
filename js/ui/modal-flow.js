@@ -18,6 +18,7 @@ class ModalFlow {
 
     this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
     this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
+    this.ui.resultContinueButton?.addEventListener("click", () => this.onContinue());
 
     // 시작·재시작 요청이 어디서 오든 모달은 여기서 닫는다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
@@ -77,6 +78,12 @@ class ModalFlow {
     this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
   }
 
+  onContinue() {
+    if (!this.isOpen()) return;
+    audioBus.resume();
+    this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, { screen: "stage-select" });
+  }
+
   showResult(success, { elapsed = 0, stage, actions = 0, extra = "", fragmentCollected = false, recovery } = {}) {
     const { ui } = this;
     const copy = this.strings.result;
@@ -97,6 +104,7 @@ class ModalFlow {
     ui.primaryButton.disabled = false;
     ui.secondaryButton.hidden = false;
     ui.secondaryButton.textContent = this.strings.buttons.mainMenu;
+    ui.resultContinueButton?.focus();
   }
 }
 

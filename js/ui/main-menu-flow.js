@@ -12,7 +12,10 @@ class MainMenuFlow {
     this.ui.stageSelectBackButton?.addEventListener("click", () => this.closeStageSelect());
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
 
-    this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.open());
+    this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, ({ screen } = {}) => {
+      this.open();
+      if (screen === "stage-select") this.openStageSelect();
+    });
 
     // 스테이지가 실제로 열릴 때 메인 화면을 비운다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
