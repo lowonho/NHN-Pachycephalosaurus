@@ -11,8 +11,9 @@
  * 누르고 있는 키를 세는 방식이다. keydown 한 번만 보고 움직이면
  * 방향키를 꾹 누르고 이동하는 동안 손이 멈춰 버린다.
  *
- * 타자 말고 두 가지 연출 자세가 더 있다 — 제한시간 안에서 죽고 다시 소환되면
- * 주먹으로 키보드를 샷건 치고, 클리어하면 따봉을 든다. 이건 스테이지 흐름
+ * 타자 말고 두 가지 연출 자세가 더 있다 — 죽으면 주먹으로 키보드를 샷건 치고,
+ * 클리어하면 따봉을 든다. 다시 소환되든 목숨을 잃고 판이 끝나든 죽는 건
+ * 매한가지라 둘 다 샷건이다. 이건 스테이지 흐름
  * 이벤트를 구독해서 띄운다(playPose). 책상·키보드·손은 미니게임을 하는 동안에도
  * 모니터 밖에 그대로 서 있으므로(protocol-select-flow.js의 showScreen)
  * 두 연출 모두 플레이 중에 보인다.
@@ -31,13 +32,18 @@ class DeskHandsView {
     if (this.hands.length === 0) return;
 
     /*
-     * 연출 자세. 주먹은 제한시간 안에서 죽고 다시 소환될 때다 — 스테이지를
-     * 새로 시작할 때가 아니다(그건 STAGE_START이고, 여기서는 쓰지 않는다).
-     * 신호는 엔진의 MINI.summon에서 시작해 게임 브리지를 거쳐 온다.
+     * 연출 자세. 주먹은 죽었을 때다 — 제한시간 안에서 죽고 다시 소환될 때
+     * (STAGE_RESPAWN, 신호는 엔진의 MINI.summon에서 시작해 게임 브리지를 거쳐 온다)와
+     * 그대로 판이 끝나 목숨을 잃을 때(STAGE_FAIL) 둘 다다. 스테이지를 새로 시작할
+     * 때가 아니다(그건 STAGE_START이고, 여기서는 쓰지 않는다).
+     *
+     * 판이 끝나도 결과 모달은 모니터 안에만 뜨므로(css/protocol-select.css의
+     * .screen-overlays) 책상 위 손은 가려지지 않는다 — 따봉과 같은 자리다.
      */
     this.poses = [dom.deskPoseFists, dom.deskPoseThumbs].filter(Boolean);
     this.poseHandle = 0;
     events?.on(GAME_EVENTS.STAGE_RESPAWN, () => this.playPose(dom.deskPoseFists));
+    events?.on(GAME_EVENTS.STAGE_FAIL, () => this.playPose(dom.deskPoseFists));
     events?.on(GAME_EVENTS.STAGE_CLEAR, () => this.playPose(dom.deskPoseThumbs));
 
     // 누르고 있는 키. keyup을 놓쳐도 blur에서 한 번에 턴다.

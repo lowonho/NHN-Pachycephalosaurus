@@ -61,11 +61,13 @@
   load('e5');
   // Real full-pull inputs: fracture the supports, then hit the remaining resident through the rubble.
   // The former predictor ignored Matter joints and kept aiming at the same ineffective obstacle.
-  for(const angle of [.1, .3, .3, .3, .1]) {
+  // 무너지는 과정은 강체 시뮬레이션이라 판이 조금만 움직여도 같은 각도가 다른 결과를 낳는다.
+  // 무대 좌표를 옮겼다면 이 각도들도 실제로 클리어되는 조합으로 다시 찾아야 한다.
+  for(const angle of [.2, .3, .3, .3, .2, .3]) {
     if(!scene.playable()) break;
     const pull=scene.stageGame.tuning.maxPull;
-    scene.pointerAction(164,382);
-    scene.stageGame.pointerMove.call(scene,164-Math.cos(angle)*pull,382+Math.sin(angle)*pull);
+    scene.pointerAction(164,418);
+    scene.stageGame.pointerMove.call(scene,164-Math.cos(angle)*pull,418+Math.sin(angle)*pull);
     scene.stageGame.pointerUp.call(scene);
     advance(1.5);
   }
@@ -93,11 +95,6 @@
   load('e7'); scene.state.rotation = scene.stageGame.POINTER_ANGLE - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');
   load('e8'); driveE8(); save('e8');
-  load('e9');
-  const dx=scene.target.x-scene.state.x, dy=scene.target.y-scene.state.y, distance=Math.hypot(dx,dy);
-  const pull=Math.sqrt(2*220*distance)/5.7;
-  scene.pointerAction(scene.state.x,scene.state.y); scene.stageGame.pointerMove.call(scene,scene.state.x-dx/distance*pull,scene.state.y-dy/distance*pull); scene.stageGame.pointerUp.call(scene);
-  advance(20.3); save('e9');
   load('e10');
   // 실제 이동·제동·점프만으로 가장 긴 왕복 조합을 입력한다(9→0→9→0).
   scene.state.target = '9090';

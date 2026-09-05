@@ -5,7 +5,9 @@ export const E8_WEB_SWING = {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
     airGravity: 1600, weightGain: .25,
     retryDelay: .32,
-    startAngle: -1.0,
+    // 시작 지점(첫 스폰)에서는 줄이 연결점과 수평(90도)이 되게 해서, 최대 진폭으로
+    // 떨어지며 첫 스윙에 충분한 탄력이 붙게 한다.
+    startAngle: -Math.PI / 2,
     spacing: 660, anchorCount: 22, fallY: 710,
   },
   build() {
@@ -104,14 +106,17 @@ export const E8_WEB_SWING = {
     const s = this.state, t = E8_WEB_SWING.tuning;
     if (s.rope && !s.rope.starter && !this.held('action') && !s.pointerHeld) s.rope = null;
     if (s.retry > 0) { s.retry = Math.max(0, s.retry - dt); return; }
-    const oldX = s.x, oldY = s.y;
+    const oldX = s.x;
     if (s.rope) {
       const r = s.rope;
       r.omega -= t.gravity / r.length * Math.sin(r.theta) * dt;
       r.theta += r.omega * dt;
       E8_WEB_SWING.pose.call(this);
-      // 줄은 밀어낼 수 없습니다. 장력이 사라지면 그 순간의 속도로 자유 낙하합니다.
-      if (r.length * r.omega ** 2 + t.gravity * Math.cos(r.theta) < 0) s.rope = null;
+      /*
+       * 버튼을 누르고 있는 한 각도·속도와 상관없이 줄이 끊기지 않는다.
+       * (버튼을 떼면 위 105행에서 이미 rope를 비우므로, 여기까지 오는 것은
+       * 항상 버튼을 누르고 있는 경우다.) 장력 부족으로 인한 자유낙하는 두지 않는다.
+       */
     } else {
       // 가속이 쌓일수록 공중에서도 더 무겁게 끌려 내려갑니다.
       // 수평 관성은 유지하되 긴 체공으로 여러 연결점을 건너뛰기 어렵게 합니다.
@@ -123,11 +128,8 @@ export const E8_WEB_SWING = {
     this.anomaly = `가속 ${s.multiplier.toFixed(2)}배 · 연결 ${s.hooks}회 · 추락 ${s.deaths}회`;
     this.risk = (s.multiplier - 1) / (t.maxMultiplier - 1) * 100;
     E8_WEB_SWING.camera.call(this, dt);
-    // 공중 게이트를 실제로 가로질러야 성공합니다. 옥상 착지는 없습니다.
-    if (oldX < this.goalX && s.x >= this.goalX) {
-      const y = oldY + (s.y - oldY) * (this.goalX - oldX) / (s.x - oldX);
-      if (Math.abs(y - this.goalY) <= 170) this.finish(true);
-    }
+    // 골인선은 위아래로 길게 뻗어 있어, 떨어지지만 않았다면 어느 높이로 지나가도 성공입니다.
+    if (oldX < this.goalX && s.x >= this.goalX) this.finish(true);
   },
   building(x, y, w, index, distant = false) {
     const g = this.ink;
@@ -217,6 +219,10 @@ export const E8_WEB_SWING = {
     g.save(); g.translateCanvas(-cameraX * scale, shiftY); g.scaleCanvas(scale, scale);
     const visible = x => x > cameraX - 160 && x < cameraX + 1100 / scale;
     for (const a of this.anchors) if (visible(a.x)) E8_WEB_SWING.landmark.call(this, a);
+    // 낙사 판정선: 이 아래로 떨어지면 그 즉시 낙사 처리됩니다(tuning.fallY). 화면 폭만큼 점선으로 긋습니다.
+    for (let x = cameraX - 160; x < cameraX + 1100 / scale; x += 26) {
+      MINI.line(this, x, t.fallY, Math.min(x + 14, cameraX + 1100 / scale), t.fallY, 0xff5470, 3);
+    }
     const next = E8_WEB_SWING.candidate.call(this);
     if (next && !s.rope) {
       g.lineStyle(2, 0xf7e9db, .7).strokeCircle(next.x, next.y, 12);
@@ -235,9 +241,11 @@ export const E8_WEB_SWING = {
     if (boostFlash >= 0 && boostFlash < 1) g.lineStyle(3, 0xffa474, 1 - boostFlash).strokeCircle(s.x, s.y, 25 + boostFlash * 25);
     if (!this.textures.exists('e8:player')) E8_WEB_SWING.hero.call(this, s.x, s.y, angle);
     if (visible(this.goalX)) {
-      g.lineStyle(6, 0xa7ffc6).strokeEllipse(this.goalX, this.goalY, 75, 340);
-      g.lineStyle(2, 0xa7ffc6, .3).strokeEllipse(this.goalX, this.goalY, 98, 365);
-      MINI.line(this, this.goalX - 20, this.goalY - 170, this.goalX + 20, this.goalY - 170, 0xffffff, 6);
+      // 골인 판정은 떨어지지만 않았다면 높이와 상관없이 이 x만 지나면 성공이라,
+      // 폭 제한을 표시하는 문이 아니라 위아래로 길게 뻗은 결승선으로 그립니다.
+      const top = -260, bottom = t.fallY;
+      g.lineStyle(14, 0xa7ffc6, .2).lineBetween(this.goalX, top, this.goalX, bottom);
+      MINI.line(this, this.goalX, top, this.goalX, bottom, 0xa7ffc6, 6);
     }
     g.restore();
     if (this.textures.exists('e8:player')) MINI.actor(this, 'player', 'player', 200, s.y * scale + shiftY, 40 * scale, 48 * scale, angle);

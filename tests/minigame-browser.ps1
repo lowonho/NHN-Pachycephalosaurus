@@ -1,4 +1,4 @@
-param([switch]$E4Only, [switch]$E8Only, [switch]$E9Only, [switch]$E10Only)
+param([switch]$E1Only, [switch]$E2Only, [switch]$E4Only, [switch]$E8Only, [switch]$E10Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -72,6 +72,34 @@ try {
   # 이 스위트는 판을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다.
   # (카운트다운 자체는 minigame-browser-check.js가 직접 세워 검사한다.)
   Evaluate "ARCHIVE_STORY_SETTINGS.skipCountdown = true" | Out-Null
+  if ($E1Only) {
+    # 달리기 여섯 장이 실제 화면에서 어떻게 도는지 남긴다. 세트마다 한 걸음(RUN_STEP)씩
+    # 밀어 여섯 장을 차례로 찍는다. QA 로 세트를 고정해야 두 벌을 각각 볼 수 있다.
+    $artifactDir = Join-Path $root 'tests/.artifacts'
+    New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+    Evaluate "ARCHIVE_QA.active = true;" | Out-Null
+    foreach ($set in @(@{ Id = ''; Name = 'base' }, @{ Id = 'woni-'; Name = 'woni' })) {
+      Evaluate "ARCHIVE_QA.artSet.e1 = '$($set.Id)';" | Out-Null
+      Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e1'); archivePhaserGame.loop.wake(); archiveGame.pause(true);" | Out-Null
+      # 첫 판은 모니터 켜지는 연출이 끝난 뒤에 찍어야 한다 — 너무 이르면 까만 화면이 남는다.
+      Start-Sleep -Milliseconds 900
+      $art = Evaluate "archivePhaserGame.scene.getScene('archive-game').state.art"
+      if ($art -ne $set.Id) { throw "QA 가 고른 세트가 실리지 않았다: '$art' != '$($set.Id)'" }
+      foreach ($frame in 1..6) {
+        $texture = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.assetSprites.get('player').texture.key; })()"
+        $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+        [IO.File]::WriteAllBytes((Join-Path $artifactDir "e1-$($set.Name)-run$frame.png"), [Convert]::FromBase64String($shot.data))
+        Write-Output ("{0} {1}번째 걸음 -> {2}" -f $set.Name, $frame, $texture)
+        # 한 장 분량(340/14 px)을 조금 넘겨 걸음이 확실히 다음 장으로 넘어가게 한다.
+        Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); archiveGame.pause(false); for(let i=0;i<9;i++) s.update(0,1000/120); archiveGame.pause(true); archivePhaserGame.loop.wake(); })()" | Out-Null
+        Start-Sleep -Milliseconds 120
+      }
+    }
+    Evaluate "ARCHIVE_QA.artSet = {}; ARCHIVE_QA.active = false;" | Out-Null
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output 'PASS: E1 run cycle rendered for both meme sets'
+    return
+  }
   if ($E10Only) {
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)
@@ -94,33 +122,26 @@ try {
     Write-Output 'PASS: E10 skater rendering without browser exceptions'
     return
   }
-  if ($E9Only) {
-    Evaluate "(() => { archiveGameBridge.active=false; const s=archivePhaserGame.scene.getScene('archive-game'); s.loadStage('e9'); s.startStage(); s.settings={shake:false,effects:false}; s.pointerAction(166,361); s.stageGame.pointerMove.call(s,150,361); s.stageGame.pointerUp.call(s); archivePhaserGame.loop.wake(); })()" | Out-Null
-    Start-Sleep -Milliseconds 1200
-    if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.elapsed>.9 && s.state.failures===1 && !s.state.moving && s.playable(); })()")) { throw 'E9 real Canvas render loop stopped during first respawn' }
-    Write-Output 'PASS: real Canvas render loop continues through the first respawn'
-    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
-    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e9-curling-check.js')))
-    Write-Output ($checks | ConvertTo-Json -Depth 10)
-    Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e9'); archivePhaserGame.loop.wake();" | Out-Null
-    Start-Sleep -Milliseconds 100
-    foreach ($shotNumber in 1..4) {
-      $points = Evaluate "(() => { const c=archivePhaserGame.scene.getScene('archive-game').cameras.main,r=archivePhaserGame.canvas.getBoundingClientRect(),p=c.getWorldPoint(0,0),u=c.getWorldPoint(960,0),v=c.getWorldPoint(0,540),ax=u.x-p.x,ay=u.y-p.y,bx=v.x-p.x,by=v.y-p.y,det=ax*by-ay*bx; return [[166,361],[150,361]].map(([x,y])=>({x:r.x+((x-p.x)*by-(y-p.y)*bx)/det*r.width,y:r.y+(ax*(y-p.y)-ay*(x-p.x))/det*r.height})); })()"
-      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; button = 'left'; buttons = 1; clickCount = 1; x = $points[0].x; y = $points[0].y } | Out-Null
-      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $points[1].x; y = $points[1].y } | Out-Null
-      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $points[1].x; y = $points[1].y } | Out-Null
-      Start-Sleep -Milliseconds 1600
-      if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.playable() && s.actions===$shotNumber && s.state.failures===$shotNumber && s.pointerId===null && !s.state.moving; })()")) { throw "E9 native mouse throw $shotNumber failed" }
-    }
-    Write-Output 'PASS: four consecutive native mouse throws with timer and input still active'
-    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
-    return
-  }
   if ($E8Only) {
     Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-course-driver.js'))) | Out-Null
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-start-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    return
+  }
+  if ($E2Only) {
+    Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-bounce-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); if(!archiveRun.snapshot().qaMode) archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2'); (() => { const s=archivePhaserGame.scene.getScene('archive-game'), p=s.platforms[12]; Object.assign(s.state,{x:p.x+p.w-6,y:p.y-20,vy:0,grounded:true,platformIndex:12,checkpoint:p.x+50,jumps:100}); })()" | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+    Start-Sleep -Milliseconds 580
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+    if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0; })()")) { throw 'E2 native D + Space failed to land on the next stair at minimum jump' }
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output 'PASS: E2 minimum jump, native D + Space, no-air-control course, and A/D + Space UI'
     return
   }
   if ($E4Only) {
@@ -214,25 +235,6 @@ try {
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $slingPoints[1].x; y = $slingPoints[1].y } | Out-Null
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $slingPoints[1].x; y = $slingPoints[1].y } | Out-Null
   if (!(Evaluate "archivePhaserGame.scene.getScene('archive-game').state.shots === 1")) { throw 'Scaled pointer drag/release routing failed' }
-  # e9: a missed stone respawns mid-render. The spawn animation must not stall the loop before the next throw.
-  Evaluate "testLaunch('e9')" | Out-Null
-  Start-Sleep -Milliseconds 200
-  for ($curlThrow = 1; $curlThrow -le 2; $curlThrow++) {
-    $idle = $false
-    for ($wait = 0; $wait -lt 60; $wait++) {
-      $idle = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return !s.moving && !s.cooldown; })()"
-      if ($idle) { break }
-      Start-Sleep -Milliseconds 100
-    }
-    if (!$idle) { throw "e9 stone never came to rest before throw $curlThrow" }
-    $curlPoints = Evaluate "(() => { const g=archivePhaserGame.scene.getScene('archive-game'),c=g.cameras.main,r=archivePhaserGame.canvas.getBoundingClientRect(),p=c.getWorldPoint(0,0),u=c.getWorldPoint(960,0),v=c.getWorldPoint(0,540),ax=u.x-p.x,ay=u.y-p.y,bx=v.x-p.x,by=v.y-p.y,det=ax*by-ay*bx; return [[g.state.x,g.state.y],[g.state.x-60,g.state.y]].map(([x,y])=>({x:r.x+((x-p.x)*by-(y-p.y)*bx)/det*r.width,y:r.y+(ax*(y-p.y)-ay*(x-p.x))/det*r.height})); })()"
-    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; button = 'left'; buttons = 1; clickCount = 1; x = $curlPoints[0].x; y = $curlPoints[0].y } | Out-Null
-    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $curlPoints[1].x; y = $curlPoints[1].y } | Out-Null
-    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $curlPoints[1].x; y = $curlPoints[1].y } | Out-Null
-    Start-Sleep -Milliseconds 1200
-  }
-  $curlState = Evaluate "(() => { const g=archivePhaserGame.scene.getScene('archive-game'); return {actions:g.actions,failures:g.state.failures,cooldown:g.state.cooldown}; })()"
-  if ($curlState.actions -ne 2 -or $curlState.failures -lt 1) { throw ('e9 respawn stalled the game loop: ' + ($curlState | ConvertTo-Json -Compress)) }
   Write-Output 'PASS: native keyboard repeat suppression, number decode A/D/arrow/Space and mouse drag in scaled viewport'
   $artifactDir = Join-Path $root 'tests/.artifacts'
   New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
@@ -282,15 +284,15 @@ try {
   Start-Sleep -Milliseconds 70
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e2-stairs.png'), [Convert]::FromBase64String($shot.data))
-  # Native D + Space only at minimum power: W must not be required for the last stairs.
+  # Native D + Space only at minimum power reaches the next stair.
   Evaluate "testLaunch('e2'); (() => { const s=archivePhaserGame.scene.getScene('archive-game'), p=s.platforms[12]; Object.assign(s.state,{x:p.x+p.w-6,y:p.y-20,vy:0,grounded:true,platformIndex:12,checkpoint:p.x+50,jumps:100}); })()" | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 580
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
-  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown; })()")) { throw 'Native D + Space failed to land on final stair without W' }
-  Write-Output 'PASS: native D + Space reaches final staircase at minimum jump without W'
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown && !s.keys.down.isDown; })()")) { throw 'Native D + Space failed to land on final stair at minimum jump' }
+  Write-Output 'PASS: native D + Space reaches final staircase at minimum jump'
   # Native e8 adopts the starting web, releases, then catches it again on both input routes.
   Evaluate "testLaunch('e8');" | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null

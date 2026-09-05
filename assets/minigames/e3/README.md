@@ -1,4 +1,4 @@
-# e3 사람 쌓기 에셋 가이드
+# e3 메챠 쌓기 에셋 가이드
 
 떨어지는 사람은 `assets/images/minigame/stacks/metcha/pose1.png` ~ `pose8.png` 여덟 장이고, 성공선 오른쪽에 세워 두는 표지는 같은 폴더의 `line.png`입니다. 메챠 카멜레온의 흰색 사람·포즈라는 시각 방향을 참고했으며, 원작 모델이나 텍스처를 복사한 에셋은 아닙니다. 참고: [공식 Steam 소개](https://store.steampowered.com/app/4704690/MECCHA_CHAMELEON/).
 

@@ -8,7 +8,7 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   const waitFor = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-  assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
+  assert(MINIGAME_CATALOG.length === 9, 'Nine games registered');
   const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
   const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
     const image = new Image();
@@ -217,7 +217,7 @@
     if (run.selectedStageIds.length !== 6 || new Set(run.selectedStageIds).size !== 6) throw Error(`Invalid random selection ${i}`);
     run.selectedStageIds.forEach(id => seen.add(id));
   }
-  assert(seen.size === 10, 'All ten games appear in random selection');
+  assert(seen.size === 9, 'All nine games appear in random selection');
   assert(true, '80 random acts each contain exactly six unique games');
   archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id));
   for (const stage of MINIGAME_CATALOG) {
@@ -278,6 +278,55 @@
   assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
+  // 밈 에셋 세트는 판마다 한 벌씩 뽑힙니다. 두 벌 모두 다섯 장이 실려 있어야 하고,
+  // 뽑힌 세트는 그리는 텍스처 이름에 그대로 붙습니다.
+  const dashSets = ['', 'woni-'], dashPoses = ['run', 'jump', 'hurt', 'fall', 'goal'];
+  assert(dashSets.every(set => dashPoses.every(pose => scene.textures.exists(`e1:${set}${pose}`))), 'e1: both meme asset sets load all five pictures');
+  // 달리기는 여섯 장짜리 걸음이다. 걸음은 시간이 아니라 달린 거리에서 뽑으므로,
+  // 판이 서 있으면 그림도 서 있고 같은 자리로 돌아오면 같은 장이 나온다.
+  const dashFrames = [1, 2, 3, 4, 5, 6];
+  assert(dashSets.every(set => dashFrames.every(frame => scene.textures.exists(`e1:${set}run${frame}`))), 'e1: both sets load all six run frames');
+  load('e1');
+  const runStep = scene.stageGame.tuning.speed / 14;
+  const frameAt = x => { scene.state.x = x; return scene.stageGame.poseTexture.call(scene, 'run'); };
+  const cycle = dashFrames.map((_, i) => frameAt(runStep * (i + .5)));
+  assert(cycle.join('|') === dashFrames.map(frame => `e1:${scene.state.art}run${frame}`).join('|'), 'e1: one run frame per step of travel, in order');
+  assert(frameAt(runStep * 6.5) === cycle[0] && frameAt(runStep * .5) === cycle[0] && frameAt(0) === cycle[0], 'e1: the run cycle wraps and standing still holds one frame');
+  // 시트가 없는 세트는 남은 한 장으로 달린다 — 세트를 새로 넣다 만 사람이 도형을 보지 않게.
+  // 지금 판에 걸려 있지 않은 세트로 확인한다. 화면에 떠 있는 텍스처를 빼면 그리는 쪽이 놀란다.
+  const spareSet = dashSets.find(set => set !== scene.state.art);
+  const spareKeys = dashFrames.map(frame => `e1:${spareSet}run${frame}`);
+  const sparePictures = spareKeys.map(key => scene.textures.get(key).getSourceImage());
+  spareKeys.forEach(key => scene.textures.remove(key));
+  const liveSet = scene.state.art; scene.state.art = spareSet;
+  assert(scene.stageGame.poseTexture.call(scene, 'run') === `e1:${spareSet}run`, 'e1: a set without a run sheet falls back to its single picture');
+  scene.state.art = liveSet;
+  sparePictures.forEach((picture, i) => scene.textures.addImage(spareKeys[i], picture));
+  assert(spareKeys.every(key => scene.textures.exists(key)), 'e1: the run frames are back after the fallback check');
+  const dashPicks = new Set();
+  for (let i = 0; i < 60; i++) { load('e1'); dashPicks.add(scene.state.art); }
+  assert(dashPicks.size === 2 && [...dashPicks].every(art => dashSets.includes(art)), 'e1: each play picks one of the two meme asset sets');
+  load('e1'); scene.stageGame.render.call(scene);
+  assert(scene.assetSprites.get('player').texture.key === `e1:${scene.state.art}run1`, 'e1: the picked set is what actually gets drawn');
+  // 세트가 갈려도 밖에서는 한 스테이지다. 도감은 e1 하나 그대로고, 세트별 타일은 QA 패널에만 선다.
+  const dashSetConfig = ARCHIVE_QA.STAGE_ART_SETS.e1;
+  assert(dashSetConfig.length === 2 && dashSetConfig.every(set => dashSets.includes(set.id))
+    && MINIGAME_CATALOG.filter(stage => stage.id === 'e1').length === 1, 'e1: meme sets never split the catalog');
+  const qaTiles = [...document.querySelectorAll('#qa-stage-grid .qa-stage')];
+  const dashTiles = qaTiles.filter(tile => tile.dataset.stageId === 'e1');
+  assert(qaTiles.length === MINIGAME_CATALOG.length + 1 && dashTiles.length === 2
+    && dashTiles.map(tile => tile.dataset.artSet).join('|') === '|woni-', 'e1: QA panel stands one tile per meme set');
+  // QA 에서 고른 세트는 다시하기까지 그대로 붙어 있고, HUD 가 어느 세트인지 알려 준다.
+  ARCHIVE_QA.active = true; ARCHIVE_QA.artSet.e1 = 'woni-';
+  const forcedPicks = new Set();
+  for (let i = 0; i < 8; i++) { load('e1'); forcedPicks.add(scene.state.art); }
+  advance(.1);
+  assert(forcedPicks.size === 1 && forcedPicks.has('woni-') && scene.anomaly.includes('세트 WONI'), 'e1: a QA-picked set holds every play and shows in the HUD');
+  ARCHIVE_QA.artSet.e1 = 'ghost-'; load('e1');
+  assert(dashSets.includes(scene.state.art), 'e1: an unknown QA set falls back to a real one');
+  ARCHIVE_QA.artSet = {}; ARCHIVE_QA.active = false;
+  load('e1'); advance(.1);
+  assert(!scene.anomaly.includes('세트'), 'e1: outside QA the HUD says nothing about the set');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
   const weakened = scene.stageGame.jumpPower.call(scene), shards = scene.state.shards.length;
   scene.primaryAction();
@@ -294,8 +343,8 @@
   }
   assert(heights.slice(1, 5).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
   assert(heights[0] > 190 && heights[2] < heights[0] * .75 && heights[4] > 80, 'e2: early jump reduction preserves useful mid-course height');
-  assert(heights[8] < heights[5] && heights[8] > heights[10] + 5, 'e2: jump height keeps changing into the late course');
-  assert(Math.abs(heights[11] - heights[12]) < .01 && heights[12] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
+  assert(heights[8] < heights[5] && heights[8] > heights[9] + 2, 'e2: jump height keeps changing into the late course');
+  assert(Math.abs(heights[10] - heights[12]) < .01 && heights[12] > 30, 'e2: heavily damaged ball retains a usable minimum bounce');
   assert(scene.state.shards.length === 0, 'e2: emitted wax shards expire');
   scene.primaryAction();
   const pausedShards = JSON.stringify(scene.state.shards);
@@ -304,9 +353,18 @@
   archiveGame.pause(false);
   load('e2');
   assert(scene.state.jumps === 0 && scene.state.shards.length === 0 && scene.stageGame.jumpPower.call(scene) > weakened, 'e2: fresh attempt restores shell and jump power');
-  // A high assisted jump can pass the former ceiling without dying or resetting damage.
-  scene.touch.add('up'); scene.primaryAction(); advance(.8);
-  assert(scene.state.y < 188 && scene.state.deaths === 0 && scene.state.jumps === 1, 'e2: former ceiling is open for high jumps');
+  const verticalSample = direction => {
+    load('e2'); scene.state.jumps = 100; scene.touch.clear();
+    if (direction) scene.touch.add(direction);
+    scene.primaryAction(); advance(.2);
+    return { y: scene.state.y, vy: scene.state.vy };
+  };
+  const neutralJump = verticalSample(null), upJump = verticalSample('up'), downJump = verticalSample('down');
+  assert(Math.abs(neutralJump.y - upJump.y) < .001 && Math.abs(neutralJump.vy - upJump.vy) < .001
+    && Math.abs(neutralJump.y - downJump.y) < .001 && Math.abs(neutralJump.vy - downJump.vy) < .001,
+  'e2: W/S inputs do not alter the jump trajectory');
+  assert(MINIGAME_CATALOG.find(stage => stage.id === 'e2').controls === 'A/D 이동 · Space 점프',
+    'e2: stage UI lists only A/D and Space controls');
   load('e2');
   const lift = scene.platforms.find(p => p.kind === 'lift'), startLiftY = lift.y;
   Object.assign(scene.state, { x: lift.x + lift.w / 2, y: lift.y - 20, platformIndex: lift.index, grounded: true, vy: 0 });
@@ -327,22 +385,22 @@
   advance(1);
   assert(crumble.active && crumble.crumbleLeft === null, 'e2: collapsed platform rebuilds for another attempt');
   load('e2');
-  // The weakened ball needs W assistance and late takeoffs on the harder course.
-  scene.state.jumps = 100; driveE2();
-  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: assisted minimum jump can clear the terrain (${scene.state.x}, deaths ${scene.state.deaths})`);
+  // Natural jump decay still allows a full clear using only late A/D + Space jumps.
+  driveE2();
+  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: progressively weakened jumps clear without air control (${scene.state.x}, deaths ${scene.state.deaths})`);
   // Reach the fixed final staircase across different elevator phases using end-of-platform takeoffs.
   for (const phase of [0, .7, 1.4, 2.1]) {
     load('e2'); const p = scene.platforms[5];
     Object.assign(scene.state, { x: p.x + 50, y: p.y - 20, checkpoint: p.x + 50, platformIndex: p.index, jumps: 100 });
     scene.elapsed = phase;
-    driveE2(18, { reactionFrames: 2, edge: 6, allowAssist: false });
-    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears without W at minimum bounce with edge jumps (phase ${phase})`);
+    driveE2(18, { reactionFrames: 2, edge: 6 });
+    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears at minimum bounce with edge jumps (phase ${phase})`);
   }
   load('e2');
   const stair = scene.platforms[12], nextStair = scene.platforms[13];
   Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
   scene.touch.add('right'); scene.primaryAction(); advance(.8);
-  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
+  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses at minimum bounce');
   // Aim both drops at the pedestal: with no floor, a miss falls off the screen and is removed.
   load('e3'); scene.state.x = 480; scene.primaryAction(); advance(.5); scene.state.x = 480; scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
@@ -368,7 +426,7 @@
   assert(scene.mode === 'done' && scene.remaining === 0, 'e4: impact can exhaust timer');
   load('e4');
   assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
-  load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
+  load('e5'); scene.pointerAction(164, 418); scene.stageGame.pointerMove.call(scene, 64, 462); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   // 장애물은 코스에 미리 깔아 두지 않는다 — 사정거리 안으로 들어온 것만, 그것도 화면 오른쪽 바깥에서 태어난다.
   load('e6');
@@ -490,26 +548,7 @@
   }
   load('e8'); driveE8(5);
   assert(scene.state.visited.length>=5 && scene.state.multiplier===3, 'e8: four new connections reach the 3x boost cap');
-  load('e9'); scene.pointerAction(166, 361); scene.stageGame.pointerMove.call(scene, 150, 361); scene.stageGame.pointerUp.call(scene); advance(1);
-  assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
-  advance(.4); scene.pointerAction(166, 361);
-  assert(scene.state.drag !== null, 'e9: a new stone can be thrown after a failed one');
-  scene.stageGame.cancelInput.call(scene);
-  // 과녁 정중앙이 아니어도 점선 고리 안에서 멈추면 그 한 번으로 클리어된다.
-  const curl = offset => {
-    load('e9');
-    const s = scene.state, dx = scene.target.x + offset - s.x, dy = scene.target.y - s.y, distance = Math.hypot(dx, dy);
-    const pull = Math.sqrt(2 * scene.stageGame.friction.call(scene) * distance) / scene.stageGame.tuning.force;
-    scene.pointerAction(s.x, s.y);
-    scene.stageGame.pointerMove.call(scene, s.x - dx / distance * pull, s.y - dy / distance * pull);
-    scene.stageGame.pointerUp.call(scene);
-    advance(20.3);
-  };
-  curl(scene.stageGame.landingRadius() - 7);
-  assert(scene.actions === 1 && scene.state.failures === 0 && scene.remaining > 10, 'e9: one stone resting inside the ring clears the stage');
-  curl(scene.stageGame.landingRadius() + 25);
-  assert(scene.state.failures > 0 && scene.remaining <= .000001, 'e9: a stone resting outside the ring still misses');
-  load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);
+  load('e5'); scene.pointerAction(164, 418); archiveGame.pause(true);
   assert(scene.state.drag === null, 'Pause cancels drag without firing');
   load('e10');
   const initialFriction = scene.state.friction;

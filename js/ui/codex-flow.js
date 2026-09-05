@@ -162,8 +162,10 @@ class CodexFlow {
     const icon = document.createElement("span");
     icon.className = "codex-card-icon";
     /* 안 열린 칸은 기호마저 감춘다 — 자물쇠가 그 자리를 대신한다. */
-    if (discovered) icon.textContent = stage.recordSymbol;
-    else icon.innerHTML = CODEX_LOCK_ICON;
+    if (!discovered) icon.innerHTML = CODEX_LOCK_ICON;
+    /* 기호가 SVG 마크업(거미줄 질주 등)이면 그대로 꽂고, 아니면 여느 문자 기호처럼 넣는다. */
+    else if (stage.recordSymbol.trim().startsWith("<")) icon.innerHTML = stage.recordSymbol;
+    else icon.textContent = stage.recordSymbol;
     head.append(number, icon);
 
     const title = document.createElement("strong");

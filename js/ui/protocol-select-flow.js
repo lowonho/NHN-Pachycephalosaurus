@@ -298,7 +298,11 @@ class ProtocolSelectFlow {
     set(this.ui.protocolBriefTitle, stage.title);
     set(this.ui.protocolBriefId, stage.id.toUpperCase());
     set(this.ui.protocolBriefNumber, recordId);
-    set(this.ui.protocolBriefSymbol, stage.recordSymbol);
+    /* 기호가 SVG 마크업(거미줄 질주 등)이면 그대로 꽂고, 아니면 여느 문자 기호처럼 넣는다. */
+    if (this.ui.protocolBriefSymbol) {
+      if (stage.recordSymbol.trim().startsWith("<")) this.ui.protocolBriefSymbol.innerHTML = stage.recordSymbol;
+      else this.ui.protocolBriefSymbol.textContent = stage.recordSymbol;
+    }
     set(this.ui.protocolBriefObjective, `${stage.objective}\n${act?.objective ?? ""}`);
     set(this.ui.protocolBriefControls, stage.controls);
     set(this.ui.protocolBriefAnomaly, stage.anomaly);

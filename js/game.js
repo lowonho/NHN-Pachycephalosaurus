@@ -67,12 +67,12 @@ class ArchiveGameBridge {
     /* 음악이 재생 중이던 QA 직행 등에서는 카운트다운 동안 자연스럽게 갈아탄다. */
     if (bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true });
     this.ui.appShell?.removeAttribute('inert');
-    this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
+    this.ui.touchControls.hidden = ['e5', 'e7'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
     // 남은 목숨은 우상단(일시정지 옆)에 있어 좌상단 패널과 따로 여닫는다.
     if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = false;
     this.ui.stageHud.dataset.stage = stageId;
-    /* 스테이지 코드(e9 …)는 개발용 식별자다. 플레이 화면에는 게임 이름만 보인다. */
+    /* 스테이지 코드(e1 …)는 개발용 식별자다. 플레이 화면에는 게임 이름만 보인다. */
     this.ui.stageHudTitle.textContent = stage.title;
     /* 도감은 클리어가 아니라 "해 봤는가"로 열린다 — 시작하는 이 자리에서 남긴다.
        QA 모드의 시도는 최고 기록과 마찬가지로 남기지 않는다. */

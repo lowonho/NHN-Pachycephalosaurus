@@ -148,7 +148,7 @@ class ArchiveGame extends Phaser.Scene {
         e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
         e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
         e7: '안전 정렬: 금색 영역', e8: '안전 연결: 가장 가까운 거미줄 지점',
-        e9: '안전 속도: 점선 고리 안에서 한 번만 정지', e10: '안전 입력: 목표 순서',
+        e10: '안전 입력: 목표 순서',
       };
       this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
       if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {

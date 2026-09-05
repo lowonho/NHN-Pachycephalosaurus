@@ -6,7 +6,7 @@
   const load = () => { scene.loadStage('e8'); scene.startStage(); scene.settings = { shake:false, effects:false }; };
   load();
   const game = scene.stageGame, angle = game.tuning.startAngle;
-  assert(Math.abs(scene.state.rope.theta + 1.0) < .001, 'First swing starts 57 degrees behind the anchor');
+  assert(Math.abs(scene.state.rope.theta + Math.PI / 2) < .001, 'First swing starts 90 degrees behind the anchor');
   const bottomSpeed = theta => {
     game.tuning.startAngle = theta; load();
     for(let i=0;i<240 && scene.state.rope.theta<0;i++) scene.update(0,1000/120);
