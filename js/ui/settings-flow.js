@@ -9,8 +9,9 @@
  */
 
 const STORY_SETTINGS_KEY = "archive-2026-story-settings-v1";
-// skipCutscenes는 더 이상 설정 화면에 없다 — 저장도 하지 않고, 테스트 하네스가 쓰는 런타임 플래그로만 남긴다.
-const STORY_SETTINGS_DEFAULTS = Object.freeze({ cutsceneSpeed: 1, skipCutscenes: false });
+// skipCutscenes · skipCountdown은 설정 화면에 없다 — 저장도 하지 않고, 테스트 하네스가 쓰는 런타임 플래그로만 남긴다.
+// (skipCountdown은 판을 한 걸음씩 몰아 검사하는 스위트가 3 · 2 · 1을 기다리지 않게 한다.)
+const STORY_SETTINGS_DEFAULTS = Object.freeze({ cutsceneSpeed: 1, skipCutscenes: false, skipCountdown: false });
 
 function loadStorySettings() {
   try {
@@ -19,6 +20,7 @@ function loadStorySettings() {
     return {
       cutsceneSpeed: Number.isFinite(cutsceneSpeed) ? Math.max(.5, Math.min(2, cutsceneSpeed)) : 1,
       skipCutscenes: false,
+      skipCountdown: false,
     };
   } catch {
     return { ...STORY_SETTINGS_DEFAULTS };

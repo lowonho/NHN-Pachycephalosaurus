@@ -397,6 +397,24 @@
                   </div>
                   <button class="touch-action" type="button" data-action="primary" aria-label="점프 또는 행동">ACTION</button>
                 </div>
+
+                <!--
+                  시작 카운트다운 — 판은 이미 그려져 있고, 3 · 2 · 1 을 세고 나서야
+                  20.26초가 흐르기 시작한다(js/game.js). 세는 동안 엔진은 'ready'라
+                  시간도 입력도 멈춰 있어, 화면을 한 번 읽고 손을 얹을 틈이 생긴다.
+                -->
+                <div class="stage-countdown" id="stage-countdown" role="status" hidden>
+                  <p class="stage-countdown-value" id="stage-countdown-value">3</p>
+                  <!--
+                    숫자 아래 붉은 줄은 이번 판의 이상현상(제약)이다 —
+                    브리핑의 ANOMALY 칸과 같은 문장이고(js/content/minigame-catalog.js),
+                    세는 동안 내내 서 있어 첫 초에 무엇을 조심할지 읽고 들어간다.
+                  -->
+                  <p class="stage-countdown-anomaly" id="stage-countdown-anomaly">
+                    <span class="stage-countdown-anomaly-label">ANOMALY <span>이상현상</span></span>
+                    <span class="stage-countdown-anomaly-text" id="stage-countdown-anomaly-text"></span>
+                  </p>
+                </div>
               </div>
             </main>
 
@@ -439,6 +457,20 @@
             <!-- 스크린 질감(주사선 · 반사광). 스크린 안 모든 레이어 위에 얹힌다. -->
             <div class="protocol-scanlines" aria-hidden="true"></div>
             <div class="protocol-glare" aria-hidden="true"></div>
+
+            <!--
+              전원 연출 — 막이 시작될 때 모니터에 처음 불이 들어오는 순간이다.
+              검은 화면 → 십자 광선 → 가운데 가로선이 위아래로 열리며 화면이 뜬다.
+              스크린 안 모든 레이어(주사선·반사광 포함) 위에 얹히고 클릭은 받지 않는다.
+              켜는 쪽은 js/ui/protocol-select-flow.js의 playPowerOn이다.
+            -->
+            <div class="protocol-power" id="protocol-power" aria-hidden="true" hidden>
+              <span class="protocol-power-shade" data-half="top"></span>
+              <span class="protocol-power-shade" data-half="bottom"></span>
+              <span class="protocol-power-cross"></span>
+              <span class="protocol-power-beam"></span>
+              <span class="protocol-power-flash"></span>
+            </div>
           </section>
 
           <p class="protocol-monitor-mark" aria-hidden="true">2026</p>
@@ -460,10 +492,10 @@
 
         <!--
           여기부터 책상 위 물건들이다. 층 순서(뒤 → 앞)는 마크업 순서 그대로다.
-            책상 → 메모 → 머그 → 포스트잇 → 탁상시계 → 키보드 → 양손
+            책상 → 메모 → 머그 → 포스트잇 → 키보드 → 양손
 
           책상·키보드·양손은 일부러 프레임 밖으로 넘겨 잘리게 둔다(1인칭 시점).
-          머그·포스트잇·탁상시계는 모니터를 살짝 가린다.
+          머그·포스트잇은 모니터를 살짝 가린다.
           배치 기준은 assets/images/concept/stage select.png.
         -->
         <img
@@ -486,31 +518,6 @@
           src="assets/images/ui/stage%20select/05_post_it_text_2k.webp"
           alt=""
         />
-
-        <!--
-          탁상시계 — 현재 스테이지의 20.26초 제한시간이 여기 뜬다.
-
-          몸체는 에셋이고 LED 유리판은 비어 있다. 그 위에 숫자만 얹는다
-          (숫자는 js/ui/protocol-select-flow.js의 renderTimer가 채운다).
-        -->
-        <div class="desk-clock" id="desk-clock" data-state="idle" role="timer" aria-label="현재 스테이지 남은 시간">
-          <img
-            class="desk-clock-body"
-            src="assets/images/ui/stage%20select/06_front_blank_clock_2k.webp"
-            alt=""
-          />
-          <p class="desk-clock-face">
-            <!-- flex 컨테이너라 조각 사이의 공백 텍스트는 무시된다(자간이 벌어지지 않는다). -->
-            <span class="desk-clock-time">
-              <span id="desk-clock-minutes">0</span>
-              <span class="desk-clock-sep">:</span>
-              <span id="desk-clock-seconds">20</span>
-              <span class="desk-clock-centis">
-                <span class="desk-clock-sep">.</span><span id="desk-clock-centis">26</span>
-              </span>
-            </span>
-          </p>
-        </div>
 
         <img
           class="scene-layer scene-keyboard"

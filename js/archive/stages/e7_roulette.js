@@ -1,6 +1,8 @@
 import { MINI } from './minigame-kit.js';
 
 export const E7_ROULETTE = {
+  // The pointer sits at the top of the wheel; screen angles run clockwise from east.
+  POINTER_ANGLE: -Math.PI / 2,
   tuning: { countryCount: 8, minSpeed: 2.4, maxSpeed: 10, friction: 4, frictionDecay: .78, minFriction: 1.5 },
   build() {
     MINI.init(this, 0xfca8d6);
@@ -75,7 +77,7 @@ export const E7_ROULETTE = {
       s.rotation += (s.speed + next) * .5 * movingDt; s.speed = next;
       if (Math.abs(next) < .001) {
         s.spinning = false;
-        const tau = Math.PI * 2, atPointer = ((0 - s.rotation) % tau + tau) % tau;
+        const tau = Math.PI * 2, atPointer = ((E7_ROULETTE.POINTER_ANGLE - s.rotation) % tau + tau) % tau;
         if (atPointer < tau / s.countries.length) this.finish(true, `${this.actions}번째 추첨 당첨`);
         else {
           const selected = s.countries[Math.min(s.countries.length - 1, Math.floor(atPointer / tau * s.countries.length))];
@@ -145,7 +147,7 @@ export const E7_ROULETTE = {
     }
     MINI.circle(this, 480, 321, 25, 0xcfa762);
     MINI.circle(this, 480, 321, 17, 0x172337);
-    this.ink.fillStyle(0xfff2bd).fillTriangle(644, 321, 665, 310, 665, 332);
+    this.ink.fillStyle(0xfff2bd).fillTriangle(480, 157, 469, 136, 491, 136);
     const failed = s.cooldown > 0 || (this.mode === 'done' && this.remaining <= 0);
     this.coach.setVisible(!failed).setFrame('pose' + (s.spinning ? Math.min(3, Math.floor(s.poseAge / .12)) : 0));
     this.coachBack.setVisible(failed);

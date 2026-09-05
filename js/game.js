@@ -1,7 +1,22 @@
 /* DOM 화면과 10개 미니게임 엔진의 연결. 게임 규칙은 stages/eN_*.js에 있습니다. */
+
+/*
+ * 시작 카운트다운 — 판을 다 그려 놓고 3 · 2 · 1 · 시작! 을 센 뒤에야 20.26초가 흐른다.
+ * 세는 동안 엔진은 'ready'라(js/archive/game.mjs) 시간도 입력도 멈춰 있으므로,
+ * 첫 초를 허둥대지 않고 화면을 읽고 손을 얹을 틈이 생긴다.
+ * 마지막 "시작!"만 짧게 스쳐 지나가 곧바로 손이 움직이게 한다.
+ */
+const COUNTDOWN_STEPS = Object.freeze([
+  { text: '3', step: '3', ms: 620, sfx: 'click' },
+  { text: '2', step: '2', ms: 620, sfx: 'click' },
+  { text: '1', step: '1', ms: 620, sfx: 'click' },
+  { text: '시작!', step: 'go', ms: 420, sfx: 'hit' },
+]);
+
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
-    this.events = events; this.ui = dom; this.soundBus = soundBus; this.stages = []; this.active = false; this.api = null;
+    this.events = events; this.ui = dom; this.soundBus = soundBus; this.stages = []; this.api = null;
+    this.active = false; this.countdown = null;
     window.addEventListener('archive-game-ready', event => this.onReady(event.detail));
     window.addEventListener('archive-hud', event => this.onHud(event.detail));
     window.addEventListener('archive-stage-end', event => this.onStageEnd(event.detail));
@@ -57,22 +72,85 @@ class ArchiveGameBridge {
     if (!globalThis.ARCHIVE_QA?.active) window.archivePlays?.record(stageId);
     window.archiveRun.setAttemptTime((globalThis.archiveStageTimeLimit?.(stage.timeLimit) ?? stage.timeLimit ?? 20.26) * 1000);
     this.emitRunSnapshot(window.archiveRun.beginAttempt(stageId));
-    this.api.loadStage(stageId); this.api.start();
+    /* 판을 먼저 세운다 — 카운트다운은 이미 그려진 화면 위에서 센다. */
+    this.api.loadStage(stageId);
+    /* 카운트다운 중에도 멈출 수 있어야 하므로 일시정지 UI부터 붙인다(js/ui/pause-flow.js). */
     this.events.emit(GAME_EVENTS.STAGE_START, { stageId, stage });
+    this.beginCountdown();
+  }
+  /*
+   * 3 · 2 · 1 · 시작! — 각 칸은 자기 시간만큼 서 있고, 마지막 칸이 끝나면 엔진이 돈다.
+   * 일시정지 중에는 시간을 먹지 않는다(pause에서 멈추고 resume에서 다시 흐른다).
+   */
+  beginCountdown() {
+    this.cancelCountdown();
+    const board = this.ui.stageCountdown, value = this.ui.stageCountdownValue;
+    if (!board || !value || globalThis.ARCHIVE_STORY_SETTINGS?.skipCountdown) { this.api.start(); return; }
+    this.countdown = { index: -1, remaining: 0, last: 0, frame: 0, paused: false };
+    board.hidden = false;
+    this.showCountdownAnomaly();
+    const tick = now => {
+      const state = this.countdown;
+      if (!state) return;
+      const delta = state.last ? Math.max(0, now - state.last) : 0;
+      state.last = now;
+      if (!state.paused) state.remaining -= delta;
+      if (state.remaining <= 0 && !this.nextCountdownStep()) return;
+      state.frame = requestAnimationFrame(tick);
+    };
+    if (this.nextCountdownStep()) this.countdown.frame = requestAnimationFrame(tick);
+  }
+  /*
+   * 숫자 아래 붉은 줄 — 이번 판에서 조심할 것 하나(브리핑의 ANOMALY 칸과 같은 문장).
+   * 숫자는 칸마다 새로 튀지만 이 줄은 세는 내내 그대로 서 있어야 읽힌다.
+   */
+  showCountdownAnomaly() {
+    const line = this.ui.stageCountdownAnomaly, text = this.ui.stageCountdownAnomalyText;
+    if (!line || !text) return;
+    const anomaly = this.currentStage?.anomaly ?? '';
+    text.textContent = anomaly;
+    line.hidden = !anomaly;
+    /* 판을 이어서 다시 시작할 때도 한 번 떠오르는 연출을 처음부터 다시 재생시킨다. */
+    line.style.animation = 'none'; void line.offsetWidth; line.style.animation = '';
+  }
+  /* 다음 칸을 세운다. 마지막 칸까지 끝났으면 판을 시작하고 false를 돌려준다. */
+  nextCountdownStep() {
+    const state = this.countdown, value = this.ui.stageCountdownValue;
+    const next = COUNTDOWN_STEPS[state.index + 1];
+    if (!next) { this.finishCountdown(); return false; }
+    state.index += 1; state.remaining = next.ms;
+    value.textContent = next.text; value.dataset.step = next.step;
+    /* 같은 애니메이션을 처음부터 다시 재생시킨다 — 되감으려면 한 번 떼었다 붙여야 한다. */
+    value.style.animation = 'none'; void value.offsetWidth; value.style.animation = '';
+    window.dispatchEvent(new CustomEvent('archive-sfx', { detail: { name: next.sfx } }));
+    return true;
+  }
+  /* 세는 것을 끝내고 판을 시작한다. 카운트다운이 없었으면 아무 일도 하지 않는다. */
+  finishCountdown() {
+    if (!this.countdown) return;
+    this.cancelCountdown();
+    this.api.start();
+  }
+  cancelCountdown() {
+    if (this.countdown) cancelAnimationFrame(this.countdown.frame);
+    this.countdown = null;
+    if (this.ui.stageCountdown) this.ui.stageCountdown.hidden = true;
   }
   restart() { if (this.currentStage) this.start(this.currentStage.id); }
   pause() {
     if (!this.active) return;
+    if (this.countdown) this.countdown.paused = true;
     this.api.pause(true); this.emitRunSnapshot(window.archiveRun.setPaused(true));
     this.events.emit(GAME_EVENTS.STAGE_PAUSE, { stageId: this.currentStage?.id });
   }
   resume() {
     if (!this.active) return;
+    if (this.countdown) this.countdown.paused = false;
     this.api.pause(false); this.emitRunSnapshot(window.archiveRun.setPaused(false));
     this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
   }
   stop() {
-    this.active = false; this.api?.stop();
+    this.active = false; this.cancelCountdown(); this.api?.stop();
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud.hidden = true; this.ui.stageHudTimer.hidden = true; this.ui.touchControls.hidden = true;
     if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = true;

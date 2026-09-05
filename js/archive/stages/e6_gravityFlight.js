@@ -15,7 +15,7 @@ import { MINI } from './minigame-kit.js';
    나머지가 다 나오기 전에는 다시 뽑히지 않는다(같은 세트가 연달아 서면 길이 단조로워진다). */
 const MEME = {
   family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
-  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~']],
+  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~'], ['아자스!']],
   color: '#fff3d6', stroke: '#07141d',
 };
 MEME.words = MEME.sets.flat();
@@ -41,6 +41,20 @@ function nextMeme(scene) {
 const TUNNEL = { top: 130, bottom: 511, height: 381 };
 /* 부딪힌 뒤 되돌아가 서는 자리가 벽에서 떨어져 있어야 하는 거리. 고양이 반 키(24)보다 넉넉하다. */
 const RESPAWN_MARGIN = 52;
+
+/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 고양이 앞 lead 만큼 —
+   화면 절반쯤 되는 자리 — 에서 위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
+   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 300 이 곧 화면 한가운데(480)다.
+   speed 255 기준으로 눈에 보이고 나서 부딪히기까지 약 1.2초 — 보고 피할 수 있는 최소한이다. */
+const EMERGE = { lead: 300, time: .16 };
+
+/* 기둥이 벽 밖으로 나온 정도(0~1). 끝에서 부드럽게 멎는 곡선이라 튀어나오는 맛이 산다.
+   판정과 그림이 같은 값을 보므로, 아직 덜 나온 기둥은 그만큼만 부딪힌다. */
+function gateReach(scene, gate) {
+  if (gate.emergedAt === null) return 0;
+  const phase = MINI.clamp((scene.elapsed - gate.emergedAt) / EMERGE.time, 0, 1);
+  return 1 - (1 - phase) ** 4;
+}
 
 /* 캐릭터는 도는 고양이(oiia)다. 스페이스를 누르고 있는 동안에만 spin1→spin6 을 돌리고,
    손을 떼면 spin1 에 멈춘다 — 상승 중인지 떨어지는 중인지가 그림 하나로 읽힌다.
@@ -154,7 +168,7 @@ function syncGates(scene) {
   const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
   while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
     const index = scene.nextGate.index, word = nextMeme(scene);
-    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', bornAt: scene.elapsed };
+    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', emergedAt: null };
     gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
       fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
       align: 'center', stroke: MEME.stroke, strokeThickness: 5,
@@ -163,8 +177,11 @@ function syncGates(scene) {
     scene.nextGate = { x: scene.nextGate.x + t.spacing, index: index + 1 };
   }
   for (let i = scene.gates.length - 1; i >= 0; i--) {
-    if (scene.gates[i].x >= x - t.despawnBehind) continue;
-    scene.gates[i].label.destroy(); scene.gates.splice(i, 1);
+    const gate = scene.gates[i];
+    // 앞 lead 안으로 들어온 기둥이 벽에서 튀어나오기 시작한다. 한 번 나온 기둥은 다시 들어가지 않는다.
+    if (gate.emergedAt === null && gate.x - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
+    if (gate.x >= x - t.despawnBehind) continue;
+    gate.label.destroy(); scene.gates.splice(i, 1);
   }
 }
 
@@ -174,10 +191,12 @@ export const E6_GRAVITY_FLIGHT = {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
     cell: 42, minGap: 152, aimMargin: 52, spacing: 355, firstX: 500,
-    spawnAhead: 880, spawnStop: 140, despawnBehind: 420, fadeIn: .3,
+    spawnAhead: 880, spawnStop: 140, despawnBehind: 420,
   },
   build() {
     MINI.init(this, 0x7cd9ff);
+    // 통로 바닥은 연한 형광 연두. 격자는 같은 계열의 짙은 풀색이라야 밝은 바닥에서 보인다.
+    this.fieldColor = 0xd9fb7a; this.fieldGrid = 0x3f6b12;
     // spin 은 누르고 있는 동안 쌓이는 프레임 수(정수부가 곧 지금 프레임)다. 손을 떼면 0으로 돌아간다.
     // heat 는 불이 붙은 정도(0~1)다. 누르고 떼는 순간 불이 튀지 않도록 시간을 두고 오간다.
     this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0, heat: 0 };
@@ -221,9 +240,14 @@ export const E6_GRAVITY_FLIGHT = {
     s.y += s.vy * dt;
     syncGates(this);
     // 그림 상자가 글자 기둥에 겹치거나 위아래 벽에 닿으면 실패다.
+    // 기둥은 벽 밖으로 나온 만큼만 막는다 — 아직 숨어 있는 기둥 자리는 그냥 지나간다.
     const box = this.catBox;
-    const gate = this.gates.find(g => Math.abs(g.x - s.x) < g.halfWidth + box.halfWidth
-      && s.y + box.halfHeight > g.top && s.y - box.halfHeight < g.bottom);
+    const gate = this.gates.find(g => {
+      const shown = (g.bottom - g.top) * gateReach(this, g);
+      if (shown <= 0 || Math.abs(g.x - s.x) >= g.halfWidth + box.halfWidth) return false;
+      const top = g.side === 'top' ? g.top : g.bottom - shown;
+      return s.y + box.halfHeight > top && s.y - box.halfHeight < top + shown;
+    });
     if (!s.immune && (gate || s.y - box.halfHeight <= TUNNEL.top || s.y + box.halfHeight >= TUNNEL.bottom)) {
       s.hits++; s.x = Math.max(0, s.x - t.knockback);
       s.y = gate?.y ?? MINI.clamp(s.y, TUNNEL.top + RESPAWN_MARGIN, TUNNEL.bottom - RESPAWN_MARGIN);
@@ -243,16 +267,25 @@ export const E6_GRAVITY_FLIGHT = {
     MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
     for (const gate of this.gates) {
       const x = gate.x - s.x + 180;
-      const onScreen = x > -60 && x < 1000;
+      const reach = gateReach(this, gate);
+      const onScreen = x > -60 && x < 1000 && reach > 0;
       gate.label.setVisible(onScreen);
       if (!onScreen) continue;
-      // 화면 밖에서 태어나 오른쪽 끝에 닿을 무렵 또렷해진다.
-      const fade = MINI.clamp((this.elapsed - gate.bornAt) / t.fadeIn, 0, 1);
-      gate.label.setPosition(x, gate.top).setAlpha(fade);
+      // 기둥은 벽 안에서 미끄러져 나온다. 글자를 벽 쪽으로 물려 두고, 벽에 아직 묻힌 만큼을
+      // 잘라 낸다(setCrop) — 벽 그림은 ink 라 글자(depth 4)보다 아래에 있어 가려 주지 못한다.
+      const height = gate.bottom - gate.top, shown = height * reach;
+      const texture = gate.label.frame;
+      if (gate.side === 'top') {
+        gate.label.setPosition(x, TUNNEL.top - height + shown);
+        gate.label.setCrop(0, texture.height * (1 - reach), texture.width, texture.height * reach);
+      } else {
+        gate.label.setPosition(x, TUNNEL.bottom - shown);
+        gate.label.setCrop(0, 0, texture.width, texture.height * reach);
+      }
+      if (reach >= 1) gate.label.setCrop();  // 다 나온 뒤에는 잘라 낼 것이 없다(반 픽셀 이음매 방지).
       // 글자가 벽에 붙어 있다는 자국. 판정 끝선은 글자 자체가 보여 주므로 따로 긋지 않는다.
       const wall = gate.side === 'top' ? TUNNEL.top : TUNNEL.bottom;
-      const edge = gate.side === 'top' ? gate.bottom : gate.top;
-      MINI.box(this, x - gate.halfWidth, Math.min(wall, edge), gate.halfWidth * 2, Math.abs(edge - wall), 0x4c657f, .22 * fade);
+      MINI.box(this, x - gate.halfWidth, gate.side === 'top' ? wall : wall - shown, gate.halfWidth * 2, shown, 0x4c657f, .22);
     }
     const pop = MINI.spawnScale(this);
     const box = this.catBox;

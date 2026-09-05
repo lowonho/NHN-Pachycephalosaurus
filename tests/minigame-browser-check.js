@@ -359,7 +359,7 @@
   const spin = scene.stageGame.tuning;
   assert(scene.state.spinning && Math.abs(scene.state.speed) <= spin.maxSpeed && Math.abs(scene.state.speed) >= spin.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
-    scene.state.rotation = .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
+    scene.state.rotation = scene.stageGame.POINTER_ANGLE + Math.PI; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: miss ${miss} reduces friction`);
   }
@@ -548,6 +548,26 @@
   assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
     && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');
   codexFlow.close({ restoreFocus: false });
+  // 시작 카운트다운 — 판은 그려진 채로 3 · 2 · 1 · 시작!을 세고, 다 세고 나서야 엔진이 돈다.
+  ARCHIVE_STORY_SETTINGS.skipCountdown = false;
+  archiveGameBridge.stop();
+  const countdownStage = MINIGAME_CATALOG.find(stage => stage.id === 'e1');
+  archiveGameBridge.currentStage = countdownStage;
+  scene.loadStage('e1');
+  archiveGameBridge.beginCountdown();
+  const countdownShown = !UI.stageCountdown.hidden, countdownMode = scene.mode;
+  const countdownAnomaly = { shown: !UI.stageCountdownAnomaly.hidden, text: UI.stageCountdownAnomalyText.textContent };
+  const countdownLabels = [UI.stageCountdownValue.textContent];
+  while (archiveGameBridge.nextCountdownStep()) countdownLabels.push(UI.stageCountdownValue.textContent);
+  assert(countdownShown && countdownMode === 'ready' && countdownLabels.join(' ') === '3 2 1 시작!'
+    && UI.stageCountdown.hidden && scene.mode === 'playing' && scene.elapsed === 0,
+    'Countdown holds the stage at ready through 3 · 2 · 1 and then hands it to the engine');
+  // 숫자 아래 붉은 줄은 브리핑의 ANOMALY 칸과 같은 문장이고, 세는 내내 그대로 서 있는다.
+  assert(countdownAnomaly.shown && countdownAnomaly.text === countdownStage.anomaly
+    && UI.stageCountdownAnomalyText.textContent === countdownStage.anomaly,
+    'Countdown shows the stage anomaly under the number for every beat');
+  ARCHIVE_STORY_SETTINGS.skipCountdown = true;
+  archiveGameBridge.stop();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   return { passed: checks.length, checks: checks.filter(name => !name.startsWith('Unique random selection')) };
 })()

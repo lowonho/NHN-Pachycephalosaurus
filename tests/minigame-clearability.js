@@ -90,7 +90,7 @@
   for (let attempt = 1; attempt <= 3 && !clearedE6; attempt++) { load('e6'); flyE6(); clearedE6 = Boolean(outcome?.success); }
   save('e6');
   // A real random roulette round can lose; verify the actual resting wedge judges both outcomes.
-  load('e7'); scene.state.rotation = -.2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
+  load('e7'); scene.state.rotation = scene.stageGame.POINTER_ANGLE - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');
   load('e8'); driveE8(); save('e8');
   load('e9');
