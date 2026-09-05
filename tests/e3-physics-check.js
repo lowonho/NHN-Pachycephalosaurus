@@ -13,10 +13,10 @@
   };
   load();
   const center = spawn(480);
-  assert(center.angularVelocity === 0, 'No artificial spin is added when a bent pose is created');
+  assert(center.angularVelocity === 0, 'No artificial spin is added when a person is created');
   step(2.4);
   measurements.centerAngle = center.angle;
-  assert(scene.stackGrounded.has(center.id), 'Bent mannequin finds physical support after landing');
+  assert(scene.stackGrounded.has(center.id), 'Mannequin finds physical support after landing');
   M.Body.setAngularVelocity(center, .1); scene.stageGame.measureTower.call(scene);
   assert(!scene.stackStable.has(center.id) && scene.state.height > 0, 'Supported rocking body still contributes height');
   assert(center.parts.length > 8 && Number.isFinite(center.inertia) && center.inverseInertia > 0, 'Arms, torso, head and legs form a rotating compound body');
@@ -41,7 +41,13 @@
   const speed = scene.stageGame.speed.call(scene); step(4);
   assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed && scene.people.length === 2, 'Collapse retains every person and accumulated speed');
   load();
-  scene.primaryAction(); step(.2);
+  const dropAngle = scene.state.nextAngle, dropX = scene.state.x, dropY = scene.state.spawnY;
+  scene.primaryAction();
+  const dropped = scene.people[0], origin = dropped.plugin.e3.origin;
+  assert(Math.abs(dropAngle) === Math.PI / 2 && dropped.angle === dropAngle, 'Sideways preview is dropped at the same angle');
+  assert(Math.hypot(dropped.position.x + origin.x * Math.cos(dropAngle) - origin.y * Math.sin(dropAngle) - dropX, dropped.position.y + origin.x * Math.sin(dropAngle) + origin.y * Math.cos(dropAngle) - dropY) < .001, 'Rotated body does not jump away from preview position');
+  assert(scene.state.nextAngle !== dropAngle, 'Next person arrives with a different orientation');
+  step(.2);
   const before = JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle })));
   archiveGame.pause(true); scene.update(0, 1500);
   assert(before === JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle }))), 'Pause freezes falling body and rotation');
@@ -60,6 +66,7 @@
   assert(Math.hypot(sprite.x - expected.x, sprite.y - expected.y) < .001 && Math.abs(sprite.rotation - body.angle) < .00001, 'Asset pivots around physical center of mass without drifting');
   scene.state.nextPose = 0; scene.stageGame.render.call(scene);
   const preview = scene.assetSprites.get('preview');
+  assert(Math.abs(preview.rotation - scene.state.nextAngle) < .00001, 'Preview asset displays the upcoming drop angle');
   scene.state.nextPose = 1; scene.stageGame.render.call(scene);
   assert(preview && !preview.visible, 'Missing next-pose asset hides previous skin before fallback');
   const world = scene.stackWorld;
@@ -89,6 +96,6 @@
   }
   measurements.clearTime = scene.elapsed;
   measurements.drops = scene.state.drops;
-  assert(scene.mode === 'done' && scene.state.held >= 3 && scene.state.held < 3.02 && scene.state.groundedCount >= 3, 'Bent poses clear only after three continuous seconds at target within 20.26 seconds');
+  assert(scene.mode === 'done' && scene.state.held >= 3 && scene.state.held < 3.02 && scene.state.groundedCount >= 3, 'Rotated people clear only after three continuous seconds at target within 20.26 seconds');
   return { passed: checks.length, checks, measurements };
 })()

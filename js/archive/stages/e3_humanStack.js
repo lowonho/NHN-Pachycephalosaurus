@@ -5,6 +5,7 @@ export const E3_HUMAN_STACK = {
   tuning: {
     speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
+    dropAngles: [90, -35, -90, 25, 145, -65, 180, 50],
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
     restitution: .045, density: .0022, carryMomentum: .075,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
@@ -13,26 +14,26 @@ export const E3_HUMAN_STACK = {
   // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
   // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
   poses: [
-    { id: 'crouch', name: '웅크리기', width: 116, height: 100, head: [-12, -30, 11], limbs: [
-      [-8, -10, 3, 7, 14], [-15, -9, -34, -16, 8], [-34, -16, -44, 3, 7],
-      [3, -9, 27, -2, 8], [27, -2, 35, 16, 7],
-      [-4, 12, -28, 21, 9], [-28, 21, -16, 34, 7],
-      [10, 12, 31, 24, 9], [31, 24, 18, 35, 7],
-      [-23, 36, -10, 36, 7], [16, 37, 30, 37, 7],
+    { id: 'crouch', name: '버티기', width: 102, height: 96, head: [0, -28, 11], limbs: [
+      [0, -10, 0, 8, 14], [-9, -10, -25, -19, 8], [-25, -19, -39, -7, 7],
+      [9, -10, 25, -19, 8], [25, -19, 39, -7, 7],
+      [-6, 9, -22, 20, 9], [-22, 20, -27, 32, 7],
+      [6, 9, 22, 20, 9], [22, 20, 27, 32, 7],
+      [-32, 34, -21, 34, 7], [21, 34, 32, 34, 7],
     ] },
-    { id: 'wide', name: '옆으로 누워 접기', width: 140, height: 98, head: [-45, -12, 11], limbs: [
-      [-24, -4, 1, 3, 14], [-25, -12, -12, -31, 8], [-12, -31, 7, -24, 7],
-      [-24, 5, -29, 26, 8], [-29, 26, -8, 30, 7],
-      [7, -3, 30, -21, 9], [30, -21, 47, -3, 7],
-      [8, 11, 28, 32, 9], [28, 32, 48, 18, 7],
-      [45, -3, 56, 2, 7], [46, 18, 56, 25, 7],
+    { id: 'wide', name: '팔 벌리기', width: 120, height: 104, head: [0, -30, 11], limbs: [
+      [0, -12, 0, 8, 14], [-9, -12, -29, -11, 8], [-29, -11, -47, -20, 7],
+      [9, -12, 29, -11, 8], [29, -11, 47, -20, 7],
+      [-6, 9, -12, 23, 9], [-12, 23, -19, 39, 7],
+      [6, 9, 12, 23, 9], [12, 23, 19, 39, 7],
+      [-25, 41, -15, 41, 7], [15, 41, 25, 41, 7],
     ] },
-    { id: 'reach', name: '몸 비틀어 굽히기', width: 124, height: 108, head: [23, -29, 11], limbs: [
-      [12, -11, -4, 9, 14], [8, -14, -14, -31, 8], [-14, -31, -33, -22, 7],
-      [20, -8, 40, 4, 8], [40, 4, 30, 22, 7],
-      [-10, 13, -35, 19, 9], [-35, 19, -28, 39, 7],
-      [2, 16, 19, 32, 9], [19, 32, 38, 31, 7],
-      [-34, 41, -20, 41, 7], [37, 31, 47, 22, 7],
+    { id: 'reach', name: '만세', width: 96, height: 124, head: [0, -30, 11], limbs: [
+      [0, -12, 0, 8, 14], [-9, -12, -25, -29, 8], [-25, -29, -31, -47, 7],
+      [9, -12, 25, -29, 8], [25, -29, 31, -47, 7],
+      [-6, 9, -18, 24, 9], [-18, 24, -24, 40, 7],
+      [6, 9, 18, 24, 9], [18, 24, 24, 40, 7],
+      [-30, 42, -19, 42, 7], [19, 42, 30, 42, 7],
     ] },
   ],
   build() {
@@ -53,7 +54,7 @@ export const E3_HUMAN_STACK = {
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
-      spawnY: 200, nextPose: 0, impacts: [], impactCooldown: 0,
+      spawnY: 200, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, impacts: [], impactCooldown: 0,
     };
     this.people = [];
     this.stackBodyById = new Map();
@@ -62,7 +63,7 @@ export const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '굽힌 몸의 모양을 맞춰 쌓고 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+      hint: this.add.text(480, 166, '사람이 누운 방향을 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
@@ -84,7 +85,7 @@ export const E3_HUMAN_STACK = {
     const t = E3_HUMAN_STACK.tuning;
     return Math.min(t.maxSpeed, t.speed + this.state.drops * t.speedGain);
   },
-  createPerson(x, y, poseIndex) {
+  createPerson(x, y, poseIndex, angle = 0) {
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
     const pose = E3_HUMAN_STACK.poses[poseIndex];
     const material = {
@@ -101,18 +102,21 @@ export const E3_HUMAN_STACK = {
     });
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
     body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
+    // 팔다리 모양을 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
+    M.Body.rotate(body, angle, { x, y });
     return body;
   },
   action() {
     const s = this.state, t = E3_HUMAN_STACK.tuning;
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
-    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose);
-    // 운반 중의 좌우 관성을 조금 물려줍니다. 임의 회전/가짜 쓰러짐은 넣지 않습니다.
+    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
+    // 운반 중의 좌우 관성을 조금 물려줍니다. 초기 방향 이후 회전은 실제 충돌에 맡깁니다.
     M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
     s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
     this.sfx('action');
   },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
@@ -234,7 +238,7 @@ export const E3_HUMAN_STACK = {
     MINI.line(this, project(260, 0).x, rail.y, project(700, 0).x, rail.y, 0x5f8190, 2);
     MINI.circle(this, rail.x, rail.y, 4, 0xffd99e);
     MINI.line(this, rail.x, rail.y + 4, rail.x, rail.y + 11, 0xffd99e, 2);
-    E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, 0, s.cooldown ? .3 : .8);
+    E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
     if (t.debugPhysics) for (const body of this.people) {
       for (const part of body.parts.slice(1)) {
         g.lineStyle(1, 0xff799b, .85).strokePoints(part.vertices.map(v => project(v.x, v.y)), true);
