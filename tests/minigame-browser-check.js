@@ -50,18 +50,20 @@
   const weakened = scene.stageGame.jumpPower.call(scene), shards = scene.state.shards.length;
   scene.primaryAction();
   assert(scene.state.jumps === jump && scene.state.shards.length === shards && shards > 0, 'e2: airborne presses do not add damage or shards');
-  scene.state.y = 540; advance(.02);
+  scene.state.y = 540; scene.state.vy = 100; advance(.02);
   assert(scene.state.jumps === jump && scene.state.deaths > 0 && scene.stageGame.jumpPower.call(scene) === weakened, 'e2: death retains cracked shell and weakened jump');
   load('e2');
   const heights = [];
-  for (let attempt = 0; attempt < 9; attempt++) {
+  for (let attempt = 0; attempt < 13; attempt++) {
     const startY = scene.state.y; let top = startY;
     scene.primaryAction();
-    advance(1, () => { top = Math.min(top, scene.state.y); });
+    advance(1.3, () => { top = Math.min(top, scene.state.y); });
     heights.push(startY - top);
   }
-  assert(heights.slice(1, 6).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
-  assert(Math.abs(heights[7] - heights[8]) < .01 && heights[8] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
+  assert(heights.slice(1, 5).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
+  assert(heights[0] > 190 && heights[2] < heights[0] * .75 && heights[4] > 80, 'e2: early jump reduction preserves useful mid-course height');
+  assert(heights[8] < heights[5] && heights[8] > heights[10] + 5, 'e2: jump height keeps changing into the late course');
+  assert(Math.abs(heights[11] - heights[12]) < .01 && heights[12] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
   assert(scene.state.shards.length === 0, 'e2: emitted wax shards expire');
   scene.primaryAction();
   const pausedShards = JSON.stringify(scene.state.shards);
@@ -70,13 +72,40 @@
   archiveGame.pause(false);
   load('e2');
   assert(scene.state.jumps === 0 && scene.state.shards.length === 0 && scene.stageGame.jumpPower.call(scene) > weakened, 'e2: fresh attempt restores shell and jump power');
-  // Even after excessive jumps, the course remains physically crossable without W assistance.
-  scene.state.jumps = 100; scene.directionPress('right');
-  advance(20.3, () => {
-    const s = scene.state, p = scene.platforms.find(p => s.checkpoint === p.x + 50);
-    if (s.grounded && p && s.x >= p.x + p.w - 16 && p !== scene.platforms.at(-1)) scene.primaryAction();
-  });
-  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0 && scene.elapsed < 20.26, 'e2: minimum jump power can clear the entire course without deaths');
+  // A high assisted jump can pass the former ceiling without dying or resetting damage.
+  scene.touch.add('up'); scene.primaryAction(); advance(.8);
+  assert(scene.state.y < 188 && scene.state.deaths === 0 && scene.state.jumps === 1, 'e2: former ceiling is open for high jumps');
+  load('e2');
+  const lift = scene.platforms.find(p => p.kind === 'lift'), startLiftY = lift.y;
+  Object.assign(scene.state, { x: lift.x + lift.w / 2, y: lift.y - 20, platformIndex: lift.index, grounded: true, vy: 0 });
+  advance(.3);
+  assert(Math.abs(lift.y - startLiftY) > 1 && scene.state.grounded && Math.abs(scene.state.y + 20 - lift.y) < .01, 'e2: moving lift carries the grounded ball');
+  load('e2');
+  const crumble = scene.platforms.find(p => p.kind === 'crumble');
+  Object.assign(scene.state, { x: crumble.x + 45, y: crumble.y - 21, platformIndex: crumble.index, grounded: false, vy: 20, jumps: 5 });
+  advance(.05);
+  assert(crumble.crumbleLeft > 0 && scene.state.checkpoint === 90, 'e2: landing arms crumble timer without setting an unsafe checkpoint');
+  const countdown = crumble.crumbleLeft;
+  archiveGame.pause(true); scene.update(0, 1000);
+  assert(crumble.crumbleLeft === countdown, 'e2: pause freezes terrain countdown');
+  archiveGame.pause(false); advance(.6);
+  assert(!crumble.active && !scene.state.grounded, 'e2: crumbled platform loses collision and drops a waiting ball');
+  advance(.5);
+  assert(scene.state.deaths > 0 && scene.state.x === 90 && scene.state.jumps === 5, 'e2: crumble fall returns to safe checkpoint with damage preserved');
+  advance(1);
+  assert(crumble.active && crumble.crumbleLeft === null, 'e2: collapsed platform rebuilds for another attempt');
+  load('e2');
+  // The weakened ball needs W assistance and late takeoffs on the harder course.
+  scene.state.jumps = 100; driveE2();
+  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: assisted minimum jump can clear the terrain (${scene.state.x}, deaths ${scene.state.deaths})`);
+  // Sample different elevator phases with slower input and no W lift assistance.
+  for (const phase of [0, .7, 1.4, 2.1]) {
+    load('e2'); const p = scene.platforms[5];
+    Object.assign(scene.state, { x: p.x + 50, y: p.y - 20, checkpoint: p.x + 50, platformIndex: p.index, jumps: 100 });
+    scene.elapsed = phase;
+    driveE2(18, { reactionFrames: 12, edge: 20, allowAssist: false });
+    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late course clears at minimum bounce without W with 100ms inputs (phase ${phase})`);
+  }
   load('e3'); scene.primaryAction(); advance(.5); scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');

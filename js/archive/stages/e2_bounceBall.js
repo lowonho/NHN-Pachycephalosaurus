@@ -1,23 +1,30 @@
 import { MINI } from './minigame-kit.js';
 
 export const E2_BOUNCE_BALL = {
-  tuning: { speed: 245, gravity: 1300, jump: 480, jumpLoss: 38, minJump: 260, radius: 20, goal: 2880 },
+  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 280, radius: 20, goal: 3180,
+    liftRange: 22, liftSpeed: 2.1, crumbleTime: .55, rebuildTime: 1.4 },
   build() {
     MINI.init(this, 0xb8f77b);
     this.state = { x: 90, y: 429, vy: 0, grounded: true, jumps: 0, deaths: 0, checkpoint: 90,
-      roll: 0, squash: 0, burst: 0, shards: [] };
+      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0 };
     this.ballInk = this.add.graphics().setMask(this.ink.mask).setDepth(3);
-    // 약해진 공으로도 가장자리에서 뛰면 건널 수 있도록 뒤쪽 간격을 좁힙니다.
+    this.add.text(925, 137, '파랑: 승강 발판 · 주황: 밟으면 무너짐', {
+      fontFamily: 'Arial', fontSize: '13px', color: '#cbdce4',
+    }).setOrigin(1, 1);
+    // 오르막/내리막 사이에 승강 발판과 착지 후 무너지는 발판을 섞습니다.
     this.platforms = [
-      { x: 0, y: 449, w: 395, h: 28 }, { x: 480, y: 443, w: 370, h: 34 },
-      { x: 930, y: 449, w: 390, h: 28 }, { x: 1400, y: 441, w: 385, h: 36 },
-      { x: 1860, y: 449, w: 390, h: 28 }, { x: 2320, y: 445, w: 345, h: 32 },
-      { x: 2730, y: 449, w: 330, h: 28 },
-    ];
+      { x: 0, y: 449, w: 300, h: 28 }, { x: 410, y: 410, w: 170, h: 24 },
+      { x: 690, y: 375, w: 130, h: 24, kind: 'lift' }, { x: 935, y: 413, w: 115, h: 24, kind: 'crumble' },
+      { x: 1160, y: 380, w: 100, h: 24 }, { x: 1365, y: 417, w: 150, h: 24 },
+      { x: 1580, y: 410, w: 135, h: 24, kind: 'lift', range: 10 }, { x: 1780, y: 430, w: 155, h: 24, kind: 'crumble' },
+      { x: 2000, y: 416, w: 125, h: 24 }, { x: 2190, y: 438, w: 160, h: 24 },
+      { x: 2415, y: 432, w: 130, h: 24, kind: 'lift', range: 10 }, { x: 2610, y: 444, w: 150, h: 24, kind: 'crumble' },
+      { x: 2825, y: 428, w: 140, h: 24 }, { x: 3030, y: 439, w: 240, h: 28 },
+    ].map((p, index) => ({ ...p, index, baseY: p.y, previousY: p.y, active: true, crumbleLeft: null, rebuildLeft: 0 }));
   },
   jumpPower() {
     const t = E2_BOUNCE_BALL.tuning;
-    return Math.max(t.minJump, t.jump - this.state.jumps * t.jumpLoss);
+    return Math.max(t.minJump, t.jump * t.jumpDecay ** this.state.jumps);
   },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
@@ -33,8 +40,23 @@ export const E2_BOUNCE_BALL = {
     }
   },
   update(dt) {
-    const s = this.state, t = E2_BOUNCE_BALL.tuning, previous = s.y, wasGrounded = s.grounded, oldX = s.x;
-    s.x = MINI.clamp(s.x + this.axis('left', 'right') * t.speed * dt, t.radius, 3030);
+    const s = this.state, t = E2_BOUNCE_BALL.tuning, wasGrounded = s.grounded, oldX = s.x;
+    for (const p of this.platforms) {
+      p.previousY = p.y;
+      if (p.kind === 'lift') p.y = p.baseY + (p.range ?? t.liftRange) * Math.sin(this.elapsed * t.liftSpeed + p.index);
+      if (!p.active) {
+        p.rebuildLeft = Math.max(0, p.rebuildLeft - dt);
+        if (p.rebuildLeft === 0) { p.active = true; p.crumbleLeft = null; }
+      } else if (p.crumbleLeft !== null) {
+        p.crumbleLeft = Math.max(0, p.crumbleLeft - dt);
+        if (p.crumbleLeft === 0) { p.active = false; p.rebuildLeft = t.rebuildTime; }
+      }
+    }
+    const support = this.platforms[s.platformIndex];
+    if (wasGrounded && support?.active) s.y += support.y - support.previousY;
+    const previous = s.y;
+    const lastPlatform = this.platforms[this.platforms.length - 1];
+    s.x = MINI.clamp(s.x + this.axis('left', 'right') * t.speed * dt, t.radius, lastPlatform.x + lastPlatform.w - t.radius);
     s.roll += (s.x - oldX) / t.radius;
     s.squash = Math.max(0, s.squash - dt * 5); s.burst = Math.max(0, s.burst - dt * 4);
     for (const shard of s.shards) {
@@ -45,15 +67,21 @@ export const E2_BOUNCE_BALL = {
     s.vy += (t.gravity + this.axis('up', 'down') * 420) * dt;
     s.y += s.vy * dt; s.grounded = false;
     for (const p of this.platforms) {
-      if (s.vy >= 0 && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= p.y + 1 && s.y + t.radius >= p.y) {
+      const previousTop = wasGrounded && p === support ? p.y : p.previousY;
+      if (p.active && s.vy >= (p.y - previousTop) / dt && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= previousTop + 1 && s.y + t.radius >= p.y) {
         s.y = p.y - t.radius; s.vy = 0; s.grounded = true;
         if (!wasGrounded) s.squash = 1;
-        s.checkpoint = p.x + 50;
+        s.platformIndex = p.index;
+        if (p.kind === 'crumble') {
+          if (p.crumbleLeft === null) p.crumbleLeft = t.crumbleTime;
+        } else s.checkpoint = p.x + 50;
       }
     }
-    if (s.y < 188 + t.radius || s.y > 535) {
+    // 천장은 열려 있습니다. 높이 뛰면 카메라만 따라가고, 추락했을 때만 체크포인트로 돌아갑니다.
+    if (s.y > 535) {
       s.deaths++; s.x = s.checkpoint;
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
+      s.platformIndex = p?.index ?? 0;
       s.y = (p?.y ?? 449) - t.radius; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
     const power = E2_BOUNCE_BALL.jumpPower.call(this);
@@ -95,21 +123,42 @@ export const E2_BOUNCE_BALL = {
     g.restore();
   },
   render() {
-    const s = this.state, cam = Math.max(0, s.x - 190);
+    const s = this.state, cam = Math.max(0, s.x - 190), camY = Math.min(0, s.y - 205);
     const t = E2_BOUNCE_BALL.tuning;
     MINI.frame(this, `다음 점프 ${Math.round(E2_BOUNCE_BALL.jumpPower.call(this) / t.jump * 100)}%    파손 ${s.jumps}회    CHECKPOINT ${Math.max(1, this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1)}`);
     this.ballInk.clear();
-    for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
-    for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
+    for (const p of this.platforms) {
+      const x = p.x - cam, y = p.y - camY;
+      if (x + p.w < 20 || x > 940) continue;
+      const color = p.kind === 'lift' ? 0x65d8ef : p.kind === 'crumble' ? 0xffbd77 : 0xb8f77b;
+      if (p.kind === 'lift') {
+        const range = p.range ?? t.liftRange;
+        MINI.line(this, x + p.w / 2, p.baseY - range - camY, x + p.w / 2, p.baseY + range + p.h - camY, 0x397186, 3);
+      }
+      if (!p.active) {
+        this.ink.lineStyle(1, color, .3).strokeRect(x, y, p.w, p.h);
+        MINI.box(this, x, y + p.h + 5, p.w * (1 - p.rebuildLeft / t.rebuildTime), 3, color, .5);
+        continue;
+      }
+      MINI.box(this, x, y, p.w, p.h, p.kind === 'lift' ? 0x28576b : p.kind === 'crumble' ? 0x866044 : 0x4f7560);
+      MINI.line(this, x + 4, y + 2, x + p.w - 4, y + 2, color, 3);
+      if (p.kind === 'crumble') {
+        for (let offset = 18; offset < p.w; offset += 26) {
+          MINI.line(this, x + offset, y + 4, x + offset - 5, y + 12, 0x392f32, 2);
+          MINI.line(this, x + offset - 5, y + 12, x + offset + 3, y + p.h, 0x392f32, 2);
+        }
+        if (p.crumbleLeft !== null) MINI.box(this, x, y - 7, p.w * p.crumbleLeft / t.crumbleTime, 3, 0xff6e6e);
+      }
+    }
     const pop = MINI.spawnScale(this);
     for (const shard of s.shards) {
       const g = this.ballInk;
-      g.save(); g.translateCanvas(shard.x - cam, shard.y); g.rotateCanvas(shard.angle);
+      g.save(); g.translateCanvas(shard.x - cam, shard.y - camY); g.rotateCanvas(shard.angle);
       g.fillStyle(0xc8ffda, 1 - shard.age / .7).fillTriangle(-shard.size, -shard.size / 2, shard.size, 0, 0, shard.size); g.restore();
     }
-    E2_BOUNCE_BALL.drawBall.call(this, s.x - cam, s.y, pop);
-    MINI.spawnFx(this, s.x - cam, s.y, t.radius * 2);
-    MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, 424);
+    E2_BOUNCE_BALL.drawBall.call(this, s.x - cam, s.y - camY, pop);
+    MINI.spawnFx(this, s.x - cam, s.y - camY, t.radius * 2);
+    MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, this.platforms[this.platforms.length - 1].y - t.radius - camY);
     MINI.meter(this, s.x / E2_BOUNCE_BALL.tuning.goal);
   },
 };

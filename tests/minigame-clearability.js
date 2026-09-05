@@ -9,7 +9,7 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
-  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets'].includes(key) ? undefined : value)) });
+  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','timbers'].includes(key) ? undefined : value)) });
   load('e1');
   const flippedGates = new Set();
   advance(20.3, () => {
@@ -18,12 +18,7 @@
     const next = scene.hurdles.find(h => h.x - s.x > -15);
     if (next && next.x - s.x < 110 && !flippedGates.has(next.x)) { flippedGates.add(next.x); scene.primaryAction(); }
   }); save('e1');
-  load('e2'); scene.directionPress('right');
-  advance(20.3, () => {
-    const s = scene.state;
-    const p = scene.platforms.find(p => s.checkpoint === p.x + 50);
-    if (s.grounded && p && s.x >= p.x + p.w - 16 && p !== scene.platforms.at(-1)) scene.primaryAction();
-  }); save('e2');
+  load('e2'); driveE2(); save('e2');
   load('e3');
   let lastDrop = -10;
   advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
@@ -40,10 +35,10 @@
     const s = scene.state, power = scene.stageGame.power.call(scene); let best = null;
     for (let angle = .18; angle < 1.35; angle += .025) for (let pull = 66; pull <= 112; pull += 2) {
       let x = 164-Math.cos(angle)*pull, y = 382+Math.sin(angle)*pull;
-      let vx = Math.cos(angle)*pull*8.4*power, vy = -Math.sin(angle)*pull*8.4*power;
+      let vx = Math.cos(angle)*pull*scene.stageGame.tuning.force*power, vy = -Math.sin(angle)*pull*scene.stageGame.tuning.force*power;
       let score = 0; const hits = new Set();
       for(let frame = 0; frame < 280; frame++) {
-        vy += 640/120; x += vx/120; y += vy/120;
+        vy += scene.stageGame.tuning.gravity/120; x += vx/120; y += vy/120;
         if(y > 457 || x > 960) break;
         s.targets.forEach((o,i) => {
           if(o.hp<=0 || hits.has(i) || x+12<o.x || x-12>o.x+o.w || y+12<o.y || y-12>o.y+o.h) return;

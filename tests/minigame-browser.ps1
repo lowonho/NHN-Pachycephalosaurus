@@ -65,6 +65,7 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
   $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-browser-check.js')))
   Write-Output ($checks | ConvertTo-Json -Depth 20)
   $playability = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-clearability.js')))
@@ -107,6 +108,16 @@ try {
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
     [IO.File]::WriteAllBytes((Join-Path $artifactDir "e2-damage-$damage.png"), [Convert]::FromBase64String($shot.data))
   }
+  foreach ($jumpNumber in @(1, 5)) {
+    Evaluate "testLaunch('e2'); archivePhaserGame.loop.sleep(); (() => { const s=archivePhaserGame.scene.getScene('archive-game'); for(let j=1;j<$jumpNumber;j++) { s.primaryAction(); for(let i=0;i<156;i++) s.update(0,1000/120); } const apexFrames=Math.round(s.stageGame.jumpPower.call(s)/s.stageGame.tuning.gravity*120); s.primaryAction(); for(let i=0;i<apexFrames;i++) s.update(0,1000/120); archiveGame.pause(true); archivePhaserGame.loop.wake(); })()" | Out-Null
+    Start-Sleep -Milliseconds 70
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir "e2-jump-$jumpNumber.png"), [Convert]::FromBase64String($shot.data))
+  }
+  Evaluate "testLaunch('e2'); archivePhaserGame.loop.sleep(); driveE2(5.5); archiveGame.pause(true); archivePhaserGame.loop.wake();" | Out-Null
+  Start-Sleep -Milliseconds 70
+  $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+  [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e2-terrain.png'), [Convert]::FromBase64String($shot.data))
   if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
   Write-Output 'PASS: no uncaught browser exceptions'
 } finally {

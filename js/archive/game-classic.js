@@ -497,23 +497,30 @@ const E1_GRAVITY_DASH = {
 /* Source: stages/e2_bounceBall.js */
 
 const E2_BOUNCE_BALL = {
-  tuning: { speed: 245, gravity: 1300, jump: 480, jumpLoss: 38, minJump: 260, radius: 20, goal: 2880 },
+  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 280, radius: 20, goal: 3180,
+    liftRange: 22, liftSpeed: 2.1, crumbleTime: .55, rebuildTime: 1.4 },
   build() {
     MINI.init(this, 0xb8f77b);
     this.state = { x: 90, y: 429, vy: 0, grounded: true, jumps: 0, deaths: 0, checkpoint: 90,
-      roll: 0, squash: 0, burst: 0, shards: [] };
+      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0 };
     this.ballInk = this.add.graphics().setMask(this.ink.mask).setDepth(3);
-    // 약해진 공으로도 가장자리에서 뛰면 건널 수 있도록 뒤쪽 간격을 좁힙니다.
+    this.add.text(925, 137, '파랑: 승강 발판 · 주황: 밟으면 무너짐', {
+      fontFamily: 'Arial', fontSize: '13px', color: '#cbdce4',
+    }).setOrigin(1, 1);
+    // 오르막/내리막 사이에 승강 발판과 착지 후 무너지는 발판을 섞습니다.
     this.platforms = [
-      { x: 0, y: 449, w: 395, h: 28 }, { x: 480, y: 443, w: 370, h: 34 },
-      { x: 930, y: 449, w: 390, h: 28 }, { x: 1400, y: 441, w: 385, h: 36 },
-      { x: 1860, y: 449, w: 390, h: 28 }, { x: 2320, y: 445, w: 345, h: 32 },
-      { x: 2730, y: 449, w: 330, h: 28 },
-    ];
+      { x: 0, y: 449, w: 300, h: 28 }, { x: 410, y: 410, w: 170, h: 24 },
+      { x: 690, y: 375, w: 130, h: 24, kind: 'lift' }, { x: 935, y: 413, w: 115, h: 24, kind: 'crumble' },
+      { x: 1160, y: 380, w: 100, h: 24 }, { x: 1365, y: 417, w: 150, h: 24 },
+      { x: 1580, y: 410, w: 135, h: 24, kind: 'lift', range: 10 }, { x: 1780, y: 430, w: 155, h: 24, kind: 'crumble' },
+      { x: 2000, y: 416, w: 125, h: 24 }, { x: 2190, y: 438, w: 160, h: 24 },
+      { x: 2415, y: 432, w: 130, h: 24, kind: 'lift', range: 10 }, { x: 2610, y: 444, w: 150, h: 24, kind: 'crumble' },
+      { x: 2825, y: 428, w: 140, h: 24 }, { x: 3030, y: 439, w: 240, h: 28 },
+    ].map((p, index) => ({ ...p, index, baseY: p.y, previousY: p.y, active: true, crumbleLeft: null, rebuildLeft: 0 }));
   },
   jumpPower() {
     const t = E2_BOUNCE_BALL.tuning;
-    return Math.max(t.minJump, t.jump - this.state.jumps * t.jumpLoss);
+    return Math.max(t.minJump, t.jump * t.jumpDecay ** this.state.jumps);
   },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
@@ -529,8 +536,23 @@ const E2_BOUNCE_BALL = {
     }
   },
   update(dt) {
-    const s = this.state, t = E2_BOUNCE_BALL.tuning, previous = s.y, wasGrounded = s.grounded, oldX = s.x;
-    s.x = MINI.clamp(s.x + this.axis('left', 'right') * t.speed * dt, t.radius, 3030);
+    const s = this.state, t = E2_BOUNCE_BALL.tuning, wasGrounded = s.grounded, oldX = s.x;
+    for (const p of this.platforms) {
+      p.previousY = p.y;
+      if (p.kind === 'lift') p.y = p.baseY + (p.range ?? t.liftRange) * Math.sin(this.elapsed * t.liftSpeed + p.index);
+      if (!p.active) {
+        p.rebuildLeft = Math.max(0, p.rebuildLeft - dt);
+        if (p.rebuildLeft === 0) { p.active = true; p.crumbleLeft = null; }
+      } else if (p.crumbleLeft !== null) {
+        p.crumbleLeft = Math.max(0, p.crumbleLeft - dt);
+        if (p.crumbleLeft === 0) { p.active = false; p.rebuildLeft = t.rebuildTime; }
+      }
+    }
+    const support = this.platforms[s.platformIndex];
+    if (wasGrounded && support?.active) s.y += support.y - support.previousY;
+    const previous = s.y;
+    const lastPlatform = this.platforms[this.platforms.length - 1];
+    s.x = MINI.clamp(s.x + this.axis('left', 'right') * t.speed * dt, t.radius, lastPlatform.x + lastPlatform.w - t.radius);
     s.roll += (s.x - oldX) / t.radius;
     s.squash = Math.max(0, s.squash - dt * 5); s.burst = Math.max(0, s.burst - dt * 4);
     for (const shard of s.shards) {
@@ -541,15 +563,21 @@ const E2_BOUNCE_BALL = {
     s.vy += (t.gravity + this.axis('up', 'down') * 420) * dt;
     s.y += s.vy * dt; s.grounded = false;
     for (const p of this.platforms) {
-      if (s.vy >= 0 && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= p.y + 1 && s.y + t.radius >= p.y) {
+      const previousTop = wasGrounded && p === support ? p.y : p.previousY;
+      if (p.active && s.vy >= (p.y - previousTop) / dt && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= previousTop + 1 && s.y + t.radius >= p.y) {
         s.y = p.y - t.radius; s.vy = 0; s.grounded = true;
         if (!wasGrounded) s.squash = 1;
-        s.checkpoint = p.x + 50;
+        s.platformIndex = p.index;
+        if (p.kind === 'crumble') {
+          if (p.crumbleLeft === null) p.crumbleLeft = t.crumbleTime;
+        } else s.checkpoint = p.x + 50;
       }
     }
-    if (s.y < 188 + t.radius || s.y > 535) {
+    // 천장은 열려 있습니다. 높이 뛰면 카메라만 따라가고, 추락했을 때만 체크포인트로 돌아갑니다.
+    if (s.y > 535) {
       s.deaths++; s.x = s.checkpoint;
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
+      s.platformIndex = p?.index ?? 0;
       s.y = (p?.y ?? 449) - t.radius; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
     const power = E2_BOUNCE_BALL.jumpPower.call(this);
@@ -591,21 +619,42 @@ const E2_BOUNCE_BALL = {
     g.restore();
   },
   render() {
-    const s = this.state, cam = Math.max(0, s.x - 190);
+    const s = this.state, cam = Math.max(0, s.x - 190), camY = Math.min(0, s.y - 205);
     const t = E2_BOUNCE_BALL.tuning;
     MINI.frame(this, `다음 점프 ${Math.round(E2_BOUNCE_BALL.jumpPower.call(this) / t.jump * 100)}%    파손 ${s.jumps}회    CHECKPOINT ${Math.max(1, this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1)}`);
     this.ballInk.clear();
-    for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
-    for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
+    for (const p of this.platforms) {
+      const x = p.x - cam, y = p.y - camY;
+      if (x + p.w < 20 || x > 940) continue;
+      const color = p.kind === 'lift' ? 0x65d8ef : p.kind === 'crumble' ? 0xffbd77 : 0xb8f77b;
+      if (p.kind === 'lift') {
+        const range = p.range ?? t.liftRange;
+        MINI.line(this, x + p.w / 2, p.baseY - range - camY, x + p.w / 2, p.baseY + range + p.h - camY, 0x397186, 3);
+      }
+      if (!p.active) {
+        this.ink.lineStyle(1, color, .3).strokeRect(x, y, p.w, p.h);
+        MINI.box(this, x, y + p.h + 5, p.w * (1 - p.rebuildLeft / t.rebuildTime), 3, color, .5);
+        continue;
+      }
+      MINI.box(this, x, y, p.w, p.h, p.kind === 'lift' ? 0x28576b : p.kind === 'crumble' ? 0x866044 : 0x4f7560);
+      MINI.line(this, x + 4, y + 2, x + p.w - 4, y + 2, color, 3);
+      if (p.kind === 'crumble') {
+        for (let offset = 18; offset < p.w; offset += 26) {
+          MINI.line(this, x + offset, y + 4, x + offset - 5, y + 12, 0x392f32, 2);
+          MINI.line(this, x + offset - 5, y + 12, x + offset + 3, y + p.h, 0x392f32, 2);
+        }
+        if (p.crumbleLeft !== null) MINI.box(this, x, y - 7, p.w * p.crumbleLeft / t.crumbleTime, 3, 0xff6e6e);
+      }
+    }
     const pop = MINI.spawnScale(this);
     for (const shard of s.shards) {
       const g = this.ballInk;
-      g.save(); g.translateCanvas(shard.x - cam, shard.y); g.rotateCanvas(shard.angle);
+      g.save(); g.translateCanvas(shard.x - cam, shard.y - camY); g.rotateCanvas(shard.angle);
       g.fillStyle(0xc8ffda, 1 - shard.age / .7).fillTriangle(-shard.size, -shard.size / 2, shard.size, 0, 0, shard.size); g.restore();
     }
-    E2_BOUNCE_BALL.drawBall.call(this, s.x - cam, s.y, pop);
-    MINI.spawnFx(this, s.x - cam, s.y, t.radius * 2);
-    MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, 424);
+    E2_BOUNCE_BALL.drawBall.call(this, s.x - cam, s.y - camY, pop);
+    MINI.spawnFx(this, s.x - cam, s.y - camY, t.radius * 2);
+    MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, this.platforms[this.platforms.length - 1].y - t.radius - camY);
     MINI.meter(this, s.x / E2_BOUNCE_BALL.tuning.goal);
   },
 };
@@ -1003,20 +1052,61 @@ const E4_ACCELERATION_DASH = {
 /* Source: stages/e5_slingshot.js */
 
 const E5_SLINGSHOT = {
-  tuning: { force: 8.4, decay: .045, minPower: .76, gravity: 640, maxPull: 112, cooldown: .5, targetHP: 38, collapseDamage: .19 },
+  // Late full pulls still reach the far roof on an arc, but low shots fall short.
+  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: .5, targetHP: 100, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, drag: null, balls: [], targets: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
-    // Three two-storey cookie towers. Destroying a base removes the support above it.
-    for (let col = 0; col < 3; col++) {
-      const x = 606 + col * 108;
-      this.state.targets.push({ x, y: 421, w: 60, h: 50, hp: E5_SLINGSHOT.tuning.targetHP, vy: 0, support: null, flash: 0 });
-      this.state.targets.push({ x, y: 371, w: 60, h: 50, hp: E5_SLINGSHOT.tuning.targetHP, vy: 0, support: col * 2, flash: 0 });
+    this.state = { shots: 0, cooldown: 0, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    const M = Phaser.Physics.Matter.Matter;
+    this.slingWorld = M.Engine.create({ positionIterations: 8, velocityIterations: 8 });
+    this.slingWorld.gravity.y = .64;
+    M.Composite.add(this.slingWorld.world, M.Bodies.rectangle(480, 491, 2200, 40, { isStatic: true, friction: .65 }));
+    const timber = (x, y, w, h, roof = false) => {
+      const options = { density: .0016, friction: .55, frictionStatic: .8, frictionAir: .005, restitution: .02 };
+      const body = roof ? M.Bodies.trapezoid(x, y, w, h, .35, options) : M.Bodies.rectangle(x, y, w, h, options);
+      const wood = { x: x - w / 2, y: y - h / 2, w, h, hp: 65, body, angle: 0, flash: 0, roof, wood: true };
+      body.plugin.timber = wood; this.state.timbers.push(wood); M.Composite.add(this.slingWorld.world, body);
+    };
+    // Separate load-bearing posts and floors form rooms around the cookie residents.
+    for (let col = 0; col < 2; col++) {
+      const cx = 600 + col * 116;
+      timber(cx - 43, 435, 12, 72); timber(cx + 43, 435, 12, 72);
+      timber(cx, 393, 108, 12);
+      timber(cx - 43, 357, 12, 60); timber(cx + 43, 357, 12, 60);
+      timber(cx, 321, 108, 12); timber(cx, 303, 110, 24, true);
+      for (let row = 0; row < 2; row++) {
+        const w = 34, h = 36, x = cx - w / 2, y = (row ? 387 : 471) - h;
+        const body = M.Bodies.rectangle(cx, y + h / 2, w, h, {
+          density: .0015, friction: .48, frictionStatic: .7, frictionAir: .004, restitution: .06,
+        });
+        const target = { x, y, w, h, hp: 100, flash: 0, angle: 0, body, originX: cx, originY: y + h / 2, unstable: 0 };
+        body.plugin.cookie = target; this.state.targets.push(target); M.Composite.add(this.slingWorld.world, body);
+      }
     }
+    this.slingImpacts = [];
+    M.Events.on(this.slingWorld, 'collisionStart', event => {
+      for (const pair of event.pairs) {
+        const bullet = pair.bodyA.plugin.shot || pair.bodyB.plugin.shot;
+        const target = pair.bodyA.plugin.cookie || pair.bodyB.plugin.cookie || pair.bodyA.plugin.timber || pair.bodyB.plugin.timber;
+        const cookie = pair.bodyA.plugin.cookie || pair.bodyB.plugin.cookie;
+        const wood = pair.bodyA.plugin.timber || pair.bodyB.plugin.timber;
+        if (!bullet && cookie && wood && cookie.hp > 0) {
+          const va = pair.bodyA.plugin.beforeVelocity || { x: 0, y: 0 };
+          const vb = pair.bodyB.plugin.beforeVelocity || { x: 0, y: 0 };
+          const normal = pair.collision.normal;
+          const impactSpeed = Math.abs((va.x - vb.x) * normal.x + (va.y - vb.y) * normal.y);
+          if (impactSpeed > 80) this.slingImpacts.push({ target: cookie, crush: impactSpeed });
+        }
+        if (bullet && target && target.hp > 0 && !bullet.hit.has(target)) {
+          bullet.hit.add(target);
+          this.slingImpacts.push({ bullet, target, vx: bullet.vx, vy: bullet.vy });
+        }
+      }
+    });
     this.cookieNotice = this.add.text(480, 182, '', { fontFamily: 'Arial, sans-serif', fontSize: '23px', color: '#ffe6a7', stroke: '#221e21', strokeThickness: 4 }).setOrigin(.5).setDepth(8);
     this.add.text(178, 463, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.add.text(744, 332, '두딱쿠 · 아래부터 무너뜨려 보세요', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.instruction.setText('두쫀쿠를 뒤로 당겼다 놓으세요 · 아래 두딱쿠를 깨면 연쇄 붕괴!');
+    this.add.text(715, 261, '두딱쿠의 나무집 · 기둥을 노려보세요', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
+    this.instruction.setText('처음엔 강하게 관통! · 장력이 약해지면 아래로 당겨 높게 띄워 지붕을 노리세요');
   },
   power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
   pointerDown(x, y) {
@@ -1036,6 +1126,14 @@ const E5_SLINGSHOT = {
     if (Math.hypot(d.x - 164, d.y - 382) < 8) return;
     const power = E5_SLINGSHOT.power.call(this);
     s.balls.push({ x: d.x, y: d.y, vx: (164 - d.x) * t.force * power, vy: (382 - d.y) * t.force * power, power, age: 0, hit: new Set(), id: s.shots, squash: 0, trail: [] });
+    const shot = s.balls[s.balls.length - 1], M = Phaser.Physics.Matter.Matter;
+    shot.body = M.Bodies.circle(shot.x, shot.y, 12, {
+      density: .014, friction: .35, frictionAir: 0, restitution: .3,
+      collisionFilter: { category: 2, mask: 1 },
+    });
+    shot.body.plugin.shot = shot;
+    M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
+    M.Composite.add(this.slingWorld.world, shot.body);
     s.shots++; this.actions++; s.cooldown = t.cooldown; s.combo = 0; this.sfx('jump');
   },
   cancelInput() { this.state.drag = null; },
@@ -1050,49 +1148,74 @@ const E5_SLINGSHOT = {
         color: i % 3 ? 0x9b6544 : 0xc0bd70 });
     }
     if (broken) {
-      s.combo++; s.feedback = collapse ? '와르르! 두딱쿠 연쇄 붕괴' : s.combo > 1 ? s.combo + '개 연속 파괴!' : '바삭! 두딱쿠 파괴';
+      // Defeated cookies remain as moving rubble, supporting and pushing neighbours.
+      target.body.collisionFilter.category = 4;
+      if (target.wood) {
+        s.feedback = '우지끈! 기둥이 부러졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
+      }
+      s.combo++; s.feedback = collapse ? '와르르! 중심이 무너졌다' : s.combo > 1 ? s.combo + '개 연속 파괴!' : '바삭! 두딱쿠 파괴';
       s.feedbackAge = 1.1; this.sfx('hit');
       if (this.settings.shake) this.cameras.main.shake(70, .002);
-    } else { s.feedback = '쩍! 한 번 더!'; s.feedbackAge = .65; this.sfx('hit'); }
+    } else { s.feedback = '기우뚱! 모서리를 노려보세요'; s.feedbackAge = .65; this.sfx('hit'); }
   },
   update(dt) {
     const s = this.state, t = E5_SLINGSHOT.tuning;
     s.cooldown = Math.max(0, s.cooldown - dt); s.feedbackAge = Math.max(0, s.feedbackAge - dt);
-    for (const b of s.balls) {
-      b.age += dt; b.squash = Math.max(0, b.squash - dt);
-      b.vy += t.gravity * dt; b.x += b.vx * dt; b.y += b.vy * dt;
-      if (this.settings.effects) {
-        b.trail.unshift({ x: b.x, y: b.y }); b.trail.length = Math.min(12, b.trail.length);
-      }
-      if (b.y > 457) { b.y = 457; b.vy *= -.36; b.vx *= .78; b.squash = .18; }
-      s.targets.forEach((target, i) => {
-        if (target.hp <= 0 || b.hit.has(i) || !MINI.hit({ x: b.x - 12, y: b.y - 12, w: 24, h: 24 }, target)) return;
-        E5_SLINGSHOT.damage.call(this, target, Math.max(6, Math.hypot(b.vx, b.vy) * .1 * b.power));
-        b.hit.add(i); b.vx *= .73; b.vy -= 60; b.squash = .2;
-      });
+    const M = Phaser.Physics.Matter.Matter;
+    for (const ball of s.balls) {
+      ball.vx = ball.body.velocity.x * 60; ball.vy = ball.body.velocity.y * 60;
     }
-    for (const o of s.targets) {
-      o.flash = Math.max(0, o.flash - dt);
-      if (o.hp <= 0 || o.support === null || s.targets[o.support].hp > 0 || o.y + o.h >= 471) continue;
-      o.vy += t.gravity * dt; o.y += o.vy * dt;
-      if (o.y + o.h >= 471) {
-        o.y = 471 - o.h;
-        E5_SLINGSHOT.damage.call(this, o, o.vy * t.collapseDamage, true); o.vy = 0;
+    for (const body of M.Composite.allBodies(this.slingWorld.world)) {
+      body.plugin.beforeVelocity = { x: body.velocity.x * 60, y: body.velocity.y * 60 };
+    }
+    M.Engine.update(this.slingWorld, dt * 1000);
+    for (const impact of this.slingImpacts) {
+      if (impact.crush) {
+        E5_SLINGSHOT.damage.call(this, impact.target, impact.crush * .8, true); continue;
       }
+      const { bullet, target, vx, vy } = impact;
+      const speed = Math.hypot(vx, vy);
+      const pierce = bullet.power >= t.piercePower && speed >= t.pierceSpeed;
+      E5_SLINGSHOT.damage.call(this, target, pierce ? 100 : Math.min(28, speed * .035));
+      bullet.squash = .2;
+      if (pierce) {
+        M.Body.setVelocity(bullet.body, { x: vx * .78 / 60, y: vy * .78 / 60 });
+        M.Body.setVelocity(target.body, { x: vx * .22 / 60, y: -2 });
+        s.feedback = '쫀득 관통!'; s.feedbackAge = 1;
+      }
+    }
+    this.slingImpacts.length = 0;
+    for (const ball of s.balls) {
+      ball.age += dt; ball.squash = Math.max(0, ball.squash - dt);
+      ball.x = ball.body.position.x; ball.y = ball.body.position.y;
+      ball.vx = ball.body.velocity.x * 60; ball.vy = ball.body.velocity.y * 60;
+      if (this.settings.effects) {
+        ball.trail.unshift({ x: ball.x, y: ball.y }); ball.trail.length = Math.min(12, ball.trail.length);
+      }
+    }
+    for (const o of [...s.targets, ...s.timbers]) {
+      o.flash = Math.max(0, o.flash - dt);
+      o.x = o.body.position.x - o.w / 2; o.y = o.body.position.y - o.h / 2; o.angle = o.body.angle;
+      if (o.hp <= 0 || o.wood) continue;
+      const tilt = Math.abs(Math.atan2(Math.sin(o.angle), Math.cos(o.angle)));
+      const displaced = Math.abs(o.body.position.x - o.originX) > 36 || o.body.position.y - o.originY > 35;
+      // A brief wobble is safe; sustained tipping or falling off the tower counts as collapse.
+      o.unstable = tilt > t.toppleAngle || displaced ? o.unstable + dt : 0;
+      if (o.unstable >= t.toppleHold) E5_SLINGSHOT.damage.call(this, o, 100, true);
     }
     s.crumbs = s.crumbs.filter(c => {
       c.age += dt; c.vy += 580 * dt; c.x += c.vx * dt; c.y += c.vy * dt;
       return c.age < .75;
     });
     s.balls = s.balls.filter(b => {
-      const keep = b.age < 3.2 && b.x < 980 && b.x > -30;
-      if (!keep) { this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
+      const keep = b.age < 5 && b.x < 980 && b.x > -30;
+      if (!keep) { M.Composite.remove(this.slingWorld.world, b.body); this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
       return keep;
     });
     const left = s.targets.filter(o => o.hp > 0).length;
-    this.anomaly = '쫀득 탄성 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · 두딱쿠 ' + left + '개';
+    this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
     this.risk = (1 - E5_SLINGSHOT.power.call(this)) * 180;
-    if (!left) this.finish(true, s.shots + '발로 두딱쿠 6개 파괴');
+    if (!left) this.finish(true, s.shots + '발로 두딱쿠 4개 파괴');
   },
   cookie(role, key, x, y, w, h, angle = 0) {
     if (this.textures.exists('e5:' + role)) { MINI.actor(this, role, key, x, y, w, h, angle); return; }
@@ -1115,12 +1238,12 @@ const E5_SLINGSHOT = {
   render() {
     const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
-    MINI.frame(this, '두쫀쿠 vs 두딱쿠     파괴 ' + broken + ' / 6     탄성 ' + Math.round(power * 100) + '%');
+    MINI.frame(this, '두쫀쿠 vs 두딱쿠     파괴 ' + broken + ' / 4     장력 ' + Math.round(power * 100) + '%');
     // Warm pastry counter, trays and reserves keep the play field readable.
     MINI.box(this, 22, 444, 916, 34, 0x372923);
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
     for (let i = 0; i < 3; i++) {
-      MINI.box(this, 598 + i * 108, 471, 76, 5, 0xd3b278);
+      if (i < 2) MINI.box(this, 546 + i * 116, 471, 108, 5, 0xd3b278);
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);
     }
     MINI.line(this, 146, 447, 137, 358, 0xa78260, 14);
@@ -1133,24 +1256,46 @@ const E5_SLINGSHOT = {
     else MINI.hideActor(this, 'ready');
     if (s.drag) {
       let x = d.x, y = d.y, vx = (164 - d.x) * t.force * power, vy = (382 - d.y) * t.force * power;
-      for (let frame = 0; frame < 150; frame++) {
+      for (let frame = 0; frame < 36; frame++) {
         vy += t.gravity / 120; x += vx / 120; y += vy / 120;
-        const hit = s.targets.some(o => o.hp > 0 && MINI.hit({ x: x - 12, y: y - 12, w: 24, h: 24 }, o));
-        if (hit || y > 457) { this.ink.lineStyle(2, 0xffdc90, .8).strokeCircle(x, Math.min(457, y), 14); break; }
-        if (frame % 7 === 0) MINI.circle(this, x, y, 2.4, 0xffe1b8, 1 - frame / 170);
+        const hit = [...s.targets, ...s.timbers].some(o => o.hp > 0 && MINI.hit({ x: x - 12, y: y - 12, w: 24, h: 24 }, o));
+        if (hit || y > 457) break;
+        if (x > 950 || x < 20) break;
+        if (frame % 6 === 0) MINI.circle(this, x, y, 2.4, 0xffe1b8, Math.max(.12, .65 * (1 - frame / 36)));
       }
       MINI.box(this, 88, 282, 126, 8, 0x4c3d30);
       MINI.box(this, 88, 282, 126 * pull, 8, pull > .8 ? 0xc7d981 : 0xe3bc7d);
     }
-    s.targets.forEach((o, i) => {
-      if (o.hp <= 0) { MINI.hideActor(this, 'target' + i); return; }
-      E5_SLINGSHOT.cookie.call(this, 'target', 'target' + i, o.x + o.w / 2, o.y + o.h / 2, o.w, o.h);
-      if (o.hp < t.targetHP) {
-        MINI.line(this, o.x + 29, o.y + 3, o.x + 20, o.y + 20, 0x38281f, 3);
-        MINI.line(this, o.x + 20, o.y + 20, o.x + 35, o.y + 29, 0x38281f, 3);
-        MINI.line(this, o.x + 35, o.y + 29, o.x + 24, o.y + 47, 0x38281f, 3);
+    for (const wood of s.timbers) {
+      const g = this.ink, body = wood.body;
+      g.fillStyle(wood.hp <= 0 ? 0x654630 : wood.roof ? 0x975948 : 0xbf8c53).fillPoints(body.vertices, true);
+      g.lineStyle(2, 0x4d3528).strokePoints(body.vertices, true);
+      g.save(); g.translateCanvas(body.position.x, body.position.y); g.rotateCanvas(body.angle);
+      if (!wood.roof) {
+        const vertical = wood.h > wood.w;
+        for (const offset of [-2, 2]) {
+          if (vertical) MINI.line(this, offset, -wood.h / 2 + 6, offset + 1, wood.h / 2 - 6, 0x8a5d39, 1);
+          else MINI.line(this, -wood.w / 2 + 6, offset, wood.w / 2 - 6, offset + 1, 0x8a5d39, 1);
+        }
+        for (const sign of [-1, 1]) MINI.circle(this, vertical ? 0 : sign * (wood.w / 2 - 8), vertical ? sign * (wood.h / 2 - 8) : 0, 2, 0x50372c);
+      } else {
+        MINI.line(this, -32, -4, 32, -4, 0xc28b66, 2);
+        MINI.line(this, -44, 5, 44, 5, 0xc28b66, 2);
       }
-      if (this.settings.effects && o.flash) MINI.box(this, o.x, o.y, o.w, o.h, 0xffedbe, o.flash * 2);
+      if (wood.hp < 65) MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);
+      g.restore();
+    }
+    s.targets.forEach((o, i) => {
+      E5_SLINGSHOT.cookie.call(this, 'target', 'target' + i, o.x + o.w / 2, o.y + o.h / 2, o.w, o.h, o.angle);
+      const g = this.ink; g.save(); g.translateCanvas(o.x + o.w / 2, o.y + o.h / 2); g.rotateCanvas(o.angle);
+      if (o.hp < t.targetHP) {
+        MINI.line(this, 0, -o.h / 2 + 3, -10, -5, 0x38281f, 3);
+        MINI.line(this, -10, -5, 8, 5, 0x38281f, 3);
+        MINI.line(this, 8, 5, -3, o.h / 2 - 3, 0x38281f, 3);
+      }
+      if (o.hp <= 0) MINI.box(this, -o.w / 2, -o.h / 2, o.w, o.h, 0x241d1a, .48);
+      if (this.settings.effects && o.flash) MINI.box(this, -o.w / 2, -o.h / 2, o.w, o.h, 0xffedbe, o.flash * 2);
+      g.restore();
     });
     for (const b of s.balls) {
       for (let i = 0; i < b.trail.length; i += 2) MINI.circle(this, b.trail[i].x, b.trail[i].y, 5 - i * .25, 0xbac480, .22 * (1 - i / 12));
@@ -1158,7 +1303,13 @@ const E5_SLINGSHOT = {
     }
     for (const c of s.crumbs) MINI.box(this, c.x, c.y, c.size, c.size, c.color, 1 - c.age / .75);
     this.cookieNotice.setText(s.feedbackAge > 0 ? s.feedback : '').setAlpha(Math.min(1, s.feedbackAge * 3));
-    MINI.meter(this, broken / 6);
+    MINI.meter(this, broken / 4);
+  },
+  dispose() {
+    if (!this.slingWorld) return;
+    const M = Phaser.Physics.Matter.Matter;
+    M.Events.off(this.slingWorld); M.Composite.clear(this.slingWorld.world, false);
+    M.Engine.clear(this.slingWorld); this.slingWorld = null; this.slingImpacts = [];
   },
 };
 
