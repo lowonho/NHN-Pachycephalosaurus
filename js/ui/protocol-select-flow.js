@@ -159,6 +159,9 @@ class ProtocolSelectFlow {
   startStage(stageId) {
     if (this.timedOut) return;
 
+    // 이번 판에서 클리어한 기록은 브리핑(증언할 기억 상세)조차 열지 않는다.
+    if (this.restored.has(stageId)) return;
+
     /*
      * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
      * 나가 버리면 빈 캔버스만 남고 일시정지 버튼도 없어서 돌아올 길이 사라진다.
@@ -421,7 +424,17 @@ class ProtocolSelectFlow {
     // .stage-select-card / data-stage-id는 화면 밖(테스트·스크립트)에서 쓰는 이름이라 유지한다.
     tile.className = "stage-select-card protocol-app";
     tile.dataset.stageId = stage.id;
-    if (this.restored.has(stage.id)) tile.dataset.restored = "true";
+
+    /*
+     * 이번 판에서 이미 클리어한 기록은 회색으로 딤드하고 잠근다 —
+     * 같은 판에서 같은 기억을 두 번 증언하지 않는다.
+     * 메인으로 나갔다 새 판을 시작하면(reset) 다시 열린다.
+     */
+    const cleared = this.restored.has(stage.id);
+    if (cleared) {
+      tile.dataset.restored = "true";
+      tile.disabled = true;
+    }
 
     /*
      * 이 기록의 ARCHIVE 복구 등급 — 이번 판이 아니라 지금까지 남은 기록이다.
@@ -451,12 +464,12 @@ class ProtocolSelectFlow {
 
     tile.append(icon, code, title, mark);
     tile.title = `${stage.controls}\n${stage.objective}\n${stage.anomaly}`;
-    const best = window.archiveRecords?.best(stage.id);
-    if (best) {
-      const record = document.createElement('small');
-      record.className = 'protocol-best'; record.textContent = `BEST ${best.elapsed.toFixed(2)}s · ${best.actions}회`;
-      tile.append(record);
-    }
+    /*
+     * BEST 기록은 여기 두지 않는다 — 이 화면은 "이번 판에서 무엇이 남았나"만
+     * 말한다. 지난 판 성적은 브리핑(renderBrief의 #protocol-brief-best)과
+     * 미니게임 도감(js/ui/codex-flow.js)이 맡는다.
+     * (기록 자체는 window.archiveRecords에 그대로 남는다.)
+     */
     tile.addEventListener("click", () => this.startStage(stage.id));
     return tile;
   }

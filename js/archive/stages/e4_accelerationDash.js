@@ -4,7 +4,7 @@ export const E4_ACCELERATION_DASH = {
   /* turns: 출구까지 필요한 "최소" 꺾기 횟수. 출구는 아무리 잘 꺾어도 이만큼은 꺾어야 닿는 칸에만 놓는다.
      speed/gain/maxSpeed: 꺾을 때마다 붙는 대쉬 가속. buffer: 미리 누른 방향키를 기억하는 시간. */
   tuning: { turns: 10, speed: 235, gain: 28, maxSpeed: 520, buffer: .55, braid: .2, attempts: 80 },
-  /* 미로 전체가 필드(20,144~940,497) 안에 들어오는 홀수 격자. 화면이 따라 움직이지 않아 길을 한눈에 읽는다. */
+  /* 미로 전체가 필드(MINI.FIELD) 안에 들어오는 홀수 격자. 화면이 따라 움직이지 않아 길을 한눈에 읽는다. */
   grid: { cell: 36, cols: 25, rows: 9, x: 30, y: 158 },
   /* 방향 번호는 dir ^ 1이 곧 반대 방향이 되도록 짝지어 둔다. */
   names: ['right', 'left', 'up', 'down'],
@@ -169,11 +169,10 @@ export const E4_ACCELERATION_DASH = {
     if (s.cell === s.goal) this.finish(true, `${s.turns}번 꺾어 도착`);
   },
   render() {
-    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid, ink = this.ink;
-    const guide = s.dir === null ? '방향키로 출발' : E4.labels[E4.names[s.dir]];
-    MINI.frame(this, `꺾기 ${s.turns}회    남은 최소 ${s.left}회    벽 ${s.bumps}회    ${guide}`);
-    // 미로판을 통째로 깔고 통로 칸만 다시 파낸다.
-    ink.fillStyle(0x241d46).fillRoundedRect(g.x - 4, g.y - 4, g.cols * g.cell + 8, g.rows * g.cell + 8, 12);
+    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid, ink = this.ink, f = MINI.FIELD;
+    MINI.frame(this);
+    // 미로판을 화면 가득 깔고 통로 칸만 다시 파낸다.
+    ink.fillStyle(0x241d46).fillRect(f.x, f.y, f.w, f.h);
     for (let cell = 0; cell < s.map.length; cell++) {
       if (!s.map[cell]) continue;
       const point = E4.center(cell);

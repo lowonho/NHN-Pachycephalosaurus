@@ -656,49 +656,49 @@
   opacity: 0;
 }
 
+/*
+ * 타일 색은 "이번 판"만 말한다 — 두 가지뿐이다.
+ *   기본(파랑)  이번 판에서 아직 증언하지 않은 기록. 지난 판에 몇 번을
+ *               복구했든, BEST 기록이 남아 있든 똑같은 파란 톤이다.
+ *   회색 딤드   이번 판에서 클리어한 기록. 잠기고 다시 고를 수 없다
+ *               (js/ui/protocol-select-flow.js가 disabled까지 건다).
+ *
+ * 판을 넘어 남는 복구 등급(data-recovery)은 여기서 색을 바꾸지 않는다.
+ * 예전에는 full을 초록으로 칠했는데, 이번 판에 안 건드린 기록까지 클리어처럼
+ * 보여서 "무엇이 남았나"를 읽을 수 없었다. 등급은 헤더의 ARCHIVE RECOVERY와
+ * 브리핑의 도장(.protocol-brief-record)이 맡는다.
+ */
 .stage-select-card[data-restored="true"] .protocol-app-mark {
   opacity: 1;
 }
 
 .stage-select-card[data-restored="true"] {
-  border-color: var(--pro-line);
-  background: linear-gradient(160deg, rgba(87, 232, 255, 0.2), rgba(6, 26, 62, 0.24)), var(--pro-glass);
+  border-color: rgba(226, 236, 245, 0.18);
+  background: linear-gradient(160deg, rgba(226, 236, 245, 0.06), rgba(10, 16, 30, 0.42)), var(--pro-glass-deep);
+  color: rgba(226, 236, 245, 0.45);
+  cursor: default;
+  filter: grayscale(1);
+  opacity: 0.55;
 }
 
-/*
- * 기록별 복구 등급 — 판을 넘어 남는 ARCHIVE 기록이다(js/archive/progress.mjs).
- * 위의 data-restored(이번 판에서 복구했는가)와 달리 화면을 처음 열 때부터 칠해져 있다.
- *   damaged  아직 한 번도 복구하지 못한 기록 — 기본 톤 그대로 둔다.
- *   partial  목표는 달성했지만 기억 조각이 빠진 기록 — 점선 + 호박색.
- *   full     조각까지 채운 완전 복구 — 시안이 아니라 ARCHIVE 초록으로 구분한다.
- *
- * data-restored 뒤에 와야 한다. 특정도가 같아서 나중에 선언한 쪽이 이기는데,
- * 이번 판에 막 복구한 타일도 "어떤 등급으로" 복구됐는지가 더 알아야 할 정보다.
- */
-.stage-select-card[data-recovery="partial"] {
-  border-style: dashed;
-  border-color: rgba(228, 187, 118, 0.75);
+.stage-select-card[data-restored="true"] .protocol-app-code,
+.stage-select-card[data-restored="true"] .protocol-app-mark {
+  color: rgba(226, 236, 245, 0.5);
 }
 
-.stage-select-card[data-recovery="partial"] .protocol-app-code {
-  color: #e4bb76;
+.stage-select-card[data-restored="true"] .protocol-app-icon {
+  border-color: rgba(226, 236, 245, 0.18);
+  background: linear-gradient(150deg, rgba(226, 236, 245, 0.08), rgba(10, 16, 30, 0.3));
+  color: rgba(226, 236, 245, 0.5);
+  box-shadow: none;
 }
 
-.stage-select-card[data-recovery="full"] {
-  border-color: rgba(147, 252, 160, 0.8);
-  background: linear-gradient(160deg, rgba(147, 252, 160, 0.16), rgba(6, 26, 62, 0.24)), var(--pro-glass);
-}
-
-.stage-select-card[data-recovery="full"] .protocol-app-code,
-.stage-select-card[data-recovery="full"] .protocol-app-mark {
-  color: #93fca0;
-}
-
-.stage-select-card[data-recovery="full"] .protocol-app-icon {
-  border-color: rgba(147, 252, 160, 0.45);
-  background: linear-gradient(150deg, rgba(147, 252, 160, 0.22), rgba(31, 92, 255, 0.12));
-  color: #93fca0;
-  box-shadow: inset 0 0 22px rgba(147, 252, 160, 0.16);
+/* 잠긴 타일은 호버·포커스에도 떠오르지 않는다 — 누를 수 있어 보이면 안 된다. */
+.stage-select-card[data-restored="true"]:hover,
+.stage-select-card[data-restored="true"]:focus-visible {
+  background: linear-gradient(160deg, rgba(226, 236, 245, 0.06), rgba(10, 16, 30, 0.42)), var(--pro-glass-deep);
+  filter: grayscale(1);
+  transform: none;
 }
 
 /*

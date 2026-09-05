@@ -26,7 +26,9 @@
   }); save('e2');
   load('e3');
   let lastDrop = -10;
-  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
+  // 메챠 포즈는 옛 마네킹보다 훨씬 홀쭉해서, 한 명이 자리를 잡는 데 1초쯤 걸린다.
+  // 그보다 빨리 떨어뜨리면 이미 서 있는 사람을 무너뜨리기만 한다.
+  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > 1 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
   // 미로를 읽고 다음 갈림길에서 꺾을 방향을 미리 눌러 준다. 사람도 낼 수 있는 50ms 간격 입력이고,

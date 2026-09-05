@@ -25,13 +25,16 @@ export const E6_GRAVITY_FLIGHT = {
     if (s.x >= t.distance) this.finish(true);
   },
   render() {
-    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    MINI.frame(this, `FLIGHT ${Math.floor(s.x / t.distance * 100)}%    ${this.held('action') ? '↑ 상승' : '↓ 하강'}    PUSH BACK ${s.hits}`);
+    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 통로 위아래는 부딪히면 밀려나는 벽이다. 화면 끝까지 채워 통로를 또렷하게 만든다.
+    MINI.box(this, f.x, f.y, f.w, 168 - f.y, 0x27384a);
+    MINI.box(this, f.x, 468, f.w, f.bottom - 468, 0x27384a);
     for (const gate of this.gates) {
       const x = gate.x - s.x + 180;
       if (x < -50 || x > 990) continue;
-      MINI.box(this, x - 30, 153, 60, gate.y - t.gap / 2 - 153, 0x4c657f);
-      MINI.box(this, x - 30, gate.y + t.gap / 2, 60, 480 - gate.y - t.gap / 2, 0x4c657f);
+      MINI.box(this, x - 30, f.y, 60, gate.y - t.gap / 2 - f.y, 0x4c657f);
+      MINI.box(this, x - 30, gate.y + t.gap / 2, 60, f.bottom - gate.y - t.gap / 2, 0x4c657f);
       MINI.line(this, x - 30, gate.y - t.gap / 2, x + 30, gate.y - t.gap / 2, 0xff779b, 5);
       MINI.line(this, x - 30, gate.y + t.gap / 2, x + 30, gate.y + t.gap / 2, 0xff779b, 5);
     }

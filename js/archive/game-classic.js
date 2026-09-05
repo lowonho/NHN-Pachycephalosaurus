@@ -272,17 +272,38 @@ function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
 /* Source: stages/minigame-kit.js */
 /* 렌더링/충돌 도구만 공유합니다. 모든 게임 상태는 scene.state에 새로 생성합니다. */
 const MINI = {
+  /*
+   * 플레이 화면(필드) = 모니터 스크린 전체.
+   *
+   * 예전에는 캔버스(960×540) 한가운데 920×353짜리 판을 그리고 위아래 빈 띠에
+   * 글자를 얹었다. 지금은 그 판이 곧 화면이다 — 설계 좌표(가로 20~940)는 그대로 두고
+   * 카메라 한 번으로 필드를 16:9 화면에 꽉 채운다. 게임 좌표·판정은 하나도 바뀌지 않고
+   * 같은 배율만큼 위아래로 더 보이게 되어, 각 게임이 가장자리까지 그림을 잇는다.
+   *
+   * 화면 위 UI(조작 안내 · 진행 막대)는 이 필드 위에 겹쳐 그린다.
+   */
+  FIELD: (() => {
+    const x = 20, w = 920, cy = 320.5;      // 옛 필드의 가로 범위와 세로 중심
+    const h = w * 540 / 960;                // 16:9 — 517.5
+    return { x, y: cy - h / 2, w, h, right: x + w, bottom: cy + h / 2, cx: x + w / 2, cy };
+  })(),
   clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
   rand: (lo, hi) => lo + Math.random() * (hi - lo),
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
+    const f = MINI.FIELD;
+    // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
+    scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
     scene.ink = scene.add.graphics();
     scene.fieldMask = scene.make.graphics({ x: 0, y: 0, add: false });
-    scene.fieldMask.fillStyle(0xffffff).fillRect(20, 144, 920, 353);
+    scene.fieldMask.fillStyle(0xffffff).fillRect(f.x, f.y, f.w, f.h);
     scene.ink.setMask(scene.fieldMask.createGeometryMask());
-    scene.readout = scene.add.text(32, 109, '', { fontFamily: 'Arial, sans-serif', fontSize: '19px', color: '#f4f3e9' });
-    scene.instruction = scene.add.text(480, 513, scene.stage.controls, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2' }).setOrigin(0.5);
+    // 조작 안내는 플레이 화면 위에 겹친다. 배경 위에서도 읽히도록 테두리를 준다.
+    scene.instruction = scene.add.text(f.cx, f.bottom - 26, scene.stage.controls, {
+      fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2',
+      stroke: '#04121b', strokeThickness: 4,
+    }).setOrigin(0.5).setAlpha(.9);
     scene.assetSprites = new Map();
     scene.spawnAt = -1;
   },
@@ -307,7 +328,7 @@ const MINI = {
   spawnFx(scene, x, y, size = 30, color = scene.accent) {
     const phase = MINI.spawnPhase(scene);
     if (phase === null) return;
-    const g = scene.ink, top = 144;
+    const g = scene.ink, top = MINI.FIELD.y;
     const drop = Math.min(1, phase / .32), land = Math.max(0, phase - .32) / .68;
     const bottom = top + (y - top) * (1 - (1 - drop) ** 3), fade = 1 - land * land;
     const half = size * (.5 + .45 * fade);
@@ -326,13 +347,13 @@ const MINI = {
     g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
     g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
-  frame(scene, text) {
-    const g = scene.ink; g.clear();
-    g.fillStyle(0x0c202e).fillRoundedRect(20, 144, 920, 353, 14);
+  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다. */
+  frame(scene) {
+    const g = scene.ink, f = MINI.FIELD; g.clear();
+    g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
     g.lineStyle(1, scene.accent, 0.13);
-    for (let x = 40; x < 940; x += 40) g.lineBetween(x, 150, x, 490);
-    for (let y = 170; y < 497; y += 40) g.lineBetween(20, y, 940, y);
-    scene.readout.setText(text);
+    for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
+    for (let y = f.y + 28; y < f.bottom; y += 40) g.lineBetween(f.x, y, f.right, y);
   },
   box(scene, x, y, w, h, color, alpha = 1) {
     scene.ink.fillStyle(color, alpha).fillRoundedRect(x, y, w, h, Math.min(5, w / 3, h / 3));
@@ -374,9 +395,11 @@ const MINI = {
     g.restore();
   },
   hideActor(scene, key) { scene.assetSprites.get(key)?.setVisible(false); },
+  /* 진행 막대도 화면 위 오버레이다 — 필드 맨 아래에 얇게 눕힌다. */
   meter(scene, fraction) {
-    MINI.box(scene, 32, 487, 896, 4, 0x204251);
-    MINI.box(scene, 32, 487, 896 * MINI.clamp(fraction, 0, 1), 4, scene.accent);
+    const f = MINI.FIELD, x = f.x + 12, y = f.bottom - 9, w = f.w - 24;
+    MINI.box(scene, x, y, w, 4, 0x204251, .85);
+    MINI.box(scene, x, y, w * MINI.clamp(fraction, 0, 1), 4, scene.accent);
   },
 };
 
@@ -450,20 +473,21 @@ const E1_GRAVITY_DASH = {
     if (s.x >= t.distance) this.finish(true);
   },
   render() {
-    const s = this.state, t = E1_GRAVITY_DASH.tuning;
-    MINI.frame(this, `GRAVITY ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'}    ${Math.floor(100 * s.x / t.distance)}%`);
-    // 천장 벽과 바닥 벽. 빗금은 진행 방향으로 흘러 속도감을 줍니다.
-    MINI.box(this, 22, 156, 916, 18, 0x123a4c);
-    MINI.box(this, 22, FLOOR_TOP, 916, 18, 0x123a4c);
+    const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 천장 벽과 바닥 벽. 벽 속은 화면 끝까지 채운다 — 통로 밖은 벽이지 빈 자리가 아니다.
+    MINI.box(this, f.x, f.y, f.w, CEIL_BOTTOM - f.y, 0x123a4c);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, f.bottom - FLOOR_TOP, 0x123a4c);
+    // 빗금은 진행 방향으로 흘러 속도감을 줍니다.
     const shift = -(s.x % 40);
     for (let x = shift - 40; x < 960; x += 40) {
       MINI.line(this, x, 158, x + 12, 172, 0x1d5670, 3);
       MINI.line(this, x, FLOOR_TOP + 2, x + 12, FLOOR_TOP + 16, 0x1d5670, 3);
     }
-    MINI.box(this, 22, 168, 916, 6, 0x2c6e85);
-    MINI.box(this, 22, FLOOR_TOP, 916, 6, 0x2c6e85);
+    MINI.box(this, f.x, 168, f.w, 6, 0x2c6e85);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, 6, 0x2c6e85);
     // 지금 끌려가는 쪽 벽면을 강조해 반전 상태를 한눈에 보여 줍니다.
-    MINI.box(this, 22, s.sign === 1 ? FLOOR_TOP : 168, 916, 6, this.accent, .95);
+    MINI.box(this, f.x, s.sign === 1 ? FLOOR_TOP : 168, f.w, 6, this.accent, .95);
     for (let i = 0; i < s.obstacles.length; i++) {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
@@ -536,9 +560,13 @@ const E2_BOUNCE_BALL = {
     if (s.x >= t.goal && s.grounded) this.finish(true);
   },
   render() {
-    const s = this.state, cam = Math.max(0, s.x - 190);
-    MINI.frame(this, `JUMP +${s.jumps * E2_BOUNCE_BALL.tuning.jumpGain}    CHECKPOINT ${this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1}`);
-    for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
+    const s = this.state, cam = Math.max(0, s.x - 190), f = MINI.FIELD;
+    MINI.frame(this);
+    // 천장 가시는 화면 위 끝까지 이어지는 띠에 매달린다.
+    MINI.box(this, f.x, f.y, f.w, 153 - f.y, 0x33203a);
+    for (let x = f.x; x < f.right; x += 24) MINI.spike(this, x, 153, 24, 35);
+    // 발판 아래는 떨어지면 끝인 낭떠러지다. 화면 아래 끝까지 어둡게 깐다.
+    MINI.box(this, f.x, 535, f.w, f.bottom - 535, 0x02070f, .85);
     for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
     const pop = MINI.spawnScale(this);
     MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30 * pop, 30 * pop, s.x / 60);
@@ -551,42 +579,38 @@ const E2_BOUNCE_BALL = {
 
 /* Source: stages/e3_humanStack.js */
 
+/*
+ * 떨어지는 사람은 assets/images/minigame/stacks/metcha 의 포즈 여덟 장이다.
+ * 표시 크기와 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 그림의 알파에서 구워
+ * assets/minigames/e3/pose-shapes.js 에 넣어 둔다. 조각은 알파가 반 넘게 찬 칸만 덮으므로
+ * 투명한 여백은 서로 지나가고 사람 모형끼리는 겹치지 않는다.
+ *
+ * 구운 파일을 못 찾으면 아래 한 자세로만 돌아간다. 게임이 멈추지는 않지만 그림도 안 나온다.
+ */
+const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
+  poses: [{ id: 'pose7', name: '차렷', width: 59, height: 116, parts: [
+    [0, -41.6, 33.7, 33.5], [0, 21.6, 39.3, 72.8], [-24.6, 2.5, 9.8, 41.4], [24.6, 2.5, 9.8, 41.4],
+  ] }],
+  line: { width: 59, height: 116 },
+};
+
 const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
-    dropAngles: [90, -35, -90, 25, 145, -65, 180, 50],
+    // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    dropAngles: [90, -35, -90, 25, 145, -65, 180],
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
     restitution: .045, density: .0022, carryMomentum: .075,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
     baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
+    markerX: 900, markerHeight: 76, goalRight: 838,
   },
-  // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
-  // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
-  poses: [
-    { id: 'crouch', name: '버티기', width: 102, height: 96, head: [0, -28, 11], limbs: [
-      [0, -10, 0, 8, 14], [-9, -10, -25, -19, 8], [-25, -19, -39, -7, 7],
-      [9, -10, 25, -19, 8], [25, -19, 39, -7, 7],
-      [-6, 9, -22, 20, 9], [-22, 20, -27, 32, 7],
-      [6, 9, 22, 20, 9], [22, 20, 27, 32, 7],
-      [-32, 34, -21, 34, 7], [21, 34, 32, 34, 7],
-    ] },
-    { id: 'wide', name: '팔 벌리기', width: 120, height: 104, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -29, -11, 8], [-29, -11, -47, -20, 7],
-      [9, -12, 29, -11, 8], [29, -11, 47, -20, 7],
-      [-6, 9, -12, 23, 9], [-12, 23, -19, 39, 7],
-      [6, 9, 12, 23, 9], [12, 23, 19, 39, 7],
-      [-25, 41, -15, 41, 7], [15, 41, 25, 41, 7],
-    ] },
-    { id: 'reach', name: '만세', width: 96, height: 124, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -25, -29, 8], [-25, -29, -31, -47, 7],
-      [9, -12, 25, -29, 8], [25, -29, 31, -47, 7],
-      [-6, 9, -18, 24, 9], [-18, 24, -24, 40, 7],
-      [6, 9, 18, 24, 9], [18, 24, 24, 40, 7],
-      [-30, 42, -19, 42, 7], [19, 42, 30, 42, 7],
-    ] },
-  ],
+  // 좌표 원점은 그림의 정중앙. [중심x, 중심y, 가로, 세로] 사각형들이 실제 충돌체이고,
+  // 같은 원점의 그림이 그 위에 얹힙니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
+  poses: E3_SHAPES.poses,
   build() {
     MINI.init(this, 0xe4eeec);
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
@@ -614,7 +638,7 @@ const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '사람이 누운 방향을 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
@@ -643,17 +667,14 @@ const E3_HUMAN_STACK = {
       friction: t.friction, frictionStatic: t.frictionStatic, restitution: t.restitution,
       density: t.density, slop: .025,
     };
-    const parts = pose.limbs.map(([ax, ay, bx, by, r]) => M.Bodies.rectangle(
-      x + (ax + bx) / 2, y + (ay + by) / 2, Math.hypot(bx - ax, by - ay) + r * 2, r * 2,
-      { ...material, angle: Math.atan2(by - ay, bx - ax), chamfer: { radius: r, quality: 8 } },
-    ));
-    parts.push(M.Bodies.circle(x + pose.head[0], y + pose.head[1], pose.head[2], { ...material, density: t.density * .7 }, 16));
+    // 구워 둔 사각형은 서로 겹치지 않으므로 넓이를 그대로 더해 질량이 됩니다.
+    const parts = pose.parts.map(([cx, cy, w, h]) => M.Bodies.rectangle(x + cx, y + cy, w, h, material));
     const body = M.Body.create({
       parts, ...material, frictionAir: t.frictionAir, label: 'e3:person',
     });
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
     body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
-    // 팔다리 모양을 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
+    // 자세를 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
     M.Body.rotate(body, angle, { x, y });
     return body;
   },
@@ -712,7 +733,8 @@ const E3_HUMAN_STACK = {
     // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
     s.spawnY = Math.min(200, top - t.spawnClearance);
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 125) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 65);
+    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
     const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
@@ -726,34 +748,28 @@ const E3_HUMAN_STACK = {
     const z = this.state.zoom, floor = E3_HUMAN_STACK.tuning.floorY;
     return { x: 480 + (x - 480) * z, y: floor + (y - floor) * z };
   },
+  /* 키에 묶인 이미지를 만들거나 다시 씁니다. 없는 텍스처면 null을 돌려줍니다. */
+  sprite(key, texture) {
+    if (!this.textures.exists(texture)) { this.assetSprites.get(key)?.setVisible(false); return null; }
+    let sprite = this.assetSprites.get(key);
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
+    return sprite.setTexture(texture).setVisible(true);
+  },
   drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1) {
     const pose = E3_HUMAN_STACK.poses[poseIndex], z = this.state.zoom;
     const p = E3_HUMAN_STACK.project.call(this, x, y), g = this.ink;
-    const specific = `e3:person_${pose.id}`;
-    const texture = this.textures.exists(specific) ? specific : this.textures.exists('e3:person') ? 'e3:person' : null;
-    if (texture) {
-      let sprite = this.assetSprites.get(key);
-      if (!sprite) { sprite = this.add.image(p.x, p.y, texture).setMask(g.mask); this.assetSprites.set(key, sprite); }
-      // person=공통 이미지, person_crouch/wide/reach=자세별 이미지. 원점=이미지 중심.
-      sprite.setTexture(texture).setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha).setVisible(true);
+    // 그림의 원점은 잘라낸 이미지의 정중앙이라 충돌 사각형과 같은 좌표계를 씁니다.
+    const sprite = E3_HUMAN_STACK.sprite.call(this, key, `e3:${pose.id}`);
+    if (sprite) {
+      sprite.setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha);
       return;
     }
-    this.assetSprites.get(key)?.setVisible(false);
-    // 미리보기와 낙하물에 같은 실루엣을 사용합니다.
+    // 그림이 없으면 충돌 조각을 그대로 실루엣으로 씁니다. 미리보기와 낙하물이 같은 모양입니다.
     g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
-    const stroke = (limb, radius, color, opacity, ox = 0, oy = 0) => {
-      const [ax, ay, bx, by] = limb;
-      g.lineStyle(radius * 2, color, opacity).lineBetween(ax + ox, ay + oy, bx + ox, by + oy);
-      g.fillStyle(color, opacity).fillCircle(ax + ox, ay + oy, radius).fillCircle(bx + ox, by + oy, radius);
-    };
-    // 그림자/몸체/얇은 하이라이트만으로 흰색 무표정 마네킹을 표현합니다.
-    for (const limb of pose.limbs) stroke(limb, limb[4] + 1.2, 0x506c7a, alpha);
-    for (const limb of pose.limbs) stroke(limb, limb[4], 0xd8e5e8, alpha);
-    for (const limb of pose.limbs) stroke(limb, Math.max(1.2, limb[4] * .4), 0xfafffa, alpha * .8, -1.1, -1.1);
-    const [hx, hy, hr] = pose.head;
-    g.fillStyle(0x506c7a, alpha).fillCircle(hx, hy, hr + 1.2);
-    g.fillStyle(0xe8f0ee, alpha).fillCircle(hx, hy, hr);
-    g.fillStyle(0xffffff, alpha * .7).fillEllipse(hx - 2.4, hy - 2.7, hr * .9, hr);
+    for (const [cx, cy, w, h] of pose.parts) {
+      g.fillStyle(0x506c7a, alpha).fillRect(cx - w / 2 - 1.2, cy - h / 2 - 1.2, w + 2.4, h + 2.4);
+    }
+    for (const [cx, cy, w, h] of pose.parts) g.fillStyle(0xd8e5e8, alpha).fillRect(cx - w / 2, cy - h / 2, w, h);
     g.restore();
   },
   render() {
@@ -770,10 +786,16 @@ const E3_HUMAN_STACK = {
       MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
     }
     const goal = project(0, t.baseY - t.targetHeight);
-    for (let x = 115; x < 850; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(902, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
+    this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     this.stackLabels.hint.setVisible(s.drops === 0);
+    // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
+    const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
+    if (marker) {
+      marker.setPosition(t.markerX, goal.y)
+        .setDisplaySize(t.markerHeight * E3_SHAPES.line.width / E3_SHAPES.line.height, t.markerHeight);
+    }
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.
     this.people.forEach((body, i) => {
       const pose = body.plugin.e3, c = Math.cos(body.angle), sn = Math.sin(body.angle);
@@ -816,7 +838,7 @@ const E4_ACCELERATION_DASH = {
   /* turns: 출구까지 필요한 "최소" 꺾기 횟수. 출구는 아무리 잘 꺾어도 이만큼은 꺾어야 닿는 칸에만 놓는다.
      speed/gain/maxSpeed: 꺾을 때마다 붙는 대쉬 가속. buffer: 미리 누른 방향키를 기억하는 시간. */
   tuning: { turns: 10, speed: 235, gain: 28, maxSpeed: 520, buffer: .55, braid: .2, attempts: 80 },
-  /* 미로 전체가 필드(20,144~940,497) 안에 들어오는 홀수 격자. 화면이 따라 움직이지 않아 길을 한눈에 읽는다. */
+  /* 미로 전체가 필드(MINI.FIELD) 안에 들어오는 홀수 격자. 화면이 따라 움직이지 않아 길을 한눈에 읽는다. */
   grid: { cell: 36, cols: 25, rows: 9, x: 30, y: 158 },
   /* 방향 번호는 dir ^ 1이 곧 반대 방향이 되도록 짝지어 둔다. */
   names: ['right', 'left', 'up', 'down'],
@@ -981,11 +1003,10 @@ const E4_ACCELERATION_DASH = {
     if (s.cell === s.goal) this.finish(true, `${s.turns}번 꺾어 도착`);
   },
   render() {
-    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid, ink = this.ink;
-    const guide = s.dir === null ? '방향키로 출발' : E4.labels[E4.names[s.dir]];
-    MINI.frame(this, `꺾기 ${s.turns}회    남은 최소 ${s.left}회    벽 ${s.bumps}회    ${guide}`);
-    // 미로판을 통째로 깔고 통로 칸만 다시 파낸다.
-    ink.fillStyle(0x241d46).fillRoundedRect(g.x - 4, g.y - 4, g.cols * g.cell + 8, g.rows * g.cell + 8, 12);
+    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid, ink = this.ink, f = MINI.FIELD;
+    MINI.frame(this);
+    // 미로판을 화면 가득 깔고 통로 칸만 다시 파낸다.
+    ink.fillStyle(0x241d46).fillRect(f.x, f.y, f.w, f.h);
     for (let cell = 0; cell < s.map.length; cell++) {
       if (!s.map[cell]) continue;
       const point = E4.center(cell);
@@ -1067,9 +1088,10 @@ const E5_SLINGSHOT = {
     if (!left) this.finish(true);
   },
   render() {
-    const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
-    MINI.frame(this, `TARGET ${s.targets.filter(o => o.hp <= 0).length} / 6    POWER ${Math.round(power * 100)}%`);
-    MINI.box(this, 25, 471, 910, 9, 0x695e4b);
+    const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 땅은 화면 아래 끝까지 이어진다.
+    MINI.box(this, f.x, 471, f.w, f.bottom - 471, 0x695e4b);
     MINI.line(this, 146, 447, 137, 358, 0xa78260, 12); MINI.line(this, 146, 404, 184, 357, 0xa78260, 12);
     MINI.line(this, 137, 360, d.x, d.y, 0xffd99b, 3); MINI.line(this, 184, 357, d.x, d.y, 0xffd99b, 3);
     MINI.actor(this, 'projectile', 'ready', d.x, d.y, 26, 26);
@@ -1114,13 +1136,16 @@ const E6_GRAVITY_FLIGHT = {
     if (s.x >= t.distance) this.finish(true);
   },
   render() {
-    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    MINI.frame(this, `FLIGHT ${Math.floor(s.x / t.distance * 100)}%    ${this.held('action') ? '↑ 상승' : '↓ 하강'}    PUSH BACK ${s.hits}`);
+    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 통로 위아래는 부딪히면 밀려나는 벽이다. 화면 끝까지 채워 통로를 또렷하게 만든다.
+    MINI.box(this, f.x, f.y, f.w, 168 - f.y, 0x27384a);
+    MINI.box(this, f.x, 468, f.w, f.bottom - 468, 0x27384a);
     for (const gate of this.gates) {
       const x = gate.x - s.x + 180;
       if (x < -50 || x > 990) continue;
-      MINI.box(this, x - 30, 153, 60, gate.y - t.gap / 2 - 153, 0x4c657f);
-      MINI.box(this, x - 30, gate.y + t.gap / 2, 60, 480 - gate.y - t.gap / 2, 0x4c657f);
+      MINI.box(this, x - 30, f.y, 60, gate.y - t.gap / 2 - f.y, 0x4c657f);
+      MINI.box(this, x - 30, gate.y + t.gap / 2, 60, f.bottom - gate.y - t.gap / 2, 0x4c657f);
       MINI.line(this, x - 30, gate.y - t.gap / 2, x + 30, gate.y - t.gap / 2, 0xff779b, 5);
       MINI.line(this, x - 30, gate.y + t.gap / 2, x + 30, gate.y + t.gap / 2, 0xff779b, 5);
     }
@@ -1190,8 +1215,10 @@ const E7_ROULETTE = {
     this.risk = Math.min(100, s.misses * 17);
   },
   render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1));
-    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${2 * (s.misses + 1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
+    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1)), f = MINI.FIELD;
+    MINI.frame(this);
+    // 룰렛이 놓인 무대. 화면을 통째로 덮어 원판이 뜬금없이 떠 있지 않게 한다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x1a1430, .55);
     MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
     const points = [{ x: 480, y: 321 }];
     for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });
@@ -1244,9 +1271,10 @@ const E8_SEESAW = {
   },
   timeout() { return true; },
   render() {
-    const s = this.state, t = E8_SEESAW.tuning, c = Math.cos(s.angle), sn = Math.sin(s.angle);
-    MINI.frame(this, `BALANCE    ${s.count} / ${t.drops}    A ← 바깥쪽 · D → 중심`);
-    MINI.box(this, 22, t.floorY, 916, 10, 0x4a6668);
+    const s = this.state, t = E8_SEESAW.tuning, c = Math.cos(s.angle), sn = Math.sin(s.angle), f = MINI.FIELD;
+    MINI.frame(this);
+    // 바닥은 화면 아래 끝까지 이어진다.
+    MINI.box(this, f.x, t.floorY, f.w, f.bottom - t.floorY, 0x4a6668);
     MINI.spike(this, 448, 471, 64, -121, 0x446e78);
     MINI.line(this, 480 - c * 350, t.pivotY - sn * 350, 480 + c * 350, t.pivotY + sn * 350, 0xa9bcce, 13);
     MINI.line(this, 480, t.pivotY, 480 + c * 350, t.pivotY + sn * 350, s.angle > .2 ? 0xff6584 : 0xffc47e, 13);
@@ -1315,8 +1343,10 @@ const E9_ICE_CURLING = {
     this.risk = Math.min(100, s.failures * 18);
   },
   render() {
-    const s = this.state, target = this.target;
-    MINI.frame(this, `ICE ${Math.round(E9_ICE_CURLING.friction.call(this))}    SHOT ${this.actions}    과녁 안에 돌 전체를 멈추세요`);
+    const s = this.state, target = this.target, f = MINI.FIELD;
+    MINI.frame(this);
+    // 링크 둘레는 화면 끝까지 채우고, 그 안쪽만 돌이 미끄러지는 얼음이다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x123243);
     MINI.box(this, 32, 158, 896, 321, 0xc7e8f0, .12);
     for (let y = 187; y < 466; y += 35) MINI.line(this, 55, y, 905, y - 18, 0xd6f5ff, .5);
     MINI.circle(this, target.x, target.y, 71, 0x719dd5, .5);
@@ -1378,12 +1408,18 @@ class ArchiveGame extends Phaser.Scene {
     });
     this.input.on('pointerdown', p => {
       if (!this.playable() || this.pointerId !== null || p.button > 0) return;
-      this.pointerId = p.id; this.pointerAction(p.x, p.y);
+      const point = this.worldPoint(p);
+      this.pointerId = p.id; this.pointerAction(point.x, point.y);
     });
-    this.input.on('pointermove', p => { if (this.playable() && this.pointerId === p.id) this.stageGame.pointerMove?.call(this, p.x, p.y); });
+    this.input.on('pointermove', p => {
+      if (!this.playable() || this.pointerId !== p.id) return;
+      const point = this.worldPoint(p);
+      this.stageGame.pointerMove?.call(this, point.x, point.y);
+    });
     const up = p => {
       if (this.pointerId !== p.id) return;
-      if (this.playable()) this.stageGame.pointerUp?.call(this, p.x, p.y);
+      const point = this.worldPoint(p);
+      if (this.playable()) this.stageGame.pointerUp?.call(this, point.x, point.y);
       this.pointerId = null;
     };
     this.input.on('pointerup', up); this.input.on('pointerupoutside', up);
@@ -1403,6 +1439,9 @@ class ArchiveGame extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('archive-game-ready', { detail: { scene: this, stages: STAGES } }));
   }
   playable() { return this.mode === 'playing' && !this.pausedByMenu; }
+  /* 필드를 화면에 꽉 채우느라 카메라에 배율이 걸려 있다(stages/minigame-kit.js의 MINI.init).
+     포인터는 캔버스 좌표로 오므로 게임이 쓰는 설계 좌표로 되돌려서 넘긴다. */
+  worldPoint(pointer) { return this.cameras.main.getWorldPoint(pointer.x, pointer.y); }
   held(name) {
     const alias = { left: 'arrowLeft', right: 'arrowRight', up: 'arrowUp', down: 'arrowDown' };
     return this.touch.has(name) || Boolean(this.keys[name]?.isDown || this.keys[alias[name]]?.isDown);

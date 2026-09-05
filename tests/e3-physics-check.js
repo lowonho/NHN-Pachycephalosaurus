@@ -53,31 +53,48 @@
   assert(before === JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle }))), 'Pause freezes falling body and rotation');
   archiveGame.pause(false); step(.3);
   assert(before !== JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle }))), 'Resume continues physical fall');
-  // Synthetic skin checks exercise the real texture branch, including pose replacement and pivot.
-  const skin = document.createElement('canvas'); skin.width = 94; skin.height = 88;
-  skin.getContext('2d').fillRect(20, 10, 50, 60);
-  scene.textures.addCanvas('e3:person_crouch', skin);
+  // The baked metcha poses drive both the collider and the picture, so check them together.
+  const poses = scene.stageGame.poses;
+  assert(poses.length === 8 && poses.every(p => scene.textures.exists(`e3:${p.id}`)), 'All eight baked pose images are loaded');
+  assert(poses.every(p => p.parts.length >= 8 && p.parts.every(([, , w, h]) => w > 0 && h > 0)), 'Every pose carries solid rectangles cut from its own alpha');
   scene.stageGame.render.call(scene);
   const sprite = scene.assetSprites.get('person0');
-  assert(sprite?.texture.key === 'e3:person_crouch', 'Pose-specific asset is used by real render path');
+  const dropped0 = poses[scene.people[0].plugin.e3.poseIndex];
+  assert(sprite?.texture.key === `e3:${dropped0.id}`, 'Pose image is used by the real render path');
+  assert(Math.abs(sprite.displayWidth - dropped0.width * scene.state.zoom) < .001 && Math.abs(sprite.displayHeight - dropped0.height * scene.state.zoom) < .001, 'Image is shown at the baked size, so picture and collider share one scale');
   const body = scene.people[0]; M.Body.setAngle(body, .63); scene.stageGame.render.call(scene);
   const o = body.plugin.e3.origin;
   const expected = scene.stageGame.project.call(scene, body.position.x + o.x * Math.cos(body.angle) - o.y * Math.sin(body.angle), body.position.y + o.x * Math.sin(body.angle) + o.y * Math.cos(body.angle));
   assert(Math.hypot(sprite.x - expected.x, sprite.y - expected.y) < .001 && Math.abs(sprite.rotation - body.angle) < .00001, 'Asset pivots around physical center of mass without drifting');
-  scene.state.nextPose = 0; scene.stageGame.render.call(scene);
+  scene.state.nextPose = 2; scene.stageGame.render.call(scene);
   const preview = scene.assetSprites.get('preview');
-  assert(Math.abs(preview.rotation - scene.state.nextAngle) < .00001, 'Preview asset displays the upcoming drop angle');
-  scene.state.nextPose = 1; scene.stageGame.render.call(scene);
-  assert(preview && !preview.visible, 'Missing next-pose asset hides previous skin before fallback');
+  assert(preview?.texture.key === `e3:${poses[2].id}` && Math.abs(preview.rotation - scene.state.nextAngle) < .00001, 'Preview shows the upcoming pose at its drop angle');
+  // The goal marker is pinned to the right end of the success line and keeps its size as the view zooms out.
+  const marker = scene.assetSprites.get('goalMark');
+  const goalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
+  assert(marker?.texture.key === 'e3:line' && marker.visible, 'Success line marker uses the line asset');
+  assert(marker.x === scene.stageGame.tuning.markerX && marker.x > scene.stageGame.tuning.goalRight && Math.abs(marker.y - goalY) < .001, 'Marker sits on the success line, to the right of its dashes');
+  scene.state.zoom = .5; scene.stageGame.render.call(scene);
+  const zoomedGoalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
+  assert(Math.abs(marker.y - zoomedGoalY) < .001 && Math.abs(marker.displayHeight - scene.stageGame.tuning.markerHeight) < .001, 'Marker follows the line but is not scaled by the camera zoom');
+  scene.state.zoom = 1;
+  // A pose without a picture hides the previous skin instead of leaving it behind.
+  poses.push({ id: 'missing', name: '없음', width: 40, height: 40, parts: [[0, 0, 40, 40]] });
+  scene.state.nextPose = poses.length - 1; scene.stageGame.render.call(scene);
+  assert(preview && !preview.visible, 'Pose with no image hides the previous skin before falling back to shapes');
+  poses.pop(); scene.state.nextPose = 0;
   const world = scene.stackWorld;
   scene.stopGame();
   assert(world.world.bodies.length === 0 && !world.events.collisionStart?.length && scene.stackBodyById.size === 0, 'Leaving e3 disposes bodies, collision listeners and maps');
-  scene.textures.remove('e3:person_crouch');
+  // Cadence of the stand-in player below. The metcha poses are far slimmer than the old squat
+  // mannequins, so a tower needs about a second to settle before the next body lands on it;
+  // dropping faster than this just knocks over what is already standing.
+  const DROP_GAP = 1;
   // Break a real tower during its countdown: partial hold must not carry over.
   load();
   let lastPartial = -10;
   for (let i = 0; i < 2400 && scene.playable() && scene.state.held < 1; i++) {
-    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastPartial > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
+    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastPartial > DROP_GAP && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
   assert(scene.state.held >= 1 && scene.playable(), 'Reaching target for one second does not clear');
@@ -91,7 +108,7 @@
   load();
   let last = -10;
   for (let i = 0; i < 2432 && scene.playable(); i++) {
-    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - last > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); last = scene.elapsed; }
+    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - last > DROP_GAP && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); last = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
   measurements.clearTime = scene.elapsed;

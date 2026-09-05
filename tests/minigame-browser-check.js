@@ -108,7 +108,30 @@
   scene.finish(false); document.querySelector('#primary-button').click();
   assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Stage selection keeps same five games');
   assert(document.querySelectorAll('.stage-select-card').length === 5, 'UI displays exactly five games');
+  // 이번 판에서 클리어한 기록만 회색으로 잠긴다. 나머지는 그대로 고를 수 있다.
+  const tile = stageId => document.querySelector(`.stage-select-card[data-stage-id="${stageId}"]`);
+  const mode = () => document.querySelector('#protocol-screen').dataset.mode;
+  assert(tile(id).disabled && tile(id).dataset.restored === 'true', 'e-select: cleared record is dimmed and locked for the rest of the run');
+  assert(selected.slice(1).every(other => !tile(other).disabled && !tile(other).dataset.restored), 'e-select: records not cleared this run stay open');
+  protocolSelectFlow.startStage(id);
+  assert(mode() === 'select', 'e-select: cleared record cannot open the briefing');
+  protocolSelectFlow.startStage(selected[1]);
+  assert(mode() === 'brief', 'e-select: record not cleared this run still opens the briefing');
+  protocolSelectFlow.cancelBrief();
   protocolSelectFlow.launchStage(id); scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
+  // 새 판은 지난 판 성적(BEST)이 남아 있어도 5개를 전부 다시 연다.
+  protocolSelectFlow.reset();
+  const fresh = [...document.querySelectorAll('.stage-select-card[data-stage-id]')];
+  assert(fresh.length === 5 && fresh.every(card => !card.disabled && !card.dataset.restored), 'e-select: a new run reopens every record');
+  // 새 판을 뽑아도 지난 판 성적은 기록 저장소에 그대로 남는다(화면에만 안 뜬다).
+  assert(archiveRecords.best(id) !== null, 'e-select: past bests survive a new run in the record store');
+  assert(fresh.every(card => !card.textContent.includes('BEST')), 'e-select: tiles never show the BEST record');
+  protocolSelectFlow.openBrief(id);
+  assert(
+    document.querySelector('#protocol-brief-best').textContent.startsWith(archiveRecords.best(id).elapsed.toFixed(2)),
+    'e-select: the briefing still shows the past best',
+  );
+  protocolSelectFlow.cancelBrief();
   return { passed: checks.length, checks: checks.filter(name => !name.startsWith('Unique random selection')) };
 })()

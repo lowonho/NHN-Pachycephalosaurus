@@ -67,20 +67,21 @@ export const E1_GRAVITY_DASH = {
     if (s.x >= t.distance) this.finish(true);
   },
   render() {
-    const s = this.state, t = E1_GRAVITY_DASH.tuning;
-    MINI.frame(this, `GRAVITY ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'}    ${Math.floor(100 * s.x / t.distance)}%`);
-    // 천장 벽과 바닥 벽. 빗금은 진행 방향으로 흘러 속도감을 줍니다.
-    MINI.box(this, 22, 156, 916, 18, 0x123a4c);
-    MINI.box(this, 22, FLOOR_TOP, 916, 18, 0x123a4c);
+    const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 천장 벽과 바닥 벽. 벽 속은 화면 끝까지 채운다 — 통로 밖은 벽이지 빈 자리가 아니다.
+    MINI.box(this, f.x, f.y, f.w, CEIL_BOTTOM - f.y, 0x123a4c);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, f.bottom - FLOOR_TOP, 0x123a4c);
+    // 빗금은 진행 방향으로 흘러 속도감을 줍니다.
     const shift = -(s.x % 40);
     for (let x = shift - 40; x < 960; x += 40) {
       MINI.line(this, x, 158, x + 12, 172, 0x1d5670, 3);
       MINI.line(this, x, FLOOR_TOP + 2, x + 12, FLOOR_TOP + 16, 0x1d5670, 3);
     }
-    MINI.box(this, 22, 168, 916, 6, 0x2c6e85);
-    MINI.box(this, 22, FLOOR_TOP, 916, 6, 0x2c6e85);
+    MINI.box(this, f.x, 168, f.w, 6, 0x2c6e85);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, 6, 0x2c6e85);
     // 지금 끌려가는 쪽 벽면을 강조해 반전 상태를 한눈에 보여 줍니다.
-    MINI.box(this, 22, s.sign === 1 ? FLOOR_TOP : 168, 916, 6, this.accent, .95);
+    MINI.box(this, f.x, s.sign === 1 ? FLOOR_TOP : 168, f.w, 6, this.accent, .95);
     for (let i = 0; i < s.obstacles.length; i++) {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
