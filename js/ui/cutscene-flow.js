@@ -174,9 +174,11 @@ class CutsceneFlow {
       text = "",
       phase = "dialogue",
       kind = speaker === "SYSTEM" ? "system" : "dialogue",
+      backgroundPhase = phase,
     } = currentCue;
-    this.showBackground(phase);
-    this.ui.cutscene?.setAttribute("data-phase", phase);
+    const visualPhase = backgroundPhase || phase;
+    this.showBackground(visualPhase);
+    this.ui.cutscene?.setAttribute("data-phase", visualPhase);
     this.ui.cutscene?.setAttribute("data-cue-kind", kind);
     if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
     this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));

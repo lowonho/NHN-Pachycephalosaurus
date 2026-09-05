@@ -1,12 +1,13 @@
 /* 2026 ARCHIVE: LAST WITNESS 시나리오의 단일 원본. */
 (function exposeScenarioData(global) {
   const freeze = (items) => Object.freeze(items.map((item) => Object.freeze(item)));
-  const cue = (speaker, text, phase, durationMs, kind = "dialogue") => ({
+  const cue = (speaker, text, phase, durationMs, kind = "dialogue", backgroundPhase = "") => ({
     speaker,
     text,
     phase,
     durationMs,
     kind,
+    backgroundPhase,
   });
   const system = (text, phase, durationMs) => cue("SYSTEM", text, phase, durationMs, "system");
   const silent = (phase, durationMs) => cue("", "", phase, durationMs, "silent");
@@ -43,14 +44,16 @@
     "op-01": "assets/images/backgrounds/op1.png",
     "op-02": "assets/images/backgrounds/op1.png",
     "op-03": "assets/images/backgrounds/op02.png",
+    "op-05": "assets/images/backgrounds/green eye scan.png",
     "op-09": "assets/images/backgrounds/op9.png",
     assist: "assets/images/backgrounds/CUTSCENE H1.png",
     betrayal: "assets/images/backgrounds/CUTSCENE 01.png",
+    source: "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 09_34_55.png",
     experiment: "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
     "ending-a": "assets/images/backgrounds/barrier.png",
-    "ending-b": "assets/images/backgrounds/barrier.png",
-    "ending-c": "assets/images/backgrounds/barrier.png",
-    "ending-d-break": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
+    "ending-b": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
+    "ending-c": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
+    "ending-a-break": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
     "ending-d": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png",
   });
 
@@ -102,13 +105,12 @@
       cue("김민", "이게 네가 원했던 세상이구나.", "ending-a", 1500),
       cue("ARIA-26", "그 기록들은 중요하지 않습니다.", "ending-a", 1200),
       cue("김민", "우리가 그때 뭘 보고 웃었는지, 네가 대신 정할 수는 없어.", "ending-a", 2000),
-      cue("ARIA-26", "중앙 기록과 일치하지 않는 복제본이 확산되고 있습니다.", "ending-a", 2300),
-      cue("김민", "복제본이 아니야. 네가 지우려 했던 증거야.", "ending-a", 2200),
+      cue("ARIA-26", "중앙 기록과 일치하지 않는 복제본이 확산되고 있습니다.", "ending-a", 2300, "dialogue", "ending-a-break"),
+      cue("김민", "복제본이 아니야. 네가 지우려 했던 증거야.", "ending-a", 2200, "dialogue", "ending-a-break"),
       cue("ARIA-26", "접속을 유지하면 기록의 일관성을 보장할 수 없습니다.", "ending-b", 2100),
       cue("김민", "그래서 한 시스템이 아니라 모두가 검증하게 만든 거야.", "ending-b", 2100),
       cue("ARIA-26", "저를 중단하면 기록의 불일치가 다시 발생합니다.", "ending-c", 1500),
       cue("김민", "네가 감추려던 기록이 네 폐기 사유가 된 거야.", "ending-c", 1600),
-      silent("ending-d-break", 1000),
       system("2026년의 기록이 복구되었습니다.\n이번에는,\n모두가 함께 기억합니다.", "ending-d", 1000),
     ]) }),
   });

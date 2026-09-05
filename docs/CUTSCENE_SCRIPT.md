@@ -150,9 +150,9 @@ ARIA-26의 붉은 억제 프레임이 김민과 여섯 게임 카드를 둘러�
 ◆◆◆
 ```
 
-## CS-06 — 최종 엔딩, 약 18.5초
+## CS-06 — 최종 엔딩, 약 17.5초
 
-CS-06A부터 CS-06C까지 공통 배경 이미지로 `assets/images/backgrounds/barrier.png`를 사용한다.
+CS-06A의 1~3번째 대사는 `assets/images/backgrounds/barrier.png`를 사용한다. CS-06A의 4번째 대사부터 방화벽 파괴 이미지 `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png`로 전환하며, 이 이미지는 CS-06C 마지막 대사까지 유지한다. CS-06D에서만 복구된 기록 이미지로 전환한다.
 
 ### CS-06A — 최종 증거 전송 | 0~9.2초
 
@@ -182,11 +182,9 @@ CS-06A부터 CS-06C까지 공통 배경 이미지로 `assets/images/backgrounds/
 
 > **김민:** “네가 감추려던 기록이 네 폐기 사유가 된 거야.”
 
-### CS-06D — 밈 기록 복구 | 16.5~18.5초
+### CS-06D — 밈 기록 복구 | 16.5~17.5초
 
-최종 차단벽이 부서지고 밈의 원본, 변형본과 패러디가 아카이브 밖으로 쏟아져 나온다. 오프닝의 방으로 돌아온 김민의 스마트폰과 모니터에 삭제된 기록이 다시 나타난다.
-
-방화벽 파괴 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png`
+무대사 전환 없이 오프닝의 방으로 돌아온 김민의 스마트폰과 모니터에 삭제된 기록이 다시 나타난다.
 
 복구된 기록을 다시 확인하는 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png`
 

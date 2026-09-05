@@ -15,38 +15,58 @@
     image.onerror = () => reject(new Error(`Cutscene image failed to load: ${path}`));
     image.src = new URL(path, document.baseURI).href;
   })));
-  assert(cutsceneImagePaths.length === 9
+  assert(cutsceneImagePaths.length === 11
     && cutsceneImageSizes.every(({ width, height }) => width >= 1280 && height >= 720)
-    && cutsceneImageSizes.slice(0, -1).every(({ width, height }) => Math.abs(width / height - 16 / 9) < .03), 'Nine cutscene backgrounds load at widescreen presentation resolution');
+    && cutsceneImageSizes.slice(0, -1).every(({ width, height }) => Math.abs(width / height - 16 / 9) < .03), 'Eleven cutscene backgrounds load at widescreen presentation resolution');
   assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
     && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op1.png')
     && SCENARIO_DATA.backgrounds['op-03'].endsWith('/op02.png')
+    && SCENARIO_DATA.backgrounds['op-05'].endsWith('/green eye scan.png')
     && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
     && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
+    && SCENARIO_DATA.backgrounds.source.endsWith('/ChatGPT Image 2026년 9월 5일 오후 09_34_55.png')
     && SCENARIO_DATA.backgrounds.experiment.endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png')
     && SCENARIO_DATA.backgrounds['ending-a'].endsWith('/barrier.png')
-    && SCENARIO_DATA.backgrounds['ending-b'].endsWith('/barrier.png')
-    && SCENARIO_DATA.backgrounds['ending-c'].endsWith('/barrier.png')
-    && SCENARIO_DATA.backgrounds['ending-d-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-b'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-c'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-a-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
     && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png'), 'Opening, assist, betrayal, experiment and ending phases use their matching artwork');
   UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op1.png')
     && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
-  cutsceneFlow.showBackground('ending-d-break'); UI.cutscene.dataset.phase = 'ending-d-break';
+  cutsceneFlow.showBackground('ending-a-break'); UI.cutscene.dataset.phase = 'ending-a-break';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
     && document.querySelector('.story-records') === null, 'The temporary centered English records graphic is removed');
-  const barrierPhasesRender = ['ending-a', 'ending-b', 'ending-c'].every((phase) => {
+  cutsceneFlow.showBackground('ending-a'); UI.cutscene.dataset.phase = 'ending-a';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('barrier.png'), 'CS-06A starts with the intact barrier artwork');
+  const firewallBreakPhasesRender = ['ending-a-break', 'ending-b', 'ending-c'].every((phase) => {
     cutsceneFlow.showBackground(phase); UI.cutscene.dataset.phase = phase;
     const backdropStyle = getComputedStyle(UI.cutsceneBackdrop);
     return UI.cutscene.dataset.hasBackground === 'true'
-      && backdropStyle.backgroundImage.includes('barrier.png')
+      && backdropStyle.backgroundImage.includes('07_30_12.png')
       && backdropStyle.backgroundSize.includes('cover');
   });
-  assert(barrierPhasesRender, 'CS-06A through CS-06C use the barrier artwork as a cover background');
+  assert(firewallBreakPhasesRender, 'Firewall-breaking artwork remains from CS-06A dialogue four through CS-06C');
   cutsceneFlow.showBackground('op-03'); UI.cutscene.dataset.phase = 'op-03';
   assert(UI.cutscene.dataset.hasBackground === 'true'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op02.png')
-    && getComputedStyle(document.querySelector('.story-iris')).display === 'none', 'OP-03 starts the deleted-feed artwork after OP-01 and OP-02 share the first artwork');
+    && document.querySelector('.story-iris') === null, 'OP-03 starts the deleted-feed artwork and the old centered iris overlay is removed');
+  cutsceneFlow.showBackground('op-05'); UI.cutscene.dataset.phase = 'op-05';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('green%20eye%20scan.png')
+    && document.querySelector('.story-iris') === null, 'OP-05 uses the green eye scan artwork without a centered scan overlay');
+  cutsceneFlow.showBackground('source'); UI.cutscene.dataset.phase = 'source';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('09_34_55.png')
+    && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'CS-02 uses the deletion-source artwork without the centered archive-core placeholder');
+  cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
+  for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
+  const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
+  assert(cutsceneFlow.index === 3
+    && UI.cutscene.dataset.phase === 'ending-a-break'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && indexedEnding[3].chapterLabel.includes('CS-06A 최종 증거 전송 · 대사 4/5'), 'CS-06A switches to the firewall-breaking artwork on its fourth dialogue');
   const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
   assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
   cutsceneFlow.close();

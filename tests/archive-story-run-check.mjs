@@ -34,7 +34,7 @@ assert.equal(story.cutscenes.assist.script.reduce((sum, cue) => sum + cue.durati
 assert.equal(story.cutscenes.betrayal.script.reduce((sum, cue) => sum + cue.durationMs, 0), 10_600);
 assert.equal(story.cutscenes.source.script.reduce((sum, cue) => sum + cue.durationMs, 0), 8_100);
 assert.equal(story.cutscenes.experiment.script.reduce((sum, cue) => sum + cue.durationMs, 0), 11_800);
-assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 18_500);
+assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 17_500);
 assert.equal(story.cutscenes.opening.script[0].kind, 'narration', 'OP-01은 인물 대사가 아닌 장면 설명이어야 한다');
 assert.ok(story.cutscenes.opening.script[0].text.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.'));
 assert.deepEqual(Object.keys(story.cutscenes), [
@@ -48,13 +48,16 @@ assert.ok(dialogueCues.some(({ speaker }) => speaker === '김민') && dialogueCu
 assert.ok(story.cutscenes.opening.script.some(({ speaker, text }) => speaker === '김민' && text === '이상하다. 릴스가 끊길 리가 없는데.'), 'OP-02 김민 대사를 반영해야 한다');
 assert.deepEqual(
   Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'silent').map(({ phase }) => phase),
-  ['op-09', 'ending-d-break'],
+  ['op-09'],
   '영문 화면 문구를 삭제한 자리에 빈 무대사 큐가 남으면 안 된다',
 );
 assert.equal(story.backgrounds['op-01'], story.backgrounds['op-02'], 'OP-02까지 첫 화면을 유지해야 한다');
 assert.ok(story.backgrounds['op-03'].endsWith('/op02.png'), 'OP-03부터 삭제 화면을 표시해야 한다');
 assert.ok(story.cutscenes.opening.script.some((cue) => cue.text === '당신은 기록 그자체인가 봅니다.'));
 assert.ok(story.cutscenes.ending.script.some((cue) => cue.text === '이게 네가 원했던 세상이구나.'));
+assert.ok(story.cutscenes.ending.script.slice(3, 5).every((cue) => cue.phase === 'ending-a' && cue.backgroundPhase === 'ending-a-break'), 'CS-06A 네 번째 대사부터 방화벽 파괴 배경으로 전환해야 한다');
+assert.ok(story.backgrounds['ending-a-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png'));
+assert.ok(['ending-b', 'ending-c'].every((phase) => story.backgrounds[phase] === story.backgrounds['ending-a-break']), 'CS-06D 전까지 방화벽 파괴 배경을 유지해야 한다');
 assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('처음부터 복구가 목적이 아니었어')));
 assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('사람의 기억을 시험한 거였어')));
 assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('네 폐기 사유가 된 거야')));
