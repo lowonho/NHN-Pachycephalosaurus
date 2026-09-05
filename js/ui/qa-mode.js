@@ -36,6 +36,28 @@ const QA_STORY_LABELS = Object.freeze({
   ending: "CS-06 · ARIA-26 폐기",
 });
 
+const QA_SCENE_LABELS = Object.freeze({
+  "op-01": "OP-01 반복되는 피드",
+  "op-02": "OP-02 일괄 삭제",
+  "op-03": "OP-03 삭제된 장면 재현",
+  "op-05": "OP-05 완전기억 소지자",
+  "op-09": "OP-09 아카이브 진입",
+  assist: "CS-H1 보조 절차 활성화",
+  betrayal: "CS-01 복구 기록 강제 회수",
+  source: "CS-02 삭제 실행 주체 확인",
+  experiment: "CS-03 성공한 기억 소거 실험",
+  "ending-a": "CS-06A 최종 증거 전송",
+  "ending-b": "CS-06B 개발자 검증",
+  "ending-c": "CS-06C ARIA-26 폐기",
+  "ending-d": "CS-06D 밈 기록 복구",
+});
+
+const QA_CUE_KIND_LABELS = Object.freeze({
+  dialogue: "대사",
+  system: "화면 문구",
+  silent: "무대사/정적",
+});
+
 class QaModeFlow {
   constructor(events, dom, soundBus, protocolSelect, cutscene, catalog) {
     this.events = events;
@@ -213,6 +235,33 @@ class QaModeFlow {
     if (snapshot) this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
 
+  /* QA 컷신의 각 줄에 장면·장면 내 순번·전체 큐 순번을 붙인다. 원본 대본은 변경하지 않는다. */
+  buildStoryPreviewScript(script) {
+    const source = Array.isArray(script) ? script : [];
+    const kindOf = (cue) => cue.kind ?? (cue.speaker === "SYSTEM" ? "system" : "dialogue");
+    const countKey = (cue) => `${cue.phase ?? "scene"}\u0000${kindOf(cue)}`;
+    const totals = new Map();
+    const current = new Map();
+
+    source.forEach((cue) => {
+      const key = countKey(cue);
+      totals.set(key, (totals.get(key) ?? 0) + 1);
+    });
+
+    return source.map((cue, index) => {
+      const kind = kindOf(cue);
+      const key = countKey(cue);
+      const ordinal = (current.get(key) ?? 0) + 1;
+      current.set(key, ordinal);
+      const scene = QA_SCENE_LABELS[cue.phase] ?? String(cue.phase ?? "SCENE").toUpperCase();
+      const cueType = QA_CUE_KIND_LABELS[kind] ?? kind;
+      return {
+        ...cue,
+        chapterLabel: `QA // ${scene} · ${cueType} ${ordinal}/${totals.get(key)} · 큐 ${index + 1}/${source.length}`,
+      };
+    });
+  }
+
   /* 진행 기록·본편의 시청 완료 상태를 건드리지 않는 독립 컷신 미리보기. */
   playStory(storyId) {
     const story = SCENARIO_DATA.cutscenes[storyId];
@@ -223,7 +272,7 @@ class QaModeFlow {
     this.ui.mainMenu?.setAttribute("inert", "");
     this.cutscene.play({
       chapter: `QA PREVIEW // ${story.chapter}`,
-      script: story.script,
+      script: this.buildStoryPreviewScript(story.script),
       auto: story.auto,
       forceDisplay: true,
       onDone: () => {
@@ -361,7 +410,10 @@ class QaModeFlow {
       title.textContent = QA_STORY_LABELS[storyId] ?? story.chapter;
 
       button.append(code, title);
-      button.title = `${story.chapter}\n대사 ${story.script.length}개`;
+      const dialogueCount = story.script.filter((cue) => (cue.kind ?? "dialogue") === "dialogue").length;
+      const systemCount = story.script.filter((cue) => cue.kind === "system").length;
+      const sceneCount = new Set(story.script.map((cue) => cue.phase)).size;
+      button.title = `${story.chapter}\n장면 ${sceneCount} · 대사 ${dialogueCount} · 화면 문구 ${systemCount}`;
       button.addEventListener("click", () => this.playStory(storyId));
       grid.append(button);
     });

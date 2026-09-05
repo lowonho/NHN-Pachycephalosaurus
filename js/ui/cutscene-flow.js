@@ -31,6 +31,7 @@ class CutsceneFlow {
 
     this.script = [];
     this.index = -1;
+    this.chapter = "";
     this.onDone = null;
     this.returnFocus = null;
 
@@ -131,7 +132,8 @@ class CutsceneFlow {
     this.closeLog();
     this.renderLog();
 
-    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = chapter || this.copy.chapter;
+    this.chapter = chapter || this.copy.chapter;
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
     this.ui.cutscene?.classList.remove("hidden");
     // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
     this.ui.cutscene?.focus();
@@ -176,6 +178,8 @@ class CutsceneFlow {
     this.showBackground(phase);
     this.ui.cutscene?.setAttribute("data-phase", phase);
     this.ui.cutscene?.setAttribute("data-cue-kind", kind);
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
+    this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
     this.startTyping(String(text), { instant: kind !== "dialogue" });
     this.renderLog();
@@ -324,10 +328,12 @@ class CutsceneFlow {
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
     this.ui.cutscene?.removeAttribute("data-cue-kind");
+    this.ui.cutscene?.removeAttribute("data-qa-cue");
     this.ui.cutscene?.removeAttribute("data-has-background");
     this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     this.returnFocus = null;
+    this.chapter = "";
   }
 }
 

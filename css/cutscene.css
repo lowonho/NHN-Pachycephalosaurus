@@ -219,6 +219,14 @@
   letter-spacing: 0.16em;
 }
 
+/* QA에서는 장면명과 대사 순번을 함께 표시하므로 긴 표기를 한 줄 안에 맞춘다. */
+.cutscene[data-qa-cue="true"] .cutscene-chapter {
+  max-width: 980px;
+  font-size: 15px;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+
 /* ── 하단 대사 블록 ─────────────────────────────────────────────────── */
 
 /*
