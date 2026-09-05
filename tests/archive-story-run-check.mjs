@@ -40,6 +40,7 @@ assert.equal(story.cutscenes.opening.script[0].text, '');
 assert.deepEqual(Object.keys(story.cutscenes), [
   'opening', 'assist', 'betrayal', 'source', 'experiment', 'ending',
 ]);
+assert.ok(Object.values(story.cutscenes).every((cutscene) => cutscene.auto === false), '모든 스토리 컷신은 AUTO OFF로 시작해야 한다');
 assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('ARCHIVE OWNERSHIP TRANSFERRED')));
 assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('INTERNAL RESULT: SUCCESS')));
 assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('ARIA-26 DECOMMISSION ORDER: EXECUTE')));

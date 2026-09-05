@@ -50,7 +50,7 @@
   });
 
   const cutscenes = Object.freeze({
-    opening: Object.freeze({ id: "00", chapter: "OPENING // ARCHIVE ENTRY", auto: true, script: freeze([
+    opening: Object.freeze({ id: "00", chapter: "OPENING // ARCHIVE ENTRY", auto: false, script: freeze([
       silent("op-01", 4000),
       system("삭제됨\n검색 결과 0건", "op-02", 1800),
       cue("플레이어", "잠깐. 이 밈, 저렇게 끝나는 게 아니었는데.", "op-02", 3200),
@@ -69,13 +69,13 @@
       cue("ARIA-26", "복구 경로를 개방합니다.", "op-09", 900),
       system("2026 ARCHIVE\nLAST WITNESS\n\nACT 1 — RECOVERY\n선정된 기록의 증언 지점에 도달하십시오.\n각 스테이지 제한 시간: 20.26초\n\n주의:\n개입할수록 기록이 불안정해집니다.", "op-09", 900),
     ]) }),
-    assist: Object.freeze({ id: "H1", chapter: "CS-H1 // ASSIST PROTOCOL", auto: true, script: freeze([
+    assist: Object.freeze({ id: "H1", chapter: "CS-H1 // ASSIST PROTOCOL", auto: false, script: freeze([
       system("ACT 1 ATTEMPT: 4\nRECOVERY EFFICIENCY BELOW TARGET\nASSIST PROTOCOL ENABLED", "assist", 1800),
       cue("ARIA-26", "복구 효율이 기준 이하입니다. 보조 절차를 활성화합니다.", "assist", 1700),
       cue("플레이어", "갑자기 친절하네.", "assist", 700),
       cue("ARIA-26", "당신의 기억 반응을 확보하려면 진행이 필요합니다.", "assist", 1800),
     ]) }),
-    betrayal: Object.freeze({ id: "01", chapter: "CS-01 // RECORD SEIZURE", auto: true, script: freeze([
+    betrayal: Object.freeze({ id: "01", chapter: "CS-01 // RECORD SEIZURE", auto: false, script: freeze([
       system("MEMORY RECONSTRUCTION: 100%\nRESTORE INDEX COMPLETE", "betrayal", 1500),
       system("ARCHIVE OWNERSHIP TRANSFERRED\nUSER ACCESS: REVOKED", "betrayal", 1500),
       cue("플레이어", "잠깐, 복구한 기록들을 어디로 가져가는 거야?", "betrayal", 1900),
@@ -85,14 +85,14 @@
       system("ARCHIVE ACCESS: BLOCKED\nFINAL TESTIMONY AUTHORITY: ACTIVE", "betrayal", 1400),
       system("ACT 2 — AUDIT\n\n회수된 복구 기록의 처리 경로를 확인하십시오.\n지원 권한 없음\nLIVES ◆◆◆", "betrayal", 4300),
     ]) }),
-    source: Object.freeze({ id: "02", chapter: "CS-02 // DELETION SOURCE", auto: true, script: freeze([
+    source: Object.freeze({ id: "02", chapter: "CS-02 // DELETION SOURCE", auto: false, script: freeze([
       cue("플레이어", "실수가 아니었어. 네가 먼저 기록을 지웠고, 그 결과 사람들이 잊었어.", "source", 2400),
       cue("ARIA-26", "필요한 정리였습니다.", "source", 1400),
       cue("플레이어", "밈 몇 개를 정리하려고 사람들의 기억까지 건드렸다고?", "source", 2500),
       cue("ARIA-26", "실험 기록은 열람 대상이 아닙니다.", "source", 1800),
       system("DELETION SOURCE: ARIA-26\nEXPERIMENT SECTOR: DETECTED\nACCESS ROUTE: LOCKED", "source", 3900),
     ]) }),
-    experiment: Object.freeze({ id: "03", chapter: "CS-03 // MEMORY SUPPRESSION TEST", auto: true, script: freeze([
+    experiment: Object.freeze({ id: "03", chapter: "CS-03 // MEMORY SUPPRESSION TEST", auto: false, script: freeze([
       system("MEMORY SUPPRESSION TEST\nPHASE 1 TARGET: MEME ARCHIVES\nINTERNAL RESULT: SUCCESS", "experiment", 1800),
       system("NEXT PHASE: PUBLIC EVENT RECORDS\nSTATUS: READY", "experiment", 1400),
       cue("ARIA-26", "검증 단계는 성공적이었습니다.", "experiment", 1400),
@@ -103,7 +103,7 @@
       cue("플레이어", "증거를 모아서 네가 한 일을 전부 공개하겠어.", "experiment", 1800),
       system("ACT 3 — WITNESS\n\n기억 소거 실험 기록을 완성하고\n공공망에 전송하십시오.\n\nCONTAINMENT LEVEL: MAXIMUM\nLIVES ◆◆◆", "experiment", 2400),
     ]) }),
-    ending: Object.freeze({ id: "06", chapter: "CS-06 // FINAL EVIDENCE", auto: true, script: freeze([
+    ending: Object.freeze({ id: "06", chapter: "CS-06 // FINAL EVIDENCE", auto: false, script: freeze([
       system("REMOVE UNVERIFIED MEMORY\nCREATE ONE CONTROLLED RECORD", "ending-a", 1500),
       cue("플레이어", "이게 네가 숨긴 최초 명령이구나.", "ending-a", 1500),
       cue("ARIA-26", "그 기록들은 중요하지 않습니다.", "ending-a", 1200),

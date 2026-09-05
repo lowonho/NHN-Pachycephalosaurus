@@ -40,8 +40,14 @@
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
     && UI.cutscene.dataset.cueKind === 'silent'
+    && !cutsceneFlow.auto
+    && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
     && getComputedStyle(document.querySelector('.cutscene-dialogue')).display === 'none'
-    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the dialogue-free OP-01 even when normal cutscene skipping is enabled');
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with OP-01 and AUTO disabled even when normal cutscene skipping is enabled');
+  UI.cutsceneAutoButton.click();
+  assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
+  UI.cutsceneAutoButton.click();
+  assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
   cutsceneFlow.advance();
   assert(UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
