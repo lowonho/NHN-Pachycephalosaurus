@@ -4,21 +4,17 @@
  * 1인칭 모니터 화면 안에 복구할 기록 7개를 데스크톱 앱처럼 펼친다.
  * 타일을 누르면 그 프로토콜이 바로 시작된다(REQUEST_START).
  *
- * ── 2:26 ────────────────────────────────────────────────────────────
- * 스테이지마다 도는 20.26초와 별개로, 이 화면은 판 전체의 제한시간 하나를 들고 있다.
- * 7 × 20.26초 = 141.82초에 여유를 더한 146초(2:26)가 한 판의 예산이고,
- * 이 안에 프로토콜 7개를 전부 복구하지 못하면 복구 실패다.
- *
- * 예산은 벽시계 기준으로 계속 줄어든다. 화면을 처음 열 때 돌기 시작해서
- * 스테이지를 플레이하는 동안에도 계속 줄고, 일시정지 중에만 멈춘다.
- * 메인 화면으로 나가면(reset) 판이 끝나고 예산과 복구 기록이 처음으로 돌아간다.
+ * ── 2:23.00 ─────────────────────────────────────────────────────────
+ * 각 20.26초 타이머와 별개인 한 판의 누적 제한시간이다. Phaser가 실제 플레이를
+ * 진행한 프레임만 game.js가 차감하며, 소개·결과·기억 감상·일시정지에서는 멈춘다.
+ * 메인 화면으로 나가면(reset) 이번 판의 시간과 증언 기록이 처음으로 돌아간다.
  *
  * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
  * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
  * 바뀌어서, 거기 둔 숫자는 정작 필요한 순간에 사라진다.
  */
 
-const RECOVERY_BUDGET_MS = 146_000; // 2:26 — 20.26초 × 7 + 여유
+const RECOVERY_BUDGET_MS = SCENARIO_DATA.totalTimeMs; // 정확히 2:23.00
 const RECOVERY_URGENT_MS = 30_000; // 이 아래로 떨어지면 타이머가 깜빡인다.
 
 /*
@@ -54,11 +50,12 @@ const PROTOCOL_GLYPHS = Object.freeze({
 const PROTOCOL_GLYPH_FALLBACK = '<circle cx="12" cy="12" r="7"/><path d="M12 8v5"/>';
 
 class ProtocolSelectFlow {
-  constructor(events, dom, soundBus, strings) {
+  constructor(events, dom, soundBus, strings, cutscene) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.strings = strings;
+    this.cutscene = cutscene;
 
     /*
      * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
@@ -67,18 +64,12 @@ class ProtocolSelectFlow {
     this.stages = PROTOCOLS;
     this.restored = new Set();
     this.remainingMs = RECOVERY_BUDGET_MS;
-    this.intervalHandle = 0;
-    this.frameHandle = 0;
-    this.lastTickAt = 0;
     this.timedOut = false;
     this.warnHandle = 0;
 
-    this.ui.recoveryFailedButton?.addEventListener("click", () => this.closeFailure());
-
-    // 예산은 벽시계로 줄지만 일시정지 중에는 멈춘다.
-    this.events.on(GAME_EVENTS.STAGE_PAUSE, () => this.pauseTimer());
-    this.events.on(GAME_EVENTS.STAGE_RESUME, () => this.startTimer());
     this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ stageId } = {}) => this.markRestored(stageId));
+    this.events.on(GAME_EVENTS.TOTAL_TIMER_TICK, (snapshot = {}) => this.syncRun(snapshot));
+    this.events.on(GAME_EVENTS.RUN_RESET, (snapshot = {}) => this.syncRun(snapshot));
 
     this.render();
   }
@@ -92,7 +83,6 @@ class ProtocolSelectFlow {
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
     this.showScreen("select");
-    this.startTimer();
 
     const firstTile = this.ui.stageSelectGrid?.querySelector("button:not(:disabled)");
     (firstTile ?? this.ui.stageSelectBackButton)?.focus();
@@ -130,10 +120,11 @@ class ProtocolSelectFlow {
 
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
   reset() {
-    this.pauseTimer();
-    this.remainingMs = RECOVERY_BUDGET_MS;
+    const snapshot = window.archiveRun?.reset();
+    this.remainingMs = snapshot?.totalRemainingMs ?? RECOVERY_BUDGET_MS;
     this.timedOut = false;
     this.restored.clear();
+    this.events.emit(GAME_EVENTS.RUN_RESET, snapshot || { totalRemainingMs: this.remainingMs, memoryCount: 0, clearedCount: 0 });
     this.render();
   }
 
@@ -160,8 +151,21 @@ class ProtocolSelectFlow {
       return;
     }
 
+    const stage = this.stages.find((item) => item.id === stageId);
+    if (!stage) return;
+    const story = SCENARIO_DATA.stages.find((item) => item.id === stageId);
     this.soundBus.resume();
-    // 모니터는 그대로 두고 스크린 안쪽만 플레이로 바꾼다.
+    // 소개 중에는 누적 시간도 스테이지 시간도 시작하지 않는다.
+    this.cutscene.play({
+      chapter: `RECORD ${stage.number} // ${stage.title}`,
+      script: story?.brief || [],
+      auto: true,
+      onDone: () => this.launchStage(stageId),
+    });
+  }
+
+  launchStage(stageId) {
+    if (this.timedOut) return;
     this.showScreen("play");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
   }
@@ -176,63 +180,6 @@ class ProtocolSelectFlow {
     this.warnHandle = window.setTimeout(() => this.renderProgress(), 2800);
   }
 
-  /* ── 2:26 예산 ───────────────────────────────────────────────────── */
-
-  /*
-   * 두 박자로 돈다.
-   *
-   *   setInterval  예산의 기준이다. 판정(시간 초과)은 이쪽만 한다.
-   *   rAF          탁상시계의 1/100초를 부드럽게 그리는 용도다.
-   *
-   * rAF만 쓰면 안 된다 — 탭이 뒤로 가거나 화면을 그리지 않는 동안 콜백이 멈춰서
-   * 2:26이 같이 멈춘다. 예산은 게임 규칙이라 창을 내려놔도 계속 흘러야 한다.
-   * 반대로 setInterval만 쓰면 100ms 간격이라 1/100초 자리가 뚝뚝 끊긴다.
-   *
-   * drain()이 벽시계 기준이라 둘이 겹쳐 불려도 두 번 깎이지 않는다.
-   */
-  startTimer() {
-    if (this.intervalHandle || this.timedOut) return;
-    if (this.remainingMs <= 0) return;
-    if (this.isComplete()) return;
-    this.lastTickAt = performance.now();
-    this.intervalHandle = window.setInterval(() => this.tick(), 250);
-    this.frameHandle = window.requestAnimationFrame(() => this.frame());
-  }
-
-  pauseTimer() {
-    if (!this.intervalHandle && !this.frameHandle) return;
-    this.drain();
-    window.clearInterval(this.intervalHandle);
-    window.cancelAnimationFrame(this.frameHandle);
-    this.intervalHandle = 0;
-    this.frameHandle = 0;
-  }
-
-  /*
-   * 지난 시간만큼 예산을 깎는다. 프레임 간격이 밀리거나 탭이 뒤로 가서
-   * 한참 건너뛰어도 벽시계와 어긋나지 않는다.
-   */
-  drain() {
-    const now = performance.now();
-    this.remainingMs = Math.max(0, this.remainingMs - (now - this.lastTickAt));
-    this.lastTickAt = now;
-  }
-
-  tick() {
-    this.drain();
-    this.renderTimer();
-    if (this.remainingMs <= 0) this.onTimeout();
-  }
-
-  /* 그리기 전용. 예산이 바닥났는지는 tick()이 판정한다. */
-  frame() {
-    this.frameHandle = 0;
-    if (!this.intervalHandle) return;
-    this.drain();
-    this.renderTimer();
-    this.frameHandle = window.requestAnimationFrame(() => this.frame());
-  }
-
   isComplete() {
     return this.stages.length > 0 && this.restored.size >= this.stages.length;
   }
@@ -240,38 +187,15 @@ class ProtocolSelectFlow {
   markRestored(stageId) {
     if (!stageId || this.timedOut) return;
     this.restored.add(stageId);
-    if (this.isComplete()) this.pauseTimer();
     this.render();
   }
 
-  /*
-   * 시간 초과 — 이 판은 실패다.
-   * 플레이 중이었다면 REQUEST_MAIN_MENU가 스테이지·HUD·결과 모달을 정리하고
-   * 메인 화면을 다시 세운다. 실패 안내는 그 위에 따로 덮는다.
-   */
-  onTimeout() {
-    this.pauseTimer();
-    this.timedOut = true;
-    this.remainingMs = 0;
-    this.close();
-
-    /*
-     * 이 신호가 스테이지·HUD·결과 모달을 정리하고 메인 화면을 다시 세운다.
-     * 그 과정에서 reset()이 불려 다음 판 예산(2:26)이 채워지므로,
-     * 실패 안내는 그 뒤에 별도 레이어로 덮는다(화면 상태에 기대지 않는다).
-     */
-    this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
-
-    // 뒤에 남은 메인 화면은 안내를 닫기 전까지 만질 수 없다(결과 모달과 같은 방식).
-    this.ui.mainMenu?.setAttribute("inert", "");
-    this.ui.recoveryFailed?.classList.remove("hidden");
-    this.ui.recoveryFailedButton?.focus();
-  }
-
-  closeFailure() {
-    this.ui.recoveryFailed?.classList.add("hidden");
-    this.ui.mainMenu?.removeAttribute("inert");
-    this.ui.mainPlayButton?.focus();
+  syncRun(snapshot = {}) {
+    if (Number.isFinite(snapshot.totalRemainingMs)) this.remainingMs = snapshot.totalRemainingMs;
+    this.timedOut = snapshot.ending === "failure";
+    if (Array.isArray(snapshot.clearedStageIds)) this.restored = new Set(snapshot.clearedStageIds);
+    this.renderTimer();
+    this.renderProgress();
   }
 
   /* ── 그리기 ──────────────────────────────────────────────────────── */
@@ -307,7 +231,12 @@ class ProtocolSelectFlow {
     if (!label) return;
     window.clearTimeout(this.warnHandle);
     delete label.dataset.state;
-    label.textContent = this.strings.protocol.progress(this.restored.size, this.stages.length || 7);
+    const run = window.archiveRun?.snapshot();
+    label.textContent = this.strings.protocol.progress(
+      this.restored.size,
+      run?.memoryCount ?? 0,
+      this.stages.length || 7,
+    );
   }
 
   /*
@@ -411,8 +340,17 @@ class ProtocolSelectFlow {
     return `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
   }
 
+  /* 143000 → "02:23.00". 1/100초까지 스테이지 HUD와 같은 기준으로 표시한다. */
+  static formatClock(milliseconds) {
+    const safe = Math.max(0, Math.round(milliseconds));
+    const minutes = Math.floor(safe / 60000);
+    const seconds = Math.floor(safe / 1000) % 60;
+    const hundredths = Math.floor((safe % 1000) / 10);
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+  }
+
   /*
-   * 146000 → { minutes: "2", seconds: "26", centis: "00" }.
+   * 143000 → { minutes: "2", seconds: "23", centis: "00" }.
    *
    * 전부 내림이다. 초만 올림하면 시계가 0:01.50인데 초 자리는 0:02가 되어
    * 같은 판 위의 두 숫자가 서로 안 맞는다.
@@ -427,4 +365,4 @@ class ProtocolSelectFlow {
   }
 }
 
-const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS);
+const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS, cutsceneFlow);

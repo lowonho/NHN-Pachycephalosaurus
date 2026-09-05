@@ -31,7 +31,10 @@ socket.addEventListener("message", (event) => {
   }
   if (message.method === "Log.entryAdded" && message.params.entry.level === "error") {
     const entry = message.params.entry;
-    browserErrors.push(`${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
+    // 격리된 테스트 환경에서 외부 웹폰트만 막힌 경우는 게임 실행 오류가 아니다.
+    const optionalFontBlocked = entry.text.includes("Failed to load resource")
+      && /(?:cdn\.jsdelivr\.net|projectnoonnu\/noonfonts)/.test(entry.url || "");
+    if (!optionalFontBlocked) browserErrors.push(`${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
   }
   if (message.method === "Runtime.consoleAPICalled" && message.params.type === "error") {
     browserErrors.push(message.params.args.map((argument) => argument.value || argument.description).join(" "));
@@ -89,7 +92,8 @@ const selectState = await evaluate(`({
 check("메인에서 스테이지 선택 열기", selectState.visible, JSON.stringify(selectState));
 check("스테이지 카드 선택 가능", selectState.enabledCards === 7, `${selectState.enabledCards}개`);
 
-await evaluate("document.querySelector('.stage-select-card[data-stage-id=maze]').click()");
+// 새 흐름은 오프닝 뒤 첫 기록 소개를 자동 재생한다. 소개 종료 뒤 설렘 스테이지가 시작된다.
+await evaluate("cutsceneFlow.finish()");
 await wait(180);
 /*
  * 플레이는 모니터 화면 안에서 일어난다 — 모니터(#stage-select-screen)는 그대로 서 있고
@@ -112,7 +116,7 @@ check(
     && startState.appVisible && startState.appInteractive,
   JSON.stringify(startState)
 );
-check("게임 HUD 연결", startState.pauseVisible && startState.hudVisible && startState.title.includes("가속 코스"), startState.title);
+check("게임 HUD 연결", startState.pauseVisible && startState.hudVisible && startState.title.includes("설렘"), startState.title);
 
 /*
  * 모니터 스크린은 16:9(1440×810)여서 Phaser(960×540 · Scale.FIT)가 레터박스 없이 꽉 찬다.
@@ -156,9 +160,9 @@ const resultState = await evaluate(`({
   copy: document.querySelector('#modal-copy').textContent,
   result: document.querySelector('#modal-result').textContent
 })`);
-check("기존 결과 UI 연결", resultState.visible && resultState.copy.includes("가속 코스"), JSON.stringify(resultState));
+check("개인 증언 결과 UI 연결", resultState.visible && resultState.title === "PERSONAL TESTIMONY" && resultState.result.includes("설렘"), JSON.stringify(resultState));
 
-await evaluate("document.querySelector('#primary-button').click()");
+await evaluate("document.querySelector('#secondary-button').click()");
 await wait(180);
 const retryState = await evaluate(`({
   resultHidden: document.querySelector('#result-modal').classList.contains('hidden'),

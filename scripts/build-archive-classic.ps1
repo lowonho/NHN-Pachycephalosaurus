@@ -12,6 +12,7 @@ $sourceNames = @(
   "bounce-core.mjs",
   "progress.mjs",
   "fragments.mjs",
+  "run-state.mjs",
   "game.mjs"
 )
 
