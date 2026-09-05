@@ -33,9 +33,10 @@ export const E3_HUMAN_STACK = {
     settleSpeed: 18, settleAngularSpeed: .22,
     // 대기 위치가 오가는 폭. 성공선도 이 폭에 맞춰 긋습니다.
     railLeft: 260, railRight: 700,
-    // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
-    // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
-    baseY: 452, baseWidth: 276, floorY: 500, dropHeight: 292, debugPhysics: false,
+    // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리이며 고정값입니다.
+    // 탑이 자라도 대기 위치는 움직이지 않으므로 떨어뜨리는 높이가 수시로 바뀌지 않고,
+    // 마지막 한 명까지 늘 같은 감으로 겨냥할 수 있습니다.
+    baseY: 452, baseWidth: 276, floorY: 500, dropHeight: 330, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
@@ -200,14 +201,15 @@ export const E3_HUMAN_STACK = {
     M.Engine.update(this.stackWorld, dt * 1000);
     E3_HUMAN_STACK.cullFallen.call(this);
     const top = E3_HUMAN_STACK.measureTower.call(this);
-    // 대기 위치는 늘 탑 꼭대기(없으면 단상 윗면)에서 dropHeight만큼 위입니다 —
-    // 탑이 자라도 겨냥할 거리가 그대로라 마지막 한 명도 처음과 같은 감으로 놓습니다.
-    // 그만큼 대기 위치가 올라가므로 시야는 아래 zoom이 부드럽게 물려 줍니다.
-    s.spawnY = Math.min(t.baseY, top) - t.dropHeight;
+    // 대기 위치는 단상 윗면에서 dropHeight만큼 위로 고정입니다 — 탑이 자라도
+    // 떨어뜨리는 높이가 수시로 바뀌지 않아 매번 같은 감으로 겨냥할 수 있습니다.
+    s.spawnY = t.baseY - t.dropHeight;
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    // 누운 자세는 가로로 기니 그만큼 넓게 살피고, 탑이 고정 대기 위치보다 높이 자라면 그만큼만 밀어 올립니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
-    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - s.spawnY + 62), .35, 1);
+    // 시야는 대기 위치와 실제 탑 높이 중 더 높은(작은 y) 쪽에 맞춰 물러납니다.
+    const viewTop = Math.min(s.spawnY, top);
+    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - viewTop + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
     for (const impact of s.impacts) impact.age += dt;

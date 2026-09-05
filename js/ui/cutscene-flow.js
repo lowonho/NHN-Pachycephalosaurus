@@ -41,7 +41,7 @@ class CutsceneFlow {
     this.typed = 0;
     this.fullText = "";
     this.auto = false;
-    this.currentSceneKey = "";
+    this.currentSceneKey = null;
     this.pendingSceneCue = null;
     this.awaitingSceneInput = false;
     this.sceneTransitioning = false;
@@ -197,10 +197,15 @@ class CutsceneFlow {
       backgroundPhase = phase,
     } = currentCue;
     const visualPhase = backgroundPhase || phase;
-    const sceneKey = `${phase}\u0000${visualPhase}`;
+    /*
+     * 장면 이름(phase)이 아니라 실제로 걸리는 그림 경로로 비교한다.
+     * OP-01·OP-02처럼 장면 이름은 달라도 같은 그림을 그대로 쓰는 구간은
+     * 화면상 바뀌는 게 없으므로 암전을 걸지 않는다.
+     */
+    const sceneKey = this.backgrounds[visualPhase] ?? "";
 
     /*
-     * 대본의 장면 또는 실제 배경이 바뀌면 새 장면만 먼저 보여 준다.
+     * 실제로 걸리는 그림이 바뀔 때만 새 장면(배경만 · 무대사)을 먼저 보여 준다.
      * AUTO가 켜져 있어도 여기서는 멈추며, 반드시 플레이어 확인 입력을 기다린다.
      */
     if (sceneKey !== this.currentSceneKey) {
@@ -281,7 +286,7 @@ class CutsceneFlow {
   resetSceneHold() {
     window.clearTimeout(this.sceneReadyTimer);
     this.sceneReadyTimer = 0;
-    this.currentSceneKey = "";
+    this.currentSceneKey = null;
     this.pendingSceneCue = null;
     this.awaitingSceneInput = false;
     this.sceneTransitioning = false;

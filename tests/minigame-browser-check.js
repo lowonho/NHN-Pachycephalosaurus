@@ -153,16 +153,12 @@
   UI.cutsceneAutoButton.click();
   assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
   cutsceneFlow.advance();
-  await Promise.resolve();
-  assert(cutsceneFlow.awaitingSceneInput
+  assert(!cutsceneFlow.awaitingSceneInput
     && UI.cutscene.dataset.phase === 'op-02'
-    && UI.cutsceneLine.textContent === '', 'QA pauses again when the scene label changes');
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB' }));
-  assert(UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
     && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'OP-01 to OP-02 reuses the same artwork, so no pause and no fade is needed');
   const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
   const systemLineRect = UI.cutsceneLine.getBoundingClientRect();
   cutsceneFlow.advance();
