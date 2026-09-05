@@ -921,6 +921,9 @@
     <script src="js/assets/audio-manifest.js"></script>
     <script src="js/assets/asset-loader.js"></script>
 
+    <!-- 파일 경로·트랙별 게인·루프·합성 SFX 조정값 -->
+    <script src="js/audio/audio-tuning.js"></script>
+
     <!-- B · DOM 참조 (아트 뷰가 참조하므로 먼저 로드) -->
     <script src="js/ui/dom.js"></script>
 
@@ -958,5 +961,7 @@
       bundle also works when index.html is opened directly through file://.
     -->
     <script src="js/archive/game-classic.js"></script>
+    <!-- ?audioLab=1 에서만 나타나는 개발용 사운드 조정 패널 -->
+    <script src="js/audio/audio-lab.js"></script>
   </body>
 </html>

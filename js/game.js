@@ -59,7 +59,10 @@ class ArchiveGameBridge {
     const run = window.archiveRun.snapshot();
     this.ui.appShell.dataset.act = String(run.currentAct);
     this.ui.appShell.dataset.assist = String(Boolean(run.assistProtocolAct1));
-    this.soundBus.startGameAudio(); this.ui.appShell?.removeAttribute('inert');
+    this.soundBus.startGameAudio();
+    /* 카운트다운 동안 크로스페이드가 끝나 조작 시작에는 해당 게임 음악만 또렷하게 남는다. */
+    window.archiveAudio?.selectBgm(stageId, { restart: true });
+    this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
     // 남은 목숨은 우상단(일시정지 옆)에 있어 좌상단 패널과 따로 여닫는다.
@@ -151,6 +154,9 @@ class ArchiveGameBridge {
   }
   stop() {
     this.active = false; this.cancelCountdown(); this.api?.stop();
+    const archiveAudio = window.archiveAudio;
+    archiveAudio?.selectBgm('main');
+    if (archiveAudio && (archiveAudio.bgmPaused || !archiveAudio.bgmStarted)) archiveAudio.startBgm();
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud.hidden = true; this.ui.stageHudTimer.hidden = true; this.ui.touchControls.hidden = true;
     if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = true;
@@ -184,6 +190,8 @@ class ArchiveGameBridge {
   onStageEnd({ success, elapsed, actions, extra = '' }) {
     if (!this.active || !this.currentStage) return;
     this.active = false; this.ui.touchControls.hidden = true;
+    /* 결과 징글과 판정음이 음악에 묻히지 않도록 결과창이 뜨는 순간만 낮춘다. */
+    this.soundBus.duck(success ? 0.58 : 0.46, success ? 900 : 1150);
     const run = window.archiveRun.completeAttempt(success);
     this.emitRunSnapshot(run);
     let record = null;
@@ -208,6 +216,6 @@ class ArchiveGameBridge {
 const archiveGameBridge = new ArchiveGameBridge(gameEvents, UI, audioBus);
 viewportFitter.start();
 window.addEventListener('beforeunload', () => {
-  viewportFitter.stop(); audioBus.destroy(); window.archiveAudio?.stopBgm();
+  viewportFitter.stop(); audioBus.destroy(); window.archiveAudio?.destroy();
   gameEvents.emit(GAME_EVENTS.SCENE_SHUTDOWN, {}); window.archivePhaserGame?.destroy(true);
 });
