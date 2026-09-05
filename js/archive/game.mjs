@@ -11,7 +11,7 @@ const WIDTH = VIEWPORT.width;
 const HEIGHT = VIEWPORT.height;
 const lightOverlay = document.querySelector("#light-overlay");
 const corruptionOverlay = document.querySelector("#corruption");
-const playLayer = document.querySelector("#app-shell");
+const playLayer = document.querySelector("#game-container");
 
 window.archiveAudio = audio;
 let progressStorage = null;
@@ -35,10 +35,11 @@ function emit(name, detail) {
  * 읽을 수 없고, 흔들림이 "몇 번째 개입인지"가 아니라 "얼마나 망가졌는지"를
  * 말하게 된다. 쌓인 양은 화면 노이즈(#corruption)가 이미 보여준다.
  *
- * 흔드는 대상은 스크린 안 플레이 레이어(#app-shell)뿐이다. 베젤·주사선·반사광은
- * 모니터 유리라서 같이 움직이면 화면이 아니라 모니터가 흔들린 것처럼 보인다.
- * Phaser 카메라 셰이크(this.shake)는 캔버스만 흔들지만 이건 HUD까지 함께 흔든다 —
- * 스크린 한 장이 통째로 떨려야 신호가 불안정한 것으로 읽힌다.
+ * 흔드는 대상은 기록이 재생되는 화면(#game-container — 캔버스와 그 위 효과)뿐이다.
+ * HUD(.hud-layer의 스테이지 안내 · 남은 시간 · 일시정지)는 기록이 아니라 관리자의
+ * 계기판이라 흔들리지 않는다. 매 순간 읽어야 하는 값들이라 흔들리면 읽을 수 없다.
+ * 베젤·주사선·반사광도 모니터 유리라서 고정이다 — 같이 움직이면 화면이 아니라
+ * 모니터가 흔들린 것처럼 보인다.
  */
 const SHAKE_AMPLITUDE = 18;   // px(스크린 좌표 1440 기준). 매번 같은 값이다.
 const SHAKE_SECONDS = 0.3;    // 한 번 흔드는 시간.

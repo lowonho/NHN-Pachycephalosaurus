@@ -67,29 +67,30 @@ button {
   display: none;
 }
 
-/*
- * 개입 디버프가 붙을 때마다 스크린 안이 한 번 흔들린다(js/archive/game.mjs의 kickScreenShake).
- * 값은 매 프레임 자바스크립트가 --shake-* 로 넣는다 — 여기서는 조립만 한다.
- *
- * 떨리는 동안에만 transform을 건다. 가만히 있을 때도 걸어 두면 레이어로 승격돼
- * 캔버스와 HUD 글자가 괜히 흐려진다.
- *
- * 흔든 만큼 가장자리에 스크린 바탕이 드러나므로 --shake-zoom으로 아주 살짝 덮는다.
- */
-.app-shell.is-shaking {
-  transform:
-    translate(var(--shake-x, 0), var(--shake-y, 0))
-    rotate(var(--shake-rotate, 0deg))
-    scale(var(--shake-zoom, 1));
-  will-change: transform;
-}
-
 #game-container {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   background: #041028;
+}
+
+/*
+ * 개입 디버프가 붙을 때마다 화면이 한 번 흔들린다(js/archive/game.mjs의 kickScreenShake).
+ * 값은 매 프레임 자바스크립트가 --shake-* 로 넣는다 — 여기서는 조립만 한다.
+ *
+ * 흔들리는 건 기록이 재생되는 캔버스뿐이다. HUD(.hud-layer)는 이 밖에 있어 고정된다 —
+ * 스테이지 안내 · 남은 시간 · 일시정지는 흔들리면 읽을 수 없다.
+ *
+ * 떨리는 동안에만 transform을 건다. 가만히 있을 때도 걸어 두면 레이어로 승격돼
+ * 캔버스가 괜히 흐려진다. 삐져나간 만큼은 .app-shell의 overflow가 잘라 낸다.
+ */
+#game-container.is-shaking {
+  transform:
+    translate(var(--shake-x, 0), var(--shake-y, 0))
+    rotate(var(--shake-rotate, 0deg))
+    scale(var(--shake-zoom, 1));
+  will-change: transform;
 }
 
 /*
