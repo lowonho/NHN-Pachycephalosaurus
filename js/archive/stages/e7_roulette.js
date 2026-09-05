@@ -1,7 +1,7 @@
 import { MINI } from './minigame-kit.js';
 
 export const E7_ROULETTE = {
-  tuning: { minSpeed: 5, maxSpeed: 18, minSpinSeconds: 1.1 },
+  tuning: { minSpeed: 9, maxSpeed: 24, minSpinSeconds: 1.4, extraTurns: 2 },
   build() {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
@@ -28,8 +28,9 @@ export const E7_ROULETTE = {
     s.speed = direction * MINI.clamp(Math.abs(d.velocity), t.minSpeed, t.maxSpeed);
     // 균일한 한 바퀴의 추가 회전량으로 최종 각도를 균일하게 만듭니다.
     // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
+    // extraTurns는 정수 바퀴이므로 균일성은 그대로 두고 회전량만 늘립니다.
     // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + MINI.rand(0, Math.PI * 2);
+    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2);
     s.deceleration = s.speed * s.speed / (2 * travel);
     s.spinning = true; this.actions++; this.sfx('click');
   },

@@ -22,24 +22,37 @@ export const MINI = {
     const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
     return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;
   },
-  /* 소환 직후 캐릭터가 부풀었다 제자리로 돌아오는 배율. 도형과 이미지에 함께 적용합니다. */
+  /* 빛기둥이 바닥에 닿기 전에는 캐릭터를 감추고(배율 0), 닿는 순간 부풀었다 제자리로 돌아옵니다.
+     도형과 이미지 에셋에 함께 적용합니다. */
   spawnScale(scene) {
     const phase = MINI.spawnPhase(scene);
     if (phase === null) return 1;
-    return phase < .45 ? .35 + phase / .45 * .8 : 1.15 - (phase - .45) / .55 * .15;
+    if (phase < .32) return 0;
+    const pop = (phase - .32) / .68;
+    return pop < .4 ? .3 + pop / .4 * .85 : 1.15 - (pop - .4) / .6 * .15;
   },
+  /* 필드 천장에서 캐릭터로 내리꽂히는 빛기둥. 앞 1/3에 바닥까지 닿고 나머지 구간에서 옅어집니다. */
   spawnFx(scene, x, y, size = 30, color = scene.accent) {
     const phase = MINI.spawnPhase(scene);
     if (phase === null) return;
-    // 바깥에서 조여드는 두 겹의 링과 빨려드는 파편으로 "다시 소환됐다"를 알립니다.
-    const fade = 1 - phase;
-    scene.ink.lineStyle(3, color, fade).strokeCircle(x, y, size * (2.5 - 1.9 * phase));
-    scene.ink.lineStyle(1, 0xfaffec, fade * .55).strokeCircle(x, y, size * (3.6 - 2.9 * phase));
-    for (let i = 0; i < 7; i++) {
-      const angle = i * Math.PI * 2 / 7 + phase * 1.5, radius = size * (2.2 - 1.75 * phase);
-      MINI.circle(scene, x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 1 + 3 * fade, 0xfaffec, fade);
+    const g = scene.ink, top = 144;
+    const drop = Math.min(1, phase / .32), land = Math.max(0, phase - .32) / .68;
+    const bottom = top + (y - top) * (1 - (1 - drop) ** 3), fade = 1 - land * land;
+    const half = size * (.5 + .45 * fade);
+    // 위가 좁고 아래로 퍼지는 사다리꼴을 세 겹 겹쳐 부드러운 기둥을 만듭니다.
+    const column = (spread, tint, alpha) => g.fillStyle(tint, alpha * fade).fillPoints([
+      { x: x - half * spread * .55, y: top }, { x: x + half * spread * .55, y: top },
+      { x: x + half * spread, y: bottom }, { x: x - half * spread, y: bottom },
+    ], true);
+    column(2.3, color, .09); column(1.4, color, .2); column(.8, 0xfaffec, .55);
+    // 기둥을 타고 올라가는 입자와 착지 지점에 퍼지는 빛.
+    for (let i = 0; i < 5; i++) {
+      const rise = (phase * 2.4 + i / 5) % 1;
+      MINI.circle(scene, x + Math.sin((i + phase * 6) * 2.1) * half * .8, bottom - (bottom - top) * rise * .55,
+        1.5 + 1.5 * fade, 0xfaffec, fade * (1 - rise) * .9);
     }
-    MINI.circle(scene, x, y, size * .85 * fade, 0xfaffec, fade * .7);
+    g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
+    g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
   frame(scene, text) {
     const g = scene.ink; g.clear();

@@ -51,6 +51,25 @@ const UI = Object.freeze({
   protocolProgress: document.querySelector("#protocol-progress"),
 
   /*
+   * 브리핑 레이어 — 기억 하나를 고른 뒤 그 프로토콜을 설명한다.
+   * 스크린의 세 번째 모습이다(select · brief · play).
+   */
+  protocolBrief: document.querySelector("#protocol-brief"),
+  protocolBriefCode: document.querySelector("#protocol-brief-code"),
+  protocolBriefTitle: document.querySelector("#protocol-brief-title"),
+  protocolBriefRecord: document.querySelector("#protocol-brief-record"),
+  protocolBriefId: document.querySelector("#protocol-brief-id"),
+  protocolBriefNumber: document.querySelector("#protocol-brief-number"),
+  protocolBriefSymbol: document.querySelector("#protocol-brief-symbol"),
+  protocolBriefObjective: document.querySelector("#protocol-brief-objective"),
+  protocolBriefStamp: document.querySelector("#protocol-brief-stamp"),
+  protocolBriefControls: document.querySelector("#protocol-brief-controls"),
+  protocolBriefAnomaly: document.querySelector("#protocol-brief-anomaly"),
+  protocolBriefBest: document.querySelector("#protocol-brief-best"),
+  protocolBriefStartButton: document.querySelector("#protocol-brief-start"),
+  protocolBriefBackButton: document.querySelector("#protocol-brief-back"),
+
+  /*
    * 책상 위 탁상시계 — 남은 복구 시간(2:23)을 1/100초까지 띄우는 유일한 표시다.
    * 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 보인다.
    */

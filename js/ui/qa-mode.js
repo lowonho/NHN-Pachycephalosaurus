@@ -27,12 +27,11 @@ const QA_UNLOCK_WINDOW_MS = 800;
 const QA_UNLOCK_HINT_FROM = 5;
 
 class QaModeFlow {
-  constructor(events, dom, soundBus, protocolSelect, cutscene, catalog) {
+  constructor(events, dom, soundBus, protocolSelect, catalog) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.protocolSelect = protocolSelect;
-    this.cutscene = cutscene;
 
     /* 엔진이 뜨면 game.js가 더 자세한 목록으로 갈아 끼운다(setStages). */
     this.catalog = catalog;
@@ -214,13 +213,19 @@ class QaModeFlow {
     this.syncRunBudget();
     this.close();
 
+    /*
+     * 브리핑은 모니터 스크린 안에서 열린다(js/ui/protocol-select-flow.js).
+     * 그래서 QA에서도 모니터부터 세우고, "목록으로"는 QA 판으로 되돌린다 —
+     * QA는 프로토콜 선택 화면을 건너뛰고 들어왔으므로 돌아갈 목록이 없다.
+     */
     if (this.playBrief) {
-      const stage = this.catalog.find((item) => item.id === stageId);
-      this.cutscene.play({
-        chapter: `RECORD ${stage?.number ?? "00"} // ${stage?.title ?? stageId}`,
-        script: stage?.brief || [],
-        auto: true,
-        onDone: () => this.startNow(stageId),
+      this.ui.stageSelectScreen?.classList.remove("hidden");
+      this.protocolSelect.openBrief(stageId, {
+        onStart: () => this.startNow(stageId),
+        onBack: () => {
+          this.protocolSelect.close();
+          this.open();
+        },
       });
       return;
     }
@@ -324,6 +329,5 @@ const qaModeFlow = new QaModeFlow(
   UI,
   audioBus,
   protocolSelectFlow,
-  cutsceneFlow,
   PROTOCOLS,
 );

@@ -38,7 +38,7 @@ export const E6_GRAVITY_FLIGHT = {
     const pop = MINI.spawnScale(this);
     MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
     MINI.spawnFx(this, 180, s.y, 32);
-    if (this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
+    if (pop && this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
     MINI.goal(this, t.distance - s.x + 180, 316);
     MINI.meter(this, s.x / t.distance);
   },

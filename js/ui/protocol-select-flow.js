@@ -2,7 +2,8 @@
  * 기능(B) — 프로토콜 선택 화면(옛 스테이지 선택).
  *
  * 1인칭 모니터 화면 안에 복구할 기록 5개를 데스크톱 앱처럼 펼친다.
- * 타일을 누르면 그 프로토콜이 바로 시작된다(REQUEST_START).
+ * 타일을 누르면 같은 스크린 안에서 브리핑(openBrief)이 열리고,
+ * 거기서 "증언 시작"을 눌러야 그 프로토콜이 시작된다(REQUEST_START).
  *
  * 각 게임은 독립된 20.26초 타이머를 사용한다. 책상 시계도 현재 시도의 시간을
  * 표시한다. 선택/소개/결과/일시정지에서는 멈춘다. 메인 화면으로 나가면(reset)
@@ -50,12 +51,15 @@ const PROTOCOL_GLYPHS = Object.freeze({
 const PROTOCOL_GLYPH_FALLBACK = '<circle cx="12" cy="12" r="7"/><path d="M12 8v5"/>';
 
 class ProtocolSelectFlow {
-  constructor(events, dom, soundBus, strings, cutscene) {
+  constructor(events, dom, soundBus, strings) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.strings = strings;
-    this.cutscene = cutscene;
+
+    /* 브리핑 화면의 두 버튼이 할 일. 브리핑을 접을 때 함께 비운다. */
+    this.briefStart = null;
+    this.briefBack = null;
 
     /*
      * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
@@ -71,6 +75,10 @@ class ProtocolSelectFlow {
     this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ stageId } = {}) => this.markRestored(stageId));
     this.events.on(GAME_EVENTS.TOTAL_TIMER_TICK, (snapshot = {}) => this.syncRun(snapshot));
     this.events.on(GAME_EVENTS.RUN_RESET, (snapshot = {}) => this.syncRun(snapshot));
+
+    this.ui.protocolBriefStartButton?.addEventListener("click", () => this.confirmBrief());
+    this.ui.protocolBriefBackButton?.addEventListener("click", () => this.cancelBrief());
+    window.addEventListener("keydown", (event) => this.onBriefKeyDown(event));
 
     this.render();
   }
@@ -91,17 +99,23 @@ class ProtocolSelectFlow {
 
   /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
   close() {
+    // 브리핑을 열어 둔 채로 나갔다면 예약된 "시작"도 함께 버린다.
+    this.briefStart = null;
+    this.briefBack = null;
     this.showScreen("select");
     this.ui.stageSelectScreen?.classList.add("hidden");
   }
 
   /*
-   * 모니터 스크린 안에서 프로토콜 선택과 플레이가 자리를 바꾼다.
-   * 모니터·방·책상은 두 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
+   * 모니터 스크린 안에서 선택 · 브리핑 · 플레이가 자리를 바꾼다.
+   * 모니터·방·책상은 세 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
    */
   showScreen(mode) {
     const playing = mode === "play";
     if (this.ui.protocolScreen) this.ui.protocolScreen.dataset.mode = mode;
+
+    // 브리핑은 스크린 안의 한 레이어다. 안 보일 때는 탭 순서에서도 빠져야 한다.
+    if (this.ui.protocolBrief) this.ui.protocolBrief.hidden = mode !== "brief";
 
     if (this.ui.appShell) {
       this.ui.appShell.hidden = !playing;
@@ -158,13 +172,119 @@ class ProtocolSelectFlow {
     const stage = this.stages.find((item) => item.id === stageId);
     if (!stage) return;
     this.soundBus.resume();
-    // 소개 중에는 누적 시간도 스테이지 시간도 시작하지 않는다.
-    this.cutscene.play({
-      chapter: `RECORD ${stage.number} // ${stage.title}`,
-      script: stage.brief || [],
-      auto: true,
-      onDone: () => this.launchStage(stageId),
-    });
+    // 브리핑 중에는 누적 시간도 스테이지 시간도 시작하지 않는다.
+    this.openBrief(stageId);
+  }
+
+  /* ── 브리핑 ──────────────────────────────────────────────────────── */
+
+  /*
+   * 고른 기억의 프로토콜을 스크린 안에서 설명한다.
+   *
+   * 예전에는 컷신(화면 전체를 덮는 대사창)이 이 자리를 맡았다. 지금은 모니터
+   * 안에서 앱 하나가 더 열리는 모양이라 방·책상·탁상시계가 계속 보인다 —
+   * 1인칭으로 모니터를 마주 본다는 화면 전제가 브리핑에서도 끊기지 않는다.
+   *
+   * onStart·onBack을 주면 그것을 따른다(QA 모드는 목록 대신 QA 판으로 돌아간다).
+   * 기본값은 이 화면의 흐름 그대로 — 시작하면 플레이로, 돌아가면 기억 목록으로.
+   */
+  openBrief(stageId, { onStart, onBack } = {}) {
+    // 목록에 없는 기억도 열 수 있다 — QA 모드는 9개 전부를 바로 연다.
+    const stage = this.stages.find((item) => item.id === stageId)
+      ?? this.catalog.find((item) => item.id === stageId);
+    if (!stage) return;
+
+    this.briefStart = typeof onStart === "function" ? onStart : () => this.launchStage(stage.id);
+    this.briefBack = typeof onBack === "function" ? onBack : () => this.closeBrief(stage.id);
+
+    this.renderBrief(stage);
+    this.showScreen("brief");
+    this.ui.protocolBriefStartButton?.focus();
+  }
+
+  /* 시작 — 브리핑을 접고 저장해 둔 다음 걸음을 밟는다. */
+  confirmBrief() {
+    const start = this.briefStart;
+    this.briefStart = null;
+    this.briefBack = null;
+    start?.();
+  }
+
+  /* 목록으로 — 무엇도 시작하지 않는다(시간은 아직 흐르지 않았다). */
+  cancelBrief() {
+    const back = this.briefBack;
+    this.briefStart = null;
+    this.briefBack = null;
+    back?.();
+  }
+
+  /* 기억 목록으로 되돌리고, 방금 고른 타일에 포커스를 돌려준다. */
+  closeBrief(stageId) {
+    this.showScreen("select");
+    const tile = stageId
+      ? this.ui.stageSelectGrid?.querySelector(`[data-stage-id="${stageId}"]`)
+      : null;
+    (tile ?? this.ui.stageSelectGrid?.querySelector("button:not(:disabled)"))?.focus();
+  }
+
+  isBriefOpen() {
+    return this.ui.protocolScreen?.dataset.mode === "brief"
+      && this.ui.stageSelectScreen?.classList.contains("hidden") === false;
+  }
+
+  /*
+   * 브리핑에서는 Enter·Space로 시작하고 Esc로 목록으로 돌아간다.
+   * 버튼에 포커스가 있으면 그 버튼이 알아서 처리하므로 여기서는 비켜선다.
+   */
+  onBriefKeyDown(event) {
+    if (!this.isBriefOpen()) return;
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.cancelBrief();
+      return;
+    }
+
+    if (event.key !== " " && event.key !== "Enter") return;
+    if (document.activeElement?.closest(".protocol-brief-button")) return;
+    event.preventDefault();
+    this.confirmBrief();
+  }
+
+  /* 브리핑 내용 — 목록 타일이 title로만 갖고 있던 설명을 화면에 펼친다. */
+  renderBrief(stage) {
+    const set = (element, text) => {
+      if (element) element.textContent = text;
+    };
+
+    set(this.ui.protocolBriefCode, `// RECORD ${stage.number}`);
+    set(this.ui.protocolBriefTitle, stage.title);
+    set(this.ui.protocolBriefId, stage.id.toUpperCase());
+    set(this.ui.protocolBriefNumber, `RECORD ${stage.number}`);
+    set(this.ui.protocolBriefSymbol, stage.recordSymbol);
+    set(this.ui.protocolBriefObjective, stage.objective);
+    set(this.ui.protocolBriefControls, stage.controls);
+    set(this.ui.protocolBriefAnomaly, stage.anomaly);
+
+    // 복구 등급 — 타일과 같은 기준이다(판을 넘어 남는 기록).
+    const status = window.archiveProgress?.status(stage.id) ?? RECORD_DAMAGED;
+    if (this.ui.protocolBriefRecord) {
+      this.ui.protocolBriefRecord.dataset.recovery = status === RECORD_FULL
+        ? "full"
+        : status === RECORD_PARTIAL ? "partial" : "damaged";
+    }
+    set(this.ui.protocolBriefStamp, status);
+
+    const best = window.archiveRecords?.best(stage.id);
+    if (this.ui.protocolBriefBest) {
+      this.ui.protocolBriefBest.textContent = "";
+      this.ui.protocolBriefBest.append(
+        document.createTextNode(best ? best.elapsed.toFixed(2) : "--.--"),
+      );
+      const unit = document.createElement("small");
+      unit.textContent = "s";
+      this.ui.protocolBriefBest.append(unit);
+    }
   }
 
   launchStage(stageId) {
@@ -371,4 +491,4 @@ class ProtocolSelectFlow {
   }
 }
 
-const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS, cutsceneFlow);
+const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS);
