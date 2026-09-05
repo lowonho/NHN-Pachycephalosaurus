@@ -7,14 +7,18 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
-  assert(MINIGAME_CATALOG.length === 9, 'Nine new games registered');
+  assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
+  codexFlow.open();
+  const codexRect = UI.codexDialog.getBoundingClientRect();
+  assert(document.querySelectorAll('.codex-card').length === 10 && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Codex displays all ten games inside the viewport');
+  codexFlow.close({ restoreFocus: false });
   const seen = new Set();
   for (let i = 0; i < 80; i++) {
     const run = archiveRun.reset();
     if (run.selectedStageIds.length !== 5 || new Set(run.selectedStageIds).size !== 5) throw Error(`Invalid random selection ${i}`);
     run.selectedStageIds.forEach(id => seen.add(id));
   }
-  assert(seen.size === 9, 'All nine games appear in random selection');
+  assert(seen.size === 10, 'All ten games appear in random selection');
   assert(true, '80 random runs each contain exactly five unique games');
   for (const stage of MINIGAME_CATALOG) {
     load(stage.id); advance(.25);
@@ -58,6 +62,33 @@
   assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
   load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);
   assert(scene.state.drag === null, 'Pause cancels drag without firing');
+  load('e10');
+  const initialFriction = scene.state.friction;
+  scene.directionPress('left'); scene.directionRelease('left');
+  scene.directionPress('right'); scene.directionRelease('right');
+  assert(scene.state.directionPresses === 2 && scene.state.friction < initialFriction, 'e10: each new horizontal input reduces floor friction');
+  load('e10'); scene.state.vx = 200; advance(.1); const grippySpeed = Math.abs(scene.state.vx);
+  load('e10');
+  for (let count = 0; count < 10; count++) { scene.directionPress(count % 2 ? 'left' : 'right'); scene.directionRelease(count % 2 ? 'left' : 'right'); }
+  scene.state.vx = 200; advance(.1); const slipperySpeed = Math.abs(scene.state.vx);
+  assert(slipperySpeed > grippySpeed, 'e10: reduced friction preserves more sliding speed');
+  scene.state.vx = 123;
+  const preservedFriction = scene.state.friction, preservedX = scene.state.x, preservedVx = scene.state.vx, firstDigit = scene.state.target[0];
+  scene.stageGame.enterDigit.call(scene, firstDigit);
+  const wrongDigit = firstDigit === '9' ? '8' : '9';
+  scene.stageGame.enterDigit.call(scene, wrongDigit);
+  assert(scene.state.input === '' && scene.state.friction === preservedFriction && scene.state.x === preservedX && scene.state.vx === preservedVx, 'e10: wrong digit clears only entered value');
+  scene.stageGame.enterDigit.call(scene, firstDigit);
+  scene.pointerAction(scene.clearButton.x + scene.clearButton.w / 2, scene.clearButton.y + scene.clearButton.h / 2);
+  assert(scene.state.input === '' && scene.state.friction === preservedFriction, 'e10: clear button clears only entered value');
+  load('e10');
+  const physicalDigit = scene.state.target[0], physicalBlock = scene.digitBlocks.find(block => block.digit === physicalDigit);
+  scene.state.x = physicalBlock.x + physicalBlock.w / 2; scene.state.vx = 0; scene.primaryAction(); advance(.4);
+  assert(scene.state.input === physicalDigit, 'e10: jumping into a block underside enters its digit');
+  const previousAttempt = scene.state;
+  scene.state.input = '12'; scene.state.vx = 200; scene.state.friction = 145; scene.state.directionPresses = 99;
+  load('e10');
+  assert(scene.state !== previousAttempt && scene.state.input === '' && scene.state.x === 480 && scene.state.vx === 0 && scene.state.friction === 820 && /^[1-9][0-9]{3}$/.test(scene.state.target), 'e10: retry rebuilds target, input, motion and friction');
   load('e7'); advance(21);
   assert(scene.mode === 'done' && Math.abs(scene.elapsed - 20.26) < .00001, 'Timer ends exactly at 20.26 seconds');
   // Real UI result/retry/select routes with a stage selected in the current run.

@@ -80,6 +80,38 @@
   const pull=Math.sqrt(2*220*distance)/5.7;
   scene.pointerAction(scene.state.x,scene.state.y); scene.stageGame.pointerMove.call(scene,scene.state.x-dx/distance*pull,scene.state.y-dy/distance*pull); scene.stageGame.pointerUp.call(scene);
   advance(20.3); save('e9');
+  load('e10');
+  // 실제 이동·제동·점프만으로 가장 긴 왕복 조합을 입력한다(9→0→9→0).
+  scene.state.target = '9090';
+  let decodeDirection = null;
+  const steerDecode = direction => {
+    if (direction === decodeDirection) return;
+    if (decodeDirection) scene.directionRelease(decodeDirection);
+    decodeDirection = direction;
+    if (decodeDirection) scene.directionPress(decodeDirection);
+  };
+  advance(20.3, () => {
+    const s = scene.state, t = scene.stageGame.tuning;
+    const expected = s.target[s.input.length];
+    if (!expected) { steerDecode(null); return; }
+    const block = scene.digitBlocks.find(item => item.digit === expected);
+    const targetX = block.x + block.w / 2;
+    const error = targetX - s.x;
+    if (!s.grounded) {
+      if (Math.abs(s.vx) > 28) steerDecode(s.vx > 0 ? 'left' : 'right');
+      else steerDecode(null);
+      return;
+    }
+    if (Math.abs(error) < 25 && Math.abs(s.vx) < 32) {
+      steerDecode(null); scene.primaryAction(); return;
+    }
+    const towardTarget = Math.sign(s.vx) === Math.sign(error);
+    const brakeDistance = s.vx * s.vx / (2 * t.acceleration);
+    if (towardTarget && Math.abs(error) < brakeDistance + 13) steerDecode(s.vx > 0 ? 'left' : 'right');
+    else steerDecode(error < 0 ? 'left' : 'right');
+  });
+  steerDecode(null);
+  save('e10');
   window.removeEventListener('archive-stage-end', listener);
   const failures = results.filter(result => !result.success);
   if (failures.length) throw new Error(`Clearability failed: ${JSON.stringify(failures)}`);

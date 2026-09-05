@@ -1,4 +1,4 @@
-/* DOM 화면과 9개 미니게임 엔진의 연결. 게임 규칙은 stages/eN_*.js에 있습니다. */
+/* DOM 화면과 10개 미니게임 엔진의 연결. 게임 규칙은 stages/eN_*.js에 있습니다. */
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
     this.events = events; this.ui = dom; this.soundBus = soundBus; this.stages = []; this.active = false; this.api = null;

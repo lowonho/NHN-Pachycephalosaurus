@@ -1,7 +1,7 @@
 /*
  * A(비주얼) 전용 — 미니게임 도감.
  *
- * 메인 화면 위에 덮이는 한 장이다. 9개 카드를 3×3으로 펼치고,
+ * 메인 화면 위에 덮이는 한 장이다. 10개 카드를 네 칸씩 펼치고,
  * 아직 해 보지 않은 카드는 딤드로 둔다(js/ui/codex-flow.js의 data-discovered).
  *
  * 팔레트·모서리 처리는 프로토콜 선택 화면(css/protocol-select.css)의
@@ -90,11 +90,12 @@
   letter-spacing: 0.18em;
 }
 
-/* ── 카드 3×3 ──────────────────────────────────────────────────────── */
+/* ── 카드 4열 ──────────────────────────────────────────────────────── */
 
 .codex-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 20px;
   margin: 0;
   padding: 0;
@@ -103,10 +104,11 @@
 
 .codex-card {
   display: grid;
-  /* 내용이 한 줄 늘어도 3×3 격자가 흔들리지 않게 높이를 잡아 둔다. */
+  flex: 0 0 calc((100% - 60px) / 4);
+  /* 내용이 한 줄 늘어도 격자가 흔들리지 않게 높이를 잡아 둔다. */
   align-content: start;
   gap: 10px;
-  min-height: 226px;
+  min-height: 205px;
   padding: 18px 22px 20px;
   border: 1px solid var(--codex-line-soft);
   clip-path: polygon(

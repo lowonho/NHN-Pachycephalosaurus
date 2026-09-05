@@ -15,7 +15,7 @@ const STRINGS = Object.freeze({
     rate: (percent) => `ARCHIVE RECOVERY ${percent}%`,
     detail: (cleared, fragments, total) => `전체 게임 클리어 ${cleared}/${total} · 최고 기록은 다음 판에도 유지`,
     ending: Object.freeze({
-      complete: "ALL CLEAR · 9개 게임을 모두 클리어했습니다.",
+      complete: "ALL CLEAR · 10개 게임을 모두 클리어했습니다.",
       normal: "최고 기록에 다시 도전하세요.",
       incomplete: "아직 클리어하지 못한 게임이 있습니다.",
     }),
