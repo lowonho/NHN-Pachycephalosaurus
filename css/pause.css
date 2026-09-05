@@ -2,6 +2,7 @@
  * 일시정지 버튼은 .hud-layer(1920×1080 설계 화면) 안에 있으므로 좌표는 설계 px다.
  * 레이어가 pointer-events: none이라 클릭을 받을 이 버튼만 auto로 되돌린다.
  */
+/* 크기는 예전의 두 배다 — 여백·글자·테두리를 통째로 곱해서 비율을 그대로 지킨다. */
 .pause-button {
   position: absolute;
   z-index: 12;
@@ -9,14 +10,14 @@
   right: 24px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
+  gap: 14px;
+  padding: 18px 26px;
+  border: 2px solid rgba(255, 255, 255, 0.42);
   border-radius: 999px;
   background: rgba(4, 17, 47, 0.86);
   color: #fff;
   cursor: pointer;
-  font: 800 0.8rem/1 var(--font-ui);
+  font: 800 1.6rem/1 var(--font-ui);
   pointer-events: auto;
   backdrop-filter: blur(8px);
 }
@@ -28,8 +29,8 @@
 .pause-button:hover,
 .pause-button:focus-visible {
   border-color: var(--cyan);
-  outline: 3px solid rgba(78, 239, 255, 0.3);
-  outline-offset: 2px;
+  outline: 6px solid rgba(78, 239, 255, 0.3);
+  outline-offset: 4px;
 }
 
 .pause-backdrop {

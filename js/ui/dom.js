@@ -36,6 +36,10 @@ const UI = Object.freeze({
    * 책상 위 탁상시계 — 남은 복구 시간(2:26)을 1/100초까지 띄우는 유일한 표시다.
    * 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 보인다.
    */
+  /* 책상 위 양손 — 입력에 따라 각각 움직인다(js/ui/desk-hands.js). */
+  deskHandLeft: document.querySelector("#desk-hand-left"),
+  deskHandRight: document.querySelector("#desk-hand-right"),
+
   deskClock: document.querySelector("#desk-clock"),
   deskClockMinutes: document.querySelector("#desk-clock-minutes"),
   deskClockSeconds: document.querySelector("#desk-clock-seconds"),
