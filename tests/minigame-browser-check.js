@@ -17,7 +17,8 @@
   })));
   assert(cutsceneImagePaths.length === 8 && cutsceneImageSizes.every(({ width, height }) => Math.abs(width / height - 16 / 9) < .002), 'Eight cutscene backgrounds load at 16:9');
   assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
-    && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op02.png')
+    && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op1.png')
+    && SCENARIO_DATA.backgrounds['op-03'].endsWith('/op02.png')
     && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
     && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
     && SCENARIO_DATA.backgrounds.experiment.endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png')
@@ -30,9 +31,11 @@
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
     && getComputedStyle(document.querySelector('.story-records')).display === 'none', 'Firewall-break artwork replaces the temporary ending graphic');
   cutsceneFlow.showBackground('op-03'); UI.cutscene.dataset.phase = 'op-03';
-  assert(UI.cutscene.dataset.hasBackground === 'false'
-    && getComputedStyle(document.querySelector('.story-iris')).display === 'grid'
-    && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'Opening reconstruction uses the scan placeholder instead of mismatched artwork');
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op02.png')
+    && getComputedStyle(document.querySelector('.story-iris')).display === 'none', 'OP-03 starts the deleted-feed artwork after OP-01 and OP-02 share the first artwork');
+  const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
+  assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
   cutsceneFlow.close();
   qaModeFlow.activate();
   const qaStoryState = () => JSON.stringify({
@@ -64,7 +67,15 @@
     && UI.cutscene.dataset.cueKind === 'system'
     && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/17'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Screen directions render as a system panel instead of character dialogue');
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
+  const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
+  const systemLineRect = UI.cutsceneLine.getBoundingClientRect();
+  cutsceneFlow.advance();
+  cutsceneFlow.completeTyping();
+  const dialoguePanelRect = UI.cutscenePanel.getBoundingClientRect();
+  const dialogueLineRect = UI.cutsceneLine.getBoundingClientRect();
+  const sameRect = (a, b) => ['left', 'top', 'width', 'height'].every((key) => Math.abs(a[key] - b[key]) < .5);
+  assert(sameRect(systemPanelRect, dialoguePanelRect) && sameRect(systemLineRect, dialogueLineRect), 'Screen directions and dialogue keep the same panel and subtitle position');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
   assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/17', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();
@@ -75,8 +86,11 @@
     auto: false,
     forceDisplay: true,
   });
-  assert(UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
-    && UI.cutscene.dataset.cueKind === 'system', 'The full nine-line ending card fits in the system panel');
+  const everyScreenCueFits = screenCues.every(({ text }) => {
+    UI.cutsceneLine.textContent = text;
+    return UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1;
+  });
+  assert(everyScreenCueFits && UI.cutscene.dataset.cueKind === 'system', 'Every Korean screen direction fits in the fixed subtitle panel');
   cutsceneFlow.finish();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   qaModeFlow.deactivate();

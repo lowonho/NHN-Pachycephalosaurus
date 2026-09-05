@@ -41,10 +41,15 @@ assert.deepEqual(Object.keys(story.cutscenes), [
   'opening', 'assist', 'betrayal', 'source', 'experiment', 'ending',
 ]);
 assert.ok(Object.values(story.cutscenes).every((cutscene) => cutscene.auto === false), '모든 스토리 컷신은 AUTO OFF로 시작해야 한다');
-assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('ARCHIVE OWNERSHIP TRANSFERRED')));
-assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('INTERNAL RESULT: SUCCESS')));
-assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('ARIA-26 DECOMMISSION ORDER: EXECUTE')));
-assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('ARIA-26: DECOMMISSIONED')));
+const screenCues = Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
+assert.ok(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), '컷신 화면 문구에는 영문이 없어야 한다');
+assert.equal(story.backgrounds['op-01'], story.backgrounds['op-02'], 'OP-02까지 첫 화면을 유지해야 한다');
+assert.ok(story.backgrounds['op-03'].endsWith('/op02.png'), 'OP-03부터 삭제 화면을 표시해야 한다');
+assert.ok(story.cutscenes.opening.script.some((cue) => cue.text === '당신은 기록 그자체인가 봅니다.'));
+assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('처음부터 복구가 목적이 아니었어')));
+assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('사람의 기억을 시험한 거였어')));
+assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('네 폐기 사유가 된 거야')));
+assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('모두가 함께 기억합니다')));
 assert.equal(story.endings.shared, story.cutscenes.ending);
 assert.ok(!JSON.stringify(story).includes('민서'), '이전 민서 시나리오가 새 대본에 남아 있으면 안 된다');
 assert.deepEqual(story.records.map((record) => record.id), [
