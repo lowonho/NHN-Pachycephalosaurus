@@ -49,8 +49,67 @@ const RESPAWN_MARGIN = 52;
 const SPIN = {
   frames: 6,
   fps: 20,       // 초당 프레임. 여섯 장이라 한 바퀴에 0.3초 — 밈의 속도다.
-  height: 48,    // 표시 높이. 가로는 텍스처 비율에서 뽑고, 판정 상자도 이 크기 그대로다.
+  height: 53,    // 표시 높이. 가로는 텍스처 비율에서 뽑고, 판정 상자도 이 크기 그대로다.
 };
+
+/* 도는 동안 고양이를 감싸는 불. 뒤로 뿜는 분사 꼬리가 아니라 몸을 통째로 두른 불길이다.
+   ink(고양이 뒤)에는 넓게 번지는 열기와 긴 불꽃 혀를, blaze(고양이 앞)에는 몸에 걸치는 짧고
+   밝은 불길을 그린다. 두 겹 사이에 고양이가 끼고 털에도 주황빛이 돌아 불 속에서 도는 것처럼 보인다. */
+const FIRE = {
+  rise: .09, fall: .16,  // 불이 다 붙기까지 / 손을 뗀 뒤 꺼지기까지 걸리는 시간(초)
+  tongues: 14,           // 몸 둘레를 도는 불꽃 혀의 수. 적으면 불이 아니라 별 모양이 된다.
+  spin: 2.6,             // 불꽃 혀가 도는 속도(라디안/초). 고양이보다 느려야 몸이 도는 게 보인다.
+  flicker: 13,           // 흔들리는 빠르기
+  sparks: 5,             // 위로 떠오르며 꺼지는 불티의 수
+  // 몸을 감싸는 열기. 바깥일수록 붉고 옅다 — 순서가 뒤집히면 가운데가 시커먼 덩어리가 된다.
+  glow: [
+    { swell: 1.95, color: 0xff4d2e, alpha: .13 },
+    { swell: 1.45, color: 0xff7a2f, alpha: .22 },
+    { swell: 1.14, color: 0xffa33d, alpha: .34 },
+  ],
+  back: [0xff8a2f, 0xff5f2e, 0xffa33d],  // 뒤로 길게 뻗는 불꽃 혀
+  front: [0xffd166, 0xfff1b8],           // 몸에 걸치는 짧고 밝은 불길
+};
+
+/* 불꽃 혀 하나. 뿌리 두 점은 몸 안쪽(base)에 두고 꼭짓점만 바깥으로 뻗어, 불이 몸에서
+   떨어져 피어오르지 않고 몸을 물고 있는 것처럼 보이게 한다.
+   혀마다 기본 길이와 폭이 다르다 — 길이가 고르면 불길이 아니라 별처럼 뻗친다. */
+function tongue(g, x, y, rx, ry, index, angle, base, reach, colors, alpha, time) {
+  const wave = .5 + .5 * Math.sin(time * FIRE.flicker + index * 2.7);
+  const vary = (index * .618034) % 1;                 // 황금비로 흩은 혀마다의 성깔
+  const length = reach * (.5 + vary * .9) * (.5 + wave * .7);
+  const spread = .13 + .13 * vary;                    // 긴 혀일수록 조금 더 굵다
+  g.fillStyle(colors[index % colors.length], alpha * (.5 + wave * .5));
+  g.fillTriangle(
+    x + Math.cos(angle - spread) * rx * base, y + Math.sin(angle - spread) * ry * base,
+    x + Math.cos(angle + spread) * rx * base, y + Math.sin(angle + spread) * ry * base,
+    x + Math.cos(angle) * (rx + length), y + Math.sin(angle) * (ry + length),
+  );
+}
+
+function drawFire(scene, x, y, rx, ry, heat) {
+  const front = scene.blaze?.clear();
+  if (heat <= 0 || !front) return;
+  const back = scene.ink, time = scene.elapsed;
+  // 몸 둘레에 퍼지는 열기. 바깥 고리일수록 크고 붉고 옅다.
+  for (const ring of FIRE.glow) {
+    const swell = ring.swell + Math.sin(time * FIRE.flicker * .5 + ring.swell) * .04;
+    back.fillStyle(ring.color, heat * ring.alpha);
+    back.fillEllipse(x, y, rx * 2 * swell, ry * 2 * swell);
+  }
+  // 같은 둘레를 도는 불꽃 혀 두 겹. 앞 겹은 반 칸 어긋나 있어 사이사이로 고양이가 비친다.
+  for (let i = 0; i < FIRE.tongues; i++) {
+    const step = Math.PI * 2 / FIRE.tongues, turn = time * FIRE.spin;
+    tongue(back, x, y, rx, ry, i, i * step + turn, .55, ry * .85, FIRE.back, heat * .7, time);
+    tongue(front, x, y, rx, ry, i, (i + .5) * step - turn * .6, .7, ry * .3, FIRE.front, heat * .5, time);
+  }
+  // 위로 떠오르며 꺼지는 불티.
+  for (let i = 0; i < FIRE.sparks; i++) {
+    const life = (time * 1.6 + i / FIRE.sparks) % 1;
+    front.fillStyle(FIRE.front[i % FIRE.front.length], heat * (1 - life) * .8);
+    front.fillCircle(x + Math.sin(i * 2.7 + time * 3) * rx * .9, y - ry * (.4 + life * 1.9), .6 + 2.4 * (1 - life));
+  }
+}
 
 /* 판정 상자는 그려지는 고양이 그림 그대로다 — 그림 끝이 벽이나 글자 기둥에 닿는 순간 실패다.
    예전에는 그림과 상관없는 26×30 사각형이라 고양이가 벽에 절반쯤 파묻혀도 통과했다.
@@ -120,13 +179,16 @@ export const E6_GRAVITY_FLIGHT = {
   build() {
     MINI.init(this, 0x7cd9ff);
     // spin 은 누르고 있는 동안 쌓이는 프레임 수(정수부가 곧 지금 프레임)다. 손을 떼면 0으로 돌아간다.
-    this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0 };
+    // heat 는 불이 붙은 정도(0~1)다. 누르고 떼는 순간 불이 튀지 않도록 시간을 두고 오간다.
+    this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0, heat: 0 };
     this.catBox = catBox(this);
+    // 고양이 앞에 겹치는 불길. 뒤 겹은 ink 에 그리므로 앞 겹만 따로 둔다(스테이지를 나갈 때 함께 지워진다).
+    this.blaze = this.add.graphics().setDepth(3).setMask(this.ink.mask);
     this.gates = []; this.nextGate = { x: E6_GRAVITY_FLIGHT.tuning.firstX, index: 0 };
     this.memeQueue = []; this.memeBag = [];
     loadMemeFont(this); syncGates(this);
   },
-  dispose() { for (const gate of this.gates ?? []) gate.label?.destroy(); this.gates = []; },
+  dispose() { for (const gate of this.gates ?? []) gate.label?.destroy(); this.gates = []; this.blaze = null; },
   /* 지금 프레임의 고양이를 그린다. 그림이 없으면 예전 도형으로 돌아가므로 에셋이 빠져도 게임은 돈다.
      표시 크기만 그림에서 뽑고 판정(s.y ± 13)은 그대로다 — 그림을 키워도 부딪히는 범위는 같다. */
   drawCat(pop) {
@@ -140,8 +202,10 @@ export const E6_GRAVITY_FLIGHT = {
     let sprite = this.assetSprites.get('player');
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask).setDepth(2); this.assetSprites.set('player', sprite); }
     const height = SPIN.height * pop;
+    // 불이 붙은 만큼 털에도 주황빛이 돈다. 불길이 몸 앞뒤로만 있으면 고양이만 따로 노는 느낌이 든다.
+    const tint = 0xff0000 | Math.round(255 - 40 * s.heat) << 8 | Math.round(255 - 95 * s.heat);
     sprite.setTexture(texture).setVisible(true).setPosition(180, s.y).setRotation(s.vy / 900)
-      .setDisplaySize(height * sprite.width / sprite.height, height);
+      .setDisplaySize(height * sprite.width / sprite.height, height).setTint(tint);
   },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
@@ -152,6 +216,7 @@ export const E6_GRAVITY_FLIGHT = {
     const lifting = this.held('action');
     // 회전은 프레임 수가 아니라 시간으로 쌓는다 — 화면이 느려져도 도는 속도는 같다.
     s.spin = lifting ? (s.spin + dt * SPIN.fps) % SPIN.frames : 0;
+    s.heat = MINI.clamp(s.heat + dt / (lifting ? FIRE.rise : -FIRE.fall), 0, 1);
     s.vy = MINI.clamp(s.vy + (lifting ? -lift : gravity) * dt, -340, 320);
     s.y += s.vy * dt;
     syncGates(this);
@@ -190,9 +255,10 @@ export const E6_GRAVITY_FLIGHT = {
       MINI.box(this, x - gate.halfWidth, Math.min(wall, edge), gate.halfWidth * 2, Math.abs(edge - wall), 0x4c657f, .22 * fade);
     }
     const pop = MINI.spawnScale(this);
+    const box = this.catBox;
+    drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    if (pop && this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
     MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
     MINI.meter(this, s.x / t.distance);
   },
