@@ -19,6 +19,25 @@
   assert(scene.stackGrounded.has(center.id), 'Mannequin finds physical support after landing');
   M.Body.setAngularVelocity(center, .1); scene.stageGame.measureTower.call(scene);
   assert(!scene.stackStable.has(center.id) && scene.state.height > 0, 'Supported rocking body still contributes height');
+  assert(center.plugin.e3.towerTouched, 'A body is marked after first joining the supported tower');
+  const goalTop = scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight - 4;
+  M.Body.translate(center, { x: 0, y: goalTop - center.bounds.min.y });
+  M.Engine.update(scene.stackWorld, 1000 / 120);
+  scene.state.heightHoldArmed = true;
+  scene.stageGame.measureTower.call(scene);
+  assert(!scene.stackGrounded.has(center.id) && scene.state.height >= scene.stageGame.tuning.targetHeight,
+    'A previously supported moving body keeps scoring while it remains above the line');
+  const originalFinish = scene.finish, finishCalls = [];
+  scene.finish = (success, detail) => finishCalls.push({ success, detail });
+  scene.state.held = 0;
+  for (let i = 0; i < Math.ceil((scene.stageGame.tuning.hold + .1) * 120); i++) {
+    M.Body.setPosition(center, { x: 480 + Math.sin(i / 10) * 18, y: center.position.y + goalTop - center.bounds.min.y });
+    M.Body.setVelocity(center, { x: Math.cos(i / 10) * .8, y: 0 });
+    M.Body.setAngularVelocity(center, .08);
+    scene.stageGame.update.call(scene, 1 / 120);
+  }
+  scene.finish = originalFinish;
+  assert(finishCalls.some(call => call.success), 'Movement above the line for two seconds clears the stage');
   assert(center.parts.length > 8 && Number.isFinite(center.inertia) && center.inverseInertia > 0, 'Arms, torso, head and legs form a rotating compound body');
   load();
   // Just past the pedestal edge, wherever the pedestal currently ends.
@@ -147,10 +166,10 @@
     if (onTarget() && scene.elapsed - lastPartial > DROP_GAP && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
-  assert(scene.state.held >= 1 && scene.playable(), 'Reaching target for one second does not clear');
+  assert(scene.state.held >= 1 && scene.state.held < scene.stageGame.tuning.hold && scene.playable(), 'Reaching target for one second does not clear');
   const partialHold = scene.state.held;
   archiveGame.pause(true); scene.update(0, 1500);
-  assert(scene.state.held === partialHold, 'Pause freezes the three-second countdown');
+  assert(scene.state.held === partialHold, 'Pause freezes the target-height countdown');
   archiveGame.pause(false);
   scene.people.forEach(body => M.Body.translate(body, { x: 2200, y: 0 })); step(.1);
   assert(scene.state.held === 0 && scene.state.height === 0 && scene.playable(), 'Loss of supported target height resets countdown');
@@ -163,6 +182,10 @@
   }
   measurements.clearTime = scene.elapsed;
   measurements.drops = scene.state.drops;
-  assert(scene.mode === 'done' && scene.state.held >= 3 && scene.state.held < 3.02 && scene.state.groundedCount >= 3, 'Rotated people clear only after three continuous seconds at target within 20.26 seconds');
+  measurements.touchedAtClear = scene.people.filter(body => body.plugin.e3.towerTouched).length;
+  assert(scene.mode === 'done' && scene.state.held >= scene.stageGame.tuning.hold
+    && scene.state.held < scene.stageGame.tuning.hold + .02
+    && scene.state.height >= scene.stageGame.tuning.targetHeight && measurements.touchedAtClear >= 3,
+  'Rotated people clear only after the configured continuous hold at target within 20.26 seconds');
   return { passed: checks.length, checks, measurements };
 })()

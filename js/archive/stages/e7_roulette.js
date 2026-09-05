@@ -153,9 +153,14 @@ export const E7_ROULETTE = {
     this.coachBack.setVisible(failed);
     this.drawTitle.setText('대한민국의 상대\n\n목표 ' + s.target + '\n마찰 ' + Math.round(E7_ROULETTE.friction.call(this) / E7_ROULETTE.tuning.friction * 100) + '%');
     if (s.drag) {
-      const power = Math.abs(E7_ROULETTE.swipeSpeed.call(this, s.drag)) / E7_ROULETTE.tuning.maxSpeed;
-      MINI.box(this, 365, 513, 230, 9, 0x34455a);
-      MINI.box(this, 365, 513, 230 * power, 9, power * E7_ROULETTE.tuning.maxSpeed >= E7_ROULETTE.tuning.minSpeed ? 0xe9bd68 : 0x90a4b7);
+      const t = E7_ROULETTE.tuning;
+      const barX = 365, barY = 513, barW = 230, barH = 9;
+      const power = Math.abs(E7_ROULETTE.swipeSpeed.call(this, s.drag)) / t.maxSpeed;
+      MINI.box(this, barX, barY, barW, barH, 0x34455a);
+      MINI.box(this, barX, barY, barW * power, barH, power * t.maxSpeed >= t.minSpeed ? 0xe9bd68 : 0x90a4b7);
+      // 최소로 돌릴 수 있는 힘 표시 — 이 흰 선을 넘어야 실제로 돌아갑니다.
+      const minX = barX + barW * (t.minSpeed / t.maxSpeed);
+      MINI.line(this, minX, barY - 3, minX, barY + barH + 3, 0xffffff, 2);
     }
     this.drawResult.setText(s.drag ? '' : s.cooldown ? s.result : s.spinning ? '관성으로 회전 중' : s.result);
   },

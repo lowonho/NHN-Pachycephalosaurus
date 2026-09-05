@@ -19,7 +19,7 @@ export const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
-    targetHeight: 216, hold: 3,
+    targetHeight: 216, hold: 2,
     // 자세는 여덟 가지를 한 벌로 섞어 순서대로 뽑습니다(drawPose() 참고) — 매번
     // 순서는 달라지되 여덟 번마다 모든 자세가 한 번씩 나옵니다. 각도는 이 목록을
     // 순서대로 돌려 받습니다("받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로
@@ -69,7 +69,7 @@ export const E3_HUMAN_STACK = {
     // 받아 주는 바닥은 없습니다. 단상을 벗어난 사람은 화면 아래로 그대로 떨어져 사라집니다.
     M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
-      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
+      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0, heightHoldArmed: false,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1, poseBag: [],
       spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180,
       nextTint: E3_HUMAN_STACK.randomTint(), spinShown: 0,
@@ -152,7 +152,7 @@ export const E3_HUMAN_STACK = {
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
     body.plugin.e3 = {
       poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed,
-      tint: tint ?? E3_HUMAN_STACK.randomTint(),
+      tint: tint ?? E3_HUMAN_STACK.randomTint(), towerTouched: false,
     };
     // 자세를 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
     M.Body.rotate(body, angle, { x, y });
@@ -238,12 +238,25 @@ export const E3_HUMAN_STACK = {
     this.stackGrounded = trace(false);
     this.stackStable = trace(true);
     const top = ids => ids.size ? Math.min(...[...ids].map(id => this.stackBodyById.get(id).bounds.min.y)) : t.baseY;
-    // 흔들려도 바닥부터 받쳐진 탑이면 인정합니다. 목표 아래로 내려오면 3초를 다시 셉니다.
-    this.state.height = Math.max(0, t.baseY - top(this.stackGrounded));
+    // 낙하 중인 사람은 처음부터 성공선 위에 나타나므로, 단상에서 이어진 탑에 한 번이라도
+    // 닿기 전에는 높이에 포함하지 않습니다. 한 번 탑의 일부가 된 뒤에는 현재 접촉이나
+    // 속도와 무관하게 성공선 범위 안에서 실제 윗부분이 차지하는 높이만 봅니다. 따라서
+    // 쌓인 사람이 흔들리거나 잠깐 튀어도 선 위에 머무는 동안 유지 시간이 초기화되지 않습니다.
+    for (const id of this.stackGrounded) this.stackBodyById.get(id).plugin.e3.towerTouched = true;
+    const groundedTop = top(this.stackGrounded);
+    const groundedHeight = Math.max(0, t.baseY - groundedTop);
+    if (!this.state.heightHoldArmed && groundedHeight >= t.targetHeight) this.state.heightHoldArmed = true;
+    const heightBodies = this.people.filter(body => body.plugin.e3.towerTouched
+      && body.bounds.max.x >= t.railLeft && body.bounds.min.x <= t.railRight
+      && body.bounds.min.y < t.baseY);
+    const movingTop = heightBodies.length ? Math.min(...heightBodies.map(body => body.bounds.min.y)) : t.baseY;
+    const scoringTop = this.state.heightHoldArmed ? movingTop : groundedTop;
+    this.state.height = Math.max(0, t.baseY - scoringTop);
+    if (this.state.heightHoldArmed && this.state.height < t.targetHeight) this.state.heightHoldArmed = false;
     this.state.bestHeight = Math.max(this.state.bestHeight, this.state.height);
     this.state.groundedCount = this.stackGrounded.size;
     this.state.stableCount = this.stackStable.size;
-    return top(this.stackGrounded);
+    return scoringTop;
   },
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
@@ -334,7 +347,7 @@ export const E3_HUMAN_STACK = {
     const dashFrom = project(t.railLeft, 0).x, dashTo = project(t.railRight, 0).x;
     for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
     // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
-    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : `목표 높이 · ${t.hold}초 유지`);
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     // 표지는 성공선 오른쪽 끝에 붙어 따라다닙니다. 가슴의 화살표가 선을 가리키며,
     // 시야가 줄어 선이 짧아져도 선 끝과의 간격은 그대로라 크기만 변하지 않습니다.

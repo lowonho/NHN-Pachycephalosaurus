@@ -95,7 +95,9 @@ class MainMenuFlow {
       auto: opening.auto,
       onDone: () => {
         window.archiveRun?.markCutsceneSeen(opening.id);
-        this.protocolSelect.open();
+        // 컷신 종료 암전 안에서 다음 화면을 바꾼다. 이미 본 게임이라 브리핑을
+        // 건너뛰어도 암전을 한 번 더 겹치지 않는다.
+        this.protocolSelect.open({ transitionCovered: true });
       },
     });
   }
@@ -106,7 +108,7 @@ class MainMenuFlow {
     this.close();
     // 컷신이 끼는 전환은 그쪽이 알아서 암전을 감싼다. 여기서는 곧장 브리핑으로 갈 때만 감싼다.
     if (window.archiveRun.snapshot().transition) this.protocolSelect.continueStory();
-    else sceneFade.cut(() => this.protocolSelect.open());
+    else sceneFade.cut(() => this.protocolSelect.open({ transitionCovered: true }));
   }
 
   renderAvailability() {

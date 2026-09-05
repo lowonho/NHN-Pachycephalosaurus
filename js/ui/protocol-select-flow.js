@@ -1,10 +1,11 @@
 /*
  * 기능(B) — 프로토콜 브리핑 화면(옛 스테이지 선택).
  *
- * 화면이 열리면(open) 이번 차례의 기억을 곧바로 브리핑한다. 고를 것이 없어
- * 앞에 목록을 두지 않는다 — 이야기는 정해진 순서대로 흐르고, 예전 선택 화면도
- * 이번 차례 타일 하나만 누를 수 있었다. "증언 시작"을 누르면 그 프로토콜이
- * 시작된다(REQUEST_START).
+ * 화면이 열리면(open) 처음 만난 게임만 브리핑한다. 이미 한 번 시작해 본 게임은
+ * 설명을 되풀이하지 않고 곧바로 카운트다운으로 들어간다. 고를 것이 없어 앞에
+ * 목록을 두지 않는다 — 이야기는 정해진 순서대로 흐르고, 예전 선택 화면도 이번
+ * 차례 타일 하나만 누를 수 있었다. "증언 시작"을 누르면 그 프로토콜이 시작된다
+ * (REQUEST_START).
  *
  * 각 게임은 독립된 20.26초 타이머를 사용한다. 남은 시간은 게임 화면 안에서만
  * 보여 준다 — 이 화면은 시간을 그리지 않는다(책상 위 탁상시계는 걷어냈다).
@@ -39,6 +40,8 @@ class ProtocolSelectFlow {
      */
     this.poweredAct = "";
     this.powerHandle = 0;
+    // 결과/메인 이벤트가 끝난 직후 실행할 브리핑 생략용 자동 시작 번호.
+    this.pendingLaunch = 0;
 
     /*
      * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
@@ -66,7 +69,8 @@ class ProtocolSelectFlow {
    * 모니터를 세우고 이번 차례의 브리핑을 편다.
    * 오프닝 뒤, 한 기록을 끝낸 뒤, 이어하기에서 모두 이 하나로 들어온다.
    */
-  open() {
+  open({ transitionCovered = false } = {}) {
+    const launchToken = ++this.pendingLaunch;
     this.soundBus.resume();
     this.refreshStages();
     this.render();
@@ -75,16 +79,50 @@ class ProtocolSelectFlow {
     this.ui.stageSelectScreen?.classList.remove("hidden");
 
     const snapshot = window.archiveRun?.snapshot();
+    const stageId = snapshot?.expectedStageId;
+    if (!stageId) {
+      this.powerOnForAct(snapshot);
+      this.showScreen("brief");
+      return;
+    }
+
+    /*
+     * 도감과 같은 "한 번이라도 시작해 본 게임" 기록을 설명 확인 기록으로 쓴다.
+     * QA는 규칙과 에셋을 점검하는 입구이므로 플레이 이력과 관계없이 항상 브리핑을
+     * 남긴다. 엔진이 아직 준비되지 않았을 때도 빈 플레이 화면으로 넘기지 않는다.
+     */
+    if (this.hasSeenGame(stageId, snapshot) && window.archiveGame) {
+      this.stopPowerOn();
+      this.briefStart = null;
+      this.briefBack = null;
+      /*
+       * REQUEST_CONTINUE 같은 공통 이벤트 안에서 open()이 불릴 수 있다. 여기서 바로
+       * 시작하면 뒤에 등록된 이전 판 정리 리스너가 새 판까지 멈추므로, 현재 이벤트의
+       * 모든 리스너가 끝난 다음 마이크로태스크에서 시작한다.
+       */
+      queueMicrotask(() => {
+        if (this.pendingLaunch !== launchToken) return;
+        if (this.ui.stageSelectScreen?.classList.contains("hidden")) return;
+        const current = window.archiveRun?.snapshot();
+        if (!current?.qaMode && current?.expectedStageId !== stageId) return;
+        this.launchStage(stageId, { transitionCovered });
+      });
+      return;
+    }
+
     // 새 막이면 여기서 모니터에 불이 들어온다(같은 막 안 기록 이동에는 켜지 않는다).
     this.powerOnForAct(snapshot);
+    this.openBrief(stageId);
+  }
 
-    const stageId = snapshot?.expectedStageId;
-    if (stageId) this.openBrief(stageId);
-    else this.showScreen("brief");
+  hasSeenGame(stageId, snapshot = window.archiveRun?.snapshot()) {
+    if (snapshot?.qaMode || globalThis.ARCHIVE_QA?.active) return false;
+    return Boolean(window.archivePlays?.has(stageId));
   }
 
   /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
   close() {
+    this.pendingLaunch += 1;
     // 브리핑을 열어 둔 채로 나갔다면 예약된 "시작"도 함께 버린다.
     this.briefStart = null;
     this.briefBack = null;
@@ -206,7 +244,8 @@ class ProtocolSelectFlow {
     if (!stage) return;
     this.soundBus.resume();
     // 브리핑 중에는 누적 시간도 스테이지 시간도 시작하지 않는다.
-    this.openBrief(stageId);
+    if (this.hasSeenGame(stageId, run) && window.archiveGame) this.launchStage(stageId);
+    else this.openBrief(stageId);
   }
 
   /* ── 브리핑 ──────────────────────────────────────────────────────── */
@@ -323,7 +362,9 @@ class ProtocolSelectFlow {
     }
   }
 
-  launchStage(stageId) {
+  launchStage(stageId, { transitionCovered = false } = {}) {
+    // 사용자가 브리핑에서 직접 시작했다면 예약돼 있던 자동 시작은 취소한다.
+    this.pendingLaunch += 1;
     /*
      * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
      * 나가 버리면 빈 캔버스만 남고 일시정지 버튼도 없어서 돌아올 길이 사라진다.
@@ -334,10 +375,12 @@ class ProtocolSelectFlow {
       return;
     }
 
-    sceneFade.cut(() => {
+    const launch = () => {
       this.showScreen("play");
       this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
-    });
+    };
+    if (transitionCovered) launch();
+    else sceneFade.cut(launch);
   }
 
   continueStory() {
@@ -346,7 +389,7 @@ class ProtocolSelectFlow {
     const advanced = window.archiveRun?.advance();
     if (!before || !advanced) return;
     this.syncRun();
-    const open = () => this.open();
+    const open = () => this.open({ transitionCovered: true });
     const play = (name, done = open) => this.playStoryCutscene(name, done);
 
     // 컷신 없는 전환은 여기서 암전으로 감싼다 — 컷신이 끼는 전환은 cutscene-flow가 감싼다.

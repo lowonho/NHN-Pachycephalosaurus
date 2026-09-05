@@ -633,19 +633,25 @@
     'e4: wall penalties synchronize the story clock without counting as elapsed play time');
   archiveRun.exitQa();
   // Real story UI result/continue/retry routes with a stage selected in the current act.
-  protocolSelectFlow.reset(); protocolSelectFlow.open();
+  let storyStart = protocolSelectFlow.reset();
+  for (let attempt = 0; attempt < 100 && archivePlays.has(storyStart.expectedStageId); attempt++) storyStart = protocolSelectFlow.reset();
+  assert(!archivePlays.has(storyStart.expectedStageId), 'A first-play game is available for briefing verification');
+  protocolSelectFlow.open();
+  assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'A first-play game opens its briefing');
   const selected = archiveRun.snapshot().selectedStageIds;
   const id = selected[0]; protocolSelectFlow.launchStage(id); scene.finish(true);
   assert(modalFlow.isOpen(), 'Clear opens result modal');
   assert(archiveRecords.best(id) !== null, 'Successful clear stores best record');
   assert(document.querySelector('#secondary-button').hidden, 'Story clear hides legacy retry button');
+  const repeatedId = selected[1];
+  archivePlays.record(repeatedId);
   document.querySelector('#primary-button').click();
+  await Promise.resolve();
   assert(archiveRun.snapshot().currentStageInAct === 2, 'Clear continues to the next story record');
   assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Act selection keeps the same six games');
-  assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
-  assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
-    'The briefing shows the stage the story expects next');
-  assert(UI.protocolBriefLives.textContent === 'MEMORY ◆◆◆', 'The briefing footer shows the remaining memory');
+  assert(!protocolSelectFlow.isBriefOpen() && UI.protocolScreen.dataset.mode === 'play'
+    && archiveGameBridge.currentStage?.id === repeatedId && scene.stageId === repeatedId,
+    'An already-played game skips the briefing and starts directly');
   const retryId = archiveRun.snapshot().expectedStageId;
   protocolSelectFlow.launchStage(retryId); scene.finish(false);
   await new Promise(resolve => setTimeout(resolve, 1050));
@@ -675,8 +681,14 @@
     && UI.primaryButton.textContent === '기억 다시 되찾기 (R)'
     && document.querySelector('#result-main-button').textContent === '메인 메뉴로', 'Exhausting all lives waits on clear retry/current-act and main-menu choices');
   document.querySelector('#primary-button').click();
-  assert(!modalFlow.isOpen() && protocolSelectFlow.isBriefOpen()
-    && archiveRun.snapshot().transition === null, 'Current-act retry proceeds only after player confirmation');
+  await Promise.resolve();
+  const rebuiltRun = archiveRun.snapshot();
+  const rebuiltGameSeen = archivePlays.has(rebuiltRun.expectedStageId);
+  const rebuiltGameReady = rebuiltGameSeen
+    ? !protocolSelectFlow.isBriefOpen() && scene.playable() && scene.stageId === rebuiltRun.expectedStageId
+    : protocolSelectFlow.isBriefOpen();
+  assert(!modalFlow.isOpen() && rebuiltRun.transition === null && rebuiltGameReady,
+    'Current-act retry proceeds only after player confirmation and only briefs an unseen game');
   // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   protocolSelectFlow.reset();
