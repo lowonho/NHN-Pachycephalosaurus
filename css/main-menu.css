@@ -220,14 +220,18 @@
   height: auto;
 }
 
-/* ── 버튼 3개 ──────────────────────────────────────────────────────── */
+/* ── 버튼 3개(게임 시작 · 미니게임 도감 · 설정) ────────────────────── */
 
 .main-menu-actions {
   display: grid;
-  gap: 20px;
+  gap: 16px;
   /* 타이틀 판과의 간격. 판 아래쪽 글로우가 두꺼워서 값보다 넓어 보인다. */
-  margin-top: 34px;
-  width: 600px;
+  margin-top: 30px;
+  /*
+   * 판때기 폭. 높이는 각 에셋의 aspect-ratio가 정하므로 이 값 하나가
+   * 버튼 3개의 크기를 통째로 정한다(520px → 판 하나가 약 125px 높이).
+   */
+  width: 520px;
 }
 
 /*
@@ -239,7 +243,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 78px;
+  padding: 0 62px;
   border: 0;
   background-color: transparent;
   background-repeat: no-repeat;
@@ -248,7 +252,7 @@
   color: #f7fdff;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: 2.5rem;
+  font-size: 2.05rem;
   font-weight: 900;
   letter-spacing: 0.04em;
   transition: transform 140ms ease, filter 140ms ease;
@@ -259,11 +263,11 @@
   content: "";
   position: absolute;
   top: 50%;
-  right: 46px;
-  width: 15px;
-  height: 15px;
-  border-top: 4px solid currentColor;
-  border-right: 4px solid currentColor;
+  right: 38px;
+  width: 13px;
+  height: 13px;
+  border-top: 3px solid currentColor;
+  border-right: 3px solid currentColor;
   transform: translateY(-50%) rotate(45deg);
 }
 
@@ -273,6 +277,15 @@
   text-shadow:
     0 0 16px rgba(255, 62, 129, 0.85),
     0 3px 6px rgba(38, 2, 16, 0.8);
+}
+
+/* 미니게임 도감 — 시안 판때기(원본 1771×426). 글로우도 판 색을 따라간다. */
+.menu-button--codex {
+  aspect-ratio: 1771 / 426;
+  background-image: url("../assets/images/ui/Main/03_button_challenge_cyan_2k.webp");
+  text-shadow:
+    0 0 16px rgba(87, 232, 255, 0.8),
+    0 3px 6px rgba(2, 22, 34, 0.85);
 }
 
 .menu-button--settings {

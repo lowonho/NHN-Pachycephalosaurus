@@ -45,6 +45,6 @@ export const E8_SEESAW = {
     s.weights.forEach((w, i) => MINI.actor(this, 'weight', `w${i}`, 480 + w.x * c, w.landed ? t.pivotY + w.x * sn - 16 : w.y, 24 + w.mass * 8, 30, w.landed ? s.angle : 0, 0xffa8b8));
     const next = this.dropPlan[s.count];
     if (next && next.time - s.age < .85) { MINI.line(this, 480 + next.x, 160, 480 + next.x, 215, 0xff6584); MINI.spike(this, 470 + next.x, 205, 20, 14); }
-    MINI.meter(this, this.elapsed / 20.26);
+    MINI.meter(this, this.elapsed / this.timeLimit);
   },
 };

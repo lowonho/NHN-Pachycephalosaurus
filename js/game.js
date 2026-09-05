@@ -29,7 +29,7 @@ class ArchiveGameBridge {
   onReady({ scene, stages }) {
     this.api = window.archiveGame; this.stages = stages;
     this.events.emit(GAME_EVENTS.SCENE_CREATE, { scene });
-    mainMenuFlow.setStages(stages); this.syncAudio(); window.archiveAudio?.startBgm();
+    mainMenuFlow.setStages(stages); qaModeFlow.setStages(stages); this.syncAudio(); window.archiveAudio?.startBgm();
     this.emitRunSnapshot(window.archiveRun.snapshot());
   }
   start(stageId) {
@@ -40,6 +40,9 @@ class ArchiveGameBridge {
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
     this.ui.stageHudTitle.textContent = `${stage.id.toUpperCase()} · ${stage.title}`;
+    /* 도감은 클리어가 아니라 "해 봤는가"로 열린다 — 시작하는 이 자리에서 남긴다.
+       QA 모드의 시도는 최고 기록과 마찬가지로 남기지 않는다. */
+    if (!globalThis.ARCHIVE_QA?.active) window.archivePlays?.record(stageId);
     this.emitRunSnapshot(window.archiveRun.beginAttempt(stageId));
     this.api.loadStage(stageId); this.api.start();
     this.events.emit(GAME_EVENTS.STAGE_START, { stageId, stage });
@@ -66,6 +69,7 @@ class ArchiveGameBridge {
     this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
   onHud({ remaining = 20.26, actions = 0, anomaly = '', risk = 0 }) {
+    /* QA 모드가 제한시간을 바꿔 두면 remaining도 그 값에서 내려온다(js/config/qa.js). */
     if (!this.currentStage) return;
     this.ui.stageHudTimer.textContent = Math.max(0, remaining).toFixed(2);
     this.ui.stageHudAction.textContent = `${this.currentStage.actionLabel} ${actions}`;
@@ -81,7 +85,12 @@ class ArchiveGameBridge {
     const run = window.archiveRun.completeAttempt(success);
     this.emitRunSnapshot(run);
     let record = null;
-    if (success) {
+    /*
+     * QA 모드의 판은 남기지 않는다 — 제한시간을 늘려 둔 기록은 20.26초 기준의
+     * 최고 기록·ARCHIVE 복구율과 같은 자리에 둘 수 없다(records.mjs가 20.26초를 넘는
+     * 기록을 거부하기도 한다).
+     */
+    if (success && !globalThis.ARCHIVE_QA?.active) {
       window.archiveProgress.record(this.currentStage.id, true, true);
       record = window.archiveRecords.record(this.currentStage.id, elapsed, actions);
     }

@@ -25,9 +25,20 @@
     scene.directionPress('right'); scene.primaryAction(); advance(.3); scene.stopGame();
     assert(!scene.touch.size && scene.pointerId === null, `${stage.id}: stop clears input`);
   }
-  load('e1'); scene.primaryAction();
-  assert(scene.state.sign === -1, 'e1: jump flips obstacle gravity');
-  advance(.5); assert(scene.state.obstacles[0].y < 440, 'e1: obstacles move after flip');
+  load('e1');
+  const stuck = () => scene.state.obstacles.filter(o => !o.float), floats = () => scene.state.obstacles.filter(o => o.float);
+  assert(stuck().length && floats().length, 'e1: course mixes wall-attached and floating obstacles');
+  advance(2);
+  assert(stuck().every(o => o.y === 174) && floats().every(o => o.y === 286), 'e1: obstacles hold still until gravity flips');
+  scene.primaryAction();
+  assert(scene.state.sign === -1, 'e1: action flips gravity instead of jumping');
+  advance(.5);
+  assert(Math.abs(scene.state.y - 189) < 1 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
+  assert(stuck().every(o => o.y > 174) && floats().every(o => o.y === 286), 'e1: attached obstacles drop on the flip, floating ones do not');
+  advance(1.5); assert(stuck().every(o => o.y === 433), 'e1: attached obstacles land on the wall opposite the player');
+  scene.primaryAction(); advance(.5);
+  assert(Math.abs(scene.state.y - 450) < 1, 'e1: pressing again returns to the floor wall');
+  assert(scene.hurdles.some(h => h.ceiling) && scene.hurdles.some(h => !h.ceiling), 'e1: spikes on both walls');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
   scene.state.y = 540; advance(.02);
   assert(scene.state.jumps === jump && scene.state.deaths > 0, 'e2: death retains jump strength');
@@ -42,7 +53,7 @@
   scene.state.y = 100; advance(.02);
   assert(scene.state.hits === 1 && scene.state.presses === presses, 'e6: collision retains gravity penalty');
   load('e7'); scene.pointerAction(620, 321); advance(.05); scene.stageGame.pointerMove.call(scene, 480, 461); scene.stageGame.pointerUp.call(scene);
-  assert(scene.state.spinning && Math.abs(scene.state.speed) <= 18 && Math.abs(scene.state.speed) >= 5, 'e7: swipe speed clamped');
+  assert(scene.state.spinning && Math.abs(scene.state.speed) <= scene.stageGame.tuning.maxSpeed && Math.abs(scene.state.speed) >= scene.stageGame.tuning.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
     scene.state.rotation = -Math.PI / 2 + .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);

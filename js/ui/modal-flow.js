@@ -25,9 +25,12 @@ class ModalFlow {
   showResult(success, { stage, elapsed = 0, actions = 0, extra = '', run, record } = {}) {
     this.open();
     this.ui.modalStep.textContent = `${stage.id.toUpperCase()} / ${success ? 'CLEAR' : 'RETRY'}`;
-    this.ui.modalTitle.textContent = success ? (run?.clearedCount === 5 ? '5개 스테이지 클리어!' : '클리어!') : '다시 도전!';
-    this.ui.modalCopy.textContent = success ? `${stage.title} · ${elapsed.toFixed(2)}초` : (extra || '20.26초 안에 목표를 달성하지 못했습니다.');
-    const lines = [`${stage.actionLabel} ${actions}회 · 이번 판 ${run?.clearedCount ?? 0}/5 클리어`];
+    // 제한시간은 QA 모드가 바꿔 둘 수 있다(js/config/qa.js). 문구도 그 값을 따라간다.
+    const limit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
+    const total = run?.totalStages ?? 5;
+    this.ui.modalTitle.textContent = success ? (run?.clearedCount === total ? `${total}개 스테이지 클리어!` : '클리어!') : '다시 도전!';
+    this.ui.modalCopy.textContent = success ? `${stage.title} · ${elapsed.toFixed(2)}초` : (extra || `${limit.toFixed(2)}초 안에 목표를 달성하지 못했습니다.`);
+    const lines = [`${stage.actionLabel} ${actions}회 · 이번 판 ${run?.clearedCount ?? 0}/${total} 클리어`];
     if (success && extra) lines.push(extra);
     if (record) lines.push(`${record.isNew ? 'NEW BEST! ' : '최고 기록 '}${record.best.elapsed.toFixed(2)}초 · ${record.best.actions}회`);
     this.ui.modalResult.textContent = lines.join('\n');

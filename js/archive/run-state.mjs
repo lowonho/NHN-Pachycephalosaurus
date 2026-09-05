@@ -10,21 +10,42 @@ export function sampleStages(ids, count = 5, random = Math.random) {
 
 export function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
   let selected = sampleStages(stageIds), phase = 'menu', currentStageId = null, paused = false;
-  let remaining = totalTimeMs, elapsedMs = 0;
+  // 한 시도의 시간 예산. QA 모드만 20.26초에서 바꿔 놓는다(js/config/qa.js).
+  let budgetMs = totalTimeMs;
+  let remaining = budgetMs, elapsedMs = 0;
   const cleared = new Set();
   const resolveEnding = () => cleared.size === selected.length ? 'normal' : null;
   const snapshot = () => ({
-    totalTimeMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
+    totalTimeMs: budgetMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
     selectedStageIds: [...selected], clearedStageIds: [...cleared], clearedCount: cleared.size,
     totalStages: selected.length, memoryCount: cleared.size, memoryStageIds: [...cleared],
     ending: resolveEnding(),
   });
   return {
     snapshot, resolveEnding,
-    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = totalTimeMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
+    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = budgetMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
+    /*
+     * QA 모드 전용 — 랜덤 5개 대신 지정한 목록을 이번 판의 선택으로 쓴다.
+     * (게임 브리지는 selectedStageIds에 없는 스테이지를 열어 주지 않는다.)
+     */
+    setSelection(ids) {
+      const next = [...new Set(ids)].filter(id => stageIds.includes(id));
+      if (next.length === 0) throw new RangeError('Empty stage selection');
+      selected = next;
+      for (const id of [...cleared]) if (!selected.includes(id)) cleared.delete(id);
+      return snapshot();
+    },
+    /* QA 모드 전용 — 한 시도의 예산(책상 시계)을 바뀐 제한시간에 맞춘다. */
+    setAttemptTime(ms) {
+      const value = Number(ms);
+      if (!Number.isFinite(value) || value <= 0) throw new RangeError('Invalid attempt time');
+      budgetMs = Math.round(value);
+      if (phase !== 'playing') remaining = budgetMs;
+      return snapshot();
+    },
     beginAttempt(id) {
       if (!selected.includes(id)) throw new RangeError(`Stage not selected in this run: ${id}`);
-      currentStageId = id; remaining = totalTimeMs; paused = false; phase = 'playing'; return snapshot();
+      currentStageId = id; remaining = budgetMs; paused = false; phase = 'playing'; return snapshot();
     },
     consume(ms) {
       if (phase === 'playing' && !paused) { const delta = Math.min(remaining, Math.max(0, Number(ms) || 0)); remaining -= delta; elapsedMs += delta; }
