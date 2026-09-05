@@ -47,7 +47,7 @@
 
   const scenario = {
     title: "2026 ARCHIVE // LAST WITNESS",
-    totalTimeMs: 143000,
+    totalTimeMs: 20260,
     stageTimeSeconds: 20.26,
     system: Object.freeze({
       firstFragment: "기억조각을 가진 채 증언 지점에 도달하면\n타인의 기억을 함께 증언할 수 있습니다.",
@@ -70,7 +70,7 @@
         { speaker: "ARIA-26", text: "단 한 사람. 당신만 제외하고.", phase: "freeze", durationMs: 3000 },
         { speaker: "SYSTEM", text: "COMPLETE MEMORY HOLDER\n\n완전기억 소지자 확인\n기억 수정 저항률: 100%\n최종 증언 권한: 승인", phase: "iris", durationMs: 2000 },
         { speaker: "ARIA-26", text: "당신은 기록 그 자체입니다.", phase: "door", durationMs: 2000 },
-        { speaker: "SYSTEM", text: "2026 ARCHIVE DELETION\n\n02:23.00", phase: "collapse", durationMs: 2500 },
+        { speaker: "SYSTEM", text: "2026 ARCHIVE\n\n9개의 기록 중 랜덤 5개\n각 스테이지 20.26초", phase: "collapse", durationMs: 2500 },
         { speaker: "ARIA-26", text: "2026년이 모두 지워지기 전에, 기억의 중심부에 도달하십시오.", phase: "collapse", durationMs: 1800 },
         { speaker: "플레이어", text: "기록을 되찾으면, 민서도 돌아오는 거지?", phase: "collapse", durationMs: 1200 },
         { speaker: "SYSTEM", text: "2026 ARCHIVE\nLAST WITNESS", phase: "last-witness", durationMs: 500 },

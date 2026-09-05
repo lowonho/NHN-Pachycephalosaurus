@@ -1,159 +1,39 @@
-/*
- * 스테이지 성공 결과 → 기억 증언 → 중반 반전/엔딩을 잇는 흐름.
- * 일반 스테이지 실패는 js/game.js에서 짧은 연출 뒤 자동 재구성한다.
- */
+/* 20.26초 결과: 선택 / 기록 재도전 / 메인. 성공과 실패 모두 자동 재시작하지 않습니다. */
 class ModalFlow {
-  constructor(events, dom, strings, cutscene) {
-    this.events = events;
-    this.ui = dom;
-    this.strings = strings;
-    this.cutscene = cutscene;
-    this.returnFocus = null;
-    this.detail = null;
-    this.success = false;
-    this.midpointShown = false;
-
-    this.ui.primaryButton?.addEventListener("click", () => this.onPrimary());
-    this.ui.secondaryButton?.addEventListener("click", () => this.onSecondary());
-
-    this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
-    this.events.on(GAME_EVENTS.REQUEST_RESTART, () => this.close());
-    this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.close());
-    this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.close());
-    this.events.on(GAME_EVENTS.RUN_RESET, () => { this.midpointShown = false; });
-    this.events.on(GAME_EVENTS.RUN_END, ({ ending } = {}) => {
-      if (ending === "failure") this.showEnding("failure");
-    });
-    this.events.on(GAME_EVENTS.STAGE_CLEAR, (detail = {}) => this.showResult(true, detail));
-    this.events.on(GAME_EVENTS.STAGE_FAIL, (detail = {}) => this.showResult(false, detail));
-
-    window.addEventListener("keydown", (event) => {
-      if (event.key.toLowerCase() !== "r" || !this.isOpen()) return;
-      event.preventDefault();
-      this.events.emit(GAME_EVENTS.REQUEST_RESTART, {});
+  constructor(events, dom) {
+    this.events = events; this.ui = dom; this.returnFocus = null;
+    dom.primaryButton.addEventListener('click', () => events.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {}));
+    dom.secondaryButton.addEventListener('click', () => events.emit(GAME_EVENTS.REQUEST_RESTART, {}));
+    document.querySelector('#result-main-button').addEventListener('click', () => events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {}));
+    for (const name of [GAME_EVENTS.REQUEST_START, GAME_EVENTS.REQUEST_RESTART, GAME_EVENTS.REQUEST_STAGE_SELECT, GAME_EVENTS.REQUEST_MAIN_MENU]) events.on(name, () => this.close());
+    events.on(GAME_EVENTS.STAGE_CLEAR, detail => this.showResult(true, detail));
+    events.on(GAME_EVENTS.STAGE_FAIL, detail => this.showResult(false, detail));
+    window.addEventListener('keydown', event => {
+      if (event.code === 'KeyR' && !event.repeat && this.isOpen()) { event.preventDefault(); events.emit(GAME_EVENTS.REQUEST_RESTART, {}); }
     });
   }
-
-  isOpen() {
-    return Boolean(this.ui.modal) && !this.ui.modal.classList.contains("hidden");
-  }
-
-  lockBackground(locked) {
-    [this.ui.appShell, this.ui.mainMenu, this.ui.settingsBackdrop].forEach((element) => {
-      if (!element) return;
-      if (locked) element.setAttribute("inert", "");
-      else element.removeAttribute("inert");
-    });
-  }
-
+  isOpen() { return !this.ui.modal.classList.contains('hidden'); }
   open() {
     this.returnFocus = document.activeElement;
-    this.ui.modal?.classList.remove("hidden");
-    this.lockBackground(true);
+    this.ui.modal.classList.remove('hidden'); this.ui.appShell.setAttribute('inert', '');
   }
-
   close() {
-    this.ui.modal?.classList.add("hidden");
-    this.lockBackground(false);
+    this.ui.modal.classList.add('hidden'); this.ui.appShell.removeAttribute('inert');
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     this.returnFocus = null;
   }
-
-  onPrimary() {
-    if (!this.isOpen()) return;
-    audioBus.resume();
-    if (!this.success) {
-      this.events.emit(GAME_EVENTS.REQUEST_RESTART, {});
-      return;
-    }
-    this.continueAfterSuccess();
-  }
-
-  onSecondary() {
-    if (!this.isOpen()) return;
-    audioBus.resume();
-    this.events.emit(this.success ? GAME_EVENTS.REQUEST_RESTART : GAME_EVENTS.REQUEST_STAGE_SELECT, {});
-  }
-
-  showResult(success, detail = {}) {
-    const { ui } = this;
-    const { stage, elapsed = 0, actions = 0, extra = "", fragmentCollected = false, timePenalty = 0, run } = detail;
-    const system = SCENARIO_DATA.system;
-    this.success = success;
-    this.detail = detail;
+  showResult(success, { stage, elapsed = 0, actions = 0, extra = '', run, record } = {}) {
     this.open();
-
-    ui.modalStep.textContent = success ? `RECORD ${stage?.number || ""} / TESTIMONY` : system.stageFailedTitle;
-    ui.modalTitle.textContent = success
-      ? (fragmentCollected ? system.sharedTitle : system.personalTitle)
-      : system.stageFailedTitle;
-    ui.modalCopy.textContent = success
-      ? (fragmentCollected ? system.sharedResult : system.personalResult)
-      : system.stageFailedResult;
-
-    const result = [];
-    if (stage?.title) result.push(`${stage.title} · ${Number(elapsed).toFixed(2)}초`);
-    if (success) result.push(`${stage?.actionLabel || "입력"} ${actions}회${extra ? ` · ${extra}` : ""}`);
-    else if (extra) result.push(extra);
-    if (timePenalty > 0) result.push(`충돌 시간 차감 −${timePenalty.toFixed(2)}초`);
-    if (run) result.push(`TOTAL ${ProtocolSelectFlow.formatClock(run.totalRemainingMs)} · MEMORY ${run.memoryCount}/${run.totalStages}`);
-    ui.modalResult.textContent = result.join("\n");
-
-    ui.primaryButton.textContent = success
-      ? (fragmentCollected ? this.strings.buttons.viewMemory : this.strings.buttons.continueStory)
-      : this.strings.buttons.retryStage;
-    ui.primaryButton.disabled = false;
-    ui.secondaryButton.hidden = false;
-    ui.secondaryButton.textContent = success ? "이 스테이지 다시 도전" : this.strings.buttons.stageSelect;
-    ui.primaryButton.focus();
-  }
-
-  continueAfterSuccess() {
-    const detail = this.detail || {};
-    const story = SCENARIO_DATA.stages.find((stage) => stage.id === detail.stageId);
-    this.close();
-    if (!detail.fragmentCollected || !story) {
-      this.finishStageNarrative();
-      return;
-    }
-
-    this.cutscene.play({
-      chapter: `MEMORY ${story.number} // ${story.memoryTitle}`,
-      script: story.memoryScene,
-      auto: true,
-      onDone: () => {
-        if (story.id === "friction" && !this.midpointShown) {
-          this.midpointShown = true;
-          this.cutscene.play({
-            chapter: SCENARIO_DATA.midpoint.chapter,
-            script: SCENARIO_DATA.midpoint.script,
-            auto: true,
-            onDone: () => this.finishStageNarrative(),
-          });
-        } else {
-          this.finishStageNarrative();
-        }
-      },
-    });
-  }
-
-  finishStageNarrative() {
-    const ending = window.archiveRun?.resolveEnding();
-    if (ending === "true" || ending === "normal") this.showEnding(ending);
-    else this.events.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {});
-  }
-
-  showEnding(ending) {
-    const scene = SCENARIO_DATA.endings[ending];
-    if (!scene) return;
-    this.close();
-    this.cutscene.play({
-      chapter: scene.chapter,
-      script: scene.script,
-      auto: true,
-      onDone: () => this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {}),
-    });
+    this.ui.modalStep.textContent = `${stage.id.toUpperCase()} / ${success ? 'CLEAR' : 'RETRY'}`;
+    this.ui.modalTitle.textContent = success ? (run?.clearedCount === 5 ? '5개 스테이지 클리어!' : '클리어!') : '다시 도전!';
+    this.ui.modalCopy.textContent = success ? `${stage.title} · ${elapsed.toFixed(2)}초` : (extra || '20.26초 안에 목표를 달성하지 못했습니다.');
+    const lines = [`${stage.actionLabel} ${actions}회 · 이번 판 ${run?.clearedCount ?? 0}/5 클리어`];
+    if (success && extra) lines.push(extra);
+    if (record) lines.push(`${record.isNew ? 'NEW BEST! ' : '최고 기록 '}${record.best.elapsed.toFixed(2)}초 · ${record.best.actions}회`);
+    this.ui.modalResult.textContent = lines.join('\n');
+    this.ui.primaryButton.textContent = '스테이지 선택'; this.ui.primaryButton.disabled = false;
+    this.ui.secondaryButton.textContent = '다시하기 · 기록 도전 (R)'; this.ui.secondaryButton.hidden = false;
+    this.ui.primaryButton.focus();
   }
 }
-
-const modalFlow = new ModalFlow(gameEvents, UI, STRINGS, cutsceneFlow);
+const modalFlow = new ModalFlow(gameEvents, UI);

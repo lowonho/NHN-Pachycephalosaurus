@@ -276,9 +276,9 @@
               <footer class="protocol-footer">
                 <div class="protocol-footer-status">
                   <!-- 이번 판의 증언/조각 수. 2:23.00이 끝나거나 새 게임이면 0으로 돌아간다. -->
-                  <p class="protocol-progress" id="protocol-progress">TESTIMONY 0 / 5 · MEMORY 0 / 5</p>
+                  <p class="protocol-progress" id="protocol-progress">RANDOM 5 / 9 · CLEAR 0 / 5 · 각 20.26초</p>
                   <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
-                  <p class="protocol-archive-help">증언 지점 도달 → 개인 증언 / 기억조각과 함께 도달 → 공동 증언</p>
+                  <p class="protocol-archive-help">게임을 선택해 20.26초 안에 클리어 · 다시하기로 최고 기록에 도전</p>
                   <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
                 </div>
                 <button class="protocol-back" id="stage-select-back-button" type="button">
@@ -311,7 +311,7 @@
                     <strong id="stage-hud-title">STAGE</strong>
                   </div>
                   <div class="stage-hud-run">
-                    <span>MEMORY <output id="stage-hud-memory">0/5</output></span>
+                    <span>CLEAR <output id="stage-hud-memory">0/5</output></span>
                   </div>
                   <div class="stage-hud-detail">
                     <span id="stage-hud-action">입력 00</span>
@@ -354,6 +354,7 @@
                   <p class="modal-result" id="modal-result"></p>
                   <button class="primary-button" id="primary-button" type="button">다시 도전</button>
                   <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
+                  <button class="secondary-button" id="result-main-button" type="button">메인으로</button>
                 </section>
               </div>
 
@@ -617,6 +618,8 @@
     <!-- 공통 계약 (동결) -->
     <script src="js/core/game-events.js"></script>
     <script src="js/content/scenario-data.js"></script>
+    <script src="js/content/minigame-catalog.js"></script>
+    <script src="assets/minigames/manifest.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
     <script src="js/config/protocols.js"></script>

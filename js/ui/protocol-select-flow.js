@@ -4,18 +4,17 @@
  * 1인칭 모니터 화면 안에 복구할 기록 5개를 데스크톱 앱처럼 펼친다.
  * 타일을 누르면 그 프로토콜이 바로 시작된다(REQUEST_START).
  *
- * ── 2:23.00 ─────────────────────────────────────────────────────────
- * 각 20.26초 타이머와 별개인 한 판의 누적 제한시간이다. Phaser가 실제 플레이를
- * 진행한 프레임만 game.js가 차감하며, 소개·결과·기억 감상·일시정지에서는 멈춘다.
- * 메인 화면으로 나가면(reset) 이번 판의 시간과 증언 기록이 처음으로 돌아간다.
+ * 각 게임은 독립된 20.26초 타이머를 사용한다. 책상 시계도 현재 시도의 시간을
+ * 표시한다. 선택/소개/결과/일시정지에서는 멈춘다. 메인 화면으로 나가면(reset)
+ * 랜덤 5개와 이번 판의 클리어 현황만 초기화하며 최고 기록은 유지한다.
  *
  * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
  * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
  * 바뀌어서, 거기 둔 숫자는 정작 필요한 순간에 사라진다.
  */
 
-const RECOVERY_BUDGET_MS = SCENARIO_DATA.totalTimeMs; // 정확히 2:23.00
-const RECOVERY_URGENT_MS = 30_000; // 이 아래로 떨어지면 타이머가 깜빡인다.
+const RECOVERY_BUDGET_MS = 20260;
+const RECOVERY_URGENT_MS = 5000;
 
 /*
  * ARCHIVE 복구 등급 — js/archive/progress.mjs의 RECORD_STATUS와 같은 문자열이다.
@@ -62,7 +61,8 @@ class ProtocolSelectFlow {
      * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
      * 엔진이 뜨면 setStages가 더 자세한 목록으로 갈아 끼운다.
      */
-    this.stages = PROTOCOLS;
+    this.catalog = PROTOCOLS;
+    this.stages = [];
     this.restored = new Set();
     this.remainingMs = RECOVERY_BUDGET_MS;
     this.timedOut = false;
@@ -122,6 +122,7 @@ class ProtocolSelectFlow {
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
   reset() {
     const snapshot = window.archiveRun?.reset();
+    if (snapshot) this.stages = snapshot.selectedStageIds.map(id => this.catalog.find(stage => stage.id === id)).filter(Boolean);
     this.remainingMs = snapshot?.totalRemainingMs ?? RECOVERY_BUDGET_MS;
     this.timedOut = false;
     this.restored.clear();
@@ -135,7 +136,9 @@ class ProtocolSelectFlow {
    */
   setStages(stages) {
     if (!Array.isArray(stages) || stages.length === 0) return;
-    this.stages = stages;
+    this.catalog = stages;
+    const selected = window.archiveRun?.snapshot().selectedStageIds ?? [];
+    this.stages = selected.map(id => stages.find(stage => stage.id === id)).filter(Boolean);
     this.render();
   }
 
@@ -154,12 +157,11 @@ class ProtocolSelectFlow {
 
     const stage = this.stages.find((item) => item.id === stageId);
     if (!stage) return;
-    const story = SCENARIO_DATA.stages.find((item) => item.id === stageId);
     this.soundBus.resume();
     // 소개 중에는 누적 시간도 스테이지 시간도 시작하지 않는다.
     this.cutscene.play({
       chapter: `RECORD ${stage.number} // ${stage.title}`,
-      script: story?.brief || [],
+      script: stage.brief || [],
       auto: true,
       onDone: () => this.launchStage(stageId),
     });
@@ -233,11 +235,7 @@ class ProtocolSelectFlow {
     window.clearTimeout(this.warnHandle);
     delete label.dataset.state;
     const run = window.archiveRun?.snapshot();
-    label.textContent = this.strings.protocol.progress(
-      this.restored.size,
-      run?.memoryCount ?? 0,
-      this.stages.length || 5,
-    );
+    label.textContent = `RANDOM 5 / 9 · CLEAR ${this.restored.size} / ${this.stages.length || 5} · 각 20.26초`;
   }
 
   /*
@@ -316,12 +314,12 @@ class ProtocolSelectFlow {
     const icon = document.createElement("span");
     icon.className = "protocol-app-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.innerHTML = ProtocolSelectFlow.glyph(stage.id);
+    icon.textContent = stage.recordSymbol;
 
     const code = document.createElement("span");
     code.className = "protocol-app-code";
     // ◆ 완전 복구 / ◇ 그 외 — 복구 등급을 글자 하나로 붙인다.
-    code.textContent = `PROTO_${stage.number} · ${full ? "◆" : "◇"}`;
+    code.textContent = `${stage.id.toUpperCase()} · ${full ? "◆" : "◇"}`;
 
     const title = document.createElement("strong");
     title.className = "protocol-app-title";
@@ -332,6 +330,13 @@ class ProtocolSelectFlow {
     mark.textContent = this.strings.protocol.restored;
 
     tile.append(icon, code, title, mark);
+    tile.title = `${stage.controls}\n${stage.objective}\n${stage.anomaly}`;
+    const best = window.archiveRecords?.best(stage.id);
+    if (best) {
+      const record = document.createElement('small');
+      record.className = 'protocol-best'; record.textContent = `BEST ${best.elapsed.toFixed(2)}s · ${best.actions}회`;
+      tile.append(record);
+    }
     tile.addEventListener("click", () => this.startStage(stage.id));
     return tile;
   }
