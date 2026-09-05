@@ -26,7 +26,7 @@
   }); save('e2');
   load('e3');
   let lastDrop = -10;
-  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7) { scene.primaryAction(); lastDrop = scene.elapsed; } });
+  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
   advance(20.3, () => {

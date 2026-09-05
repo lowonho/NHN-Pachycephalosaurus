@@ -403,7 +403,7 @@ const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
-    targetHeight: 216, hold: .7,
+    targetHeight: 216, hold: 3,
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
     restitution: .045, density: .0022, carryMomentum: .075,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
@@ -412,26 +412,26 @@ const E3_HUMAN_STACK = {
   // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
   // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
   poses: [
-    { id: 'crouch', name: '버티기', width: 94, height: 88, head: [0, -28, 8.5], limbs: [
-      [0, -10, 0, 8, 10], [-9, -10, -25, -19, 5], [-25, -19, -39, -7, 4.8],
-      [9, -10, 25, -19, 5], [25, -19, 39, -7, 4.8],
-      [-6, 9, -22, 20, 6.5], [-22, 20, -27, 32, 5],
-      [6, 9, 22, 20, 6.5], [22, 20, 27, 32, 5],
-      [-32, 34, -21, 34, 5], [21, 34, 32, 34, 5],
+    { id: 'crouch', name: '웅크리기', width: 116, height: 100, head: [-12, -30, 11], limbs: [
+      [-8, -10, 3, 7, 14], [-15, -9, -34, -16, 8], [-34, -16, -44, 3, 7],
+      [3, -9, 27, -2, 8], [27, -2, 35, 16, 7],
+      [-4, 12, -28, 21, 9], [-28, 21, -16, 34, 7],
+      [10, 12, 31, 24, 9], [31, 24, 18, 35, 7],
+      [-23, 36, -10, 36, 7], [16, 37, 30, 37, 7],
     ] },
-    { id: 'wide', name: '팔 벌리기', width: 112, height: 96, head: [0, -30, 8.5], limbs: [
-      [0, -12, 0, 8, 10], [-9, -12, -29, -11, 5], [-29, -11, -47, -20, 4.8],
-      [9, -12, 29, -11, 5], [29, -11, 47, -20, 4.8],
-      [-6, 9, -12, 23, 6], [-12, 23, -19, 39, 4.8],
-      [6, 9, 12, 23, 6], [12, 23, 19, 39, 4.8],
-      [-25, 41, -15, 41, 4.8], [15, 41, 25, 41, 4.8],
+    { id: 'wide', name: '옆으로 누워 접기', width: 140, height: 98, head: [-45, -12, 11], limbs: [
+      [-24, -4, 1, 3, 14], [-25, -12, -12, -31, 8], [-12, -31, 7, -24, 7],
+      [-24, 5, -29, 26, 8], [-29, 26, -8, 30, 7],
+      [7, -3, 30, -21, 9], [30, -21, 47, -3, 7],
+      [8, 11, 28, 32, 9], [28, 32, 48, 18, 7],
+      [45, -3, 56, 2, 7], [46, 18, 56, 25, 7],
     ] },
-    { id: 'reach', name: '만세', width: 88, height: 116, head: [0, -30, 8.5], limbs: [
-      [0, -12, 0, 8, 10], [-9, -12, -25, -29, 5], [-25, -29, -31, -47, 4.8],
-      [9, -12, 25, -29, 5], [25, -29, 31, -47, 4.8],
-      [-6, 9, -18, 24, 6], [-18, 24, -24, 40, 4.8],
-      [6, 9, 18, 24, 6], [18, 24, 24, 40, 4.8],
-      [-30, 42, -19, 42, 4.8], [19, 42, 30, 42, 4.8],
+    { id: 'reach', name: '몸 비틀어 굽히기', width: 124, height: 108, head: [23, -29, 11], limbs: [
+      [12, -11, -4, 9, 14], [8, -14, -14, -31, 8], [-14, -31, -33, -22, 7],
+      [20, -8, 40, 4, 8], [40, 4, 30, 22, 7],
+      [-10, 13, -35, 19, 9], [-35, 19, -28, 39, 7],
+      [2, 16, 19, 32, 9], [19, 32, 38, 31, 7],
+      [-34, 41, -20, 41, 7], [37, 31, 47, 22, 7],
     ] },
   ],
   build() {
@@ -461,7 +461,7 @@ const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '팔 · 어깨 · 다리로 받치며 쌓기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+      hint: this.add.text(480, 166, '굽힌 몸의 모양을 맞춰 쌓고 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
@@ -538,7 +538,8 @@ const E3_HUMAN_STACK = {
     this.stackGrounded = trace(false);
     this.stackStable = trace(true);
     const top = ids => ids.size ? Math.min(...[...ids].map(id => this.stackBodyById.get(id).bounds.min.y)) : t.baseY;
-    this.state.height = Math.max(0, t.baseY - top(this.stackStable));
+    // 흔들려도 바닥부터 받쳐진 탑이면 인정합니다. 목표 아래로 내려오면 3초를 다시 셉니다.
+    this.state.height = Math.max(0, t.baseY - top(this.stackGrounded));
     this.state.bestHeight = Math.max(this.state.bestHeight, this.state.height);
     this.state.groundedCount = this.stackGrounded.size;
     this.state.stableCount = this.stackStable.size;
@@ -563,7 +564,7 @@ const E3_HUMAN_STACK = {
     s.impacts = s.impacts.filter(impact => impact.age < .35).slice(-16);
     this.anomaly = `좌우 속도 ${Math.round(E3_HUMAN_STACK.speed.call(this))} · 받쳐진 사람 ${s.groundedCount}/${s.drops}명`;
     this.risk = MINI.clamp((E3_HUMAN_STACK.speed.call(this) - t.speed) / (t.maxSpeed - t.speed) * 100, 0, 100);
-    if (s.held >= t.hold) this.finish(true, `${s.drops}명 · 높이 ${Math.round(s.height)} · ${t.hold}초 안정`);
+    if (s.held >= t.hold) this.finish(true, `${s.drops}명 · 높이 ${Math.round(s.height)} · ${t.hold}초 버티기 성공`);
   },
   project(x, y) {
     const z = this.state.zoom, floor = E3_HUMAN_STACK.tuning.floorY;
@@ -602,7 +603,7 @@ const E3_HUMAN_STACK = {
   render() {
     const s = this.state, t = E3_HUMAN_STACK.tuning, g = this.ink;
     const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
-    MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `안정 ${s.held.toFixed(1)} / ${t.hold}s` : '흔들림이 멈추면 높이 인정'}`);
+    MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
     const base = project(480 - t.baseWidth / 2, t.baseY);
     MINI.box(this, 22, t.floorY, 916, 12, 0x263f4d);
     MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
@@ -614,7 +615,7 @@ const E3_HUMAN_STACK = {
     }
     const goal = project(0, t.baseY - t.targetHeight);
     for (let x = 115; x < 850; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(902, goal.y - 5);
+    this.stackLabels.goal.setPosition(902, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     this.stackLabels.hint.setVisible(s.drops === 0);
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.

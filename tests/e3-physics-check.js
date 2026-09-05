@@ -12,21 +12,26 @@
     return body;
   };
   load();
-  const center = spawn(480); step(2.4);
+  const center = spawn(480);
+  assert(center.angularVelocity === 0, 'No artificial spin is added when a bent pose is created');
+  step(2.4);
   measurements.centerAngle = center.angle;
-  assert(scene.stackStable.has(center.id), 'Centered mannequin settles on pedestal');
-  assert(Math.abs(center.angle) < .08, 'Centered mannequin does not receive artificial rotation');
+  assert(scene.stackGrounded.has(center.id), 'Bent mannequin finds physical support after landing');
+  M.Body.setAngularVelocity(center, .1); scene.stageGame.measureTower.call(scene);
+  assert(!scene.stackStable.has(center.id) && scene.state.height > 0, 'Supported rocking body still contributes height');
   assert(center.parts.length > 8 && Number.isFinite(center.inertia) && center.inverseInertia > 0, 'Arms, torso, head and legs form a rotating compound body');
-  assert(!M.Query.point(center.parts.slice(1), { x: 480, y: center.bounds.max.y - 3 }).length, 'Gap between feet remains empty collision space');
   load();
   const edge = spawn(558); step(3.5);
   measurements.edgeAngle = edge.angle; measurements.edgeY = edge.position.y;
   assert(Math.abs(edge.angle) > .4 && edge.position.y > 425, 'Off-center contact naturally topples mannequin onto floor');
   assert(scene.people.includes(edge) && !edge.isStatic, 'Toppled mannequin remains dynamic debris');
-  const oldAngle = edge.angle;
-  const incoming = spawn(edge.position.x + 14, 240, 1); step(2.8);
-  assert(scene.stackGrounded.has(incoming.id), 'New mannequin can rest on fallen debris');
-  assert(Math.abs(edge.angle - oldAngle) > .002 || scene.stackWorld.pairs.list.some(p => p.isActive && [p.collision.parentA.id,p.collision.parentB.id].includes(incoming.id) && [p.collision.parentA.id,p.collision.parentB.id].includes(edge.id)), 'Debris participates in subsequent contacts');
+  const incoming = spawn(edge.position.x, 240, 1);
+  let contactedDebris = false;
+  const observeContact = event => { contactedDebris ||= event.pairs.some(p => [p.collision.parentA.id,p.collision.parentB.id].includes(incoming.id) && [p.collision.parentA.id,p.collision.parentB.id].includes(edge.id)); };
+  M.Events.on(scene.stackWorld, 'collisionStart', observeContact); step(2.8);
+  M.Events.off(scene.stackWorld, 'collisionStart', observeContact);
+  assert(scene.stackGrounded.has(incoming.id), 'New mannequin finds support after falling onto debris');
+  assert(contactedDebris, 'Debris collides with subsequently dropped bodies');
   load();
   const floating = spawn(480, 120); M.Body.setVelocity(floating, { x: 0, y: 0 });
   scene.stageGame.measureTower.call(scene);
@@ -61,14 +66,29 @@
   scene.stopGame();
   assert(world.world.bodies.length === 0 && !world.events.collisionStart?.length && scene.stackBodyById.size === 0, 'Leaving e3 disposes bodies, collision listeners and maps');
   scene.textures.remove('e3:person_crouch');
+  // Break a real tower during its countdown: partial hold must not carry over.
+  load();
+  let lastPartial = -10;
+  for (let i = 0; i < 2400 && scene.playable() && scene.state.held < 1; i++) {
+    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastPartial > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
+    scene.update(0, 1000 / 120);
+  }
+  assert(scene.state.held >= 1 && scene.playable(), 'Reaching target for one second does not clear');
+  const partialHold = scene.state.held;
+  archiveGame.pause(true); scene.update(0, 1500);
+  assert(scene.state.held === partialHold, 'Pause freezes the three-second countdown');
+  archiveGame.pause(false);
+  scene.people.forEach(body => M.Body.translate(body, { x: 2200, y: 0 })); step(.1);
+  assert(scene.state.held === 0 && scene.state.height === 0 && scene.playable(), 'Loss of supported target height resets countdown');
   // Prepare a real-input tower for the focused visual preview.
   load();
   let last = -10;
-  for (let i = 0; i < 1200 && scene.playable(); i++) {
-    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - last > .7 && scene.people.length < 3) { scene.primaryAction(); last = scene.elapsed; }
+  for (let i = 0; i < 2432 && scene.playable(); i++) {
+    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - last > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); last = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
   measurements.clearTime = scene.elapsed;
-  assert(scene.mode === 'done' && scene.state.held >= .7 && scene.state.stableCount >= 3, 'Three poses can form a supported stable tower within 20.26 seconds');
+  measurements.drops = scene.state.drops;
+  assert(scene.mode === 'done' && scene.state.held >= 3 && scene.state.held < 3.02 && scene.state.groundedCount >= 3, 'Bent poses clear only after three continuous seconds at target within 20.26 seconds');
   return { passed: checks.length, checks, measurements };
 })()
