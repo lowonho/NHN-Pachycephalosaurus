@@ -11,12 +11,12 @@
   };
   const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets'].includes(key) ? undefined : value)) });
   load('e1');
+  const flippedGates = new Set();
   advance(20.3, () => {
     const s = scene.state;
-    // 다음 가시가 붙어 있는 벽과 같은 쪽이면 도달 250px 전에 미리 반전합니다.
-    // 반전에 약 112px이 필요하고, 가시 바로 앞의 떠 있는 장애물을 지난 뒤여야 하므로 이 시점이 유일한 안전 구간입니다.
+    // 다음 묶음 110px 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
     const next = scene.hurdles.find(h => h.x - s.x > -15);
-    if (next && next.x - s.x < 250 && (next.ceiling ? -1 : 1) === s.sign) scene.primaryAction();
+    if (next && next.x - s.x < 110 && !flippedGates.has(next.x)) { flippedGates.add(next.x); scene.primaryAction(); }
   }); save('e1');
   load('e2'); scene.directionPress('right');
   advance(20.3, () => {
