@@ -4,9 +4,10 @@
  * 여는 법: 메인 화면 왼쪽 위 "2026 ARCHIVE"를 QA_UNLOCK_WINDOW_MS 안에 10번 누른다.
  * (켜져 있는 동안은 Shift+Q로도 패널을 여닫는다.)
  *
- * 하는 일은 둘뿐이다.
+ * 하는 일은 세 가지다.
  *   1) 10개 미니게임 중 아무거나 바로 연다 — 막별 선정 순서와 브리핑을 건너뛴다.
  *   2) 한 판의 제한시간을 20.26초 대신 다른 값으로 준다.
+ *   3) 오프닝부터 엔딩까지 스토리 컷신을 진행 상태와 무관하게 바로 재생한다.
  *
  * 1)은 엔진이 "현재 막에 뽑힌 6개"만 열어 주기 때문에(js/game.js의 start) 그냥
  * 시작시킬 수 없다. 그래서 이번 판의 선택 목록을 10개 전부로 갈아 끼운다
@@ -26,12 +27,46 @@ const QA_UNLOCK_WINDOW_MS = 800;
 /* 눌리고 있다는 힌트를 슬쩍 주기 시작하는 지점(그 전에는 티가 나지 않는다). */
 const QA_UNLOCK_HINT_FROM = 5;
 
+const QA_STORY_LABELS = Object.freeze({
+  opening: "오프닝 · 아카이브 진입",
+  assist: "CS-H1 · 보조 절차",
+  betrayal: "CS-01 · 복구 기록 회수",
+  source: "CS-02 · 삭제 주체",
+  experiment: "CS-03 · 기억 소거 실험",
+  ending: "CS-06 · ARIA-26 폐기",
+});
+
+const QA_SCENE_LABELS = Object.freeze({
+  "op-01": "OP-01 반복되는 피드",
+  "op-02": "OP-02 일괄 삭제",
+  "op-03": "OP-03 삭제된 장면 재현",
+  "op-05": "OP-05 완전기억 소지자",
+  "op-09": "OP-09 아카이브 진입",
+  assist: "CS-H1 보조 절차 활성화",
+  betrayal: "CS-01 복구 기록 강제 회수",
+  source: "CS-02 삭제 실행 주체 확인",
+  experiment: "CS-03 성공한 기억 소거 실험",
+  "ending-a": "CS-06A 최종 증거 전송",
+  "ending-b": "CS-06B 개발자 검증",
+  "ending-c": "CS-06C ARIA-26 폐기",
+  "ending-a-break": "CS-06A 최종 증거 전송",
+  "ending-d": "CS-06D 복구 기록 귀환",
+});
+
+const QA_CUE_KIND_LABELS = Object.freeze({
+  dialogue: "대사",
+  narration: "장면 설명",
+  system: "화면 문구",
+  silent: "무대사/정적",
+});
+
 class QaModeFlow {
-  constructor(events, dom, soundBus, protocolSelect, catalog) {
+  constructor(events, dom, soundBus, protocolSelect, cutscene, catalog) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.protocolSelect = protocolSelect;
+    this.cutscene = cutscene;
 
     /* 엔진이 뜨면 game.js가 더 자세한 목록으로 갈아 끼운다(setStages). */
     this.catalog = catalog;
@@ -130,7 +165,7 @@ class QaModeFlow {
     this.renderTiles();
     this.ui.qaPanel?.classList.remove("hidden");
     this.ui.mainMenu?.setAttribute("inert", "");
-    this.ui.qaPanel?.querySelector(".qa-stage")?.focus();
+    this.ui.qaPanel?.querySelector(".qa-story-button, .qa-stage")?.focus();
   }
 
   close() {
@@ -200,6 +235,52 @@ class QaModeFlow {
     const ids = this.catalog.map((stage) => stage.id);
     const snapshot = window.archiveRun?.setSelection(ids);
     if (snapshot) this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
+  }
+
+  /* QA 컷신의 각 줄에 장면·장면 내 순번·전체 큐 순번을 붙인다. 원본 대본은 변경하지 않는다. */
+  buildStoryPreviewScript(script) {
+    const source = Array.isArray(script) ? script : [];
+    const kindOf = (cue) => cue.kind ?? (cue.speaker === "SYSTEM" ? "system" : "dialogue");
+    const countKey = (cue) => `${cue.phase ?? "scene"}\u0000${kindOf(cue)}`;
+    const totals = new Map();
+    const current = new Map();
+
+    source.forEach((cue) => {
+      const key = countKey(cue);
+      totals.set(key, (totals.get(key) ?? 0) + 1);
+    });
+
+    return source.map((cue, index) => {
+      const kind = kindOf(cue);
+      const key = countKey(cue);
+      const ordinal = (current.get(key) ?? 0) + 1;
+      current.set(key, ordinal);
+      const scene = QA_SCENE_LABELS[cue.phase] ?? String(cue.phase ?? "SCENE").toUpperCase();
+      const cueType = QA_CUE_KIND_LABELS[kind] ?? kind;
+      return {
+        ...cue,
+        chapterLabel: `QA // ${scene} · ${cueType} ${ordinal}/${totals.get(key)} · 큐 ${index + 1}/${source.length}`,
+      };
+    });
+  }
+
+  /* 진행 기록·본편의 시청 완료 상태를 건드리지 않는 독립 컷신 미리보기. */
+  playStory(storyId) {
+    const story = SCENARIO_DATA.cutscenes[storyId];
+    if (!this.active || !story) return;
+    this.soundBus.resume();
+    this.protocolSelect.close();
+    this.close();
+    this.ui.mainMenu?.setAttribute("inert", "");
+    this.cutscene.play({
+      chapter: `QA PREVIEW // ${story.chapter}`,
+      script: this.buildStoryPreviewScript(story.script),
+      auto: story.auto,
+      forceDisplay: true,
+      onDone: () => {
+        if (this.active) this.open();
+      },
+    });
   }
 
   /* ── 바로 진입 ───────────────────────────────────────────────────── */
@@ -276,6 +357,7 @@ class QaModeFlow {
   }
 
   renderTiles() {
+    this.renderStoryTiles();
     const grid = this.ui.qaStageGrid;
     if (!grid) return;
     grid.replaceChildren();
@@ -310,6 +392,35 @@ class QaModeFlow {
     });
   }
 
+  renderStoryTiles() {
+    const grid = this.ui.qaStoryGrid;
+    if (!grid) return;
+    grid.replaceChildren();
+
+    Object.entries(SCENARIO_DATA.cutscenes).forEach(([storyId, story], index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "qa-story-button";
+      button.dataset.storyId = storyId;
+
+      const code = document.createElement("span");
+      code.className = "qa-story-code";
+      code.textContent = String(index + 1).padStart(2, "0");
+
+      const title = document.createElement("strong");
+      title.className = "qa-story-title";
+      title.textContent = QA_STORY_LABELS[storyId] ?? story.chapter;
+
+      button.append(code, title);
+      const dialogueCount = story.script.filter((cue) => (cue.kind ?? "dialogue") === "dialogue").length;
+      const systemCount = story.script.filter((cue) => cue.kind === "system").length;
+      const sceneCount = new Set(story.script.map((cue) => cue.phase)).size;
+      button.title = `${story.chapter}\n장면 ${sceneCount} · 대사 ${dialogueCount} · 화면 문구 ${systemCount}`;
+      button.addEventListener("click", () => this.playStory(storyId));
+      grid.append(button);
+    });
+  }
+
   /* 안내 줄을 잠깐 경고로 바꾼다(프로토콜 선택의 warnEngineMissing과 같은 방식). */
   showHint(message) {
     const hint = this.ui.qaHint;
@@ -330,5 +441,6 @@ const qaModeFlow = new QaModeFlow(
   UI,
   audioBus,
   protocolSelectFlow,
+  cutsceneFlow,
   PROTOCOLS,
 );

@@ -28,11 +28,9 @@
   load('e4');
   assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
   const e4 = scene.stageGame, grid = e4.grid, bounds = e4.tileRect(grid.cols - 1, grid.rows - 1);
-  // 필드(가로 20~940, 세로 61.75~579.25) 안에 들어가고, 아래 조작 안내 줄과도 겹치지 않는다.
   assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 540, 'e4: whole maze fits fixed viewport');
-  assert(grid.passageX >= 80 && grid.passageY >= 80 && grid.wall === 12, 'e4: wide passages with thin walls');
-  assert(!scene.readout?.visible && bounds.y + bounds.h === 384, 'e4: explanation row is replaced with a taller playable maze');
-  // 위아래 여백이 같아야 미로가 위로 쏠려 보이지 않는다.
+  assert(grid.passageX >= 60 && grid.passageY >= 80 && grid.wall === 28, 'e4: passable lanes with wider building walls');
+  assert(!scene.readout?.visible && bounds.y + bounds.h === 382, 'e4: explanation row is replaced with a taller playable maze');
   const topGap = grid.y - 61.75, bottomGap = 579.25 - (grid.y + bounds.y + bounds.h);
   assert(Math.abs(topGap - bottomGap) <= 1 && Math.abs((grid.x - 20) - (940 - grid.x - bounds.x - bounds.w)) <= 1, 'e4: maze sits centered in the field');
   const direction = scene.state.tiles[1][2] === 0 ? 'right' : 'down';
@@ -45,7 +43,7 @@
   assert(Math.abs(second - first) < .001 && scene.state.speed === 340 && scene.actions === 1, 'e4: held input keeps constant speed after one tap');
   scene.directionRelease(direction);
   const storedSpeed = scene.state.speed;
-  const stop = { x: scene.state.x, y: scene.state.y }; advance(.1);
+  const stop = { x: scene.state.x, y: scene.state.y }; advance(.18);
   assert(Math.hypot(scene.state.x - stop.x, scene.state.y - stop.y) > 2 && !scene.state.moving, 'e4: release glides briefly before stopping');
   assert(scene.state.speed === storedSpeed, 'e4: stopping cannot reset accumulated speed');
   scene.directionPress(direction); advance(1 / 120);
@@ -61,7 +59,7 @@
   assert(Math.abs(Math.hypot(scene.state.x - before.x, scene.state.y - before.y) - straightDistance) < .001, 'e4: diagonal input does not exceed cardinal speed');
   load('e4');
   scene.state.speed = e4.tuning.maxSpeed; scene.state.vx = -e4.tuning.maxSpeed; scene.directionPress('left'); advance(.3);
-  assert(scene.state.x >= grid.wall + e4.tuning.radius && scene.state.hits === 1 && !e4.wallsAt.call(scene, scene.state.x, scene.state.y).length, 'e4: maximum speed cannot tunnel through a 12px wall');
+  assert(scene.state.x >= grid.wall + e4.tuning.radius && scene.state.hits === 1 && !e4.wallsAt.call(scene, scene.state.x, scene.state.y).length, 'e4: maximum speed cannot tunnel through a 28px wall');
   load('e4');
   scene.directionPress('right'); advance(.1);
   const beforeTurn = scene.state.speed;
@@ -72,36 +70,34 @@
   load('e4');
   for (let tap = 1; tap <= 12; tap++) {
     scene.directionPress('right'); scene.directionPress('right');
-    assert(scene.state.speed === Math.min(1100, 240 + tap * 100) && scene.actions === tap, 'e4: tap ' + tap + ' adds one capped speed step');
+    assert(scene.state.speed === Math.min(800, 240 + tap * 100) && scene.actions === tap, 'e4: tap ' + tap + ' adds one capped speed step');
     scene.directionRelease('right');
   }
   advance(.2);
-  assert(scene.state.speed === 1100 && scene.state.vx === 0, 'e4: released input retains capped speed without automatic movement');
+  assert(scene.state.speed === 800 && scene.state.vx === 0, 'e4: released input retains capped speed without automatic movement');
   const coast = (speed, step = 1 / 120) => {
     load('e4');
+    // Isolate stopping distance from the randomly placed first corner.
+    for (let col = 1; col < grid.cols - 1; col++) scene.state.tiles[1][col] = 0;
     const initialX = scene.state.x;
     Object.assign(scene.state, { speed, vx: speed, vy: 0 });
-    for (let i = 0; i < Math.ceil(.3 / step); i++) e4.update.call(scene, step);
+    for (let i = 0; i < Math.ceil(.5 / step); i++) e4.update.call(scene, step);
     assert(scene.state.vx === 0 && scene.state.vy === 0 && scene.state.hits === 0, 'e4: braking reaches rest in open corridor');
     return scene.state.x - initialX;
   };
-  const lowDrift = coast(280), highDrift = coast(1100);
-  assert(lowDrift > 8 && lowDrift < 11 && highDrift > 106 && highDrift < 116, 'e4: high speed slides over about 112px versus 10px at low speed');
-  // 관성이 남는 구간: 등감속이라면 이미 서 있을 시점에도 아직 미끄러지는 중이어야 한다.
-  load('e4'); Object.assign(scene.state, { speed: 1100, vx: 1100, vy: 0 });
-  for (let i = 0; i < 18; i++) e4.update.call(scene, 1 / 120);
-  assert(scene.state.vx > 240 && scene.state.vx < 360 && scene.state.moving, 'e4: releasing at top speed still coasts after 0.15s');
-  assert(Math.abs(coast(1100, 1 / 60) - highDrift) < .001, 'e4: brake distance stays consistent across simulation step sizes');
-  load('e4'); Object.assign(scene.state, { x: 30, speed: 1100, vx: -1100, vy: 0 });
+  const lowDrift = coast(280), highDrift = coast(800);
+  assert(lowDrift > 15 && lowDrift < 18 && highDrift > 131 && highDrift < 135, 'e4: high speed brakes over about 133px versus 16px at low speed');
+  assert(Math.abs(coast(800, 1 / 60) - highDrift) < .001, 'e4: brake distance stays consistent across simulation step sizes');
+  load('e4'); Object.assign(scene.state, { x: grid.wall + 18, speed: 800, vx: -800, vy: 0 });
   advance(.2);
   assert(scene.state.hits === 1 && scene.timePenalty === 1 && scene.state.x >= 22 && scene.state.vx === 0, 'e4: braking into wall stops drift and costs one second');
   advance(.2);
   assert(scene.state.hits === 1, 'e4: stopped drift does not repeatedly charge wall penalty');
-  load('e4'); Object.assign(scene.state, { speed: 1100, vx: 1100, vy: 0 });
+  load('e4'); Object.assign(scene.state, { speed: 800, vx: 800, vy: 0 });
   const frozenX = scene.state.x;
   archiveGame.pause(true); scene.update(0, 500);
-  assert(scene.state.x === frozenX && scene.state.vx === 1100, 'e4: pause freezes braking motion');
-  archiveGame.pause(false); advance(.3);
+  assert(scene.state.x === frozenX && scene.state.vx === 800, 'e4: pause freezes braking motion');
+  archiveGame.pause(false); advance(.4);
   assert(scene.state.x > frozenX && scene.state.vx === 0, 'e4: resume completes pending braking');
   load('e4'); advance(20.3);
   assert(scene.mode === 'done' && scene.remaining === 0 && Math.abs(scene.elapsed - 20.26) < .001, 'e4: time expires at 20.26 seconds');

@@ -1451,17 +1451,14 @@ const E3_HUMAN_STACK = {
 
 /* Source: stages/e4_accelerationDash.js */
 
-/* 방과 벽을 번갈아 놓은 미로의 전체 크기(876×384). 화면 한가운데 놓으려면 먼저 재야 한다. */
-const MAZE = { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12 };
+// 통로와 건물 벽을 포함한 전체 크기로 미로를 필드 중앙에 배치한다.
+const MAZE = { cols: 19, rows: 7, passageX: 66, passageY: 90, wall: 28 };
 const MAZE_W = (MAZE.cols - 1) / 2 * (MAZE.passageX + MAZE.wall) + MAZE.wall;
 const MAZE_H = (MAZE.rows - 1) / 2 * (MAZE.passageY + MAZE.wall) + MAZE.wall;
 
 const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
-  // brake는 속도와 무관한 마찰, drag는 속도에 비례하는 저항(1/초)이다. 둘을 더한 값이
-  // 감속도라서, 손을 떼면 처음에는 크게 깎이고 끝에서는 관성으로 미끄러지며 멈춘다.
-  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 3600, drag: 2.6, radius: 10, wallPenalty: 1 },
-  // 미로는 화면(필드) 정중앙에 놓는다. 위아래 여백이 같아야 위로 쏠려 보이지 않는다.
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 800, brake: 2400, radius: 10, wallPenalty: 1 },
   grid: { ...MAZE, x: Math.round(MINI.FIELD.cx - MAZE_W / 2), y: Math.round(MINI.FIELD.cy - MAZE_H / 2) },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
@@ -1511,10 +1508,11 @@ const E4_ACCELERATION_DASH = {
     return { tiles, goal };
   },
   build() {
-    MINI.init(this, 0xc6a2ff);
+    MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
       speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+    E4_VILLAGE.build(this, E4);
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
   },
@@ -1556,14 +1554,11 @@ const E4_ACCELERATION_DASH = {
       const velocity = Math.hypot(s.vx, s.vy);
       s.braking = velocity > 0;
       if (velocity > 0) {
-        // v' = -(brake + drag * v)의 해를 그대로 쓴다. 정지하는 마지막 스텝도 정확히
-        // 적분하므로 프레임 간격이 달라져도 미끄러진 거리는 같다. 고속일수록 길게 밀린다.
-        const hold = t.brake / t.drag;  // 저항이 마찰과 같아지는 속도. 관성이 남는 구간의 기준이다.
-        const stopTime = Math.log(1 + velocity / hold) / t.drag;
-        const step = Math.min(dt, stopTime), decay = Math.exp(-t.drag * step);
-        const distance = (velocity + hold) * (1 - decay) / t.drag - hold * step;
+        // 정지하는 마지막 스텝도 정확히 적분한다. 고속일수록 제동 거리가 길어진다.
+        const brakeTime = Math.min(dt, velocity / t.brake);
+        const distance = velocity * brakeTime - .5 * t.brake * brakeTime * brakeTime;
         moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
-        const factor = step < stopTime ? Math.max(0, (velocity + hold) * decay - hold) / velocity : 0;
+        const factor = Math.max(0, velocity - t.brake * dt) / velocity;
         s.vx *= factor; s.vy *= factor;
       }
     }
@@ -1609,13 +1604,7 @@ const E4_ACCELERATION_DASH = {
     MINI.frame(this);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
-    this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
-    for (let row = 0; row < g.rows; row++) for (let col = 0; col < g.cols; col++) {
-      if (!s.tiles[row][col]) continue;
-      const r = E4.tileRect(col, row), px = sx(r.x), py = sy(r.y);
-      this.ink.fillStyle(0x4a3b69).fillRect(px, py, r.w, r.h);
-      this.ink.lineStyle(1, 0x9476b5, .65).strokeRect(px + 1, py + 1, r.w - 2, r.h - 2);
-    }
+    E4_VILLAGE.ground(this, E4, extent);
     // 속도가 높아질수록 길고 밝아지는 이동 궤적과 캐릭터 양옆의 속도선.
     for (let i = 1; i < s.trail.length; i++) {
       const a = s.trail[i - 1], b = s.trail[i], alpha = i / s.trail.length;
@@ -1636,8 +1625,71 @@ const E4_ACCELERATION_DASH = {
         this.ink.lineStyle(2, 0xe3d6ff, boost * .7).lineBetween(x, y, x - ux * (12 + boost * 26), y - uy * (12 + boost * 26));
       }
     }
-    MINI.actor(this, 'player', 'player', sx(s.x), sy(s.y), 20, 20, 0, s.flash ? 0xff8799 : this.accent);
+    E4_VILLAGE.player(this, sx(s.x), sy(s.y));
     MINI.meter(this, boost);
+  },
+};
+
+// Rendering only: footprints never alter route(), tiles, or wallsAt().
+const E4_VILLAGE = {
+  // Future 1x2 art can use {cellsW:1,cellsH:2}, provided both slots are walls.
+  buildings: [{ role: 'tileRoof', cellsW: 1, cellsH: 1 }, { role: 'thatch', cellsW: 1, cellsH: 1 }],
+  actor: { role: 'player', cellFraction: .7 },
+  build(scene, game) {
+    const grid = game.grid, unit = grid.wall;
+    scene.village = { buildings: [], facingLeft: false };
+    // Bounds are measured from PNG alpha, not the padded image dimensions.
+    for (const role of ['player', 'tileRoof', 'thatch']) {
+      if (!scene.textures.exists('e4:' + role) || !globalThis.E4_VILLAGE_BOUNDS?.[role]) continue;
+      const texture = scene.textures.get('e4:' + role);
+      const bounds = globalThis.E4_VILLAGE_BOUNDS[role];
+      if (!texture.has('art')) texture.add('art', 0, ...bounds);
+    }
+    const available = E4_VILLAGE.buildings.filter(b => scene.textures.exists('e4:' + b.role));
+    const occupied = new Set();
+    for (let row = 0; row < grid.rows; row++) for (let col = 0; col < grid.cols; col++) {
+      if (!scene.state.tiles[row][col]) continue;
+      const wall = game.tileRect(col, row);
+      for (let y = wall.y; y + unit <= wall.y + wall.h; y += unit) for (let x = wall.x; x + unit <= wall.x + wall.w; x += unit) {
+        const key = x + ',' + y;
+        if (occupied.has(key)) continue;
+        // Coordinate hash does not consume the gameplay RNG or change future maps.
+        const variant = available[((col * 31 + row * 17 + x + y) >>> 0) % available.length];
+        if (!variant) continue;
+        const w = variant.cellsW * unit, h = variant.cellsH * unit;
+        if (x + w > wall.x + wall.w || y + h > wall.y + wall.h) continue;
+        for (let yy = y; yy < y + h; yy += unit) for (let xx = x; xx < x + w; xx += unit) occupied.add(xx + ',' + yy);
+        const image = scene.add.image(grid.x + x + w / 2, grid.y + y + h / 2, 'e4:' + variant.role, 'art').setDepth(1);
+        image.setScale(Math.min((w - 1) / image.width, (h - 1) / image.height));
+        scene.village.buildings.push({ image, x, y, w, h, col, row, role: variant.role });
+      }
+    }
+    const actor = E4_VILLAGE.actor;
+    if (!scene.textures.exists('e4:' + actor.role)) return;
+    scene.village.actor = scene.add.image(0, 0, 'e4:' + actor.role, 'art').setDepth(3);
+    const image = scene.village.actor, size = Math.min(grid.passageX, grid.passageY) * actor.cellFraction;
+    image.setScale(size / Math.max(image.width, image.height));
+  },
+  ground(scene, game, extent) {
+    const g = game.grid, ink = scene.ink, width = extent.x + extent.w, height = extent.y + extent.h;
+    ink.fillStyle(0x73756d).fillRect(g.x, g.y, width, height);
+    for (let y = 0; y < height; y += 24) for (let x = 0; x < width; x += 24) {
+      const shade = ((x * 13 + y * 7) % 5) / 100;
+      ink.fillStyle(0x292e29, .08 + shade).fillRect(g.x + x + 1, g.y + y + 1, Math.min(22, width-x-1), Math.min(22, height-y-1));
+    }
+    for (let row = 0; row < g.rows; row++) for (let col = 0; col < g.cols; col++) {
+      if (!scene.state.tiles[row][col]) continue;
+      const r = game.tileRect(col,row);
+      ink.fillStyle(0x374b3a).fillRect(g.x+r.x,g.y+r.y,r.w,r.h);
+      ink.lineStyle(1,0x9a967a,.65).strokeRect(g.x+r.x+.5,g.y+r.y+.5,r.w-1,r.h-1);
+    }
+  },
+  player(scene, x, y) {
+    const view = scene.village, s = scene.state;
+    if (!view.actor) { MINI.actor(scene, 'player', 'player', x, y, 20, 20, 0, s.flash ? 0xff8799 : scene.accent); return; }
+    if (Math.abs(s.vx) > .01) view.facingLeft = s.vx < 0;
+    view.actor.setPosition(x,y).setFlipX(view.facingLeft);
+    if (s.flash) view.actor.setTint(0xffb0a0); else view.actor.clearTint();
   },
 };
 
@@ -2259,43 +2311,73 @@ const E6_GRAVITY_FLIGHT = {
 /* Source: stages/e7_roulette.js */
 
 const E7_ROULETTE = {
-  tuning: { minSpeed: 7.5, maxSpeed: 21, minSpinSeconds: 1.2, extraTurns: 1 },
+  tuning: { countryCount: 8, minSpeed: 2.4, maxSpeed: 10, friction: 4, frictionDecay: .78, minFriction: 1.5 },
   build() {
     MINI.init(this, 0xfca8d6);
-    this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
-    this.add.text(723, 276, '꽝', { fontFamily: 'Arial', fontSize: '18px', color: '#a6b7ce' });
-    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0, poseAge: 0, result: '' };
+    const opponents = ['멕시코', '남아공', '체코'];
+    this.state.target = opponents[Math.floor(MINI.rand(0, opponents.length, this.random))];
+    const sheet = this.textures.get('e7:coach');
+    for (let i = 0; i < 4; i++) if (!sheet.has('pose' + i)) sheet.add('pose' + i, 0, i * 400, 0, 400, 793);
+    const back = this.textures.get('e7:coachBack');
+    if (!back.has('back')) back.add('back', 0, 580, 390, 380, 760);
+    this.coach = this.add.image(624, 175, 'e7:coach', 'pose0').setOrigin(0).setScale(.43).setDepth(3);
+    this.coachBack = this.add.image(757, 496, 'e7:coachBack', 'back').setOrigin(.5, 1).setDisplaySize(150, 300).setDepth(3).setVisible(false);
+    const textStyle = { fontFamily: 'Arial, sans-serif', fontSize: '18px', color: '#fff2cb', stroke: '#101d32', strokeThickness: 4 };
+    this.drawTitle = this.add.text(165, 290, '', { ...textStyle, align: 'center', lineSpacing: 12 }).setOrigin(.5);
+    this.drawResult = this.add.text(480, 520, '', textStyle).setOrigin(.5).setDepth(4);
+    this.countryLabels = [];
+    E7_ROULETTE.prepareCountries.call(this);
+    this.instruction.setText('원판에서 세로·대각선으로 쭉 그어 놓으세요 · 빠를수록 강하게');
+  },
+  prepareCountries() {
+    const s = this.state;
+    s.countries = [s.target, ...['멕시코', '남아공', '체코', '일본', '프랑스', '브라질', '독일', '이탈리아'].filter(country => country !== s.target)].slice(0, E7_ROULETTE.tuning.countryCount);
+    for (const label of this.countryLabels) label.destroy();
+    this.countryLabels = s.countries.map(country => this.add.text(0, 0, country, {
+      fontFamily: 'Arial, sans-serif', fontSize: '17px', fontStyle: 'bold', color: '#ffffff', stroke: '#18243b', strokeThickness: 3,
+    }).setOrigin(.5).setDepth(2));
   },
   pointerDown(x, y) {
     const s = this.state, radius = Math.hypot(x - 480, y - 321);
-    if (s.spinning || s.cooldown || radius < 25 || radius > 155) return;
-    s.drag = { last: Math.atan2(y - 321, x - 480), travel: 0, age: 0, velocity: 0, idle: 0 };
+    if (s.spinning || s.cooldown || radius > 155) return;
+    s.drag = { startX: x, startY: y, x, y, travel: 0, sweep: 0, age: 0, idle: 0 };
   },
   pointerMove(x, y) {
     const s = this.state, d = s.drag;
     if (!d) return;
-    const angle = Math.atan2(y - 321, x - 480);
-    const delta = Math.atan2(Math.sin(angle - d.last), Math.cos(angle - d.last));
-    d.travel += Math.abs(delta); d.velocity = delta / Math.max(.016, d.idle); d.idle = 0; d.last = angle; s.rotation += delta;
+    if (x === d.x && y === d.y) return;
+    d.x = x; d.y = y; d.idle = 0;
+    const dx = x - d.startX, dy = y - d.startY;
+    // Straight strokes work anywhere on the wheel, including through its centre.
+    // Downward/right-down strokes turn clockwise; upward strokes reverse it.
+    const direction = Math.abs(dy) >= Math.abs(dx) * .5 ? Math.sign(dy) : -Math.sign(dx);
+    d.travel = Math.hypot(dx, dy) / 100;
+    d.sweep = direction * d.travel;
   },
   pointerUp() {
     const s = this.state, d = s.drag, t = E7_ROULETTE.tuning;
     s.drag = null;
-    if (!d || d.travel < .1) return;
-    const direction = Math.sign(d.velocity) || 1;
-    s.speed = direction * MINI.clamp(Math.abs(d.velocity), t.minSpeed, t.maxSpeed);
-    // 균일한 한 바퀴의 추가 회전량으로 최종 각도를 균일하게 만듭니다.
-    // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
-    // extraTurns는 정수 바퀴이므로 균일성은 그대로 두고 회전량만 늘립니다.
-    // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2, this.random);
-    s.deceleration = s.speed * s.speed / (2 * travel);
-    s.spinning = true; this.actions++; this.sfx('click');
+    if (!d) return;
+    // The gesture imparts momentum without letting the mouse place the wheel.
+    // A quicker sweep over the same arc launches faster, in the swipe direction.
+    const speed = E7_ROULETTE.swipeSpeed.call(this, d);
+    if (d.travel < .12 || Math.abs(speed) < t.minSpeed) { s.result = '조금 더 빠르게 슥 돌려주세요'; return; }
+    s.speed = speed;
+    s.deceleration = E7_ROULETTE.friction.call(this);
+    s.spinning = true; s.poseAge = 0; s.result = ''; this.actions++; this.sfx('click');
   },
+  swipeSpeed(d) {
+    return MINI.clamp(d.sweep / Math.max(.06, d.age) * Math.exp(-Math.max(0, d.idle - .08) / .12), -E7_ROULETTE.tuning.maxSpeed, E7_ROULETTE.tuning.maxSpeed);
+  },
+  friction() { const t = E7_ROULETTE.tuning; return Math.max(t.minFriction, t.friction * t.frictionDecay ** this.state.misses); },
   cancelInput() { this.state.drag = null; },
   update(dt) {
     const s = this.state;
+
     s.cooldown = Math.max(0, s.cooldown - dt);
+
+    if (s.spinning) s.poseAge += dt;
     if (s.drag) { s.drag.age += dt; s.drag.idle += dt; }
     if (s.spinning) {
       const movingDt = Math.min(dt, Math.abs(s.speed) / s.deceleration);
@@ -2303,35 +2385,89 @@ const E7_ROULETTE = {
       s.rotation += (s.speed + next) * .5 * movingDt; s.speed = next;
       if (Math.abs(next) < .001) {
         s.spinning = false;
-        const tau = Math.PI * 2, atPointer = ((-Math.PI / 2 - s.rotation) % tau + tau) % tau;
-        if (atPointer < tau / (2 * (s.misses + 1))) this.finish(true, `${this.actions}번째 추첨 당첨`);
-        else { s.misses++; s.cooldown = .35; this.sfx('failure'); }
+        const tau = Math.PI * 2, atPointer = ((0 - s.rotation) % tau + tau) % tau;
+        if (atPointer < tau / s.countries.length) this.finish(true, `${this.actions}번째 추첨 당첨`);
+        else {
+          const selected = s.countries[Math.min(s.countries.length - 1, Math.floor(atPointer / tau * s.countries.length))];
+          s.misses++; s.cooldown = 1.1; s.result = selected + '… 축이 더 헐거워졌어요. 다음엔 힘을 조절해보세요'; this.sfx('failure');
+        }
       }
     }
-    this.anomaly = `당첨 영역 1/${2 * (s.misses + 1)} · ${s.spinning ? '추첨 중' : s.cooldown ? '꽝! 다시 돌리세요' : '룰렛을 휙 돌리세요'}`;
+    this.anomaly = s.spinning ? '관성으로 회전 중' : s.cooldown ? '축이 더 헐거워졌습니다' : '힘을 조절해 목표 국가를 맞히세요';
     this.risk = Math.min(100, s.misses * 17);
   },
-  render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1)), f = MINI.FIELD;
-    MINI.frame(this);
-    // 룰렛이 놓인 무대. 화면을 통째로 덮어 원판이 뜬금없이 떠 있지 않게 한다.
-    MINI.box(this, f.x, f.y, f.w, f.h, 0x1a1430, .55);
-    MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
-    const points = [{ x: 480, y: 321 }];
-    for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });
-    this.ink.fillStyle(0xffcf7b).fillPoints(points, true);
-    for (let i = 0; i < 40; i++) {
-      const a = s.rotation + i * tau / 40;
-      MINI.circle(this, 480 + Math.cos(a) * 153, 321 + Math.sin(a) * 153, 2, 0xfff1dd);
+  flag(country, x, y) {
+    const g = this.ink, w = 30, h = 18, left = x - 15, top = y - 9;
+    g.fillStyle(0xffffff).fillRect(left - 1, top - 1, w + 2, h + 2);
+    g.fillStyle(0xffffff).fillRect(left, top, w, h);
+    if (country === '멕시코' || country === '프랑스' || country === '이탈리아') {
+      g.fillStyle(country === '프랑스' ? 0x002395 : 0x006847).fillRect(left, top, 10, h);
+      g.fillStyle(0xce2939).fillRect(left + 20, top, 10, h);
+      if (country === '멕시코') g.fillStyle(0x916d32).fillCircle(x, y, 2.5);
+    } else if (country === '일본') g.fillStyle(0xbc002d).fillCircle(x, y, 5);
+    else if (country === '체코') {
+      g.fillStyle(0xd7141a).fillRect(left, y, w, 9);
+      g.fillStyle(0x11457e).fillTriangle(left, top, x, y, left, top + h);
+    } else if (country === '독일') {
+      g.fillStyle(0x171717).fillRect(left, top, w, 6);
+      g.fillStyle(0xdd0000).fillRect(left, top + 6, w, 6);
+      g.fillStyle(0xffce00).fillRect(left, top + 12, w, 6);
+    } else if (country === '브라질') {
+      g.fillStyle(0x009739).fillRect(left, top, w, h);
+      g.fillStyle(0xffdf00).fillPoints([{x:left+2,y},{x,y:top+2},{x:left+w-2,y},{x,y:top+h-2}], true);
+      g.fillStyle(0x002776).fillCircle(x, y, 5);
+      g.lineStyle(1, 0xffffff).lineBetween(x - 4, y - 1, x + 4, y + 1);
+    } else {
+      g.fillStyle(0xde3831).fillRect(left, top, w, 9);
+      g.fillStyle(0x002395).fillRect(left, y, w, 9);
+      g.lineStyle(9, 0xffffff).lineBetween(left, top, x, y).lineBetween(left, top+h, x, y).lineBetween(x,y,left+w,y);
+      g.lineStyle(5, 0x007a4d).lineBetween(left, top, x,y).lineBetween(left,top+h,x,y).lineBetween(x,y,left+w,y);
+      g.fillStyle(0xffb612).fillTriangle(left,top+2,left+11,y,left,top+h-2);
+      g.fillStyle(0x000000).fillTriangle(left,top+4,left+8,y,left,top+h-4);
     }
-    MINI.circle(this, 480, 321, 28, 0x142c3b);
-    MINI.actor(this, 'prize', 'prize', 480, 321, 30, 30, 0, 0xfca8d6);
-    MINI.spike(this, 465, 151, 30, 28, 0xfaffec);
-    MINI.line(this, 675, 254, 707, 254, 0xffcf7b, 14);
-    MINI.line(this, 675, 287, 707, 287, 0x66748f, 14);
+  },
+  render() {
+    const s = this.state, tau = Math.PI * 2, count = s.countries.length, angle = tau / count, f = MINI.FIELD;
+    const rotation = s.rotation;
+    MINI.frame(this);
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x101e36);
+    // Draw-stage curtains, gold trim, floor and wheel pedestal.
+    for (let x = 30; x < 940; x += 48) MINI.box(this, x, f.y, 22, f.h, 0x253454, .3);
+    MINI.box(this, 20, 493, 920, 86, 0x172337);
+    MINI.line(this, 35, 493, 925, 493, 0xcfa762, 2);
+    MINI.box(this, 464, 420, 32, 74, 0x987441);
+    MINI.box(this, 418, 484, 124, 12, 0xcfa762);
+    MINI.circle(this, 480, 321, 160, 0xcfa762);
+    for (let sector = 0; sector < count; sector++) {
+      const points = [{ x: 480, y: 321 }];
+      for (let i = 0; i <= 40; i++) {
+        const a = rotation + angle * (sector + i / 40);
+        points.push({ x: 480 + Math.cos(a) * 150, y: 321 + Math.sin(a) * 150 });
+      }
+      this.ink.fillStyle(sector === 0 ? 0xd5a64e : sector % 2 ? 0x345777 : 0x243d5f).fillPoints(points, true);
+      const a = rotation + angle * (sector + .5);
+      E7_ROULETTE.flag.call(this, s.countries[sector], 480 + Math.cos(a) * 108, 311 + Math.sin(a) * 108);
+      this.countryLabels[sector].setPosition(480 + Math.cos(a) * 108, 335 + Math.sin(a) * 108).setFontSize(15);
+    }
+    for (let i = 0; i < 40; i++) {
+      const a = rotation + i * tau / 40;
+      MINI.circle(this, 480 + Math.cos(a) * 155, 321 + Math.sin(a) * 155, 2, 0xfff1dd);
+    }
+    MINI.circle(this, 480, 321, 25, 0xcfa762);
+    MINI.circle(this, 480, 321, 17, 0x172337);
+    this.ink.fillStyle(0xfff2bd).fillTriangle(644, 321, 665, 310, 665, 332);
+    const failed = s.cooldown > 0 || (this.mode === 'done' && this.remaining <= 0);
+    this.coach.setVisible(!failed).setFrame('pose' + (s.spinning ? Math.min(3, Math.floor(s.poseAge / .12)) : 0));
+    this.coachBack.setVisible(failed);
+    this.drawTitle.setText('대한민국의 상대\n\n목표 ' + s.target + '\n마찰 ' + Math.round(E7_ROULETTE.friction.call(this) / E7_ROULETTE.tuning.friction * 100) + '%');
+    if (s.drag) {
+      const power = Math.abs(E7_ROULETTE.swipeSpeed.call(this, s.drag)) / E7_ROULETTE.tuning.maxSpeed;
+      MINI.box(this, 365, 513, 230, 9, 0x34455a);
+      MINI.box(this, 365, 513, 230 * power, 9, power * E7_ROULETTE.tuning.maxSpeed >= E7_ROULETTE.tuning.minSpeed ? 0xe9bd68 : 0x90a4b7);
+    }
+    this.drawResult.setText(s.drag ? '' : s.cooldown ? s.result : s.spinning ? '관성으로 회전 중' : s.result);
   },
 };
-
 
 /* Source: stages/e8_webSwing.js */
 
@@ -2340,6 +2476,7 @@ const E8_WEB_SWING = {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
     airGravity: 1600, weightGain: .25,
     retryDelay: .32,
+    startAngle: -1.0,
     spacing: 660, anchorCount: 22, fallY: 710,
   },
   build() {
@@ -2362,7 +2499,7 @@ const E8_WEB_SWING = {
   },
   respawn() {
     const s = this.state, t = E8_WEB_SWING.tuning;
-    s.rope = { anchor: s.checkpoint, length: 270, theta: -.7,
+    s.rope = { anchor: s.checkpoint, length: 270, theta: s.deaths === 0 && s.checkpoint === 0 ? t.startAngle : -.7,
       omega: t.speed * s.multiplier / 270, starter: true };
     E8_WEB_SWING.pose.call(this);
     s.trail = [];
@@ -2688,8 +2825,12 @@ const E9_ICE_CURLING = {
 
 /* Source: stages/e10_numberDecode.js */
 
-const PLAYER = Object.freeze({ width: 30, height: 44 });
+// 가로 조준 폭은 유지하고, 세로는 96px 스프라이트의 실제 머리~발 높이에 맞춘다.
+const PLAYER = Object.freeze({ width: 30, height: 84 });
 const GROUND_Y = 474;
+// 왼쪽을 보는 정사각 셀 4열. 해상도는 시트에서 읽고 발끝은 셀 높이의 95%에 맞춘다.
+const E10_SKATER = Object.freeze({ size: 96, foot: .95, columns: 4 });
+const E10_FROST = Object.freeze({ veil: .28, facet: .66 });
 
 const moveTowardZero = (value, amount) => (
   Math.abs(value) <= amount ? 0 : value - Math.sign(value) * amount
@@ -2718,7 +2859,7 @@ const E10_NUMBER_DECODE = {
   },
 
   build() {
-    MINI.init(this, 0xf4c76b);
+    MINI.init(this, 0x8cecff);
     const target = makeTarget(this.random);
     this.state = {
       x: 480,
@@ -2735,7 +2876,48 @@ const E10_NUMBER_DECODE = {
       feedbackUntil: 2.2,
       lastHit: null,
       lastHitCorrect: true,
+      facing: -1,
+      glidePhase: 0,
+      jumpAt: -1,
+      landedAt: -1,
+      iceMarks: [],
+      iceChips: [],
+      lastMarkX: 480,
     };
+
+    // 일반 이미지 로더를 그대로 사용해 file://에서도 시트를 읽고, 프레임은 한 번만 등록한다.
+    for (const [role, count] of [['glide', 4], ['jump', 8]]) {
+      const key = `e10:${role}`;
+      if (!this.textures.exists(key)) continue;
+      const texture = this.textures.get(key);
+      const source = texture.getSourceImage();
+      const cell = source.width / E10_SKATER.columns;
+      if (!Number.isInteger(cell) || cell <= 0 || source.height !== cell * count / E10_SKATER.columns) continue;
+      for (let index = 0; index < count; index++) {
+        const frame = `pose-${index}`;
+        if (!texture.has(frame)) texture.add(frame, 0,
+          index % E10_SKATER.columns * cell,
+          Math.floor(index / E10_SKATER.columns) * cell,
+          cell, cell);
+      }
+    }
+    this.skater = null;
+    if (this.textures.exists('e10:glide') && this.textures.exists('e10:jump')
+      && this.textures.get('e10:glide').has('pose-3') && this.textures.get('e10:jump').has('pose-7')) {
+      this.skater = this.add.image(480, GROUND_Y, 'e10:glide', 'pose-0')
+        .setOrigin(.5, E10_SKATER.foot)
+        .setDisplaySize(E10_SKATER.size, E10_SKATER.size).setMask(this.ink.mask);
+    }
+    this.add.text(480, 239, 'CHA JUN-HWAN  /  ICE CODE', {
+      fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold',
+      color: '#b5d5e4', letterSpacing: 2,
+    }).setOrigin(.5);
+    this.add.text(769, 178, 'MILANO CORTINA 2026', {
+      fontFamily: 'Arial, sans-serif', fontSize: '19px', fontStyle: 'bold', color: '#e3f7ff',
+    }).setOrigin(.5);
+    this.add.text(769, 205, '2026 밀라노 동계올림픽', {
+      fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#a4cadb',
+    }).setOrigin(.5);
 
     this.digitBlocks = Array.from({ length: 10 }, (_, digit) => ({
       digit: String(digit),
@@ -2746,19 +2928,12 @@ const E10_NUMBER_DECODE = {
     }));
     const targetStyle = {
       fontFamily: 'monospace', fontSize: '42px', fontStyle: 'bold',
-      color: '#fff4bf', stroke: '#7a315a', strokeThickness: 3,
+      color: '#91b5c5', stroke: '#30516a', strokeThickness: 1,
     };
     this.targetGlyphs = [...target].map((digit, index) => this.add.text(420 + index * 40, 193, digit, targetStyle).setOrigin(.5));
-    // 글자를 다 가로지르지 않고, 숫자 위에 짧게 겹치는 선 2개만 얹는다.
-    this.targetScribbles = [...target].flatMap((digit, index) => {
-      const x = 420 + index * 40;
-      const offset = (Number(digit) * 5 + index * 3) % 7 - 3;
-      return [
-        { x1: x - 15, y1: 178 + offset, x2: x + 15, y2: 188 + offset, color: 0xff4f87, width: 3 },
-        { x1: x - 14, y1: 198 - offset, x2: x + 14, y2: 208 - offset, color: 0x67e8ff, width: 2 },
-      ];
-    });
-    this.scribbleInk = this.add.graphics();
+    // 숫자 위에 서리를 얹는다. 결정 배치는 정답과 무관하고 플레이 중에는 움직이지 않는다.
+    this.targetFrost = Array.from({ length: 4 }, (_, index) => ({ x: 420 + index * 40, offset: index * 3 % 5 - 2 }));
+    this.frostInk = this.add.graphics().setMask(this.ink.mask);
     this.blockLabels = this.digitBlocks.map(block => this.add.text(block.x + block.w / 2, block.y + block.h / 2, block.digit, {
       fontFamily: 'monospace', fontSize: '27px', fontStyle: 'bold', color: '#102536',
     }).setOrigin(.5));
@@ -2768,6 +2943,8 @@ const E10_NUMBER_DECODE = {
     this.feedbackText = this.add.text(480, 389, '', {
       fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#a8c6d2',
     }).setOrigin(.5);
+    // 캐릭터가 점수판/안내 글자 뒤로 숨지 않도록 표시 순서만 올린다.
+    this.skater?.setDepth(2);
   },
 
   press(direction) {
@@ -2788,6 +2965,7 @@ const E10_NUMBER_DECODE = {
     if (!s.grounded) return;
     s.vy = -E10_NUMBER_DECODE.tuning.jump;
     s.grounded = false;
+    s.jumpAt = this.elapsed;
     this.actions += 1;
     this.sfx('jump');
   },
@@ -2823,8 +3001,10 @@ const E10_NUMBER_DECODE = {
 
   update(dt) {
     const s = this.state;
+    const wasGrounded = s.grounded;
     const t = E10_NUMBER_DECODE.tuning;
     const axis = this.axis('left', 'right');
+    if (s.grounded && axis) s.facing = axis;
     const traction = E10_NUMBER_DECODE.traction(s);
     if (axis) s.vx = MINI.clamp(s.vx + axis * t.acceleration * traction * dt, -t.maxSpeed, t.maxSpeed);
     else s.vx = moveTowardZero(s.vx, s.friction * dt);
@@ -2862,24 +3042,50 @@ const E10_NUMBER_DECODE = {
       s.grounded = false;
     }
 
+    if (s.grounded && !wasGrounded) {
+      s.landedAt = this.elapsed;
+      s.lastMarkX = s.x;
+      if (this.settings.effects) {
+        for (let index = 0; index < 10; index++) s.iceChips.push({
+          x: s.x, y: GROUND_Y - 1, vx: (index - 4.5) * 22 + s.vx * .15,
+          vy: -45 - index % 3 * 25, age: 0,
+        });
+      }
+    }
+    // 관성 이동은 선 자세로 활주하고, 방향 입력으로 밀 때만 다리를 움직인다.
+    if (s.grounded && axis) s.glidePhase += Math.abs(s.vx) * dt / 95;
+    else s.glidePhase = 0;
+    if (this.settings.effects) {
+      if (s.grounded && Math.abs(s.x - s.lastMarkX) >= 5) {
+        s.iceMarks.push({ from: s.lastMarkX, to: s.x, age: 0 });
+        s.lastMarkX = s.x;
+      } else if (!s.grounded) s.lastMarkX = s.x;
+      s.iceMarks.forEach(mark => { mark.age += dt; });
+      s.iceMarks = s.iceMarks.filter(mark => mark.age < 1.6).slice(-160);
+      s.iceChips.forEach(chip => {
+        chip.age += dt; chip.vy += 320 * dt;
+        chip.x += chip.vx * dt; chip.y += chip.vy * dt;
+      });
+      s.iceChips = s.iceChips.filter(chip => chip.age < .38);
+    } else {
+      s.iceMarks.length = 0; s.iceChips.length = 0; s.lastMarkX = s.x;
+    }
+
     this.anomaly = `마찰 ${Math.round(s.friction)} · 가속력 ${Math.round(traction * 100)}% · 오답 ${s.mistakes}회`;
     this.risk = (t.baseFriction - s.friction) / (t.baseFriction - t.minFriction) * 100;
   },
 
   render() {
     const s = this.state;
-    MINI.frame(this, `AI READ ERROR    TARGET 4 DIGITS    INPUT ${s.input.length}/4`);
+    E10_NUMBER_DECODE.renderRink.call(this);
 
-    MINI.box(this, 347, 157, 266, 74, 0x2b1735, .96);
-    MINI.line(this, 358, 218, 602, 218, 0x78e9ff, 1);
-    this.scribbleInk.clear();
-    this.targetScribbles.forEach(stroke => {
-      this.scribbleInk.lineStyle(stroke.width, stroke.color, .94).lineBetween(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
-    });
+    MINI.box(this, 347, 157, 266, 74, 0x24465d, .98);
+    this.ink.lineStyle(1, 0x9adbec, .7).strokeRoundedRect(347, 157, 266, 74, 5);
+    E10_NUMBER_DECODE.renderFrost.call(this);
 
     this.digitBlocks.forEach((block, index) => {
       const active = s.lastHit === block.digit && this.elapsed <= s.feedbackUntil;
-      const color = active ? (s.lastHitCorrect ? 0x93fca0 : 0xff6f8f) : 0xf4c76b;
+      const color = active ? (s.lastHitCorrect ? 0x93fca0 : 0xff6f8f) : 0xc1eaf2;
       MINI.box(this, block.x, block.y, block.w, block.h, color, active ? 1 : .88);
       MINI.line(this, block.x + 5, block.y + block.h, block.x + block.w - 5, block.y + block.h, 0xffffff, .8);
       this.blockLabels[index].setColor(active && !s.lastHitCorrect ? '#fff4f7' : '#102536');
@@ -2891,17 +3097,115 @@ const E10_NUMBER_DECODE = {
     this.feedbackText.setText(this.elapsed <= s.feedbackUntil ? s.feedback : '목표 숫자를 왼쪽부터 차례로 입력하세요.');
     this.feedbackText.setColor(this.elapsed <= s.feedbackUntil && !s.lastHitCorrect ? '#ff9bb7' : '#a8c6d2');
 
-    MINI.box(this, 22, GROUND_Y, 916, 12, 0x557073);
-    const speed = Math.abs(s.vx);
-    if (speed > 25) {
-      const direction = Math.sign(s.vx);
-      for (let index = 0; index < 4; index++) {
-        const trailX = s.x - direction * (25 + index * 16);
-        MINI.line(this, trailX, s.y + 12 + index * 2, trailX - direction * (12 + speed / 30), s.y + 12 + index * 2, 0x8cecff, 1);
+    E10_NUMBER_DECODE.renderSkater.call(this);
+    MINI.meter(this, s.input.length / s.target.length);
+  },
+
+  renderRink() {
+    const g = this.ink, f = MINI.FIELD, s = this.state;
+    g.clear();
+    g.fillStyle(0x0b1d32).fillRect(f.x, f.y, f.w, f.h);
+    // 관중석과 천장 조명은 게임 정보를 가리지 않게 낮은 대비로 그린다.
+    for (let row = 0; row < 3; row++) {
+      for (let x = 42; x < f.right; x += 28) {
+        g.fillStyle(row % 2 ? 0x29435b : 0x23364e, .65)
+          .fillRoundedRect(x, 80 + row * 15, 15, 6, 2);
       }
     }
-    MINI.actor(this, 'player', 'player', s.x, s.y, PLAYER.width, PLAYER.height, MINI.clamp(s.vx / 700, -.22, .22));
-    MINI.meter(this, s.input.length / s.target.length);
+    g.lineStyle(2, 0x6fc6dd, .3).lineBetween(f.x, 147, f.right, 147);
+    // 빙상장 벽의 흰 오륜 깃발과 대회 현수막. HUD·목표·조작 블록 사이의 빈 공간에 배치한다.
+    g.lineStyle(2, 0x6b91a7, .65).lineBetween(124, 148, 124, 231);
+    g.fillStyle(0xf4f8fa, .95).fillRect(126, 163, 152, 66);
+    g.fillStyle(0xd8e4eb, .5).fillTriangle(126, 163, 143, 163, 126, 229);
+    const rings = [
+      [171, 189, 0x0879bb], [201, 189, 0x202833], [231, 189, 0xe44353],
+      [186, 203, 0xf4b82e], [216, 203, 0x179354],
+    ];
+    for (const [x, y, color] of rings) g.lineStyle(2.5, color, 1).strokeCircle(x, y, 12);
+    g.fillStyle(0x16354b, .9).fillRoundedRect(640, 157, 257, 74, 5);
+    for (const [index, color] of [0x379e78, 0xe9f5f8, 0xd95e68].entries()) {
+      g.fillStyle(color, .8).fillRect(640 + index * 257 / 3, 228, 257 / 3, 3);
+    }
+    for (const x of [85, 875]) {
+      g.fillStyle(0x9ae9ff, .035).fillTriangle(x, 148, x - 130, GROUND_Y, x + 130, GROUND_Y);
+    }
+    g.fillStyle(0x213e55).fillRect(f.x, GROUND_Y - 6, f.w, 6);
+    g.fillStyle(0xc7e5ed).fillRect(f.x, GROUND_Y, f.w, f.bottom - GROUND_Y);
+    g.fillStyle(0xe7faff).fillRect(f.x, GROUND_Y, f.w, 3);
+    g.lineStyle(2, 0x749fb8, .28).strokeEllipse(480, 510, 410, 52);
+    g.lineStyle(1, 0x749fb8, .24).lineBetween(480, GROUND_Y + 3, 480, f.bottom);
+    for (let i = 0; i < 15; i++) {
+      const x = 35 + i * 64, y = 484 + i % 4 * 17;
+      g.lineStyle(1, 0xffffff, .28).lineBetween(x, y, x + 42, y + 3);
+    }
+    const shadow = MINI.clamp(1 - (GROUND_Y - s.y - PLAYER.height / 2) / 230, .25, 1);
+    g.fillStyle(0x33536c, shadow * .2).fillEllipse(s.x, GROUND_Y + 4, 30 * shadow, 5 * shadow);
+    for (const mark of s.iceMarks) {
+      g.lineStyle(1, 0x568eac, (1 - mark.age / 1.6) * .6);
+      g.lineBetween(mark.from, GROUND_Y + 2, mark.to, GROUND_Y + 2);
+      g.lineBetween(mark.from, GROUND_Y + 5, mark.to, GROUND_Y + 5);
+    }
+    for (const chip of s.iceChips) {
+      g.fillStyle(0xeaffff, 1 - chip.age / .38).fillRect(chip.x, chip.y, 2, 2);
+    }
+  },
+
+  renderFrost() {
+    const g = this.frostInk;
+    g.clear();
+    g.fillStyle(0xc9ecf6, E10_FROST.veil).fillRoundedRect(397, 166, 166, 55, 4);
+    for (const { x, offset } of this.targetFrost) {
+      const top = [
+        { x: x - 19, y: 168 }, { x: x + 15, y: 168 },
+        { x: x + 9, y: 179 + offset }, { x: x + 15, y: 187 + offset },
+        { x: x - 5, y: 183 + offset }, { x: x - 15, y: 197 + offset },
+      ];
+      const bottom = [
+        { x: x + 18, y: 189 + offset }, { x: x + 19, y: 218 },
+        { x: x - 16, y: 219 }, { x: x - 10, y: 207 + offset },
+        { x: x - 16, y: 200 + offset }, { x: x + 3, y: 204 + offset },
+      ];
+      g.fillStyle(0xe3f6fc, E10_FROST.facet).fillPoints(top, true);
+      g.fillStyle(0xa9dbe9, E10_FROST.facet).fillPoints(bottom, true);
+      g.lineStyle(1, 0xf1fcff, .52).strokePoints(top, true);
+      g.lineStyle(1, 0xf1fcff, .45).strokePoints(bottom, true);
+      g.fillStyle(0xffffff, .36).fillTriangle(x - 19, 168, x + 15, 168, x - 10, 177);
+      // 작은 서리 알갱이. 효과 설정을 꺼도 암호를 가리는 얼음은 유지한다.
+      for (let i = 0; i < 28; i++) {
+        const px = x - 18 + (i * 13 % 37), py = 169 + (i * 19 + offset * 3 + 60) % 49;
+        g.fillStyle(0xf4fdff, .25 + i % 3 * .12).fillRect(px, py, i % 4 === 0 ? 2 : 1, 1);
+      }
+    }
+    // 가장자리의 두꺼운 성에와 작은 고드름으로 얼어붙은 전광판을 표현한다.
+    g.fillStyle(0xd7f3fc, .72).fillRect(350, 158, 260, 4);
+    for (let i = 0; i < 17; i++) {
+      const x = 352 + i * 15;
+      g.fillStyle(0xc1eafa, .58).fillTriangle(x, 161, x + 9, 161, x + 3, 166 + i % 4 * 3);
+    }
+  },
+
+  renderSkater() {
+    const s = this.state;
+    if (!this.skater) {
+      MINI.actor(this, 'player', 'player', s.x, s.y, PLAYER.width, PLAYER.height);
+      return;
+    }
+    let role = 'glide', frame = 0;
+    if (!s.grounded) {
+      role = 'jump';
+      const age = Math.max(0, this.elapsed - s.jumpAt);
+      if (s.vy > 0 && GROUND_Y - (s.y + PLAYER.height / 2) < 45) frame = 6;
+      else if (age < .12) frame = age < .06 ? 0 : 1;
+      else frame = 2 + Math.floor((age - .12) * 24) % 4;
+    } else if (s.landedAt >= 0 && this.elapsed - s.landedAt < .24) {
+      role = 'jump'; frame = this.elapsed - s.landedAt < .12 ? 6 : 7;
+    } else if (this.axis('left', 'right') && Math.abs(s.vx) > 12) {
+      frame = Math.floor(s.glidePhase * 4) % 4;
+    }
+    this.skater.setTexture(`e10:${role}`, `pose-${frame}`)
+      .setDisplaySize(E10_SKATER.size, E10_SKATER.size)
+      .setPosition(s.x, s.y + PLAYER.height / 2)
+      .setFlipX(s.facing > 0);
   },
 };
 

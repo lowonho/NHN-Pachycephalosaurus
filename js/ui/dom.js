@@ -19,6 +19,7 @@ const UI = Object.freeze({
   qaPanel: document.querySelector("#qa-panel"),
   qaCloseButton: document.querySelector("#qa-close-button"),
   qaExitButton: document.querySelector("#qa-exit-button"),
+  qaStoryGrid: document.querySelector("#qa-story-grid"),
   qaStageGrid: document.querySelector("#qa-stage-grid"),
   qaTimeNumber: document.querySelector("#qa-time-number"),
   qaTimeSlider: document.querySelector("#qa-time-slider"),
@@ -29,6 +30,7 @@ const UI = Object.freeze({
   qaBadgeTime: document.querySelector("#qa-badge-time"),
 
   cutscene: document.querySelector("#cutscene"),
+  cutsceneBackdrop: document.querySelector("#cutscene-backdrop"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
   cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
   cutscenePanel: document.querySelector("#cutscene-panel"),

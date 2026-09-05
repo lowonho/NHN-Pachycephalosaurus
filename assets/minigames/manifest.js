@@ -30,7 +30,7 @@ globalThis.MINIGAME_ASSETS = {
     pose7: 'assets/images/minigame/stacks/metcha/pose7.webp',
     pose8: 'assets/images/minigame/stacks/metcha/pose8.webp',
     line: 'assets/images/minigame/stacks/metcha/line.webp',
-  }, e4: { player: null },
+  }, e4: { player: null, tileRoof: 'assets/minigames/e4/tile-roof.png', thatch: null },
   e5: { projectile: null, target: null },
   // e6: oiia 고양이 회전 여섯 장. 스페이스를 누르는 동안 spin1→spin6 을 돌리고 놓으면 spin1 에
   // 멈춘다(e6_gravityFlight.js 의 SPIN_FPS). 여섯 장 모두 같은 사각형으로 잘라 회전축이
@@ -44,6 +44,14 @@ globalThis.MINIGAME_ASSETS = {
     spin6: 'assets/images/minigame/geomatric%20fly/spin6.webp',
     player: null,
   },
-  e7: { prize: null }, e8: { player: null }, e9: { stone: null },
-  e10: { player: null },
+  e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },
+  // e10: 정사각 프레임. 이동 4×1, 점프 4×2 (왼쪽부터 행 우선). 셀 해상도는 자동 감지.
+  e10: {
+    glide: 'assets/minigames/e10/skater_glide_4frame_sheet.png',
+    jump: 'assets/minigames/e10/skater_jump_8frame_sheet.png',
+    player: null,
+  },
 };
+
+// E4 actual artwork bounds [x,y,width,height], measured from PNG alpha.
+globalThis.E4_VILLAGE_BOUNDS = { tileRoof: [151,43,1008,1021] };
