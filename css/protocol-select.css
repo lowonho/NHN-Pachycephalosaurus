@@ -156,6 +156,16 @@
   /* 손목이 회전 중심이다. 팔뚝이 빠져나가는 아래쪽 바깥 모서리 근처에 둔다. */
   transform-origin: 22% 96%;
   will-change: transform;
+  /*
+   * 손을 뗄 때 제자리로 내려앉는 시간. 위아래 진폭이 28px이라 애니메이션을
+   * 그냥 걷어내면 손이 마지막 자세에서 툭 튄다.
+   *
+   * 이 줄만으로는 안 걸린다 — 애니메이션이 도는 동안에도 transform의 계산값은
+   * 내내 none이라, 애니메이션이 빠져도 계산값이 바뀌지 않아 전환이 시작되지
+   * 않는다. 그래서 js가 멈추는 순간의 자세를 인라인으로 붙잡았다 놓아 준다
+   * (js/ui/desk-hands.js의 settleToRest). 시간은 여기서 잡는다.
+   */
+  transition: transform 130ms ease-out;
 }
 
 .scene-hand--left {
@@ -177,8 +187,19 @@
  *
  * 한 주기에 두 번 짚는다. 내려찍기만 하면 제자리 방아처럼 보여서,
  * 짚을 때마다 좌우로 조금씩 옮겨 가며 다른 키를 누르는 것처럼 만든다.
- *   25%  바깥쪽으로 짚는다
- *   75%  안쪽으로 짚는다
+ *   0% · 50% · 100%  들어 올린다
+ *   25%             바깥쪽으로 짚는다
+ *   75%             안쪽으로 짚는다
+ *
+ * 위아래가 이 동작의 중심이다. 짚는 자리(+20px)만 잡고 쉬는 자리를 0으로 두면
+ * 아래로만 눌렸다 돌아오는 꼴이라 눈에 잘 안 띈다. 그래서 쉬는 자리를 -8px로
+ * 띄워 손이 실제로 떴다 내려앉게 만든다 ─ 위아래 진폭이 28px로 벌어진다.
+ * 띄우는 쪽은 넉넉하다. 조각의 아랫변(팔뚝)은 화면 한참 밖이라 몇십 px 올려도
+ * 밑이 비지 않는다.
+ *
+ * 회전축이 손목(아래쪽 화면 밖)이라 rotate는 손끝에서 크게 번역된다.
+ * 1도당 손끝이 7~9px 옆으로 밀리므로, 손끝의 실제 좌우 흔들림은
+ * translate 값보다 훨씬 크다. 각도를 더 키우면 타자가 아니라 손 흔들기가 된다.
  *
  * 두 손은 서로 엇갈려야 한다. 주기가 같고 오른손만 1/4주기 앞에서 시작하므로
  * (음수 delay) 왼손이 짚는 사이사이에 오른손이 짚는다.
@@ -195,19 +216,19 @@
 @keyframes desk-hand-tap-left {
   0%,
   100% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate(0, -8px) rotate(0deg);
   }
 
   25% {
-    transform: translate(-7px, 6px) rotate(1deg);
+    transform: translate(-12px, 20px) rotate(2deg);
   }
 
   50% {
-    transform: translate(0, 1px) rotate(0deg);
+    transform: translate(0, -6px) rotate(0.2deg);
   }
 
   75% {
-    transform: translate(6px, 6px) rotate(-0.7deg);
+    transform: translate(11px, 18px) rotate(-1.4deg);
   }
 }
 
@@ -215,19 +236,19 @@
 @keyframes desk-hand-tap-right {
   0%,
   100% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate(0, -8px) rotate(0deg);
   }
 
   25% {
-    transform: translate(7px, 6px) rotate(-1deg);
+    transform: translate(12px, 20px) rotate(-2deg);
   }
 
   50% {
-    transform: translate(0, 1px) rotate(0deg);
+    transform: translate(0, -6px) rotate(-0.2deg);
   }
 
   75% {
-    transform: translate(-6px, 6px) rotate(0.7deg);
+    transform: translate(-11px, 18px) rotate(1.4deg);
   }
 }
 

@@ -15,13 +15,12 @@
     && menuRect.top >= -1 && menuRect.bottom <= innerHeight + 1, 'Main menu shows four story actions inside the viewport');
   settingsFlow.open();
   const settingsRect = UI.settingsDialog.getBoundingClientRect();
-  assert(document.querySelectorAll('.settings-row').length === 6
-    && settingsRect.top >= -1 && settingsRect.bottom <= innerHeight + 1, 'Six setting rows fit inside the viewport');
+  assert(document.querySelectorAll('.settings-row').length === 5
+    && settingsRect.top >= -1 && settingsRect.bottom <= innerHeight + 1, 'Five setting rows fit inside the viewport');
   UI.cutsceneSpeed.value = '200'; UI.cutsceneSpeed.dispatchEvent(new Event('input'));
-  UI.settingsSkipCutscenesToggle.click();
-  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 2 && ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cutscene speed and skip settings update');
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 2, 'Cutscene speed setting updates');
   settingsFlow.cancel();
-  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 1 && !ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cancel restores story settings');
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 1, 'Cancel restores story settings');
   const seen = new Set();
   for (let i = 0; i < 80; i++) {
     const run = archiveRun.reset();
@@ -154,7 +153,8 @@
   Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
   scene.touch.add('right'); scene.primaryAction(); advance(.8);
   assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
-  load('e3'); scene.primaryAction(); advance(.5); scene.primaryAction(); advance(.5);
+  // Aim both drops at the pedestal: with no floor, a miss falls off the screen and is removed.
+  load('e3'); scene.state.x = 480; scene.primaryAction(); advance(.5); scene.state.x = 480; scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');

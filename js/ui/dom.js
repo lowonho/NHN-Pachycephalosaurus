@@ -109,8 +109,6 @@ const UI = Object.freeze({
   settingsFullscreenState: document.querySelector("#settings-fullscreen-state"),
   cutsceneSpeed: document.querySelector("#cutscene-speed"),
   cutsceneSpeedValue: document.querySelector("#cutscene-speed-value"),
-  settingsSkipCutscenesToggle: document.querySelector("#settings-skip-cutscenes-toggle"),
-  settingsSkipCutscenesState: document.querySelector("#settings-skip-cutscenes-state"),
   settingsApplyButton: document.querySelector("#settings-apply-button"),
   settingsBackButton: document.querySelector("#settings-back-button"),
 

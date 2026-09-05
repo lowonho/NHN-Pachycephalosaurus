@@ -494,26 +494,28 @@
           alt=""
         />
         <!--
-          양손 — 원본은 한 장(04_gloved_hands_2048x1152.png)이지만 좌우를 잘라 따로 쓴다.
+          양손 — 원본은 한 장(female_hands_nailart_2048x1152.png)이지만 좌우를 잘라 따로 쓴다.
           입력이 들어오는 동안 타자를 치듯 움직이는데(js/ui/desk-hands.js),
           한 장이면 두 손이 통째로 같이 흔들려 어색하다. 따로 두면 주기를 어긋나게 줄 수 있다.
           자른 자리는 합쳐진 원본과 같은 위치에 서도록 맞춰 두었다.
+          조각은 scripts/slice-desk-hands.ps1이 만든다. 원본을 갈아 끼우면 그걸 다시 돌리고
+          아래 width/height를 출력된 크기로 맞춘다(css/protocol-select.css는 폭만 잡는다).
         -->
         <img
           class="scene-layer scene-hand scene-hand--left"
           id="desk-hand-left"
-          src="assets/images/ui/stage%20select/04a_hand_left.webp"
+          src="assets/images/ui/stage%20select/04a_nailart_hand_left.webp"
           alt=""
-          width="877"
-          height="827"
+          width="866"
+          height="864"
         />
         <img
           class="scene-layer scene-hand scene-hand--right"
           id="desk-hand-right"
-          src="assets/images/ui/stage%20select/04b_hand_right.webp"
+          src="assets/images/ui/stage%20select/04b_nailart_hand_right.webp"
           alt=""
-          width="871"
-          height="816"
+          width="866"
+          height="863"
         />
       </div>
     </div>
@@ -543,7 +545,7 @@
       (원본 시트 settings_ui_assets_cyber_archive_exact_2k.png을
        scripts/slice-settings-sheet.ps1로 잘라 webp로 굽는다.)
 
-      오디오·전체 화면에 대본에서 요구한 컷신 속도와 전체 건너뛰기를 함께 제공한다.
+      오디오·전체 화면에 대본에서 요구한 컷신 속도 설정을 함께 제공한다.
     -->
     <div class="settings-backdrop hidden" id="settings-modal">
       <section
@@ -645,27 +647,12 @@
               </button>
             </li>
 
-            <li class="settings-row">
+            <li class="settings-row settings-row--wide-value">
               <img class="settings-row-icon" src="assets/images/ui/settings/icon-display.webp" alt="" width="171" height="173" />
               <label class="settings-row-label" for="cutscene-speed">컷신 속도</label>
               <input class="settings-slider" id="cutscene-speed" type="range" min="50" max="200" step="25" value="100" />
               <span aria-hidden="true"></span>
               <output class="settings-row-value" id="cutscene-speed-value" for="cutscene-speed">1.00×</output>
-            </li>
-
-            <li class="settings-row">
-              <img class="settings-row-icon" src="assets/images/ui/settings/icon-check.webp" alt="" width="152" height="133" />
-              <span class="settings-row-label" id="settings-skip-cutscenes-label">컷신 전체 건너뛰기</span>
-              <button
-                class="settings-switch"
-                id="settings-skip-cutscenes-toggle"
-                type="button"
-                role="switch"
-                aria-checked="false"
-                aria-labelledby="settings-skip-cutscenes-label"
-              >
-                <span id="settings-skip-cutscenes-state">OFF</span>
-              </button>
             </li>
           </ul>
 

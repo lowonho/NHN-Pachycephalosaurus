@@ -65,8 +65,41 @@ class DeskHandsView {
 
   setTyping(typing) {
     this.hands.forEach((hand) => {
-      if (typing) hand.dataset.typing = "";
-      else delete hand.dataset.typing;
+      if (typing) {
+        // 다시 치기 시작하면 내려앉는 중이던 자세는 버리고 애니메이션에 넘긴다.
+        hand.style.transition = "";
+        hand.style.transform = "";
+        hand.dataset.typing = "";
+      } else if (hand.dataset.typing !== undefined) {
+        this.settleToRest(hand);
+      }
+    });
+  }
+
+  /*
+   * 멈출 때 제자리로 내려앉힌다.
+   *
+   * data-typing만 지우면 손이 마지막 자세에서 제자리로 툭 튄다 — 위아래로
+   * 28px까지 벌어져 있어서 눈에 띈다. css의 transition만으로는 못 잡는다:
+   * 애니메이션이 도는 내내 transform의 계산값은 none이라, 애니메이션이 빠져도
+   * 계산값이 바뀌지 않아 전환이 시작되지 않는다.
+   *
+   * 그래서 지금 자세를 인라인으로 붙잡아 두고(전환은 잠시 꺼 둔다) 애니메이션을
+   * 뗀 다음, 프레임을 넘겨 인라인을 지운다. 이때 비로소 계산값이 바뀌면서
+   * css의 transition이 걸린다.
+   */
+  settleToRest(hand) {
+    const pose = window.getComputedStyle(hand).transform;
+    delete hand.dataset.typing;
+    if (pose === "none") return;
+
+    hand.style.transition = "none";
+    hand.style.transform = pose;
+    window.requestAnimationFrame(() => {
+      hand.style.transition = "";
+      window.requestAnimationFrame(() => {
+        hand.style.transform = "";
+      });
     });
   }
 }

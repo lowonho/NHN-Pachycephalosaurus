@@ -23,17 +23,17 @@
   load();
   // Just past the pedestal edge, wherever the pedestal currently ends.
   const edgeX = 480 + scene.stageGame.tuning.baseWidth / 2 + 9;
-  const edge = spawn(edgeX); step(3.5);
+  const edge = spawn(edgeX); step(1);
   measurements.edgeAngle = edge.angle; measurements.edgeY = edge.position.y;
-  assert(Math.abs(edge.angle) > .4 && edge.position.y > 425, 'Off-center contact naturally topples mannequin onto floor');
-  assert(scene.people.includes(edge) && !edge.isStatic, 'Toppled mannequin remains dynamic debris');
-  const incoming = spawn(edge.position.x, 240, 1);
-  let contactedDebris = false;
-  const observeContact = event => { contactedDebris ||= event.pairs.some(p => [p.collision.parentA.id,p.collision.parentB.id].includes(incoming.id) && [p.collision.parentA.id,p.collision.parentB.id].includes(edge.id)); };
-  M.Events.on(scene.stackWorld, 'collisionStart', observeContact); step(2.8);
-  M.Events.off(scene.stackWorld, 'collisionStart', observeContact);
-  assert(scene.stackGrounded.has(incoming.id), 'New mannequin finds support after falling onto debris');
-  assert(contactedDebris, 'Debris collides with subsequently dropped bodies');
+  assert(Math.abs(edge.angle) > .4 && !scene.stackGrounded.has(edge.id) && edge.position.y > scene.stageGame.tuning.floorY,
+    'Off-center contact tips the mannequin off the pedestal');
+  assert(scene.people.includes(edge) && !edge.isStatic, 'A tipped mannequin keeps falling as a free body');
+  // There is no floor: whoever misses the pedestal drops past the screen and is gone for good.
+  step(1.5);
+  assert(!scene.people.includes(edge) && !scene.stackBodyById.has(edge.id) && !scene.stackGrounded.has(edge.id),
+    'A mannequin that falls below the screen is removed from the world');
+  const missed = spawn(edgeX + 70, 240, 1); step(3);
+  assert(!scene.people.includes(missed) && scene.people.length === 0 && scene.state.height === 0, 'Nothing piles up beside the pedestal to stack on');
   load();
   const floating = spawn(480, 120); M.Body.setVelocity(floating, { x: 0, y: 0 });
   scene.stageGame.measureTower.call(scene);
@@ -41,7 +41,7 @@
   load();
   scene.state.x = edgeX; scene.primaryAction(); step(.5); scene.state.x = edgeX + 7; scene.primaryAction();
   const speed = scene.stageGame.speed.call(scene); step(4);
-  assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed && scene.people.length === 2, 'Collapse retains every person and accumulated speed');
+  assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed, 'A collapse still counts every drop, so the rail keeps its speed');
   load();
   const dropAngle = scene.state.nextAngle, dropX = scene.state.x, dropY = scene.state.spawnY;
   scene.primaryAction();

@@ -35,6 +35,13 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
+/* 달리는 동안의 발걸음 맥박. 한 걸음마다 그림이 잠깐 커졌다가 원래 크기로 돌아옵니다.
+   프레임이 아니라 달린 거리(s.x)로 위상을 잡으므로 속도가 흔들려도 걸음과 어긋나지 않고,
+   멈추면 맥박도 함께 멈춥니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있습니다. */
+const STRIDE = 92;       // 한 걸음이 나아가는 코스 거리. SPEED 기준 초당 약 3.7걸음입니다.
+const STRIDE_POP = .3;   // 걸음 꼭대기에서 커지는 비율
+const STRIDE_RISE = .26; // 한 걸음 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
+const STRIDE_DIP = .18;  // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
 const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 절반입니다.
 const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
 const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
@@ -136,14 +143,26 @@ export const E1_GRAVITY_DASH = {
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
     return sprite.setTexture(texture).setVisible(true);
   },
+  /* 한 걸음 안에서의 커짐 정도입니다. 앞 STRIDE_RISE 구간에서 1까지 단숨에 부풀고,
+     남은 구간에서는 원래 크기(0)를 지나 -STRIDE_DIP까지 한 번 움츠렸다가 돌아옵니다.
+     걸음이 이어지는 곳(0과 1)에서 값이 모두 0이라 맥박이 튀지 않습니다. */
+  stride(x) {
+    const phase = ((x / STRIDE) % 1 + 1) % 1;
+    if (phase < STRIDE_RISE) return Math.sin(phase / STRIDE_RISE * Math.PI / 2);
+    // 돌아오는 구간은 코사인 한 바퀴 반. 2/3 지점에서 가장 작아지고 끝에서 원래 크기입니다.
+    const wave = Math.cos((phase - STRIDE_RISE) / (1 - STRIDE_RISE) * Math.PI * 1.5);
+    return wave < 0 ? wave * STRIDE_DIP : wave;
+  },
   /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
      모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
      천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
   drawPlayer(pose, pop) {
     const s = this.state;
+    // 달리기 자세에만 걸음 맥박을 얹습니다. 점프·피격·주저앉기는 원래 크기 그대로입니다.
+    const scale = pop * (pose === 'run' ? 1 + STRIDE_POP * E1_GRAVITY_DASH.stride(s.x) : 1);
     const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
-    if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * pop, HITBOX * pop, -s.sign * s.x / 80); return; }
-    const height = POSE_HEIGHT[pose] * pop, feet = s.y + s.sign * HITBOX / 2;
+    if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
+    const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;
     sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
       .setDisplaySize(height * sprite.width / sprite.height, height);
   },

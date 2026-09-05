@@ -715,6 +715,13 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
+/* 달리는 동안의 발걸음 맥박. 한 걸음마다 그림이 잠깐 커졌다가 원래 크기로 돌아옵니다.
+   프레임이 아니라 달린 거리(s.x)로 위상을 잡으므로 속도가 흔들려도 걸음과 어긋나지 않고,
+   멈추면 맥박도 함께 멈춥니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있습니다. */
+const STRIDE = 92;       // 한 걸음이 나아가는 코스 거리. SPEED 기준 초당 약 3.7걸음입니다.
+const STRIDE_POP = .3;   // 걸음 꼭대기에서 커지는 비율
+const STRIDE_RISE = .26; // 한 걸음 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
+const STRIDE_DIP = .18;  // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
 const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 절반입니다.
 const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
 const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
@@ -816,14 +823,26 @@ const E1_GRAVITY_DASH = {
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
     return sprite.setTexture(texture).setVisible(true);
   },
+  /* 한 걸음 안에서의 커짐 정도입니다. 앞 STRIDE_RISE 구간에서 1까지 단숨에 부풀고,
+     남은 구간에서는 원래 크기(0)를 지나 -STRIDE_DIP까지 한 번 움츠렸다가 돌아옵니다.
+     걸음이 이어지는 곳(0과 1)에서 값이 모두 0이라 맥박이 튀지 않습니다. */
+  stride(x) {
+    const phase = ((x / STRIDE) % 1 + 1) % 1;
+    if (phase < STRIDE_RISE) return Math.sin(phase / STRIDE_RISE * Math.PI / 2);
+    // 돌아오는 구간은 코사인 한 바퀴 반. 2/3 지점에서 가장 작아지고 끝에서 원래 크기입니다.
+    const wave = Math.cos((phase - STRIDE_RISE) / (1 - STRIDE_RISE) * Math.PI * 1.5);
+    return wave < 0 ? wave * STRIDE_DIP : wave;
+  },
   /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
      모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
      천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
   drawPlayer(pose, pop) {
     const s = this.state;
+    // 달리기 자세에만 걸음 맥박을 얹습니다. 점프·피격·주저앉기는 원래 크기 그대로입니다.
+    const scale = pop * (pose === 'run' ? 1 + STRIDE_POP * E1_GRAVITY_DASH.stride(s.x) : 1);
     const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
-    if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * pop, HITBOX * pop, -s.sign * s.x / 80); return; }
-    const height = POSE_HEIGHT[pose] * pop, feet = s.y + s.sign * HITBOX / 2;
+    if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
+    const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;
     sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
       .setDisplaySize(height * sprite.width / sprite.height, height);
   },
@@ -1115,22 +1134,24 @@ const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
 const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
-    speed: 153, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
+    speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
     // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
     // 한 번 톡 누르면 spinStep만큼, 꾹 누르고 있으면 초당 spinSpeed만큼 돌아갑니다(도 단위).
     spinStep: 12, spinSpeed: 150,
-    gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
+    // 사람끼리 잘 물리도록 마찰을 높였습니다 — 낮으면 얹자마자 미끄러져 흘러내립니다.
+    gravity: 1.35, friction: .8, frictionStatic: 1.05, frictionAir: .006,
     // 낙하 순간 레일 속도의 이만큼을 물려받습니다. 1이면 그대로 — 다만 후반 속도에서는
     // 레일 끝에서 떨어뜨려도 단상까지 날아오지 못해, 미리 겨냥이 가능한 선까지만 줍니다.
-    restitution: .045, density: .0022, carryMomentum: .4,
-    settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
-    // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리입니다(탑이 자라면 그만큼 더 올라갑니다).
-    // 단상과 바닥을 함께 내려 단상이 화면 아래쪽에 앉습니다. 낙하 거리는 그대로 두고,
-    // 떨어뜨리는 자리는 아래 viewSpan(시야 배율)으로 화면 위쪽까지 끌어올립니다.
-    baseY: 452, baseWidth: 207, floorY: 500, dropHeight: 292, debugPhysics: false,
+    restitution: .045, density: .0022, carryMomentum: .32,
+    settleSpeed: 18, settleAngularSpeed: .22,
+    // 대기 위치가 오가는 폭. 성공선도 이 폭에 맞춰 긋습니다.
+    railLeft: 260, railRight: 700,
+    // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
+    // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
+    baseY: 452, baseWidth: 228, floorY: 500, dropHeight: 292, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
@@ -1147,14 +1168,11 @@ const E3_HUMAN_STACK = {
       enableSleeping: false, positionIterations: 10, velocityIterations: 10,
     });
     this.stackWorld.gravity.y = t.gravity;
-    this.stackGround = M.Bodies.rectangle(480, t.floorY + 14, 2400, 28, {
-      isStatic: true, friction: t.friction, label: 'e3:floor',
-    });
     this.stackBase = M.Bodies.rectangle(480, (t.baseY + t.floorY) / 2, t.baseWidth, t.floorY - t.baseY, {
       isStatic: true, friction: t.friction, label: 'e3:pedestal',
     });
-    // 넓은 바닥이 잔해를 받습니다. 잔해를 지우거나 정적 물체로 고정하지 않습니다.
-    M.Composite.add(this.stackWorld.world, [this.stackGround, this.stackBase]);
+    // 받아 주는 바닥은 없습니다. 단상을 벗어난 사람은 화면 아래로 그대로 떨어져 사라집니다.
+    M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
@@ -1240,6 +1258,21 @@ const E3_HUMAN_STACK = {
     s.spinShown = .6;
   },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
+  /* 단상을 놓친 사람은 잡아 주는 것 없이 계속 떨어집니다. 화면 아래로 완전히 사라지면
+     세계에서도 지웁니다 — 보이지 않는 곳에 쌓여 탑을 받치는 일이 없습니다. */
+  cullFallen() {
+    const M = Phaser.Physics.Matter.Matter, gone = MINI.FIELD.bottom + 20;
+    const before = this.people.length;
+    for (let i = before - 1; i >= 0; i--) {
+      const body = this.people[i];
+      if (E3_HUMAN_STACK.project.call(this, 0, body.bounds.min.y).y <= gone) continue;
+      M.Composite.remove(this.stackWorld.world, body);
+      this.people.splice(i, 1); this.stackBodyById.delete(body.id);
+      this.stackGrounded.delete(body.id); this.stackStable.delete(body.id);
+    }
+    // 그림은 목록 순서대로 다시 그려지므로, 줄어든 뒤 남는 꼬리 그림만 감춥니다.
+    for (let i = this.people.length; i < before; i++) this.assetSprites.get(`person${i}`)?.setVisible(false);
+  },
   measureTower() {
     const t = E3_HUMAN_STACK.tuning;
     const graph = new Map();
@@ -1250,7 +1283,7 @@ const E3_HUMAN_STACK = {
       connect(a.id, b.id); connect(b.id, a.id);
     }
     const trace = stableOnly => {
-      const reached = new Set([this.stackGround.id, this.stackBase.id]), queue = [...reached];
+      const reached = new Set([this.stackBase.id]), queue = [...reached];
       for (let i = 0; i < queue.length; i++) for (const id of graph.get(queue[i]) ?? []) {
         if (reached.has(id)) continue;
         const body = this.stackBodyById.get(id);
@@ -1273,7 +1306,7 @@ const E3_HUMAN_STACK = {
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
     s.x += s.direction * E3_HUMAN_STACK.speed.call(this) * dt;
-    if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
+    if (s.x < t.railLeft || s.x > t.railRight) { s.x = MINI.clamp(s.x, t.railLeft, t.railRight); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
     s.impactCooldown = Math.max(0, s.impactCooldown - dt);
     // 좌우를 누르고 있는 동안은 계속 돌아갑니다(터치 버튼도 같은 입력을 씁니다).
@@ -1281,9 +1314,12 @@ const E3_HUMAN_STACK = {
     if (turn) E3_HUMAN_STACK.spin.call(this, turn * t.spinSpeed * dt);
     s.spinShown = Math.max(0, s.spinShown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
+    E3_HUMAN_STACK.cullFallen.call(this);
     const top = E3_HUMAN_STACK.measureTower.call(this);
-    // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
-    s.spawnY = Math.min(t.baseY - t.dropHeight, top - t.spawnClearance);
+    // 대기 위치는 늘 탑 꼭대기(없으면 단상 윗면)에서 dropHeight만큼 위입니다 —
+    // 탑이 자라도 겨냥할 거리가 그대로라 마지막 한 명도 처음과 같은 감으로 놓습니다.
+    // 그만큼 대기 위치가 올라가므로 시야는 아래 zoom이 부드럽게 물려 줍니다.
+    s.spawnY = Math.min(t.baseY, top) - t.dropHeight;
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
     // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
@@ -1337,8 +1373,11 @@ const E3_HUMAN_STACK = {
       MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
     }
     const goal = project(0, t.baseY - t.targetHeight);
-    for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    // 성공선은 대기 위치가 오가는 폭과 같은 길이로 긋습니다 — 놓을 수 있는 범위가 곧 목표 폭입니다.
+    const dashFrom = project(t.railLeft, 0).x, dashTo = project(t.railRight, 0).x;
+    for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
+    // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
+    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
     // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
@@ -1359,25 +1398,25 @@ const E3_HUMAN_STACK = {
     }
     // 대기 위치는 레일 선 없이 사람만 떠 있습니다 — 움직이는 범위는 사람 자체로 보입니다.
     E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
-    // 미리보기 양옆의 곡선 화살표 두 개가 좌우 회전을 가리킵니다. 돌리는 동안 밝아집니다.
+    // 미리보기 위아래 맞은편에 곡선 화살표 하나씩. 둘 다 양쪽 끝에 화살촉이 있어
+    // 어느 쪽으로도 돌릴 수 있다는 걸 알립니다. 돌리는 동안 밝아집니다.
     const ring = project(s.x, s.spawnY), pose = E3_HUMAN_STACK.poses[s.nextPose];
     const radius = Math.hypot(pose.width, pose.height) / 2 * s.zoom + 6, glow = Math.min(1, .62 + s.spinShown * .63);
     const head = Math.max(6, 10 * s.zoom);
-    // side -1은 왼쪽(반시계), +1은 오른쪽(시계). 화살촉은 호의 바깥쪽 끝에 붙어 도는 쪽을 가리킵니다.
-    for (const side of [-1, 1]) {
-      const from = side < 0 ? 195 : -15, to = side < 0 ? 252 : -72;
-      const a0 = from * Math.PI / 180, a1 = to * Math.PI / 180;
+    for (const middle of [-90, 90]) {
+      const a0 = (middle - 50) * Math.PI / 180, a1 = (middle + 50) * Math.PI / 180;
       g.lineStyle(3.2, 0xffd07a, glow);
-      g.beginPath(); g.arc(ring.x, ring.y, radius, Math.min(a0, a1), Math.max(a0, a1), false); g.strokePath();
-      // a0(호의 시작) 쪽 접선 방향으로 화살촉을 세웁니다.
-      const dir = Math.sign(a0 - a1);
-      const px = ring.x + Math.cos(a0) * radius, py = ring.y + Math.sin(a0) * radius;
-      const tx = -Math.sin(a0) * dir, ty = Math.cos(a0) * dir;
-      g.fillStyle(0xffd07a, glow).fillTriangle(
-        px + tx * head, py + ty * head,
-        px - tx * head * .25 - ty * head * .55, py - ty * head * .25 + tx * head * .55,
-        px - tx * head * .25 + ty * head * .55, py - ty * head * .25 - tx * head * .55,
-      );
+      g.beginPath(); g.arc(ring.x, ring.y, radius, a0, a1, false); g.strokePath();
+      // 양 끝에서 호가 뻗어 나가는 접선 방향으로 화살촉을 세웁니다.
+      for (const [angle, dir] of [[a0, -1], [a1, 1]]) {
+        const px = ring.x + Math.cos(angle) * radius, py = ring.y + Math.sin(angle) * radius;
+        const tx = -Math.sin(angle) * dir, ty = Math.cos(angle) * dir;
+        g.fillStyle(0xffd07a, glow).fillTriangle(
+          px + tx * head, py + ty * head,
+          px - tx * head * .25 - ty * head * .55, py - ty * head * .25 + tx * head * .55,
+          px - tx * head * .25 + ty * head * .55, py - ty * head * .25 - tx * head * .55,
+        );
+      }
     }
     if (t.debugPhysics) for (const body of this.people) {
       for (const part of body.parts.slice(1)) {
@@ -1401,12 +1440,18 @@ const E3_HUMAN_STACK = {
 
 /* Source: stages/e4_accelerationDash.js */
 
+/* 방과 벽을 번갈아 놓은 미로의 전체 크기(876×384). 화면 한가운데 놓으려면 먼저 재야 한다. */
+const MAZE = { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12 };
+const MAZE_W = (MAZE.cols - 1) / 2 * (MAZE.passageX + MAZE.wall) + MAZE.wall;
+const MAZE_H = (MAZE.rows - 1) / 2 * (MAZE.passageY + MAZE.wall) + MAZE.wall;
+
 const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
   // brake는 속도와 무관한 마찰, drag는 속도에 비례하는 저항(1/초)이다. 둘을 더한 값이
   // 감속도라서, 손을 떼면 처음에는 크게 깎이고 끝에서는 관성으로 미끄러지며 멈춘다.
   tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 3600, drag: 2.6, radius: 10, wallPenalty: 1 },
-  grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
+  // 미로는 화면(필드) 정중앙에 놓는다. 위아래 여백이 같아야 위로 쏠려 보이지 않는다.
+  grid: { ...MAZE, x: Math.round(MINI.FIELD.cx - MAZE_W / 2), y: Math.round(MINI.FIELD.cy - MAZE_H / 2) },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
     const g = E4_ACCELERATION_DASH.grid;
