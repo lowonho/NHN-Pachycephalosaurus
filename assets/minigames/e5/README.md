@@ -4,8 +4,16 @@
 - 파괴 대상: 2층 과자집 두 채 안의 두딱쿠 4개. 각 집의 기둥 4개·층판 2개·지붕 1개는 독립된 Matter 강체입니다.
 - 기둥을 밀면 층판과 지붕이 무너지며, 자재와 두딱쿠 사이의 상대 충돌 속도로 압사 피해를 계산합니다. 가만히 받치고 있는 자재는 피해를 주지 않습니다.
 - 목재를 전부 없앨 필요는 없습니다. 두딱쿠 4개만 처치하면 성공하며 목재 잔해는 물리 월드에 남습니다.
-- 이미지 교체: assets/minigames/manifest.js의 e5.projectile / e5.target에 투명 이미지 경로를 지정합니다.
-- 권장 비율: projectile은 1:1, target은 6:5. 물리 판정은 이미지와 독립입니다.
+- 이미지 교체: assets/minigames/manifest.js의 e5 항목에 역할별 투명 이미지 경로를 지정합니다. 물리 판정은 이미지와 독립입니다.
+  - 두쫀쿠(발사체)는 상태별 네 장입니다. proud(대기) / tense(당기는 중) / launch(날아가는 중) / split(맞은 뒤).
+  - 두딱깡은 target(성한 것) / targetHit(한 번이라도 맞은 것) 두 장입니다.
+  - 과자집은 pillarLong(1층 기둥) / pillarMedium(2층 기둥) / floorSmall(가운데 층) / floorWide(지붕 밑 층) / roof(지붕),
+    그리고 부러진 조각에 쓰는 pillarShort 입니다.
+  - 배경과 소품은 backdrop(16:9 한 장) / table(조리대 상판) / brick(집 받침) / brickStar(장식) / slingshot(고무줄 없는 새총 몸통)입니다.
+- 표시 크기는 e5_slingshot.js의 art 표가 정합니다. 판정 사각형보다 조금 크게 그려 웨이퍼 무늬가 눌리지 않게 하고,
+  지붕만 그림 아랫변을 처마에 맞춥니다(위에 얹은 크림과 딸기까지 한 장이라 가운데를 맞추면 처마가 내려앉아 보입니다).
+- 그림이 하나도 없으면 예전 진저브레드 도형으로 그대로 그립니다.
+- 원본 png에서 webp를 굽는 일은 scripts/bake-ddujjonku.ps1이 합니다. 원본을 바꿨다면 다시 굽고 번들을 다시 빌드하세요.
 - 난이도는 js/archive/stages/e5_slingshot.js의 tuning에서 조절합니다.
 - targetHP는 내구도입니다. piercePower/pierceSpeed를 모두 넘는 발사만 관통합니다. 약한 충돌 피해는 최대 28이며 곧바로 지우지 않습니다.
 - toppleAngle 이상의 기울기 또는 원래 위치에서 충분한 이동·낙하를 toppleHold초 유지하면 붕괴로 집계합니다. 파괴된 두딱쿠는 화면과 물리 월드에서 사라지고, 목재 잔해만 남습니다.

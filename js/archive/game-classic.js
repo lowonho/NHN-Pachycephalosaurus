@@ -655,6 +655,9 @@ const MINI = {
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);
       if (!sprite) { sprite = scene.add.image(x, y, texture).setMask(scene.ink.mask); scene.assetSprites.set(key, sprite); }
+      // 같은 자리가 상태에 따라 다른 그림을 쓰는 경우(성한 것 -> 깨진 것)를 위해 텍스처도 갈아 끼운다.
+      // 표시 크기는 텍스처를 바꾼 뒤에 정해야 원본 해상도로 되돌아가지 않는다.
+      else if (sprite.texture.key !== texture) sprite.setTexture(texture);
       sprite.setPosition(x, y).setDisplaySize(w, h).setRotation(angle).setVisible(true);
       return;
     }
@@ -1701,26 +1704,43 @@ const E4_VILLAGE = {
 const E5_SLINGSHOT = {
   // Late full pulls still reach the far roof on an arc, but low shots fall short.
   tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
+  /* 그림의 표시 크기. 판정(Matter 강체)은 그대로 두고 표시만 원본 비율에 가깝게 키운다 —
+     기둥 하나가 12px 라고 웨이퍼를 12px 로 눌러 그리면 무늬가 뭉개진다.
+     빠진 값은 판정 크기를 그대로 쓰고, bottom 이면 그림 아랫변을 판정 사각형 아랫변에 맞춘다.
+     지붕은 위에 얹은 크림과 딸기까지 한 장이라 가운데를 맞추면 처마가 내려앉아 보인다. */
+  art: {
+    pillarLong: { w: 16 }, pillarMedium: { w: 19 }, pillarShort: {},
+    floorWide: { h: 17 }, floorSmall: { h: 24 },
+    roof: { w: 114, h: 60, bottom: true },
+    target: { w: 40, h: 38 }, targetHit: { w: 44, h: 38 },
+  },
+  /* 무대의 세로 기준선은 조리대 상판 y=507 이다 — 물체가 놓이는 면이자 바닥 강체(y=527, 두께 40)의 윗면이고,
+     과자집의 발과 고무줄 기준점(164, 418)도 여기에 맞춰 잡혀 있다. 상판은 필드 아래(579)를 넘겨 깔아
+     앞면이 화면 밖으로 잘려 나간다. 무대를 위아래로 옮길 때는 새총·과자집·바닥을 같은 값만큼 함께 옮겨야
+     포물선과 난이도가 그대로다. tests/e5-slingshot-check.js 의 좌표도 같은 값만큼 따라와야 한다. */
   build() {
     MINI.init(this, 0xd9bc7a);
     this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
-    M.Composite.add(this.slingWorld.world, M.Bodies.rectangle(480, 491, 2200, 40, { isStatic: true, friction: .65 }));
-    const timber = (x, y, w, h, roof = false) => {
+    M.Composite.add(this.slingWorld.world, M.Bodies.rectangle(480, 527, 2200, 40, { isStatic: true, friction: .65 }));
+    // role 은 매니페스트(assets/minigames/manifest.js)의 e5 그림 이름이다. 그림이 없으면
+    // 아래 render 가 옛 진저브레드 도형으로 대신 그린다.
+    const timber = (x, y, w, h, role, roof = false) => {
       const options = { density: .0019, friction: .55, frictionStatic: .75, frictionAir: .018, restitution: .02 };
       const body = roof ? M.Bodies.trapezoid(x, y, w, h, .35, options) : M.Bodies.rectangle(x, y, w, h, options);
-      const wood = { x: x - w / 2, y: y - h / 2, w, h, hp: E5_SLINGSHOT.tuning.woodHP, body, angle: 0, flash: 0, roof, wood: true, joints: [] };
+      const wood = { x: x - w / 2, y: y - h / 2, w, h, hp: E5_SLINGSHOT.tuning.woodHP, body, angle: 0, flash: 0, roof, role, wood: true, joints: [] };
       body.plugin.timber = wood; this.state.timbers.push(wood); M.Composite.add(this.slingWorld.world, body);
     };
     // Separate load-bearing posts and floors form rooms around the cookie residents.
     for (let col = 0; col < 2; col++) {
       const cx = 680 + col * 116;
-      timber(cx - 43, 435, 12, 72); timber(cx + 43, 435, 12, 72);
-      timber(cx, 393, 108, 12);
-      timber(cx - 43, 357, 12, 60); timber(cx + 43, 357, 12, 60);
-      timber(cx, 321, 108, 12); timber(cx, 303, 110, 24, true);
+      timber(cx - 43, 471, 12, 72, 'pillarLong'); timber(cx + 43, 471, 12, 72, 'pillarLong');
+      timber(cx, 429, 108, 12, 'floorSmall');
+      timber(cx - 43, 393, 12, 60, 'pillarMedium'); timber(cx + 43, 393, 12, 60, 'pillarMedium');
+      // 지붕 바로 밑에는 얇은 층(floorWide)을, 눈에 잘 띄는 가운데 층에는 두꺼운 케이크(floorSmall)를 쓴다.
+      timber(cx, 357, 108, 12, 'floorWide'); timber(cx, 339, 110, 24, 'roof', true);
       const parts = this.state.timbers.slice(-7);
       parts.forEach((part, index) => { part.house = col; part.foundation = index < 2; });
       const join = (a, b, x, y) => {
@@ -1734,14 +1754,14 @@ const E5_SLINGSHOT = {
       // Timber joints hold the house until repeated impacts break a load-bearing piece.
       for (const side of [0, 1]) {
         const x = cx + (side ? 43 : -43);
-        join(null, parts[side], x, 471);
-        join(parts[side], parts[2], x, 399);
-        join(parts[2], parts[3 + side], x, 387);
-        join(parts[3 + side], parts[5], x, 327);
-        join(parts[5], parts[6], x, 315);
+        join(null, parts[side], x, 507);
+        join(parts[side], parts[2], x, 435);
+        join(parts[2], parts[3 + side], x, 423);
+        join(parts[3 + side], parts[5], x, 363);
+        join(parts[5], parts[6], x, 351);
       }
       for (let row = 0; row < 2; row++) {
-        const w = 34, h = 36, x = cx - w / 2, y = (row ? 387 : 471) - h;
+        const w = 34, h = 36, x = cx - w / 2, y = (row ? 423 : 507) - h;
         const body = M.Bodies.rectangle(cx, y + h / 2, w, h, {
           density: .0015, friction: .48, frictionStatic: .7, frictionAir: .004, restitution: .06,
         });
@@ -1771,28 +1791,50 @@ const E5_SLINGSHOT = {
       }
     });
 
-    this.add.text(178, 463, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
+    // 움직이지 않는 소품은 한 번만 깔고 render 에서 건드리지 않는다.
+    // 깊이를 나눠 두는 이유는 HUD 때문이다. ink(안내문·진행 막대·조준선)는 깊이 0 이라
+    // 조리대를 -1 에 두어야 화면 아래 글씨가 상판 그림에 가리지 않는다. 배경은 그보다 아래다.
+    const scenery = (role, x, y, w, h) => {
+      if (!this.textures.exists('e5:' + role)) return null;
+      return this.add.image(x, y, 'e5:' + role).setDisplaySize(w, h).setDepth(-1).setMask(this.ink.mask);
+    };
+    this.backdrop?.setDepth(-2);
+    // 상판 윗변(y=507)이 물체가 놓이는 면이다. 아래로는 필드 끝(579)을 넘겨 623 까지 깔아
+    // 상판 앞면이 화면 밖에서 잘리게 둔다 — 조리대가 화면 앞으로 튀어나온 것처럼 보인다.
+    scenery('table', MINI.FIELD.cx, 565, MINI.FIELD.w, 116);
+    for (let col = 0; col < 2; col++) scenery('brick', 680 + col * 116, 523, 116, 32);
+    scenery('brickStar', 300, 494, 28, 27);
+    scenery('brickStar', 884, 492, 32, 31);
+    // 새총 몸통. 고무줄이 없는 그림이라 줄은 render 가 선으로 그리는데, 그 선이 ink(깊이 0)라
+    // 몸통도 같은 -1 에 두어야 쉬고 있을 때의 짧은 줄이 몸통에 가리지 않는다.
+    scenery('slingshot', 160, 446, 96, 124);
+    // 부서지는 연출(균열·번쩍임·부스러기)을 그리는 레이어. 과자집 그림보다 위(깊이 1)여야 보인다 —
+    // ink 는 배우 스프라이트보다 먼저 만들어져 아래에 깔리므로, 조각 한가운데 그리면 그림에 가린다.
+    // 스프라이트를 tint 로 물들이는 방법은 못 쓴다. index.html 을 파일로 직접 열면 Phaser.CANVAS 로
+    // 뜨는데(js/archive/game.mjs) 캔버스 렌더러는 tint 를 조용히 무시한다.
+    this.debris = this.add.graphics().setDepth(1).setMask(this.ink.mask);
+    this.add.text(160, 534, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
 
     this.instruction.setText('');
   },
   power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * this.penalty(E5_SLINGSHOT.tuning.decay)); },
   pointerDown(x, y) {
-    if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 382) > 55) return;
-    this.state.drag = { x: 164, y: 382 };
+    if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 418) > 55) return;
+    this.state.drag = { x: 164, y: 418 };
     E5_SLINGSHOT.pointerMove.call(this, x, y);
   },
   pointerMove(x, y) {
     if (!this.state.drag) return;
-    const dx = x - 164, dy = y - 382, scale = Math.min(1, E5_SLINGSHOT.tuning.maxPull / Math.max(1, Math.hypot(dx, dy)));
-    this.state.drag = { x: 164 + dx * scale, y: 382 + dy * scale };
+    const dx = x - 164, dy = y - 418, scale = Math.min(1, E5_SLINGSHOT.tuning.maxPull / Math.max(1, Math.hypot(dx, dy)));
+    this.state.drag = { x: 164 + dx * scale, y: 418 + dy * scale };
   },
   pointerUp() {
     const s = this.state, d = s.drag, t = E5_SLINGSHOT.tuning;
     if (!d) return;
     s.drag = null;
-    if (Math.hypot(d.x - 164, d.y - 382) < 8) return;
+    if (Math.hypot(d.x - 164, d.y - 418) < 8) return;
     const power = E5_SLINGSHOT.power.call(this);
-    s.balls.push({ x: d.x, y: d.y, vx: (164 - d.x) * t.force * power, vy: (382 - d.y) * t.force * power, power, age: 0, hit: new Set(), id: s.shots, squash: 0, trail: [] });
+    s.balls.push({ x: d.x, y: d.y, vx: (164 - d.x) * t.force * power, vy: (418 - d.y) * t.force * power, power, age: 0, hit: new Set(), id: s.shots, squash: 0, trail: [] });
     const shot = s.balls[s.balls.length - 1], M = Phaser.Physics.Matter.Matter;
     shot.body = M.Bodies.circle(shot.x, shot.y, 12, {
       density: .014, friction: .35, frictionAir: 0, restitution: .3,
@@ -1814,8 +1856,9 @@ const E5_SLINGSHOT = {
     const s = this.state, broken = target.hp === 0;
     // Cosmetic randomness never changes damage or collision results.
     if (this.settings.effects) for (let i = 0; i < (broken ? 14 : 5); i++) {
+      // 부서질 때는 부스러기를 더 굵게 튀긴다 — 과자 그림 위로도 알아볼 만큼.
       s.crumbs.push({ x: target.x + target.w / 2, y: target.y + target.h / 2,
-        vx: MINI.rand(-170, 170), vy: MINI.rand(-230, -55), age: 0, size: MINI.rand(2, 6),
+        vx: MINI.rand(-170, 170), vy: MINI.rand(-230, -55), age: 0, size: MINI.rand(broken ? 3 : 2, broken ? 9 : 6),
         color: i % 3 ? 0xd9a15e : 0xfff3e2 });
     }
     if (broken) {
@@ -1912,7 +1955,7 @@ const E5_SLINGSHOT = {
     });
     s.balls = s.balls.filter(b => {
       // Keep the first impact, but do not wait for a floor-bound ball to finish rolling.
-      const keep = b.x < 980 && b.x > -30 && b.y < 560 && !(b.groundAge >= .12) && !(b.spentAge >= .18);
+      const keep = b.x < 980 && b.x > -30 && b.y < 596 && !(b.groundAge >= .12) && !(b.spentAge >= .18);
       if (!keep) { M.Composite.remove(this.slingWorld.world, b.body); this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
       return keep;
     });
@@ -1925,10 +1968,13 @@ const E5_SLINGSHOT = {
     this.risk = (1 - E5_SLINGSHOT.power.call(this)) * 180;
     if (!left) this.finish(true, s.shots + '발로 두딱쿠 4개 파괴');
   },
+  /* role 은 매니페스트의 e5 그림 이름이다. 두쫀쿠는 상태별로(proud/tense/launch/split),
+     두딱깡은 성한 것과 맞은 것(target/targetHit)으로 갈린다.
+     그림이 없으면 두쫀쿠 계열은 초콜릿 공, 두딱깡 계열은 과자 상자로 대신 그린다. */
   cookie(role, key, x, y, w, h, angle = 0) {
     if (this.textures.exists('e5:' + role)) { MINI.actor(this, role, key, x, y, w, h, angle); return; }
     const g = this.ink; g.save(); g.translateCanvas(x, y); g.rotateCanvas(angle);
-    if (role === 'projectile') {
+    if (!role.startsWith('target')) {
       g.fillStyle(0x543427).fillEllipse(0, 0, w, h);
       g.fillStyle(0x88553a).fillEllipse(-w * .08, -h * .09, w * .85, h * .78);
       g.fillStyle(0xaab56d).fillEllipse(w * .12, h * .06, w * .49, h * .56);
@@ -1944,47 +1990,69 @@ const E5_SLINGSHOT = {
     g.restore();
   },
   render() {
-    const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
+    const s = this.state, d = s.drag ?? { x: 164, y: 418 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
     const field = this.ink;
     MINI.frame(this);
+    this.debris.clear();
     this.instruction.setText('파괴 ' + broken + ' / 4 · 장력 ' + Math.round(power * 100) + '%' + (s.waiting ? ' · 다음 발사 ' + s.cooldown.toFixed(1) + '초' : ''));
     // Warm pastry counter, trays and reserves keep the play field readable.
-    MINI.box(this, 22, 444, 916, 34, 0x372923);
-    MINI.box(this, 22, 471, 916, 9, 0xb98e62);
-    MINI.box(this, MINI.FIELD.x, 480, MINI.FIELD.w, MINI.FIELD.bottom - 480, 0x372923);
-    for (let i = 0; i < 3; i++) {
-      if (i < 2) MINI.box(this, 626 + i * 116, 471, 108, 5, 0xf0c9a0);
-      E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);
+    // 조리대 그림이 있으면 build 가 깔아 둔 상판과 초콜릿 받침이 이 자리를 대신한다.
+    if (!this.textures.exists('e5:table')) {
+      MINI.box(this, 22, 480, 916, 34, 0x372923);
+      MINI.box(this, 22, 507, 916, 9, 0xb98e62);
+      MINI.box(this, MINI.FIELD.x, 516, MINI.FIELD.w, MINI.FIELD.bottom - 516, 0x372923);
+      for (let i = 0; i < 2; i++) MINI.box(this, 626 + i * 116, 507, 108, 5, 0xf0c9a0);
     }
-    MINI.line(this, 146, 447, 137, 358, 0xa78260, 14);
-    MINI.line(this, 146, 404, 184, 357, 0xa78260, 12);
-    MINI.line(this, 137, 360, d.x, d.y, 0x6c4630, 7);
-    MINI.line(this, 137, 360, d.x, d.y, 0xe9c18c, 3);
-    MINI.line(this, 184, 357, d.x, d.y, 0xe9c18c, 4);
-    const pull = Math.hypot(d.x - 164, d.y - 382) / t.maxPull;
-    if (!s.waiting && s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, 'projectile', 'ready', d.x, d.y, 29 + pull * 11, 29 - pull * 6, s.drag ? Math.atan2(382 - d.y, 164 - d.x) : 0);
+    // 대기 중인 두쫀쿠 세 개는 상판 위(y=507)에 발을 붙이고 앉는다.
+    for (let i = 0; i < 3; i++) E5_SLINGSHOT.cookie.call(this, 'proud', 'reserve' + i, 48 + i * 38, 490, 34, 33);
+    if (!this.textures.exists('e5:slingshot')) {
+      MINI.line(this, 146, 483, 137, 394, 0xa78260, 14);
+      MINI.line(this, 146, 440, 184, 393, 0xa78260, 12);
+    }
+    MINI.line(this, 137, 396, d.x, d.y, 0x6c4630, 7);
+    MINI.line(this, 137, 396, d.x, d.y, 0xe9c18c, 3);
+    MINI.line(this, 184, 393, d.x, d.y, 0xe9c18c, 4);
+    const pull = Math.hypot(d.x - 164, d.y - 418) / t.maxPull;
+    // 당기는 동안에는 힘을 주는 얼굴로 바뀌고, 발사 방향으로 몸을 돌린다.
+    if (!s.waiting && s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, s.drag ? 'tense' : 'proud', 'ready', d.x, d.y, 29 + pull * 11, 29 - pull * 6, s.drag ? Math.atan2(418 - d.y, 164 - d.x) : 0);
     else MINI.hideActor(this, 'ready');
     if (s.drag) {
-      let x = d.x, y = d.y, vx = (164 - d.x) * t.force * power, vy = (382 - d.y) * t.force * power;
+      let x = d.x, y = d.y, vx = (164 - d.x) * t.force * power, vy = (418 - d.y) * t.force * power;
       for (let frame = 0; frame < 36; frame++) {
         vy += t.gravity / 120; x += vx / 120; y += vy / 120;
         const hit = [...s.targets, ...s.timbers].some(o => o.hp > 0 && MINI.hit({ x: x - 12, y: y - 12, w: 24, h: 24 }, o));
-        if (hit || y > 457) break;
+        if (hit || y > 493) break;
         if (x > 950 || x < 20) break;
         if (frame % 6 === 0) MINI.circle(this, x, y, 3, 0xffe9bc, Math.max(.3, .9 * (1 - frame / 44)));
       }
-      MINI.box(this, 88, 282, 126, 8, 0x4c3d30);
-      MINI.box(this, 88, 282, 126 * pull, 8, pull > .8 ? 0xc7d981 : 0xe3bc7d);
+      MINI.box(this, 88, 318, 126, 8, 0x4c3d30);
+      MINI.box(this, 88, 318, 126 * pull, 8, pull > .8 ? 0xc7d981 : 0xe3bc7d);
     }
-    for (const wood of s.timbers) {
+    s.timbers.forEach((wood, index) => {
       const g = this.ink, body = wood.body;
-      // 과자집: 진저브레드 기둥에 아이싱을 두르고 지붕은 딸기 아이싱으로 덮는다.
-      // 색과 장식만 바뀌고 몸체·판정은 그대로다.
-      g.fillStyle(wood.hp <= 0 ? 0x9a6a3c : wood.roof ? 0xe4728f : 0xd39a55).fillPoints(body.vertices, true);
-      g.lineStyle(2, wood.roof ? 0xfff3e2 : 0x9c6330).strokePoints(body.vertices, true);
+      // 부러진 기둥은 짧은 웨이퍼 조각으로 갈아 끼운다. 판정은 damage 가 이미 줄여 놓았고,
+      // 층과 지붕은 자기 그림 그대로 납작해진다 — 웨이퍼 조각으로 바꾸면 딸기 케이크가 사라져 보인다.
+      const role = wood.hp <= 0 && wood.role.startsWith('pillar') ? 'pillarShort' : wood.role;
+      const drawn = this.textures.exists('e5:' + role);
+      // 그림이 차지하는 사각형. 파손 연출도 판정이 아니라 이 사각형에 맞춰야 조각을 정확히 덮는다.
+      // 부러진 조각은 판정이 원래 높이의 28%까지 얇아진다. 너무 얇으면 보이지 않아 5px 를 밑돌지 않게 한다.
+      const spec = drawn ? E5_SLINGSHOT.art[role] ?? {} : {};
+      const artW = spec.w ?? wood.w, artH = Math.max(spec.h ?? wood.h, drawn ? 5 : 0);
+      // 아랫변을 맞추는 그림(지붕)은 기운 각도만큼 중심도 같이 돌려 준다.
+      const dy = spec.bottom ? wood.h / 2 - artH / 2 : 0;
+      if (drawn) {
+        MINI.actor(this, role, 'wood' + index,
+          body.position.x - dy * Math.sin(body.angle), body.position.y + dy * Math.cos(body.angle), artW, artH, body.angle);
+      } else {
+        // 과자집: 진저브레드 기둥에 아이싱을 두르고 지붕은 딸기 아이싱으로 덮는다.
+        // 색과 장식만 바뀌고 몸체·판정은 그대로다.
+        g.fillStyle(wood.hp <= 0 ? 0x9a6a3c : wood.roof ? 0xe4728f : 0xd39a55).fillPoints(body.vertices, true);
+        g.lineStyle(2, wood.roof ? 0xfff3e2 : 0x9c6330).strokePoints(body.vertices, true);
+      }
       g.save(); g.translateCanvas(body.position.x, body.position.y); g.rotateCanvas(body.angle);
-      if (!wood.roof) {
+      // 아이싱 장식은 옛 도형에만 있던 것이라 그림이 깔리면 그리지 않는다.
+      if (!drawn && !wood.roof) {
         const vertical = wood.h > wood.w;
         // 가장자리를 따라 짜 놓은 하얀 아이싱
         for (const sign of [-1, 1]) {
@@ -1997,41 +2065,64 @@ const E5_SLINGSHOT = {
           const at = ((i + .5) / beads - .5) * (span - 10);
           MINI.circle(this, vertical ? 0 : at, vertical ? at : 0, 2.4, i % 2 ? 0x6fd3c0 : 0xff85b3);
         }
-      } else {
+      } else if (!drawn) {
         // 처마를 타고 흘러내린 아이싱과 젤리 장식
         MINI.line(this, -32, -4, 32, -4, 0xfff3e2, 3);
         MINI.line(this, -44, 5, 44, 5, 0xfff3e2, 3);
         [-33, -11, 11, 33].forEach((sx, i) => MINI.circle(this, sx, 5, 3, i % 2 ? 0x8ce0c8 : 0xffd166));
       }
-      if (wood.hp < t.woodHP) {
-        MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);
-        if (wood.hp < t.woodHP / 2) {
-          MINI.line(this, 5, 5, -4, 13, 0x30251d, 2);
-          MINI.line(this, -3, -4, 4, -12, 0x30251d, 2);
-        }
-        MINI.box(this, -wood.w / 2, -wood.h / 2 - 5, wood.w, 3, 0x38271f);
-        MINI.box(this, -wood.w / 2, -wood.h / 2 - 5, wood.w * Math.max(0, wood.hp) / t.woodHP, 3, wood.hp < t.woodHP / 2 ? 0xee9267 : 0xe5c17d);
-      }
       g.restore();
-    }
+      // 맞은 티(번쩍임·균열·내구도 막대)는 조각 그림 위(debris)에 같은 자리로 겹쳐 그린다.
+      const fx = this.debris;
+      fx.save(); fx.translateCanvas(body.position.x, body.position.y); fx.rotateCanvas(body.angle);
+      if (this.settings.effects && wood.flash) {
+        fx.fillStyle(0xfff3e2, wood.flash * 3).fillRoundedRect(-artW / 2, dy - artH / 2, artW, artH, Math.min(5, artW / 3, artH / 3));
+      }
+      // 이미 부러진 조각은 그림부터 부서진 모습이라 균열과 막대를 겹치지 않는다.
+      if (wood.hp > 0 && wood.hp < t.woodHP) {
+        fx.lineStyle(2, 0x30251d).lineBetween(-4, -5, 5, 5);
+        if (wood.hp < t.woodHP / 2) {
+          fx.lineStyle(2, 0x30251d).lineBetween(5, 5, -4, 13);
+          fx.lineStyle(2, 0x30251d).lineBetween(-3, -4, 4, -12);
+        }
+        // 막대는 판정이 아니라 그림 윗변 위에 띄운다 — 층과 지붕은 그림이 판정보다 커서 안에 묻힌다.
+        const barY = dy - artH / 2 - 5;
+        fx.fillStyle(0x38271f).fillRoundedRect(-artW / 2, barY, artW, 3, 1);
+        fx.fillStyle(wood.hp < t.woodHP / 2 ? 0xee9267 : 0xe5c17d)
+          .fillRoundedRect(-artW / 2, barY, artW * Math.max(0, wood.hp) / t.woodHP, 3, 1);
+      }
+      fx.restore();
+    });
     s.targets.forEach((o, i) => {
       if (o.hp <= 0) { MINI.hideActor(this, 'target' + i); return; }
-      E5_SLINGSHOT.cookie.call(this, 'target', 'target' + i, o.x + o.w / 2, o.y + o.h / 2, o.w, o.h, o.angle);
-      const g = this.ink; g.save(); g.translateCanvas(o.x + o.w / 2, o.y + o.h / 2); g.rotateCanvas(o.angle);
-      if (o.hp < t.targetHP) {
-        MINI.line(this, 0, -o.h / 2 + 3, -10, -5, 0x38281f, 3);
-        MINI.line(this, -10, -5, 8, 5, 0x38281f, 3);
-        MINI.line(this, 8, 5, -3, o.h / 2 - 3, 0x38281f, 3);
+      // 한 번이라도 맞으면 부스러기가 튄 두딱깡 그림으로 바뀐다.
+      const role = o.hp < t.targetHP ? 'targetHit' : 'target';
+      const spec = this.textures.exists('e5:' + role) ? E5_SLINGSHOT.art[role] : null;
+      const w = spec?.w ?? o.w, h = spec?.h ?? o.h;
+      E5_SLINGSHOT.cookie.call(this, role, 'target' + i, o.x + o.w / 2, o.y + o.h / 2, w, h, o.angle);
+      // 맞은 티는 두딱깡 그림 위(debris)에 겹쳐 그린다. 다만 균열 선은 그림이 없을 때만 —
+      // targetHit 그림이 이미 깨진 모습이라 위에 검은 선을 또 그으면 지저분해진다.
+      const fx = this.debris;
+      fx.save(); fx.translateCanvas(o.x + o.w / 2, o.y + o.h / 2); fx.rotateCanvas(o.angle);
+      if (!spec && o.hp < t.targetHP) {
+        fx.lineStyle(3, 0x38281f).lineBetween(0, -o.h / 2 + 3, -10, -5);
+        fx.lineStyle(3, 0x38281f).lineBetween(-10, -5, 8, 5);
+        fx.lineStyle(3, 0x38281f).lineBetween(8, 5, -3, o.h / 2 - 3);
       }
-      if (o.hp <= 0) MINI.box(this, -o.w / 2, -o.h / 2, o.w, o.h, 0x241d1a, .48);
-      if (this.settings.effects && o.flash) MINI.box(this, -o.w / 2, -o.h / 2, o.w, o.h, 0xffedbe, o.flash * 2);
-      g.restore();
+      if (this.settings.effects && o.flash) {
+        fx.fillStyle(0xffedbe, o.flash * 3).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(5, w / 3, h / 3));
+      }
+      fx.restore();
     });
     for (const b of s.balls) {
       for (let i = 0; i < b.trail.length; i += 2) MINI.circle(this, b.trail[i].x, b.trail[i].y, 5 - i * .25, 0xbac480, .22 * (1 - i / 12));
-      E5_SLINGSHOT.cookie.call(this, 'projectile', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
+      // 날아가는 동안은 신난 얼굴이고, 무언가에 맞은 뒤에는 반으로 갈라진 채 구른다.
+      E5_SLINGSHOT.cookie.call(this, b.hit.size ? 'split' : 'launch', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
     }
-    for (const c of s.crumbs) MINI.box(this, c.x, c.y, c.size, c.size, c.color, 1 - c.age / .75);
+    // 부스러기도 debris 에 그린다 — ink 에 그리면 튀어나온 것들이 과자집 그림 뒤에 깔려 반쯤 사라진다.
+    for (const c of s.crumbs) {
+      this.debris.fillStyle(c.color, 1 - c.age / .75).fillRoundedRect(c.x, c.y, c.size, c.size, Math.min(5, c.size / 3));
+    }
     MINI.meter(this, broken / 4);
   },
   dispose() {
@@ -2046,9 +2137,10 @@ const E5_SLINGSHOT = {
 /* Source: stages/e6_gravityFlight.js */
 
 /*
- * 장애물은 그림이 아니라 글자다. 밈 문장을 한 글자씩 세로로 세워 통로를 막는 기둥으로 쓰고,
- * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.sets만
- * 고치면 되고, 기둥 높이·판정 폭은 실제로 그려진 글자 크기에서 뽑으므로 따로 맞출 값이 없다.
+ * 장애물은 세로로 조판된 밈 글자 그림이다. 낱말 한 장이 통로를 막는 기둥 하나가 되고,
+ * manifest.js 가 e6:word-… 로 물어 온다(원본에서 굽는 일은 scripts/bake-meme-pillars.ps1).
+ * 기둥 높이는 글자 수에서 정하고 가로는 그림 비율에서 뽑으므로 따로 맞출 값이 없다.
+ * 그림이 없으면 예전처럼 글꼴(@font-face YeogiOttaeJalnan)로 세운 글자로 돌아간다.
  *
  * 장애물은 처음에 모두 만들어 두지 않는다. 쿠키런처럼 캐릭터가 tuning.spawnAhead 안으로
  * 들어온 것만 그때 태어나고(화면 오른쪽 바깥이라 갑자기 튀어나오지 않는다) 지나간 것은 지운다.
@@ -2059,8 +2151,13 @@ const E5_SLINGSHOT = {
    '샤갈!'과 '야르~'는 한 마디씩 서는 세트다. 어느 세트가 올지는 무작위지만, 한 번 나온 세트는
    나머지가 다 나오기 전에는 다시 뽑히지 않는다(같은 세트가 연달아 서면 길이 단조로워진다). */
 const MEME = {
+  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈'], ['야르'], ['아자스!']],
+  // 낱말 → manifest.js 의 그림 이름. 그림이 없는 낱말은 아래 글꼴로 세운다.
+  art: {
+    '여러분': 'word-yeoreobun', '저됐어요': 'word-jeodwaess', '뭣됐어요': 'word-mwotdwaess',
+    '샤갈': 'word-shagal', '야르': 'word-yareu', '아자스!': 'word-ajaseu',
+  },
   family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
-  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~'], ['아자스!']],
   color: '#fff3d6', stroke: '#07141d',
 };
 MEME.words = MEME.sets.flat();
@@ -2087,11 +2184,16 @@ const TUNNEL = { top: 130, bottom: 511, height: 381 };
 /* 부딪힌 뒤 되돌아가 서는 자리가 벽에서 떨어져 있어야 하는 거리. 고양이 반 키(24)보다 넉넉하다. */
 const RESPAWN_MARGIN = 52;
 
-/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 고양이 앞 lead 만큼 —
-   화면 절반쯤 되는 자리 — 에서 위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
-   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 300 이 곧 화면 한가운데(480)다.
-   speed 255 기준으로 눈에 보이고 나서 부딪히기까지 약 1.2초 — 보고 피할 수 있는 최소한이다. */
-const EMERGE = { lead: 300, time: .16 };
+/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 화면 오른쪽 30% 지점에서
+   위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
+   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 484 가 곧 화면 70% 자리(664)다.
+   더 앞에서 내보내면 앞이 비어 보이고, 더 뒤면 보고 피할 틈이 없다.
+   speed 255 기준으로 나오고 나서 부딪히기까지 약 1.9초다.
+
+   기둥의 3분의 2는 옆으로도 미끄러져 들어온다 — 벽에서 곧게만 솟으면 줄이 너무 정직해 보인다.
+   slide 는 나오기 시작할 때 제 자리보다 얼마나 앞(오른쪽)에 있는지이고, 다 나오면 0이 된다.
+   그래서 위 기둥은 오른쪽 위에서 왼쪽 아래로, 아래 기둥은 오른쪽 아래에서 왼쪽 위로 들어온다. */
+const EMERGE = { lead: 484, time: .38, slide: 132, straightOdds: 1 / 3 };
 
 /* 기둥이 벽 밖으로 나온 정도(0~1). 끝에서 부드럽게 멎는 곡선이라 튀어나오는 맛이 산다.
    판정과 그림이 같은 값을 보므로, 아직 덜 나온 기둥은 그만큼만 부딪힌다. */
@@ -2099,6 +2201,12 @@ function gateReach(scene, gate) {
   if (gate.emergedAt === null) return 0;
   const phase = MINI.clamp((scene.elapsed - gate.emergedAt) / EMERGE.time, 0, 1);
   return 1 - (1 - phase) ** 4;
+}
+
+/* 지금 이 순간 기둥이 서 있는 x. 다 나온 기둥은 제 자리(gate.x)이고,
+   들어오는 중인 기둥은 아직 slide 만큼 앞에 있다. 판정과 그림이 이 값을 함께 본다. */
+function gateX(scene, gate) {
+  return gate.x + gate.slide * (1 - gateReach(scene, gate));
 }
 
 /* 캐릭터는 도는 고양이(oiia)다. 스페이스를 누르고 있는 동안에만 spin1→spin6 을 돌리고,
@@ -2194,6 +2302,19 @@ function loadMemeFont(scene) {
   });
 }
 
+/* 기둥 하나의 그림. 구운 낱말 그림이 있으면 그것을, 없으면 예전처럼 글꼴로 세운 글자를 쓴다.
+   둘 다 원본 크기를 width/height 로 알려 주므로 fitGate 가 같은 식으로 잰다. */
+function makeLabel(scene, word) {
+  const key = `e6:${MEME.art[word] ?? ''}`;
+  const label = scene.textures.exists(key)
+    ? scene.add.image(0, 0, key)
+    : scene.add.text(0, 0, word.split('').join('\n'), {
+      fontFamily: MEME.family, fontSize: `${E6_GRAVITY_FLIGHT.tuning.cell}px`, color: MEME.color,
+      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
+    });
+  return label.setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+}
+
 /* 글자 기둥의 높이·폭·붙는 벽을 정한다. 긴 밈은 통로를 다 막지 않도록 tuning.minGap만큼 비운다. */
 function fitGate(gate) {
   const t = E6_GRAVITY_FLIGHT.tuning;
@@ -2213,18 +2334,19 @@ function syncGates(scene) {
   const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
   while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
     const index = scene.nextGate.index, word = nextMeme(scene);
-    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', emergedAt: null };
-    gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
-      fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
-      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
-    }).setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+    // 셋 중 하나는 곧게 솟고 나머지는 옆으로도 미끄러져 든다. 미끄러지는 거리도 조금씩 다르다.
+    const slide = Math.random() < EMERGE.straightOdds ? 0 : MINI.rand(.55, 1) * EMERGE.slide;
+    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', slide, emergedAt: null };
+    gate.label = makeLabel(scene, word);
     fitGate(gate); scene.gates.push(gate);
     scene.nextGate = { x: scene.nextGate.x + t.spacing, index: index + 1 };
   }
   for (let i = scene.gates.length - 1; i >= 0; i--) {
     const gate = scene.gates[i];
     // 앞 lead 안으로 들어온 기둥이 벽에서 튀어나오기 시작한다. 한 번 나온 기둥은 다시 들어가지 않는다.
-    if (gate.emergedAt === null && gate.x - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
+    // 미끄러져 드는 기둥은 slide 만큼 앞에서 시작하므로, 그 자리를 기준으로 재야
+    // 어느 기둥이든 화면 같은 자리(70%)에서 모습을 드러낸다.
+    if (gate.emergedAt === null && gate.x + gate.slide - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
     if (gate.x >= x - t.despawnBehind) continue;
     gate.label.destroy(); scene.gates.splice(i, 1);
   }
@@ -2235,7 +2357,7 @@ const E6_GRAVITY_FLIGHT = {
   tuning: {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
-    cell: 42, minGap: 152, aimMargin: 52, spacing: 355, firstX: 500,
+    cell: 52, minGap: 152, aimMargin: 52, spacing: 235, firstX: 470,
     spawnAhead: 880, spawnStop: 140, despawnBehind: 420,
   },
   build() {
@@ -2289,7 +2411,7 @@ const E6_GRAVITY_FLIGHT = {
     const box = this.catBox;
     const gate = this.gates.find(g => {
       const shown = (g.bottom - g.top) * gateReach(this, g);
-      if (shown <= 0 || Math.abs(g.x - s.x) >= g.halfWidth + box.halfWidth) return false;
+      if (shown <= 0 || Math.abs(gateX(this, g) - s.x) >= g.halfWidth + box.halfWidth) return false;
       const top = g.side === 'top' ? g.top : g.bottom - shown;
       return s.y + box.halfHeight > top && s.y - box.halfHeight < top + shown;
     });
@@ -2311,7 +2433,7 @@ const E6_GRAVITY_FLIGHT = {
     MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, 0x27384a);
     MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
     for (const gate of this.gates) {
-      const x = gate.x - s.x + 180;
+      const x = gateX(this, gate) - s.x + 180;
       const reach = gateReach(this, gate);
       const onScreen = x > -60 && x < 1000 && reach > 0;
       gate.label.setVisible(onScreen);

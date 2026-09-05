@@ -125,6 +125,9 @@ export const MINI = {
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);
       if (!sprite) { sprite = scene.add.image(x, y, texture).setMask(scene.ink.mask); scene.assetSprites.set(key, sprite); }
+      // 같은 자리가 상태에 따라 다른 그림을 쓰는 경우(성한 것 -> 깨진 것)를 위해 텍스처도 갈아 끼운다.
+      // 표시 크기는 텍스처를 바꾼 뒤에 정해야 원본 해상도로 되돌아가지 않는다.
+      else if (sprite.texture.key !== texture) sprite.setTexture(texture);
       sprite.setPosition(x, y).setDisplaySize(w, h).setRotation(angle).setVisible(true);
       return;
     }

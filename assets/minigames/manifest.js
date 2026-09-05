@@ -35,7 +35,35 @@ globalThis.MINIGAME_ASSETS = {
     pose8: 'assets/images/minigame/stacks/metcha/pose8.webp',
     line: 'assets/images/minigame/stacks/metcha/line.webp',
   }, e4: { player: null, tileRoof: 'assets/minigames/e4/tile-roof.png', thatch: null },
-  e5: { projectile: null, target: null },
+  // e5: 두쫀쿠 새총. 원점=이미지 중심이고, 표시 크기는 e5_slingshot.js 의 ART 가 정한다.
+  // 판정은 Matter 강체 그대로라 그림을 갈아 끼워도 난이도는 변하지 않는다.
+  // 원본 png 에서 굽는 일은 scripts/bake-ddujjonku.ps1 이 한다.
+  e5: {
+    // backdrop 은 필드를 통째로 덮는 배경 한 장이다(16:9). 깔리는 순간 MINI.frame 의
+    // 격자는 사라지고 어둠막만 남는다.
+    backdrop: 'assets/images/minigame/ddujjonku/cafe.webp',
+    // 발사체 두쫀쿠의 상태별 네 장. 대기 -> 당기는 중 -> 날아가는 중 -> 맞고 갈라진 뒤.
+    proud: 'assets/images/minigame/ddujjonku/proud.webp',
+    tense: 'assets/images/minigame/ddujjonku/tense.webp',
+    launch: 'assets/images/minigame/ddujjonku/launch.webp',
+    split: 'assets/images/minigame/ddujjonku/split.webp',
+    // 새총 몸통. 고무줄은 당기는 자리를 따라가야 해서 코드가 선으로 그린다.
+    slingshot: 'assets/images/minigame/ddujjonku/slingshot.webp',
+    // 파괴 대상 두딱깡. 한 번이라도 맞으면 target-hit 으로 바뀐다.
+    target: 'assets/images/minigame/ddujjonku/target.webp',
+    targetHit: 'assets/images/minigame/ddujjonku/target-hit.webp',
+    // 과자집 부재. 아래층 기둥이 길고 위층이 짧으며, 부러진 조각은 pillarShort 로 바뀐다.
+    roof: 'assets/images/minigame/ddujjonku/roof.webp',
+    floorWide: 'assets/images/minigame/ddujjonku/floor-wide.webp',
+    floorSmall: 'assets/images/minigame/ddujjonku/floor-small.webp',
+    pillarLong: 'assets/images/minigame/ddujjonku/pillar-long.webp',
+    pillarMedium: 'assets/images/minigame/ddujjonku/pillar-medium.webp',
+    pillarShort: 'assets/images/minigame/ddujjonku/pillar-short.webp',
+    // 움직이지 않는 배경 소품. 조리대 상판과 집이 올라앉은 초콜릿, 장식용 초콜릿이다.
+    table: 'assets/images/minigame/ddujjonku/table.webp',
+    brick: 'assets/images/minigame/ddujjonku/brick.webp',
+    brickStar: 'assets/images/minigame/ddujjonku/brick-star.webp',
+  },
   // e6: oiia 고양이 회전 여섯 장. 스페이스를 누르는 동안 spin1→spin6 을 돌리고 놓으면 spin1 에
   // 멈춘다(e6_gravityFlight.js 의 SPIN_FPS). 여섯 장 모두 같은 사각형으로 잘라 회전축이
   // 흔들리지 않고, 원본 시트에서 굽는 일은 scripts/bake-oiia-cat.ps1 이 한다.
@@ -46,6 +74,15 @@ globalThis.MINIGAME_ASSETS = {
     spin4: 'assets/images/minigame/geomatric%20fly/spin4.webp',
     spin5: 'assets/images/minigame/geomatric%20fly/spin5.webp',
     spin6: 'assets/images/minigame/geomatric%20fly/spin6.webp',
+    // 통로를 막는 밈 글자 기둥. 세로 조판 그림 한 장이 낱말 하나이고, 기둥 높이는 게임이
+    // 정한 뒤 가로는 그림 비율에서 뽑는다(e6_gravityFlight.js 의 MEME.art).
+    // 원본 '<낱말>_세로.png' 에서 굽는 일은 scripts/bake-meme-pillars.ps1 이 한다.
+    'word-yeoreobun': 'assets/images/minigame/geomatric%20fly/word-yeoreobun.webp',
+    'word-jeodwaess': 'assets/images/minigame/geomatric%20fly/word-jeodwaess.webp',
+    'word-mwotdwaess': 'assets/images/minigame/geomatric%20fly/word-mwotdwaess.webp',
+    'word-shagal': 'assets/images/minigame/geomatric%20fly/word-shagal.webp',
+    'word-yareu': 'assets/images/minigame/geomatric%20fly/word-yareu.webp',
+    'word-ajaseu': 'assets/images/minigame/geomatric%20fly/word-ajaseu.webp',
     player: null,
   },
   e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },

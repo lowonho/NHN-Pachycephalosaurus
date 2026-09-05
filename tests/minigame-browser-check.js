@@ -302,7 +302,7 @@
   assert(scene.mode === 'done' && scene.remaining === 0, 'e4: impact can exhaust timer');
   load('e4');
   assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
-  load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
+  load('e5'); scene.pointerAction(164, 418); scene.stageGame.pointerMove.call(scene, 64, 462); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   // 장애물은 코스에 미리 깔아 두지 않는다 — 사정거리 안으로 들어온 것만, 그것도 화면 오른쪽 바깥에서 태어난다.
   load('e6');

@@ -1,9 +1,10 @@
 import { MINI } from './minigame-kit.js';
 
 /*
- * 장애물은 그림이 아니라 글자다. 밈 문장을 한 글자씩 세로로 세워 통로를 막는 기둥으로 쓰고,
- * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.sets만
- * 고치면 되고, 기둥 높이·판정 폭은 실제로 그려진 글자 크기에서 뽑으므로 따로 맞출 값이 없다.
+ * 장애물은 세로로 조판된 밈 글자 그림이다. 낱말 한 장이 통로를 막는 기둥 하나가 되고,
+ * manifest.js 가 e6:word-… 로 물어 온다(원본에서 굽는 일은 scripts/bake-meme-pillars.ps1).
+ * 기둥 높이는 글자 수에서 정하고 가로는 그림 비율에서 뽑으므로 따로 맞출 값이 없다.
+ * 그림이 없으면 예전처럼 글꼴(@font-face YeogiOttaeJalnan)로 세운 글자로 돌아간다.
  *
  * 장애물은 처음에 모두 만들어 두지 않는다. 쿠키런처럼 캐릭터가 tuning.spawnAhead 안으로
  * 들어온 것만 그때 태어나고(화면 오른쪽 바깥이라 갑자기 튀어나오지 않는다) 지나간 것은 지운다.
@@ -14,8 +15,13 @@ import { MINI } from './minigame-kit.js';
    '샤갈!'과 '야르~'는 한 마디씩 서는 세트다. 어느 세트가 올지는 무작위지만, 한 번 나온 세트는
    나머지가 다 나오기 전에는 다시 뽑히지 않는다(같은 세트가 연달아 서면 길이 단조로워진다). */
 const MEME = {
+  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈'], ['야르'], ['아자스!']],
+  // 낱말 → manifest.js 의 그림 이름. 그림이 없는 낱말은 아래 글꼴로 세운다.
+  art: {
+    '여러분': 'word-yeoreobun', '저됐어요': 'word-jeodwaess', '뭣됐어요': 'word-mwotdwaess',
+    '샤갈': 'word-shagal', '야르': 'word-yareu', '아자스!': 'word-ajaseu',
+  },
   family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
-  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~'], ['아자스!']],
   color: '#fff3d6', stroke: '#07141d',
 };
 MEME.words = MEME.sets.flat();
@@ -42,11 +48,16 @@ const TUNNEL = { top: 130, bottom: 511, height: 381 };
 /* 부딪힌 뒤 되돌아가 서는 자리가 벽에서 떨어져 있어야 하는 거리. 고양이 반 키(24)보다 넉넉하다. */
 const RESPAWN_MARGIN = 52;
 
-/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 고양이 앞 lead 만큼 —
-   화면 절반쯤 되는 자리 — 에서 위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
-   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 300 이 곧 화면 한가운데(480)다.
-   speed 255 기준으로 눈에 보이고 나서 부딪히기까지 약 1.2초 — 보고 피할 수 있는 최소한이다. */
-const EMERGE = { lead: 300, time: .16 };
+/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 화면 오른쪽 30% 지점에서
+   위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
+   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 484 가 곧 화면 70% 자리(664)다.
+   더 앞에서 내보내면 앞이 비어 보이고, 더 뒤면 보고 피할 틈이 없다.
+   speed 255 기준으로 나오고 나서 부딪히기까지 약 1.9초다.
+
+   기둥의 3분의 2는 옆으로도 미끄러져 들어온다 — 벽에서 곧게만 솟으면 줄이 너무 정직해 보인다.
+   slide 는 나오기 시작할 때 제 자리보다 얼마나 앞(오른쪽)에 있는지이고, 다 나오면 0이 된다.
+   그래서 위 기둥은 오른쪽 위에서 왼쪽 아래로, 아래 기둥은 오른쪽 아래에서 왼쪽 위로 들어온다. */
+const EMERGE = { lead: 484, time: .38, slide: 132, straightOdds: 1 / 3 };
 
 /* 기둥이 벽 밖으로 나온 정도(0~1). 끝에서 부드럽게 멎는 곡선이라 튀어나오는 맛이 산다.
    판정과 그림이 같은 값을 보므로, 아직 덜 나온 기둥은 그만큼만 부딪힌다. */
@@ -54,6 +65,12 @@ function gateReach(scene, gate) {
   if (gate.emergedAt === null) return 0;
   const phase = MINI.clamp((scene.elapsed - gate.emergedAt) / EMERGE.time, 0, 1);
   return 1 - (1 - phase) ** 4;
+}
+
+/* 지금 이 순간 기둥이 서 있는 x. 다 나온 기둥은 제 자리(gate.x)이고,
+   들어오는 중인 기둥은 아직 slide 만큼 앞에 있다. 판정과 그림이 이 값을 함께 본다. */
+function gateX(scene, gate) {
+  return gate.x + gate.slide * (1 - gateReach(scene, gate));
 }
 
 /* 캐릭터는 도는 고양이(oiia)다. 스페이스를 누르고 있는 동안에만 spin1→spin6 을 돌리고,
@@ -149,6 +166,19 @@ function loadMemeFont(scene) {
   });
 }
 
+/* 기둥 하나의 그림. 구운 낱말 그림이 있으면 그것을, 없으면 예전처럼 글꼴로 세운 글자를 쓴다.
+   둘 다 원본 크기를 width/height 로 알려 주므로 fitGate 가 같은 식으로 잰다. */
+function makeLabel(scene, word) {
+  const key = `e6:${MEME.art[word] ?? ''}`;
+  const label = scene.textures.exists(key)
+    ? scene.add.image(0, 0, key)
+    : scene.add.text(0, 0, word.split('').join('\n'), {
+      fontFamily: MEME.family, fontSize: `${E6_GRAVITY_FLIGHT.tuning.cell}px`, color: MEME.color,
+      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
+    });
+  return label.setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+}
+
 /* 글자 기둥의 높이·폭·붙는 벽을 정한다. 긴 밈은 통로를 다 막지 않도록 tuning.minGap만큼 비운다. */
 function fitGate(gate) {
   const t = E6_GRAVITY_FLIGHT.tuning;
@@ -168,18 +198,19 @@ function syncGates(scene) {
   const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
   while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
     const index = scene.nextGate.index, word = nextMeme(scene);
-    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', emergedAt: null };
-    gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
-      fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
-      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
-    }).setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+    // 셋 중 하나는 곧게 솟고 나머지는 옆으로도 미끄러져 든다. 미끄러지는 거리도 조금씩 다르다.
+    const slide = Math.random() < EMERGE.straightOdds ? 0 : MINI.rand(.55, 1) * EMERGE.slide;
+    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', slide, emergedAt: null };
+    gate.label = makeLabel(scene, word);
     fitGate(gate); scene.gates.push(gate);
     scene.nextGate = { x: scene.nextGate.x + t.spacing, index: index + 1 };
   }
   for (let i = scene.gates.length - 1; i >= 0; i--) {
     const gate = scene.gates[i];
     // 앞 lead 안으로 들어온 기둥이 벽에서 튀어나오기 시작한다. 한 번 나온 기둥은 다시 들어가지 않는다.
-    if (gate.emergedAt === null && gate.x - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
+    // 미끄러져 드는 기둥은 slide 만큼 앞에서 시작하므로, 그 자리를 기준으로 재야
+    // 어느 기둥이든 화면 같은 자리(70%)에서 모습을 드러낸다.
+    if (gate.emergedAt === null && gate.x + gate.slide - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
     if (gate.x >= x - t.despawnBehind) continue;
     gate.label.destroy(); scene.gates.splice(i, 1);
   }
@@ -190,7 +221,7 @@ export const E6_GRAVITY_FLIGHT = {
   tuning: {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
-    cell: 42, minGap: 152, aimMargin: 52, spacing: 355, firstX: 500,
+    cell: 52, minGap: 152, aimMargin: 52, spacing: 235, firstX: 470,
     spawnAhead: 880, spawnStop: 140, despawnBehind: 420,
   },
   build() {
@@ -244,7 +275,7 @@ export const E6_GRAVITY_FLIGHT = {
     const box = this.catBox;
     const gate = this.gates.find(g => {
       const shown = (g.bottom - g.top) * gateReach(this, g);
-      if (shown <= 0 || Math.abs(g.x - s.x) >= g.halfWidth + box.halfWidth) return false;
+      if (shown <= 0 || Math.abs(gateX(this, g) - s.x) >= g.halfWidth + box.halfWidth) return false;
       const top = g.side === 'top' ? g.top : g.bottom - shown;
       return s.y + box.halfHeight > top && s.y - box.halfHeight < top + shown;
     });
@@ -266,7 +297,7 @@ export const E6_GRAVITY_FLIGHT = {
     MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, 0x27384a);
     MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
     for (const gate of this.gates) {
-      const x = gate.x - s.x + 180;
+      const x = gateX(this, gate) - s.x + 180;
       const reach = gateReach(this, gate);
       const onScreen = x > -60 && x < 1000 && reach > 0;
       gate.label.setVisible(onScreen);
