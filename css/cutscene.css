@@ -142,6 +142,11 @@
 .cutscene[data-phase="ending-d"] .story-records,
 .cutscene[data-phase="shared-ending"] .story-records { display: block; }
 
+/* 완성된 엔딩 그림이 있으면 중앙의 임시 RECORDS 도형은 겹쳐 그리지 않는다. */
+.cutscene[data-phase="ending-d"][data-has-background="true"] .story-records {
+  display: none;
+}
+
 .cutscene[data-phase="stage-brief"] .cutscene-story-visual::before,
 .cutscene[data-phase="last-witness"] .cutscene-story-visual::before {
   content: "2026 ARCHIVE\A LAST WITNESS";

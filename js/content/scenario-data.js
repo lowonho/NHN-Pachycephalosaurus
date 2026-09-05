@@ -47,6 +47,7 @@
     "op-09": "assets/images/backgrounds/op9.png",
     assist: "assets/images/backgrounds/CUTSCENE H1.png",
     betrayal: "assets/images/backgrounds/CUTSCENE 01.png",
+    "ending-d": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
   });
 
   const cutscenes = Object.freeze({

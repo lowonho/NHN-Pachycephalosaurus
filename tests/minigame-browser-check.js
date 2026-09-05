@@ -15,14 +15,18 @@
     image.onerror = () => reject(new Error(`Cutscene image failed to load: ${path}`));
     image.src = new URL(path, document.baseURI).href;
   })));
-  assert(cutsceneImagePaths.length === 7 && cutsceneImageSizes.every(({ width, height }) => Math.abs(width / height - 16 / 9) < .002), 'Seven cutscene backgrounds load at 16:9');
+  assert(cutsceneImagePaths.length === 8 && cutsceneImageSizes.every(({ width, height }) => Math.abs(width / height - 16 / 9) < .002), 'Eight cutscene backgrounds load at 16:9');
   assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
     && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op02.png')
     && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
-    && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png'), 'Opening, assist and betrayal phases use their matching artwork');
+    && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
+    && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png'), 'Opening, assist, betrayal and firewall-break phases use their matching artwork');
   UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op1.png')
     && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
+  cutsceneFlow.showBackground('ending-d'); UI.cutscene.dataset.phase = 'ending-d';
+  assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && getComputedStyle(document.querySelector('.story-records')).display === 'none', 'Firewall-break artwork replaces the temporary ending graphic');
   cutsceneFlow.close();
   qaModeFlow.activate();
   const qaStoryState = () => JSON.stringify({
