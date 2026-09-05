@@ -52,7 +52,7 @@ e10 `e10_numberDecode.js`는 차준환 피겨 콘셉트의 **피겨 암호**입�
 
 공통 `../game.mjs`가 입력, 120Hz 물리 시간, 20.26초 타이머, 결과 이벤트를 담당합니다. 게임의 `build/update/render` 및 선택적인 `action/press/pointerDown/pointerMove/pointerUp/cancelInput/timeout/dispose` 훅을 호출합니다. Phaser의 기존 속성과 겹치지 않도록 효과음은 `this.sfx()`를 사용합니다.
 
-전환 시 입력/드래그/타이머/트윈/표시 객체를 정리합니다. 사람 쌓기의 Matter 월드는 `dispose`에서 파기합니다. 일시정지, 창 포커스 이탈, 드래그 취소는 발사하지 않고 입력을 해제합니다.
+전환 시 입력/드래그/타이머/트윈/표시 객체를 정리합니다. 메챠 쌓기의 Matter 월드는 `dispose`에서 파기합니다. 일시정지, 창 포커스 이탈, 드래그 취소는 발사하지 않고 입력을 해제합니다.
 
 이름과 조작 설명은 `../../content/minigame-catalog.js`, 랜덤 선택은 `../run-state.mjs`, 최고 기록은 `../records.mjs`에서 관리합니다.
 

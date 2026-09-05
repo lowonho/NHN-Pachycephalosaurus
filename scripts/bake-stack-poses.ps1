@@ -1,4 +1,4 @@
-﻿# e3 사람 쌓기 — 메챠 포즈 원본에서 표시용 webp와 충돌 형상을 굽는다.
+﻿# e3 메챠 쌓기 — 메챠 포즈 원본에서 표시용 webp와 충돌 형상을 굽는다.
 #
 # 원본은 assets/images/minigame/stacks/metcha/pose1..8.png 와 line.png 다.
 # (셋 다 투명 배경이지만 투명 픽셀 밑에 하늘색이 깔려 있어 가장자리에 파란 띠가 남는다.)
@@ -367,7 +367,7 @@ $builder = [Text.StringBuilder]::new()
 [void]$builder.AppendLine("/*")
 [void]$builder.AppendLine(" * scripts/bake-stack-poses.ps1 이 만든 파일이다. 손으로 고치지 마라.")
 [void]$builder.AppendLine(" *")
-[void]$builder.AppendLine(" * e3 사람 쌓기가 떨어뜨리는 여덟 포즈다. 원본은")
+[void]$builder.AppendLine(" * e3 메챠 쌓기가 떨어뜨리는 여덟 포즈다. 원본은")
 [void]$builder.AppendLine(" * assets/images/minigame/stacks/metcha/pose1..8.png 이고, 여기 값은 전부 게임 좌표다.")
 [void]$builder.AppendLine(" *")
 [void]$builder.AppendLine(" * width/height = 여백을 자른 그림의 표시 크기. 원점은 그 그림의 정중앙이다.")

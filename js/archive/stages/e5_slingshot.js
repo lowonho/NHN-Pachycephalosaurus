@@ -5,7 +5,7 @@ export const E5_SLINGSHOT = {
   tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '' };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -225,7 +225,17 @@ export const E5_SLINGSHOT = {
     const left = s.targets.filter(o => o.hp > 0).length;
     this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
     this.risk = (1 - E5_SLINGSHOT.power.call(this)) * 180;
-    if (!left) this.finish(true, s.shots + '발로 두딱쿠 4개 파괴');
+    // 목표를 채운 순간 시간은 그대로 멈추되, 마지막 한 발이 부순 결과(조각 흩날림 등)를
+    // 1초 더 보여준 뒤에 클리어 처리한다 — 즉시 결과창을 띄우면 그 장면을 놓친다.
+    if (!left && s.pendingFinish === 0) {
+      s.pendingFinish = 1; s.frozenRemaining = this.remaining;
+      s.finishText = s.shots + '발로 두딱쿠 4개 파괴';
+    }
+    if (s.pendingFinish > 0) {
+      this.remaining = s.frozenRemaining;
+      s.pendingFinish = Math.max(0, s.pendingFinish - dt);
+      if (s.pendingFinish === 0) this.finish(true, s.finishText);
+    }
   },
   cookie(role, key, x, y, w, h, angle = 0) {
     if (this.textures.exists('e5:' + role)) { MINI.actor(this, role, key, x, y, w, h, angle); return; }

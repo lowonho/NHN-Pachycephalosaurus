@@ -1164,7 +1164,7 @@ const E3_HUMAN_STACK = {
     // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리이며 고정값입니다.
     // 탑이 자라도 대기 위치는 움직이지 않으므로 떨어뜨리는 높이가 수시로 바뀌지 않고,
     // 마지막 한 명까지 늘 같은 감으로 겨냥할 수 있습니다.
-    baseY: 452, baseWidth: 276, floorY: 500, dropHeight: 330, debugPhysics: false,
+    baseY: 452, baseWidth: 360, floorY: 500, dropHeight: 330, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
@@ -1177,6 +1177,13 @@ const E3_HUMAN_STACK = {
   poses: E3_SHAPES.poses,
   build() {
     MINI.init(this, 0xe4eeec);
+    /*
+     * 얼룩 반점 전용 레이어. this.ink는 MINI.init에서 맨 먼저 만들어지는데, 사람
+     * 스프라이트(this.add.image)는 나중에 생기면서 항상 그 위에 올라간다 — 같은
+     * this.ink에 반점을 그려 봐야 불투명한 스프라이트에 완전히 가려진다. depth를
+     * 스프라이트보다 높게 둬서 반점이 스프라이트 위에 실제로 보이게 한다.
+     */
+    this.blotchInk = this.add.graphics().setDepth(5);
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
     this.stackWorld = M.Engine.create({
       enableSleeping: false, positionIterations: 10, velocityIterations: 10,
@@ -1190,7 +1197,8 @@ const E3_HUMAN_STACK = {
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
-      spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, spinShown: 0,
+      spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180,
+      nextTint: E3_HUMAN_STACK.randomTint(), spinShown: 0,
       impacts: [], impactCooldown: 0,
     };
     this.people = [];
@@ -1222,7 +1230,23 @@ const E3_HUMAN_STACK = {
     const t = E3_HUMAN_STACK.tuning;
     return Math.min(t.maxSpeed, t.speed + this.state.drops * this.penalty(t.speedGain));
   },
-  createPerson(x, y, poseIndex, angle = 0) {
+  /*
+   * 메챠 카멜레온처럼 사람마다 얼룩덜룩한 색을 입힌다. 주조색 하나에 살짝 어둡거나
+   * 밝은 톤 둘, 뚜렷이 다른 보색 계열 반점 하나를 네 모서리에 얹으면(setTint) 텍스처
+   * 하나로도 자연스러운 반점 무늬가 된다. 같은 사람이라도 매번 새로 뽑는다.
+   */
+  randomTint() {
+    const hue = Math.random();
+    const accentHue = (hue + .38 + Math.random() * .24) % 1;
+    const color = (h, s, l) => Phaser.Display.Color.HSLToColor(h, s, l).color;
+    return [
+      color(hue, .58, .5),
+      color(hue, .5, .36),
+      color(accentHue, .62, .48),
+      color(hue, .45, .62),
+    ];
+  },
+  createPerson(x, y, poseIndex, angle = 0, tint = null) {
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
     const pose = E3_HUMAN_STACK.poses[poseIndex];
     const material = {
@@ -1235,7 +1259,10 @@ const E3_HUMAN_STACK = {
       parts, ...material, frictionAir: t.frictionAir, label: 'e3:person',
     });
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
-    body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
+    body.plugin.e3 = {
+      poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed,
+      tint: tint ?? E3_HUMAN_STACK.randomTint(),
+    };
     // 자세를 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
     M.Body.rotate(body, angle, { x, y });
     return body;
@@ -1249,7 +1276,7 @@ const E3_HUMAN_STACK = {
     // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
     let spawnY = s.spawnY;
     for (const other of this.people) if (Math.abs(other.position.x - s.x) < 130) spawnY = Math.min(spawnY, other.bounds.min.y - 70);
-    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, spawnY, s.nextPose, s.nextAngle);
+    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, spawnY, s.nextPose, s.nextAngle, s.nextTint);
     // 레일이 달리던 좌우 속도를 그대로 물려줍니다 — 빠를 때 떨어뜨리면 그만큼 옆으로 흐릅니다.
     // Matter의 속도 단위는 60Hz 한 프레임의 이동량이라 초당 픽셀을 60으로 나눠 넣습니다.
     // 초기 방향 이후의 회전은 실제 충돌에 맡깁니다.
@@ -1257,6 +1284,8 @@ const E3_HUMAN_STACK = {
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
     s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    // 다음 미리보기도 새 색으로 다시 뽑습니다 — 떨어뜨린 사람과 같은 얼룩무늬가 이어지지 않게.
+    s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
     this.sfx('action');
@@ -1360,27 +1389,43 @@ const E3_HUMAN_STACK = {
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
     return sprite.setTexture(texture).setVisible(true);
   },
-  drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1) {
+  drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1, tint = null) {
     const pose = E3_HUMAN_STACK.poses[poseIndex], z = this.state.zoom;
     const p = E3_HUMAN_STACK.project.call(this, x, y), g = this.ink;
     // 그림의 원점은 잘라낸 이미지의 정중앙이라 충돌 사각형과 같은 좌표계를 씁니다.
     const sprite = E3_HUMAN_STACK.sprite.call(this, key, `e3:${pose.id}`);
     if (sprite) {
       sprite.setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha);
-      return;
+      sprite.clearTint();
+    } else {
+      // 그림이 없으면 충돌 조각을 그대로 실루엣으로 씁니다. 미리보기와 낙하물이 같은 모양입니다.
+      g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
+      for (const [cx, cy, w, h] of pose.parts) {
+        g.fillStyle(0x506c7a, alpha).fillRect(cx - w / 2 - 1.2, cy - h / 2 - 1.2, w + 2.4, h + 2.4);
+      }
+      for (const [cx, cy, w, h] of pose.parts) g.fillStyle(0xd8e5e8, alpha).fillRect(cx - w / 2, cy - h / 2, w, h);
+      g.restore();
     }
-    // 그림이 없으면 충돌 조각을 그대로 실루엣으로 씁니다. 미리보기와 낙하물이 같은 모양입니다.
-    g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
-    for (const [cx, cy, w, h] of pose.parts) {
-      g.fillStyle(0x506c7a, alpha).fillRect(cx - w / 2 - 1.2, cy - h / 2 - 1.2, w + 2.4, h + 2.4);
-    }
-    for (const [cx, cy, w, h] of pose.parts) g.fillStyle(0xd8e5e8, alpha).fillRect(cx - w / 2, cy - h / 2, w, h);
-    g.restore();
+    if (!tint) return;
+    /*
+     * 얼룩 반점은 Sprite의 setTint(4모서리)가 아니라 Graphics로 직접 겹쳐 그린다 — 두 가지
+     * 이유다. 1) file://로 열면 게임이 일부러 Canvas 렌더러를 쓰는데(WebGL 텍스처 문제
+     * 회피), Canvas 렌더러는 4모서리 그라디언트 틴트를 실제로 그리지 않는다(값은 저장되지만
+     * 화면엔 안 나온다). 2) this.ink(g)에 그리면 나중에 생기는 스프라이트가 항상 그 위에
+     * 덮이므로 반점이 가려진다 — 그래서 스프라이트보다 depth가 높은 blotchInk에 그린다.
+     */
+    const bg = this.blotchInk;
+    bg.save(); bg.translateCanvas(p.x, p.y); bg.rotateCanvas(angle); bg.scaleCanvas(z, z);
+    pose.parts.forEach(([cx, cy, w, h], index) => {
+      bg.fillStyle(tint[index % tint.length], alpha * .65).fillRect(cx - w / 2, cy - h / 2, w, h);
+    });
+    bg.restore();
   },
   render() {
     const s = this.state, t = E3_HUMAN_STACK.tuning, g = this.ink;
     const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
     MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
+    this.blotchInk.clear();
     const base = project(480 - t.baseWidth / 2, t.baseY);
     MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
     MINI.line(this, base.x, base.y + 1, base.x + t.baseWidth * s.zoom, base.y + 1, 0xd4dad4, 3);
@@ -1408,14 +1453,14 @@ const E3_HUMAN_STACK = {
       const pose = body.plugin.e3, c = Math.cos(body.angle), sn = Math.sin(body.angle);
       const x = body.position.x + pose.origin.x * c - pose.origin.y * sn;
       const y = body.position.y + pose.origin.x * sn + pose.origin.y * c;
-      E3_HUMAN_STACK.drawPerson.call(this, pose.poseIndex, `person${i}`, x, y, body.angle);
+      E3_HUMAN_STACK.drawPerson.call(this, pose.poseIndex, `person${i}`, x, y, body.angle, 1, pose.tint);
     });
     for (const impact of s.impacts) {
       const p = project(impact.x, impact.y), fade = 1 - impact.age / .35;
       g.lineStyle(1.5, 0xffd99e, fade * .7).strokeEllipse(p.x, p.y, (12 + impact.age * 80) * s.zoom, (4 + impact.age * 25) * s.zoom);
     }
     // 대기 위치는 레일 선 없이 사람만 떠 있습니다 — 움직이는 범위는 사람 자체로 보입니다.
-    E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
+    E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8, s.nextTint);
     // 미리보기 위아래 맞은편에 곡선 화살표 하나씩. 둘 다 양쪽 끝에 화살촉이 있어
     // 어느 쪽으로도 돌릴 수 있다는 걸 알립니다. 돌리는 동안 밝아집니다.
     const ring = project(s.x, s.spawnY), pose = E3_HUMAN_STACK.poses[s.nextPose];
@@ -1906,7 +1951,7 @@ const E5_SLINGSHOT = {
   tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '' };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -2126,7 +2171,17 @@ const E5_SLINGSHOT = {
     const left = s.targets.filter(o => o.hp > 0).length;
     this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
     this.risk = (1 - E5_SLINGSHOT.power.call(this)) * 180;
-    if (!left) this.finish(true, s.shots + '발로 두딱쿠 4개 파괴');
+    // 목표를 채운 순간 시간은 그대로 멈추되, 마지막 한 발이 부순 결과(조각 흩날림 등)를
+    // 1초 더 보여준 뒤에 클리어 처리한다 — 즉시 결과창을 띄우면 그 장면을 놓친다.
+    if (!left && s.pendingFinish === 0) {
+      s.pendingFinish = 1; s.frozenRemaining = this.remaining;
+      s.finishText = s.shots + '발로 두딱쿠 4개 파괴';
+    }
+    if (s.pendingFinish > 0) {
+      this.remaining = s.frozenRemaining;
+      s.pendingFinish = Math.max(0, s.pendingFinish - dt);
+      if (s.pendingFinish === 0) this.finish(true, s.finishText);
+    }
   },
   cookie(role, key, x, y, w, h, angle = 0) {
     if (this.textures.exists('e5:' + role)) { MINI.actor(this, role, key, x, y, w, h, angle); return; }
@@ -2540,7 +2595,20 @@ const E6_GRAVITY_FLIGHT = {
     drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
+    // 골인 판정은 s.x가 distance를 넘는 순간 그대로 성공이라(위아래 위치는 보지 않음),
+    // 원이 아니라 통로를 가로지르는 세로선(결승선)으로 그립니다.
+    const goalX = t.distance - s.x + 180;
+    if (goalX > -20 && goalX < 1000) {
+      const g = this.ink;
+      g.lineStyle(14, 0xa7ffc6, .25).lineBetween(goalX, TUNNEL.top, goalX, TUNNEL.bottom);
+      MINI.line(this, goalX, TUNNEL.top, goalX, TUNNEL.bottom, 0xa7ffc6, 6);
+      MINI.line(this, goalX - 20, TUNNEL.top, goalX + 20, TUNNEL.top, 0xffffff, 4);
+      MINI.line(this, goalX - 20, TUNNEL.bottom, goalX + 20, TUNNEL.bottom, 0xffffff, 4);
+      if (this.assistProtocol && this.elapsed % 5 < .45) {
+        const wave = (this.elapsed % .45) / .45;
+        g.lineStyle(4, 0x93fca0, 1 - wave).lineBetween(goalX, TUNNEL.top - wave * 28, goalX, TUNNEL.bottom + wave * 28);
+      }
+    }
     MINI.meter(this, s.x / t.distance);
   },
 };
@@ -2817,7 +2885,7 @@ const E8_WEB_SWING = {
     const s = this.state, t = E8_WEB_SWING.tuning;
     if (s.rope && !s.rope.starter && !this.held('action') && !s.pointerHeld) s.rope = null;
     if (s.retry > 0) { s.retry = Math.max(0, s.retry - dt); return; }
-    const oldX = s.x, oldY = s.y;
+    const oldX = s.x;
     if (s.rope) {
       const r = s.rope;
       r.omega -= t.gravity / r.length * Math.sin(r.theta) * dt;
@@ -2839,11 +2907,8 @@ const E8_WEB_SWING = {
     this.anomaly = `가속 ${s.multiplier.toFixed(2)}배 · 연결 ${s.hooks}회 · 추락 ${s.deaths}회`;
     this.risk = (s.multiplier - 1) / (t.maxMultiplier - 1) * 100;
     E8_WEB_SWING.camera.call(this, dt);
-    // 공중 게이트를 실제로 가로질러야 성공합니다. 옥상 착지는 없습니다.
-    if (oldX < this.goalX && s.x >= this.goalX) {
-      const y = oldY + (s.y - oldY) * (this.goalX - oldX) / (s.x - oldX);
-      if (Math.abs(y - this.goalY) <= 170) this.finish(true);
-    }
+    // 골인선은 위아래로 길게 뻗어 있어, 떨어지지만 않았다면 어느 높이로 지나가도 성공입니다.
+    if (oldX < this.goalX && s.x >= this.goalX) this.finish(true);
   },
   building(x, y, w, index, distant = false) {
     const g = this.ink;
@@ -2933,6 +2998,10 @@ const E8_WEB_SWING = {
     g.save(); g.translateCanvas(-cameraX * scale, shiftY); g.scaleCanvas(scale, scale);
     const visible = x => x > cameraX - 160 && x < cameraX + 1100 / scale;
     for (const a of this.anchors) if (visible(a.x)) E8_WEB_SWING.landmark.call(this, a);
+    // 낙사 판정선: 이 아래로 떨어지면 그 즉시 낙사 처리됩니다(tuning.fallY). 화면 폭만큼 점선으로 긋습니다.
+    for (let x = cameraX - 160; x < cameraX + 1100 / scale; x += 26) {
+      MINI.line(this, x, t.fallY, Math.min(x + 14, cameraX + 1100 / scale), t.fallY, 0xff5470, 3);
+    }
     const next = E8_WEB_SWING.candidate.call(this);
     if (next && !s.rope) {
       g.lineStyle(2, 0xf7e9db, .7).strokeCircle(next.x, next.y, 12);
@@ -2951,9 +3020,11 @@ const E8_WEB_SWING = {
     if (boostFlash >= 0 && boostFlash < 1) g.lineStyle(3, 0xffa474, 1 - boostFlash).strokeCircle(s.x, s.y, 25 + boostFlash * 25);
     if (!this.textures.exists('e8:player')) E8_WEB_SWING.hero.call(this, s.x, s.y, angle);
     if (visible(this.goalX)) {
-      g.lineStyle(6, 0xa7ffc6).strokeEllipse(this.goalX, this.goalY, 75, 340);
-      g.lineStyle(2, 0xa7ffc6, .3).strokeEllipse(this.goalX, this.goalY, 98, 365);
-      MINI.line(this, this.goalX - 20, this.goalY - 170, this.goalX + 20, this.goalY - 170, 0xffffff, 6);
+      // 골인 판정은 떨어지지만 않았다면 높이와 상관없이 이 x만 지나면 성공이라,
+      // 폭 제한을 표시하는 문이 아니라 위아래로 길게 뻗은 결승선으로 그립니다.
+      const top = -260, bottom = t.fallY;
+      g.lineStyle(14, 0xa7ffc6, .2).lineBetween(this.goalX, top, this.goalX, bottom);
+      MINI.line(this, this.goalX, top, this.goalX, bottom, 0xa7ffc6, 6);
     }
     g.restore();
     if (this.textures.exists('e8:player')) MINI.actor(this, 'player', 'player', 200, s.y * scale + shiftY, 40 * scale, 48 * scale, angle);

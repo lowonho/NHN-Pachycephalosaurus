@@ -292,7 +292,20 @@ export const E6_GRAVITY_FLIGHT = {
     drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
+    // 골인 판정은 s.x가 distance를 넘는 순간 그대로 성공이라(위아래 위치는 보지 않음),
+    // 원이 아니라 통로를 가로지르는 세로선(결승선)으로 그립니다.
+    const goalX = t.distance - s.x + 180;
+    if (goalX > -20 && goalX < 1000) {
+      const g = this.ink;
+      g.lineStyle(14, 0xa7ffc6, .25).lineBetween(goalX, TUNNEL.top, goalX, TUNNEL.bottom);
+      MINI.line(this, goalX, TUNNEL.top, goalX, TUNNEL.bottom, 0xa7ffc6, 6);
+      MINI.line(this, goalX - 20, TUNNEL.top, goalX + 20, TUNNEL.top, 0xffffff, 4);
+      MINI.line(this, goalX - 20, TUNNEL.bottom, goalX + 20, TUNNEL.bottom, 0xffffff, 4);
+      if (this.assistProtocol && this.elapsed % 5 < .45) {
+        const wave = (this.elapsed % .45) / .45;
+        g.lineStyle(4, 0x93fca0, 1 - wave).lineBetween(goalX, TUNNEL.top - wave * 28, goalX, TUNNEL.bottom + wave * 28);
+      }
+    }
     MINI.meter(this, s.x / t.distance);
   },
 };
