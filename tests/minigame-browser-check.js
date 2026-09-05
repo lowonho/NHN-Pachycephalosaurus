@@ -47,8 +47,36 @@
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
+  const weakened = scene.stageGame.jumpPower.call(scene), shards = scene.state.shards.length;
+  scene.primaryAction();
+  assert(scene.state.jumps === jump && scene.state.shards.length === shards && shards > 0, 'e2: airborne presses do not add damage or shards');
   scene.state.y = 540; advance(.02);
-  assert(scene.state.jumps === jump && scene.state.deaths > 0, 'e2: death retains jump strength');
+  assert(scene.state.jumps === jump && scene.state.deaths > 0 && scene.stageGame.jumpPower.call(scene) === weakened, 'e2: death retains cracked shell and weakened jump');
+  load('e2');
+  const heights = [];
+  for (let attempt = 0; attempt < 9; attempt++) {
+    const startY = scene.state.y; let top = startY;
+    scene.primaryAction();
+    advance(1, () => { top = Math.min(top, scene.state.y); });
+    heights.push(startY - top);
+  }
+  assert(heights.slice(1, 6).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
+  assert(Math.abs(heights[7] - heights[8]) < .01 && heights[8] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
+  assert(scene.state.shards.length === 0, 'e2: emitted wax shards expire');
+  scene.primaryAction();
+  const pausedShards = JSON.stringify(scene.state.shards);
+  archiveGame.pause(true); scene.update(0, 500);
+  assert(JSON.stringify(scene.state.shards) === pausedShards, 'e2: pause freezes shell fragments');
+  archiveGame.pause(false);
+  load('e2');
+  assert(scene.state.jumps === 0 && scene.state.shards.length === 0 && scene.stageGame.jumpPower.call(scene) > weakened, 'e2: fresh attempt restores shell and jump power');
+  // Even after excessive jumps, the course remains physically crossable without W assistance.
+  scene.state.jumps = 100; scene.directionPress('right');
+  advance(20.3, () => {
+    const s = scene.state, p = scene.platforms.find(p => s.checkpoint === p.x + 50);
+    if (s.grounded && p && s.x >= p.x + p.w - 16 && p !== scene.platforms.at(-1)) scene.primaryAction();
+  });
+  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0 && scene.elapsed < 20.26, 'e2: minimum jump power can clear the entire course without deaths');
   load('e3'); scene.primaryAction(); advance(.5); scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');

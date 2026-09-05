@@ -99,6 +99,14 @@ try {
   Evaluate "document.querySelector('#primary-button').click()" | Out-Null
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'selection.png'), [Convert]::FromBase64String($shot.data))
+  # Visual progression from real jumps: intact, cracked, and heavily chipped wax shell.
+  Evaluate "testLaunch('e2'); archivePhaserGame.loop.sleep();" | Out-Null
+  foreach ($damage in @(0, 3, 6)) {
+    Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); archiveGame.pause(false); while(s.state.jumps < $damage) { s.primaryAction(); for(let i=0;i<120;i++) s.update(0,1000/120); } archiveGame.pause(true); archivePhaserGame.loop.wake(); })()" | Out-Null
+    Start-Sleep -Milliseconds 70
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir "e2-damage-$damage.png"), [Convert]::FromBase64String($shot.data))
+  }
   if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
   Write-Output 'PASS: no uncaught browser exceptions'
 } finally {
