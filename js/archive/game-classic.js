@@ -1048,24 +1048,31 @@ const E10_NUMBER_DECODE = {
 
   enterDigit(digit) {
     const s = this.state;
-    const expected = s.target[s.input.length];
-    const correct = digit === expected;
     s.lastHit = digit;
+    s.input += digit;
+
+    if (s.input.length < s.target.length) {
+      s.lastHitCorrect = true;
+      s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
+      s.feedbackUntil = this.elapsed + 1;
+      this.sfx('action');
+      return;
+    }
+
+    const correct = s.input === s.target;
     s.lastHitCorrect = correct;
     if (!correct) {
+      const wrongInput = s.input;
       s.input = '';
       s.mistakes += 1;
-      s.feedback = `오답 ${digit} · 입력값만 초기화되었습니다.`;
+      s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
       s.feedbackUntil = this.elapsed + 1.2;
       this.bump();
       return;
     }
 
-    s.input += digit;
-    s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
-    s.feedbackUntil = this.elapsed + 1;
     this.sfx('action');
-    if (s.input.length === s.target.length) this.finish(true, `CODE ${s.target} 해독`);
+    this.finish(true, `CODE ${s.target} 해독`);
   },
 
   update(dt) {
