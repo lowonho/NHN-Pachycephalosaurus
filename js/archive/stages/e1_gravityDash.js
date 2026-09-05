@@ -35,13 +35,14 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
-/* 달리는 동안의 발걸음 맥박. 한 걸음마다 그림이 잠깐 커졌다가 원래 크기로 돌아옵니다.
-   프레임이 아니라 달린 거리(s.x)로 위상을 잡으므로 속도가 흔들려도 걸음과 어긋나지 않고,
-   멈추면 맥박도 함께 멈춥니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있습니다. */
-const STRIDE = 92;       // 한 걸음이 나아가는 코스 거리. SPEED 기준 초당 약 3.7걸음입니다.
-const STRIDE_POP = .3;   // 걸음 꼭대기에서 커지는 비율
-const STRIDE_RISE = .26; // 한 걸음 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
-const STRIDE_DIP = .18;  // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
+/* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
+   원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
+   계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
+   판정 사각형(HITBOX)은 기본 크기 그대로라 부딪히는 범위는 전혀 달라지지 않습니다. */
+const LEAP_TIME = .45;  // 맥박이 한 바퀴 도는 시간(초). 벽을 건너는 데 걸리는 시간과 같습니다.
+const LEAP_POP = .34;   // 꼭대기에서 커지는 비율
+const LEAP_RISE = .22;  // 그 시간 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
+const LEAP_DIP = .2;    // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
 const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 절반입니다.
 const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
 const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
@@ -62,7 +63,8 @@ export const E1_GRAVITY_DASH = {
   tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
   build() {
     MINI.init(this, 0x67e8f9);
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, obstacles: [] };
+    // leap은 건너뛰는 연출에 남은 시간(초)입니다. 표시 크기에만 쓰이고 판정에는 끼어들지 않습니다.
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, obstacles: [] };
     // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
@@ -92,7 +94,8 @@ export const E1_GRAVITY_DASH = {
     const s = this.state;
     // 누를 때마다 중력이 통째로 뒤집힙니다. 플레이어는 반대쪽 벽으로 떨어져 붙고,
     // 모든 장애물도 각자의 방향과 느린 속도로 반전에 반응합니다.
-    this.actions++; s.sign *= -1; s.vy = s.sign * 40;
+    // 누르는 순간 건너뛰기 연출을 처음부터 다시 시작합니다. 연달아 눌러도 매번 새로 부풉니다.
+    this.actions++; s.sign *= -1; s.vy = s.sign * 40; s.leap = LEAP_TIME;
     // 풀 차례가 된 판정을 모두 처리합니다.
     while (s.release < RELEASE_AT.length && RELEASE_AT[s.release] <= this.actions) {
       E1_GRAVITY_DASH.release.call(this, RELEASE_STEPS[s.release]); s.release++;
@@ -110,7 +113,7 @@ export const E1_GRAVITY_DASH = {
   },
   update(dt) {
     const s = this.state, t = E1_GRAVITY_DASH.tuning;
-    s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
+    s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt); s.leap = Math.max(0, s.leap - dt);
     s.vy += s.sign * t.gravity * dt; s.y = MINI.clamp(s.y + s.vy * dt, CEIL_Y, FLOOR_Y);
     if (s.y === CEIL_Y || s.y === FLOOR_Y) s.vy = 0;
     const player = { x: 165, y: s.y - 15, w: 30, h: 30 };
@@ -143,23 +146,24 @@ export const E1_GRAVITY_DASH = {
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
     return sprite.setTexture(texture).setVisible(true);
   },
-  /* 한 걸음 안에서의 커짐 정도입니다. 앞 STRIDE_RISE 구간에서 1까지 단숨에 부풀고,
-     남은 구간에서는 원래 크기(0)를 지나 -STRIDE_DIP까지 한 번 움츠렸다가 돌아옵니다.
-     걸음이 이어지는 곳(0과 1)에서 값이 모두 0이라 맥박이 튀지 않습니다. */
-  stride(x) {
-    const phase = ((x / STRIDE) % 1 + 1) % 1;
-    if (phase < STRIDE_RISE) return Math.sin(phase / STRIDE_RISE * Math.PI / 2);
+  /* 벽을 건너뛰는 동안의 커짐 정도입니다. 앞 LEAP_RISE 구간에서 1까지 단숨에 부풀고,
+     남은 구간에서는 원래 크기(0)를 지나 -LEAP_DIP까지 한 번 움츠렸다가 돌아옵니다.
+     끝에서 값이 0이라 벽에 닿아 달리기로 돌아갈 때 크기가 튀지 않습니다. */
+  leap(left) {
+    if (left <= 0) return 0;
+    const phase = 1 - left / LEAP_TIME;
+    if (phase < LEAP_RISE) return Math.sin(phase / LEAP_RISE * Math.PI / 2);
     // 돌아오는 구간은 코사인 한 바퀴 반. 2/3 지점에서 가장 작아지고 끝에서 원래 크기입니다.
-    const wave = Math.cos((phase - STRIDE_RISE) / (1 - STRIDE_RISE) * Math.PI * 1.5);
-    return wave < 0 ? wave * STRIDE_DIP : wave;
+    const wave = Math.cos((phase - LEAP_RISE) / (1 - LEAP_RISE) * Math.PI * 1.5);
+    return wave < 0 ? wave * LEAP_DIP : wave;
   },
   /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
      모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
      천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
   drawPlayer(pose, pop) {
     const s = this.state;
-    // 달리기 자세에만 걸음 맥박을 얹습니다. 점프·피격·주저앉기는 원래 크기 그대로입니다.
-    const scale = pop * (pose === 'run' ? 1 + STRIDE_POP * E1_GRAVITY_DASH.stride(s.x) : 1);
+    // 건너뛰는 자세에만 과장을 얹습니다. 달리기·피격·주저앉기는 원래 크기 그대로입니다.
+    const scale = pop * (pose === 'jump' ? 1 + LEAP_POP * E1_GRAVITY_DASH.leap(s.leap) : 1);
     const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
     if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
     const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;

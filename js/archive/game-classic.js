@@ -574,7 +574,13 @@ const MINI = {
   /* 죽고 다시 시작할 때의 공통 소환 연출. 재생 시간은 MINI.SPAWN초로 0.5초를 넘지 않습니다.
      scene.elapsed(공통 게임 시간)만 사용하므로 게임 쪽에 별도 타이머가 필요 없습니다. */
   SPAWN: .42,
-  summon(scene) { scene.spawnAt = scene.elapsed; },
+  /* 모니터 밖 책상 위의 손도 이 순간에 반응한다(js/ui/desk-hands.js).
+     엔진에서 DOM으로는 게임 브리지가 듣는 window 이벤트로 넘긴다(js/game.js) —
+     다른 엔진 신호(archive-hud · archive-stage-end)와 같은 길이다. */
+  summon(scene) {
+    scene.spawnAt = scene.elapsed;
+    window.dispatchEvent(new CustomEvent('archive-respawn'));
+  },
   spawnPhase(scene) {
     const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
     return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;
@@ -715,13 +721,14 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
-/* 달리는 동안의 발걸음 맥박. 한 걸음마다 그림이 잠깐 커졌다가 원래 크기로 돌아옵니다.
-   프레임이 아니라 달린 거리(s.x)로 위상을 잡으므로 속도가 흔들려도 걸음과 어긋나지 않고,
-   멈추면 맥박도 함께 멈춥니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있습니다. */
-const STRIDE = 92;       // 한 걸음이 나아가는 코스 거리. SPEED 기준 초당 약 3.7걸음입니다.
-const STRIDE_POP = .3;   // 걸음 꼭대기에서 커지는 비율
-const STRIDE_RISE = .26; // 한 걸음 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
-const STRIDE_DIP = .18;  // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
+/* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
+   원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
+   계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
+   판정 사각형(HITBOX)은 기본 크기 그대로라 부딪히는 범위는 전혀 달라지지 않습니다. */
+const LEAP_TIME = .45;  // 맥박이 한 바퀴 도는 시간(초). 벽을 건너는 데 걸리는 시간과 같습니다.
+const LEAP_POP = .34;   // 꼭대기에서 커지는 비율
+const LEAP_RISE = .22;  // 그 시간 중 부푸는 데 쓰는 구간. 짧을수록 튀어오르듯 커집니다.
+const LEAP_DIP = .2;    // 돌아오는 길에 원래 크기 아래로 내려가는 정도(커진 양 대비)
 const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 절반입니다.
 const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
 const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
@@ -742,7 +749,8 @@ const E1_GRAVITY_DASH = {
   tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
   build() {
     MINI.init(this, 0x67e8f9);
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, obstacles: [] };
+    // leap은 건너뛰는 연출에 남은 시간(초)입니다. 표시 크기에만 쓰이고 판정에는 끼어들지 않습니다.
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, obstacles: [] };
     // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
@@ -772,7 +780,8 @@ const E1_GRAVITY_DASH = {
     const s = this.state;
     // 누를 때마다 중력이 통째로 뒤집힙니다. 플레이어는 반대쪽 벽으로 떨어져 붙고,
     // 모든 장애물도 각자의 방향과 느린 속도로 반전에 반응합니다.
-    this.actions++; s.sign *= -1; s.vy = s.sign * 40;
+    // 누르는 순간 건너뛰기 연출을 처음부터 다시 시작합니다. 연달아 눌러도 매번 새로 부풉니다.
+    this.actions++; s.sign *= -1; s.vy = s.sign * 40; s.leap = LEAP_TIME;
     // 풀 차례가 된 판정을 모두 처리합니다.
     while (s.release < RELEASE_AT.length && RELEASE_AT[s.release] <= this.actions) {
       E1_GRAVITY_DASH.release.call(this, RELEASE_STEPS[s.release]); s.release++;
@@ -790,7 +799,7 @@ const E1_GRAVITY_DASH = {
   },
   update(dt) {
     const s = this.state, t = E1_GRAVITY_DASH.tuning;
-    s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
+    s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt); s.leap = Math.max(0, s.leap - dt);
     s.vy += s.sign * t.gravity * dt; s.y = MINI.clamp(s.y + s.vy * dt, CEIL_Y, FLOOR_Y);
     if (s.y === CEIL_Y || s.y === FLOOR_Y) s.vy = 0;
     const player = { x: 165, y: s.y - 15, w: 30, h: 30 };
@@ -823,23 +832,24 @@ const E1_GRAVITY_DASH = {
     if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
     return sprite.setTexture(texture).setVisible(true);
   },
-  /* 한 걸음 안에서의 커짐 정도입니다. 앞 STRIDE_RISE 구간에서 1까지 단숨에 부풀고,
-     남은 구간에서는 원래 크기(0)를 지나 -STRIDE_DIP까지 한 번 움츠렸다가 돌아옵니다.
-     걸음이 이어지는 곳(0과 1)에서 값이 모두 0이라 맥박이 튀지 않습니다. */
-  stride(x) {
-    const phase = ((x / STRIDE) % 1 + 1) % 1;
-    if (phase < STRIDE_RISE) return Math.sin(phase / STRIDE_RISE * Math.PI / 2);
+  /* 벽을 건너뛰는 동안의 커짐 정도입니다. 앞 LEAP_RISE 구간에서 1까지 단숨에 부풀고,
+     남은 구간에서는 원래 크기(0)를 지나 -LEAP_DIP까지 한 번 움츠렸다가 돌아옵니다.
+     끝에서 값이 0이라 벽에 닿아 달리기로 돌아갈 때 크기가 튀지 않습니다. */
+  leap(left) {
+    if (left <= 0) return 0;
+    const phase = 1 - left / LEAP_TIME;
+    if (phase < LEAP_RISE) return Math.sin(phase / LEAP_RISE * Math.PI / 2);
     // 돌아오는 구간은 코사인 한 바퀴 반. 2/3 지점에서 가장 작아지고 끝에서 원래 크기입니다.
-    const wave = Math.cos((phase - STRIDE_RISE) / (1 - STRIDE_RISE) * Math.PI * 1.5);
-    return wave < 0 ? wave * STRIDE_DIP : wave;
+    const wave = Math.cos((phase - LEAP_RISE) / (1 - LEAP_RISE) * Math.PI * 1.5);
+    return wave < 0 ? wave * LEAP_DIP : wave;
   },
   /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
      모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
      천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
   drawPlayer(pose, pop) {
     const s = this.state;
-    // 달리기 자세에만 걸음 맥박을 얹습니다. 점프·피격·주저앉기는 원래 크기 그대로입니다.
-    const scale = pop * (pose === 'run' ? 1 + STRIDE_POP * E1_GRAVITY_DASH.stride(s.x) : 1);
+    // 건너뛰는 자세에만 과장을 얹습니다. 달리기·피격·주저앉기는 원래 크기 그대로입니다.
+    const scale = pop * (pose === 'jump' ? 1 + LEAP_POP * E1_GRAVITY_DASH.leap(s.leap) : 1);
     const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
     if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
     const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;
@@ -1151,7 +1161,7 @@ const E3_HUMAN_STACK = {
     railLeft: 260, railRight: 700,
     // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
     // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
-    baseY: 452, baseWidth: 228, floorY: 500, dropHeight: 292, debugPhysics: false,
+    baseY: 452, baseWidth: 251, floorY: 500, dropHeight: 292, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
@@ -1651,7 +1661,7 @@ const E5_SLINGSHOT = {
     };
     // Separate load-bearing posts and floors form rooms around the cookie residents.
     for (let col = 0; col < 2; col++) {
-      const cx = 600 + col * 116;
+      const cx = 680 + col * 116;
       timber(cx - 43, 435, 12, 72); timber(cx + 43, 435, 12, 72);
       timber(cx, 393, 108, 12);
       timber(cx - 43, 357, 12, 60); timber(cx + 43, 357, 12, 60);
@@ -1751,7 +1761,7 @@ const E5_SLINGSHOT = {
     if (this.settings.effects) for (let i = 0; i < (broken ? 14 : 5); i++) {
       s.crumbs.push({ x: target.x + target.w / 2, y: target.y + target.h / 2,
         vx: MINI.rand(-170, 170), vy: MINI.rand(-230, -55), age: 0, size: MINI.rand(2, 6),
-        color: i % 3 ? 0x9b6544 : 0xc0bd70 });
+        color: i % 3 ? 0xd9a15e : 0xfff3e2 });
     }
     if (broken) {
       if (target.wood) {
@@ -1773,7 +1783,7 @@ const E5_SLINGSHOT = {
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
       if (target.wood) {
-        s.feedback = '우지끈! 기둥이 부러졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
+        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
       }
       Phaser.Physics.Matter.Matter.Composite.remove(this.slingWorld.world, target.body);
       const spriteKey = 'target' + s.targets.indexOf(target);
@@ -1889,7 +1899,7 @@ const E5_SLINGSHOT = {
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
     MINI.box(this, MINI.FIELD.x, 480, MINI.FIELD.w, MINI.FIELD.bottom - 480, 0x372923);
     for (let i = 0; i < 3; i++) {
-      if (i < 2) MINI.box(this, 546 + i * 116, 471, 108, 5, 0xd3b278);
+      if (i < 2) MINI.box(this, 626 + i * 116, 471, 108, 5, 0xf0c9a0);
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);
     }
     MINI.line(this, 146, 447, 137, 358, 0xa78260, 14);
@@ -1914,19 +1924,29 @@ const E5_SLINGSHOT = {
     }
     for (const wood of s.timbers) {
       const g = this.ink, body = wood.body;
-      g.fillStyle(wood.hp <= 0 ? 0x654630 : wood.roof ? 0x975948 : 0xbf8c53).fillPoints(body.vertices, true);
-      g.lineStyle(2, 0x4d3528).strokePoints(body.vertices, true);
+      // 과자집: 진저브레드 기둥에 아이싱을 두르고 지붕은 딸기 아이싱으로 덮는다.
+      // 색과 장식만 바뀌고 몸체·판정은 그대로다.
+      g.fillStyle(wood.hp <= 0 ? 0x9a6a3c : wood.roof ? 0xe4728f : 0xd39a55).fillPoints(body.vertices, true);
+      g.lineStyle(2, wood.roof ? 0xfff3e2 : 0x9c6330).strokePoints(body.vertices, true);
       g.save(); g.translateCanvas(body.position.x, body.position.y); g.rotateCanvas(body.angle);
       if (!wood.roof) {
         const vertical = wood.h > wood.w;
-        for (const offset of [-2, 2]) {
-          if (vertical) MINI.line(this, offset, -wood.h / 2 + 6, offset + 1, wood.h / 2 - 6, 0x8a5d39, 1);
-          else MINI.line(this, -wood.w / 2 + 6, offset, wood.w / 2 - 6, offset + 1, 0x8a5d39, 1);
+        // 가장자리를 따라 짜 놓은 하얀 아이싱
+        for (const sign of [-1, 1]) {
+          if (vertical) MINI.line(this, sign * (wood.w / 2 - 2), -wood.h / 2 + 4, sign * (wood.w / 2 - 2), wood.h / 2 - 4, 0xfff3e2, 2);
+          else MINI.line(this, -wood.w / 2 + 4, sign * (wood.h / 2 - 2), wood.w / 2 - 4, sign * (wood.h / 2 - 2), 0xfff3e2, 2);
         }
-        for (const sign of [-1, 1]) MINI.circle(this, vertical ? 0 : sign * (wood.w / 2 - 8), vertical ? sign * (wood.h / 2 - 8) : 0, 2, 0x50372c);
+        // 알사탕 장식은 기둥 길이에 맞춰 고르게 박는다.
+        const span = vertical ? wood.h : wood.w, beads = Math.max(2, Math.round(span / 20));
+        for (let i = 0; i < beads; i++) {
+          const at = ((i + .5) / beads - .5) * (span - 10);
+          MINI.circle(this, vertical ? 0 : at, vertical ? at : 0, 2.4, i % 2 ? 0x6fd3c0 : 0xff85b3);
+        }
       } else {
-        MINI.line(this, -32, -4, 32, -4, 0xc28b66, 2);
-        MINI.line(this, -44, 5, 44, 5, 0xc28b66, 2);
+        // 처마를 타고 흘러내린 아이싱과 젤리 장식
+        MINI.line(this, -32, -4, 32, -4, 0xfff3e2, 3);
+        MINI.line(this, -44, 5, 44, 5, 0xfff3e2, 3);
+        [-33, -11, 11, 33].forEach((sx, i) => MINI.circle(this, sx, 5, 3, i % 2 ? 0x8ce0c8 : 0xffd166));
       }
       if (wood.hp < t.woodHP) {
         MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);

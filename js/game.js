@@ -9,6 +9,10 @@ class ArchiveGameBridge {
       if (this.active) this.emitRunSnapshot(window.archiveRun.consume(event.detail.deltaMs));
     });
     window.addEventListener('archive-auto-pause', () => { if (this.active) this.pause(); });
+    /* 제한시간 안에서 죽고 다시 소환될 때(MINI.summon). 스테이지는 끝나지 않는다. */
+    window.addEventListener('archive-respawn', () => {
+      if (this.active) this.events.emit(GAME_EVENTS.STAGE_RESPAWN, { stageId: this.currentStage?.id });
+    });
     events.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => this.start(stageId));
     events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
     events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.stop());

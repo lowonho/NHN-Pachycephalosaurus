@@ -10,17 +10,35 @@
  *
  * 누르고 있는 키를 세는 방식이다. keydown 한 번만 보고 움직이면
  * 방향키를 꾹 누르고 이동하는 동안 손이 멈춰 버린다.
+ *
+ * 타자 말고 두 가지 연출 자세가 더 있다 — 제한시간 안에서 죽고 다시 소환되면
+ * 주먹으로 키보드를 샷건 치고, 클리어하면 따봉을 든다. 이건 스테이지 흐름
+ * 이벤트를 구독해서 띄운다(playPose). 책상·키보드·손은 미니게임을 하는 동안에도
+ * 모니터 밖에 그대로 서 있으므로(protocol-select-flow.js의 showScreen)
+ * 두 연출 모두 플레이 중에 보인다.
  */
 
 /* 짧게 톡 눌렀다 뗐을 때도 한 박자는 보이도록 조금 늦게 세운다. */
 const HAND_SETTLE_MS = 130;
 /* 클릭은 누르고 있는 상태가 없으므로 이만큼만 움직이고 만다. */
 const HAND_CLICK_MS = 220;
+/* 연출 자세가 떠 있는 시간. css의 애니메이션 길이와 같아야 한다. */
+const HAND_POSE_MS = 900;
 
 class DeskHandsView {
-  constructor(dom) {
+  constructor(dom, events) {
     this.hands = [dom.deskHandLeft, dom.deskHandRight].filter(Boolean);
     if (this.hands.length === 0) return;
+
+    /*
+     * 연출 자세. 주먹은 제한시간 안에서 죽고 다시 소환될 때다 — 스테이지를
+     * 새로 시작할 때가 아니다(그건 STAGE_START이고, 여기서는 쓰지 않는다).
+     * 신호는 엔진의 MINI.summon에서 시작해 게임 브리지를 거쳐 온다.
+     */
+    this.poses = [dom.deskPoseFists, dom.deskPoseThumbs].filter(Boolean);
+    this.poseHandle = 0;
+    events?.on(GAME_EVENTS.STAGE_RESPAWN, () => this.playPose(dom.deskPoseFists));
+    events?.on(GAME_EVENTS.STAGE_CLEAR, () => this.playPose(dom.deskPoseThumbs));
 
     // 누르고 있는 키. keyup을 놓쳐도 blur에서 한 번에 턴다.
     this.pressed = new Set();
@@ -102,6 +120,39 @@ class DeskHandsView {
       });
     });
   }
+
+  /*
+   * 연출 자세 한 번. 뜨는 동안 타자 손은 숨는다 — 안 그러면 손이 두 쌍 보인다.
+   *
+   * data-playing으로 애니메이션을 건다. hidden만 벗겨도 애니메이션은 처음부터
+   * 도는데(display가 돌아오면 다시 시작한다), 연달아 두 번 부를 때 —
+   * 예를 들어 클리어하자마자 재시도 — 앞의 것이 돌던 자리에서 이어져 버린다.
+   * 속성을 뗐다 붙이면서 사이에 강제로 한 번 재보면 확실히 처음부터 돈다.
+   */
+  playPose(pose) {
+    if (!pose) return;
+
+    window.clearTimeout(this.poseHandle);
+    this.poses.forEach((other) => {
+      other.hidden = true;
+      delete other.dataset.playing;
+    });
+
+    pose.hidden = false;
+    void pose.offsetWidth;
+    pose.dataset.playing = "";
+    this.hands.forEach((hand) => {
+      hand.hidden = true;
+    });
+
+    this.poseHandle = window.setTimeout(() => {
+      pose.hidden = true;
+      delete pose.dataset.playing;
+      this.hands.forEach((hand) => {
+        hand.hidden = false;
+      });
+    }, HAND_POSE_MS);
+  }
 }
 
-const deskHandsView = new DeskHandsView(UI);
+const deskHandsView = new DeskHandsView(UI, gameEvents);

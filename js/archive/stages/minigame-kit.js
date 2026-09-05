@@ -44,7 +44,13 @@ export const MINI = {
   /* 죽고 다시 시작할 때의 공통 소환 연출. 재생 시간은 MINI.SPAWN초로 0.5초를 넘지 않습니다.
      scene.elapsed(공통 게임 시간)만 사용하므로 게임 쪽에 별도 타이머가 필요 없습니다. */
   SPAWN: .42,
-  summon(scene) { scene.spawnAt = scene.elapsed; },
+  /* 모니터 밖 책상 위의 손도 이 순간에 반응한다(js/ui/desk-hands.js).
+     엔진에서 DOM으로는 게임 브리지가 듣는 window 이벤트로 넘긴다(js/game.js) —
+     다른 엔진 신호(archive-hud · archive-stage-end)와 같은 길이다. */
+  summon(scene) {
+    scene.spawnAt = scene.elapsed;
+    window.dispatchEvent(new CustomEvent('archive-respawn'));
+  },
   spawnPhase(scene) {
     const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
     return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;

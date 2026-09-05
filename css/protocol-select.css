@@ -252,6 +252,144 @@
   }
 }
 
+/*
+ * ── 연출 자세(주먹 · 따봉) ──────────────────────────────────────────
+ *
+ * 제한시간 안에서 죽고 다시 소환될 때 주먹으로 키보드를 샷건 치고,
+ * 클리어했을 때 따봉을 든다.
+ * 뜨는 동안에는 타자 손이 숨는다(js/ui/desk-hands.js의 playPose).
+ *
+ * 타자 손과 달리 좌우를 나누지 않는다 — 두 손이 같이 움직이는 자세라
+ * 엇갈릴 일이 없고, 한 장이면 두 손 사이 간격이 원화 그대로 유지된다.
+ *
+ * 자리와 크기는 팔뚝 단면으로 맞췄다. 세 자세 모두 소매가 아래변으로 빠져나가는데,
+ * 그 단면의 폭과 중심을 타자 손과 같게 두면 자세가 바뀌어도 팔이 같은 데서
+ * 뻗어 나온 것처럼 보인다. 손 크기로 맞추면 안 된다 — 주먹은 편 손보다 원래 좁다.
+ * 아래변도 타자 손과 같은 자리(y 1456, 화면 밖)에 세워 두었다.
+ *   주먹  팔뚝 원본폭 321 → 화면 240  배율 0.746  → 시트 1672 × 0.746 ≈ 1247
+ *   따봉  팔뚝 원본폭 400 → 화면 240  배율 0.599  → 시트 2048 × 0.599 ≈ 1226
+ */
+.scene-pose {
+  z-index: 8;
+  will-change: transform;
+}
+
+.scene-pose--fists {
+  top: 924px;
+  left: 336px;
+  width: 1247px;
+}
+
+/* 따봉은 엄지가 키보드 위로 올라오므로 시작 자리가 타자 손보다 높다. */
+.scene-pose--thumbs {
+  top: 865px;
+  left: 347px;
+  width: 1226px;
+}
+
+/*
+ * 샷건 — 한 번 내려찍고 마는 게 아니라 세 번 두들긴다.
+ * 들어 올릴 때는 ease-out, 내려찍을 때는 ease-in으로 가속을 붙여야 "친다"가 된다
+ * (한 가지 타이밍 함수로 통일하면 물에 잠긴 것처럼 흐물거린다).
+ * 내려찍은 직후 조금 되튀는 구간(18 → 12)이 충격을 만든다.
+ * 마지막에는 제자리(0)로 돌아온다 — 여기서 타자 손으로 갈아타므로
+ * 다른 값에서 끝나면 손이 툭 튄다.
+ */
+.scene-pose--fists[data-playing] {
+  animation: desk-pose-slam 900ms both;
+}
+
+@keyframes desk-pose-slam {
+  0% {
+    transform: translateY(-42px);
+    animation-timing-function: ease-in;
+  }
+
+  9% {
+    transform: translateY(18px);
+    animation-timing-function: ease-out;
+  }
+
+  15% {
+    transform: translateY(12px);
+    animation-timing-function: ease-out;
+  }
+
+  24% {
+    transform: translateY(-38px);
+    animation-timing-function: ease-in;
+  }
+
+  34% {
+    transform: translateY(20px);
+    animation-timing-function: ease-out;
+  }
+
+  40% {
+    transform: translateY(13px);
+    animation-timing-function: ease-out;
+  }
+
+  49% {
+    transform: translateY(-38px);
+    animation-timing-function: ease-in;
+  }
+
+  59% {
+    transform: translateY(22px);
+    animation-timing-function: ease-out;
+  }
+
+  66% {
+    transform: translateY(14px);
+    animation-timing-function: ease-out;
+  }
+
+  82% {
+    transform: translateY(-14px);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 따봉 — 책상 아래에서 올라왔다가 잠깐 서고 다시 내려간다.
+ * 230px이면 자세가 화면 밖으로 완전히 빠진다(윗변 865 + 230 > 1080).
+ * 그래서 서서히 사라지게 할 필요가 없다 — 키보드 뒤에서 올라오는 게 더 자연스럽다.
+ * 올라올 때 살짝 지나쳤다가(-16px) 제자리에 서는 게 "척" 드는 맛을 만든다.
+ */
+.scene-pose--thumbs[data-playing] {
+  animation: desk-pose-thumbs 900ms both;
+}
+
+@keyframes desk-pose-thumbs {
+  0% {
+    transform: translateY(230px);
+    animation-timing-function: cubic-bezier(0.18, 0.9, 0.3, 1.25);
+  }
+
+  26% {
+    transform: translateY(-16px);
+    animation-timing-function: ease-out;
+  }
+
+  38% {
+    transform: translateY(0);
+  }
+
+  68% {
+    transform: translateY(0);
+    animation-timing-function: ease-in;
+  }
+
+  100% {
+    transform: translateY(230px);
+  }
+}
+
 /* ── 모니터 ────────────────────────────────────────────────────────── */
 
 /*

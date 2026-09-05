@@ -71,6 +71,10 @@ const UI = Object.freeze({
   deskHandLeft: document.querySelector("#desk-hand-left"),
   deskHandRight: document.querySelector("#desk-hand-right"),
 
+  /* 같은 손의 연출 자세 — 죽고 다시 소환될 때(주먹)와 클리어(따봉) 때만 뜬다. */
+  deskPoseFists: document.querySelector("#desk-pose-fists"),
+  deskPoseThumbs: document.querySelector("#desk-pose-thumbs"),
+
   deskClock: document.querySelector("#desk-clock"),
   deskClockMinutes: document.querySelector("#desk-clock-minutes"),
   deskClockSeconds: document.querySelector("#desk-clock-seconds"),

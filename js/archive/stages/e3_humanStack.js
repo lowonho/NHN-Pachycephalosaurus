@@ -35,7 +35,7 @@ export const E3_HUMAN_STACK = {
     railLeft: 260, railRight: 700,
     // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
     // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
-    baseY: 452, baseWidth: 228, floorY: 500, dropHeight: 292, debugPhysics: false,
+    baseY: 452, baseWidth: 251, floorY: 500, dropHeight: 292, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
