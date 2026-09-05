@@ -37,9 +37,27 @@
     && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   document.querySelector('.qa-story-button[data-story-id="opening"]').click();
-  assert(cutsceneFlow.isOpen() && UI.cutscene.dataset.phase === 'op-01' && UI.qaPanel.classList.contains('hidden'), 'QA story preview opens even when normal cutscene skipping is enabled');
+  assert(cutsceneFlow.isOpen()
+    && UI.cutscene.dataset.phase === 'op-01'
+    && UI.cutscene.dataset.cueKind === 'silent'
+    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display === 'none'
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the dialogue-free OP-01 even when normal cutscene skipping is enabled');
+  cutsceneFlow.advance();
+  assert(UI.cutscene.dataset.phase === 'op-02'
+    && UI.cutscene.dataset.cueKind === 'system'
+    && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Screen directions render as a system panel instead of character dialogue');
   cutsceneFlow.finish();
   assert(!UI.qaPanel.classList.contains('hidden') && qaStoryState() === beforeQaStory, 'QA story preview returns to QA without changing progress');
+  cutsceneFlow.play({
+    chapter: 'QA FINAL CARD',
+    script: [SCENARIO_DATA.cutscenes.ending.script.at(-1)],
+    auto: false,
+    forceDisplay: true,
+  });
+  assert(UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
+    && UI.cutscene.dataset.cueKind === 'system', 'The full nine-line ending card fits in the system panel');
+  cutsceneFlow.finish();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   qaModeFlow.deactivate();
   assert(UI.mainCodexButton.disabled, 'Testimony archive stays locked before the ending');

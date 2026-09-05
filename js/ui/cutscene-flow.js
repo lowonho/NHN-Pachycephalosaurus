@@ -166,11 +166,18 @@ class CutsceneFlow {
       return;
     }
 
-    const { speaker = "", text = "", phase = "dialogue" } = this.script[this.index] || {};
+    const currentCue = this.script[this.index] || {};
+    const {
+      speaker = "",
+      text = "",
+      phase = "dialogue",
+      kind = speaker === "SYSTEM" ? "system" : "dialogue",
+    } = currentCue;
     this.showBackground(phase);
     this.ui.cutscene?.setAttribute("data-phase", phase);
+    this.ui.cutscene?.setAttribute("data-cue-kind", kind);
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
-    this.startTyping(String(text));
+    this.startTyping(String(text), { instant: kind !== "dialogue" });
     this.renderLog();
   }
 
@@ -180,12 +187,18 @@ class CutsceneFlow {
     return this.typeTimer !== 0;
   }
 
-  startTyping(text) {
+  startTyping(text, { instant = false } = {}) {
     this.stopTyping();
     this.fullText = text;
     this.typed = 0;
     this.ui.cutscenePanel?.setAttribute("data-state", "typing");
     if (this.ui.cutsceneLine) this.ui.cutsceneLine.textContent = "";
+
+    /* 시스템 UI와 무대사 장면은 대사가 아니므로 타자 효과 없이 장면 시간만 유지한다. */
+    if (instant) {
+      this.completeTyping();
+      return;
+    }
 
     const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
     this.typeTimer = window.setInterval(() => {
@@ -226,7 +239,10 @@ class CutsceneFlow {
     this.clearAuto();
     const cue = this.script[this.index] || {};
     const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
-    const typedFor = this.fullText.length * CutsceneFlow.TYPE_INTERVAL / speed;
+    const kind = cue.kind ?? (cue.speaker === "SYSTEM" ? "system" : "dialogue");
+    const typedFor = kind === "dialogue"
+      ? this.fullText.length * CutsceneFlow.TYPE_INTERVAL / speed
+      : 0;
     const hold = Number.isFinite(cue.durationMs)
       ? Math.max(180, cue.durationMs / speed - typedFor)
       : (CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR) / speed;
@@ -280,7 +296,7 @@ class CutsceneFlow {
       return;
     }
 
-    seen.forEach(({ speaker = "", text = "" }) => {
+    seen.filter(({ kind }) => kind !== "silent").forEach(({ speaker = "", text = "" }) => {
       const item = document.createElement("li");
       const who = document.createElement("strong");
       who.textContent = speaker;
@@ -307,6 +323,7 @@ class CutsceneFlow {
     this.setAuto(false);
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
+    this.ui.cutscene?.removeAttribute("data-cue-kind");
     this.ui.cutscene?.removeAttribute("data-has-background");
     this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");
     if (this.returnFocus?.isConnected) this.returnFocus.focus();

@@ -118,9 +118,7 @@
 .cutscene[data-phase="assist"] .story-archive-core,
 .cutscene[data-phase="betrayal"] .story-archive-core,
 .cutscene[data-phase="source"] .story-archive-core,
-.cutscene[data-phase="experiment"] .story-archive-core,
-.cutscene[data-phase="test-success"] .story-archive-core,
-.cutscene[data-phase="blockade"] .story-archive-core { display: grid; }
+.cutscene[data-phase="experiment"] .story-archive-core { display: grid; }
 
 /* 실제 배경이 연결된 장면에서는 같은 역할의 임시 도형만 숨긴다. 스캔 UI는 위에 유지한다. */
 .cutscene[data-has-background="true"] .story-media-wall,
@@ -138,6 +136,10 @@
   text-shadow: 0 0 34px rgba(255, 206, 98, .7);
 }
 .story-records strong { color: var(--cut-line); font-size: 34px; }
+.cutscene[data-phase="ending-a"] .story-records,
+.cutscene[data-phase="ending-b"] .story-records,
+.cutscene[data-phase="ending-c"] .story-records,
+.cutscene[data-phase="ending-d"] .story-records,
 .cutscene[data-phase="shared-ending"] .story-records { display: block; }
 
 .cutscene[data-phase="stage-brief"] .cutscene-story-visual::before,
@@ -223,6 +225,53 @@
   bottom: 92px;
   left: 592px;
   width: 1148px;
+}
+
+/* 대본에서 대사가 없는 고정 장면은 배경만 보여 준다. */
+.cutscene[data-cue-kind="silent"] .cutscene-dialogue {
+  display: none;
+}
+
+/* 화면 문구는 인물 대사와 분리해 중앙 시스템 패널로 표시한다. */
+.cutscene[data-cue-kind="system"] .cutscene-dialogue {
+  bottom: 126px;
+  left: 50%;
+  width: 1080px;
+  transform: translateX(-50%);
+}
+
+.cutscene[data-cue-kind="system"] .cutscene-speaker {
+  display: none;
+}
+
+.cutscene[data-cue-kind="system"] .cutscene-panel {
+  display: grid;
+  min-height: 194px;
+  height: auto;
+  max-height: 460px;
+  padding: 42px 72px;
+  place-items: center;
+  background: rgba(2, 15, 35, .9);
+}
+
+.cutscene[data-cue-kind="system"] .cutscene-panel::before {
+  top: 24px;
+  bottom: 24px;
+  height: auto;
+}
+
+.cutscene[data-cue-kind="system"] .cutscene-line {
+  height: auto;
+  max-height: 13.5em;
+  color: var(--cut-line);
+  font: 800 27px/1.35 var(--font-ui);
+  letter-spacing: .08em;
+  text-align: center;
+}
+
+.cutscene[data-cue-kind="system"] .cutscene-next {
+  bottom: 50%;
+  transform: translateY(50%);
 }
 
 /*

@@ -29,8 +29,21 @@ assert.equal(STAGE_TIME_MS, 20_260);
 assert.equal(story.acts.length, 3);
 assert.equal(story.records.length, 18);
 assert.equal(story.gamePoolSize, 10);
-assert.equal(story.cutscenes.opening.script.reduce((sum, cue) => sum + cue.durationMs, 0), 33_000);
-assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 25_000);
+assert.equal(story.cutscenes.opening.script.reduce((sum, cue) => sum + cue.durationMs, 0), 27_000);
+assert.equal(story.cutscenes.assist.script.reduce((sum, cue) => sum + cue.durationMs, 0), 6_000);
+assert.equal(story.cutscenes.betrayal.script.reduce((sum, cue) => sum + cue.durationMs, 0), 15_000);
+assert.equal(story.cutscenes.source.script.reduce((sum, cue) => sum + cue.durationMs, 0), 12_000);
+assert.equal(story.cutscenes.experiment.script.reduce((sum, cue) => sum + cue.durationMs, 0), 15_000);
+assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 30_000);
+assert.equal(story.cutscenes.opening.script[0].kind, 'silent', 'OP-01에는 대사가 없어야 한다');
+assert.equal(story.cutscenes.opening.script[0].text, '');
+assert.deepEqual(Object.keys(story.cutscenes), [
+  'opening', 'assist', 'betrayal', 'source', 'experiment', 'ending',
+]);
+assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('ARCHIVE OWNERSHIP TRANSFERRED')));
+assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('INTERNAL RESULT: SUCCESS')));
+assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('ARIA-26 DECOMMISSION ORDER: EXECUTE')));
+assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('ARIA-26: DECOMMISSIONED')));
 assert.equal(story.endings.shared, story.cutscenes.ending);
 assert.ok(!JSON.stringify(story).includes('민서'), '이전 민서 시나리오가 새 대본에 남아 있으면 안 된다');
 assert.deepEqual(story.records.map((record) => record.id), [

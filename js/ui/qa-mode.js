@@ -28,14 +28,12 @@ const QA_UNLOCK_WINDOW_MS = 800;
 const QA_UNLOCK_HINT_FROM = 5;
 
 const QA_STORY_LABELS = Object.freeze({
-  opening: "오프닝",
-  assist: "1막 지원",
-  betrayal: "1막 반전",
-  source: "삭제 주체",
-  experiment: "기억 억제",
-  successTest: "실험 결과",
-  blockade: "최종 봉쇄",
-  ending: "공동 기억 엔딩",
+  opening: "오프닝 · 아카이브 진입",
+  assist: "CS-H1 · 보조 절차",
+  betrayal: "CS-01 · 복구 기록 회수",
+  source: "CS-02 · 삭제 주체",
+  experiment: "CS-03 · 기억 소거 실험",
+  ending: "CS-06 · ARIA-26 폐기",
 });
 
 class QaModeFlow {

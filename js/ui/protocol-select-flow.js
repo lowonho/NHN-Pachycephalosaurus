@@ -308,9 +308,7 @@ class ProtocolSelectFlow {
     const play = (name, done = open) => this.playStoryCutscene(name, done);
 
     if (advanced.transition === "next-stage") {
-      if (before.currentAct === 3 && before.currentStageInAct === 2) play("successTest");
-      else if (before.currentAct === 3 && before.currentStageInAct === 5) play("blockade");
-      else open();
+      open();
       return;
     }
     if (advanced.transition === "next-act") {
