@@ -15,6 +15,13 @@ $sourceNames = @(
   "progress.mjs",
   "fragments.mjs",
   "run-state.mjs",
+  "stages/shared.mjs",
+  "stages/e1.mjs",
+  "stages/e2.mjs",
+  "stages/e3.mjs",
+  "stages/e4.mjs",
+  "stages/e5.mjs",
+  "stages/index.mjs",
   "game.mjs"
 )
 
