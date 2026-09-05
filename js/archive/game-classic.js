@@ -1285,8 +1285,8 @@ const E3_HUMAN_STACK = {
 
 const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
-  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 7200, radius: 10, wallPenalty: 1 },
-  grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 800, brake: 2400, radius: 10, wallPenalty: 1 },
+  grid: { cols: 19, rows: 7, passageX: 66, passageY: 90, wall: 28, x: 42, y: 88 },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
     const g = E4_ACCELERATION_DASH.grid;
@@ -1335,10 +1335,11 @@ const E4_ACCELERATION_DASH = {
     return { tiles, goal };
   },
   build() {
-    MINI.init(this, 0xc6a2ff);
+    MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
       speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+    E4_VILLAGE.build(this, E4);
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
   },
@@ -1430,13 +1431,7 @@ const E4_ACCELERATION_DASH = {
     MINI.frame(this);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
-    this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
-    for (let row = 0; row < g.rows; row++) for (let col = 0; col < g.cols; col++) {
-      if (!s.tiles[row][col]) continue;
-      const r = E4.tileRect(col, row), px = sx(r.x), py = sy(r.y);
-      this.ink.fillStyle(0x4a3b69).fillRect(px, py, r.w, r.h);
-      this.ink.lineStyle(1, 0x9476b5, .65).strokeRect(px + 1, py + 1, r.w - 2, r.h - 2);
-    }
+    E4_VILLAGE.ground(this, E4, extent);
     // 속도가 높아질수록 길고 밝아지는 이동 궤적과 캐릭터 양옆의 속도선.
     for (let i = 1; i < s.trail.length; i++) {
       const a = s.trail[i - 1], b = s.trail[i], alpha = i / s.trail.length;
@@ -1457,11 +1452,73 @@ const E4_ACCELERATION_DASH = {
         this.ink.lineStyle(2, 0xe3d6ff, boost * .7).lineBetween(x, y, x - ux * (12 + boost * 26), y - uy * (12 + boost * 26));
       }
     }
-    MINI.actor(this, 'player', 'player', sx(s.x), sy(s.y), 20, 20, 0, s.flash ? 0xff8799 : this.accent);
+    E4_VILLAGE.player(this, sx(s.x), sy(s.y));
     MINI.meter(this, boost);
   },
 };
 
+// Rendering only: footprints never alter route(), tiles, or wallsAt().
+const E4_VILLAGE = {
+  // Future 1x2 art can use {cellsW:1,cellsH:2}, provided both slots are walls.
+  buildings: [{ role: 'tileRoof', cellsW: 1, cellsH: 1 }, { role: 'thatch', cellsW: 1, cellsH: 1 }],
+  actor: { role: 'player', cellFraction: .7 },
+  build(scene, game) {
+    const grid = game.grid, unit = grid.wall;
+    scene.village = { buildings: [], facingLeft: false };
+    // Bounds are measured from PNG alpha, not the padded image dimensions.
+    for (const role of ['player', 'tileRoof', 'thatch']) {
+      if (!scene.textures.exists('e4:' + role) || !globalThis.E4_VILLAGE_BOUNDS?.[role]) continue;
+      const texture = scene.textures.get('e4:' + role);
+      const bounds = globalThis.E4_VILLAGE_BOUNDS[role];
+      if (!texture.has('art')) texture.add('art', 0, ...bounds);
+    }
+    const available = E4_VILLAGE.buildings.filter(b => scene.textures.exists('e4:' + b.role));
+    const occupied = new Set();
+    for (let row = 0; row < grid.rows; row++) for (let col = 0; col < grid.cols; col++) {
+      if (!scene.state.tiles[row][col]) continue;
+      const wall = game.tileRect(col, row);
+      for (let y = wall.y; y + unit <= wall.y + wall.h; y += unit) for (let x = wall.x; x + unit <= wall.x + wall.w; x += unit) {
+        const key = x + ',' + y;
+        if (occupied.has(key)) continue;
+        // Coordinate hash does not consume the gameplay RNG or change future maps.
+        const variant = available[((col * 31 + row * 17 + x + y) >>> 0) % available.length];
+        if (!variant) continue;
+        const w = variant.cellsW * unit, h = variant.cellsH * unit;
+        if (x + w > wall.x + wall.w || y + h > wall.y + wall.h) continue;
+        for (let yy = y; yy < y + h; yy += unit) for (let xx = x; xx < x + w; xx += unit) occupied.add(xx + ',' + yy);
+        const image = scene.add.image(grid.x + x + w / 2, grid.y + y + h / 2, 'e4:' + variant.role, 'art').setDepth(1);
+        image.setScale(Math.min((w - 1) / image.width, (h - 1) / image.height));
+        scene.village.buildings.push({ image, x, y, w, h, col, row, role: variant.role });
+      }
+    }
+    const actor = E4_VILLAGE.actor;
+    if (!scene.textures.exists('e4:' + actor.role)) return;
+    scene.village.actor = scene.add.image(0, 0, 'e4:' + actor.role, 'art').setDepth(3);
+    const image = scene.village.actor, size = Math.min(grid.passageX, grid.passageY) * actor.cellFraction;
+    image.setScale(size / Math.max(image.width, image.height));
+  },
+  ground(scene, game, extent) {
+    const g = game.grid, ink = scene.ink, width = extent.x + extent.w, height = extent.y + extent.h;
+    ink.fillStyle(0x73756d).fillRect(g.x, g.y, width, height);
+    for (let y = 0; y < height; y += 24) for (let x = 0; x < width; x += 24) {
+      const shade = ((x * 13 + y * 7) % 5) / 100;
+      ink.fillStyle(0x292e29, .08 + shade).fillRect(g.x + x + 1, g.y + y + 1, Math.min(22, width-x-1), Math.min(22, height-y-1));
+    }
+    for (let row = 0; row < g.rows; row++) for (let col = 0; col < g.cols; col++) {
+      if (!scene.state.tiles[row][col]) continue;
+      const r = game.tileRect(col,row);
+      ink.fillStyle(0x374b3a).fillRect(g.x+r.x,g.y+r.y,r.w,r.h);
+      ink.lineStyle(1,0x9a967a,.65).strokeRect(g.x+r.x+.5,g.y+r.y+.5,r.w-1,r.h-1);
+    }
+  },
+  player(scene, x, y) {
+    const view = scene.village, s = scene.state;
+    if (!view.actor) { MINI.actor(scene, 'player', 'player', x, y, 20, 20, 0, s.flash ? 0xff8799 : scene.accent); return; }
+    if (Math.abs(s.vx) > .01) view.facingLeft = s.vx < 0;
+    view.actor.setPosition(x,y).setFlipX(view.facingLeft);
+    if (s.flash) view.actor.setTint(0xffb0a0); else view.actor.clearTint();
+  },
+};
 
 /* Source: stages/e5_slingshot.js */
 
