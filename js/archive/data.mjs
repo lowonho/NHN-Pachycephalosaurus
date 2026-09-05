@@ -60,8 +60,8 @@ export const STAGES = [
   },
   {
     id: "friction", recordSymbol: "≈", number: "04", code: "FRICTION_DROP",
-    title: "미끄럼 배송", objective: "관성을 제어해 화물을 DOCK 안에서 멈추세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰이 줄어 제동이 어려워집니다.",
+    title: "미끄럼 배송", objective: "STOP 1·2에서 순서대로 정차한 뒤 DOCK에서 화물을 멈추세요.",
+    anomaly: "마찰 감소 · 벽 충돌 −1초 · STOP에서 0.75초 정차",
     controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
     logTitle: "마찰 채널 복구", log: "미끄러지는 기록은 제동을 기억하고 있었다.",
   },
@@ -82,4 +82,3 @@ export const ENDING = {
 
 export const STORAGE_KEY = "archive-2026-progress-v1";
 export const SETTINGS_KEY = "archive-2026-settings-v1";
-

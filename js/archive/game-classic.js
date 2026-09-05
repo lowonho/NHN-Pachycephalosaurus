@@ -67,8 +67,8 @@ const STAGES = [
   },
   {
     id: "friction", recordSymbol: "≈", number: "04", code: "FRICTION_DROP",
-    title: "미끄럼 배송", objective: "관성을 제어해 화물을 DOCK 안에서 멈추세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰이 줄어 제동이 어려워집니다.",
+    title: "미끄럼 배송", objective: "STOP 1·2에서 순서대로 정차한 뒤 DOCK에서 화물을 멈추세요.",
+    anomaly: "마찰 감소 · 벽 충돌 −1초 · STOP에서 0.75초 정차",
     controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
     logTitle: "마찰 채널 복구", log: "미끄러지는 기록은 제동을 기억하고 있었다.",
   },
@@ -89,7 +89,6 @@ const ENDING = {
 
 const STORAGE_KEY = "archive-2026-progress-v1";
 const SETTINGS_KEY = "archive-2026-settings-v1";
-
 
 
 /* Source: audio.mjs */
@@ -580,6 +579,41 @@ function nextStackBlock(s) {
 }
 
 
+/* Source: friction-stop.mjs */
+const STOP_RULES = { radius: 18, exitRadius: 22, speed: 18, exitSpeed: 24, seconds: 0.75, grace: 0.12 };
+
+// A low-speed cargo released inside the active bay settles even at minimum
+// floor friction. This is braking only: no position snap or high-speed capture.
+function settleFrictionStop(state, stop, dt) {
+  if (!stop || state.direction || Math.hypot(state.x - stop.x, state.y - stop.y) > STOP_RULES.radius || Math.hypot(state.vx, state.vy) > STOP_RULES.exitSpeed) return false;
+  const brake = value => Math.sign(value) * Math.max(0, Math.abs(value) - 100 * dt);
+  state.vx = brake(state.vx);
+  state.vy = brake(state.vy);
+  return true;
+}
+
+// Only time inside the target at low speed counts. Brief correction inputs
+// preserve earned time; actually leaving the target cancels it.
+function advanceFrictionStop(state, distance, speed, dt) {
+  if (distance <= STOP_RULES.radius && speed <= STOP_RULES.speed) {
+    state.stopGrace = 0;
+    state.stopHold = Math.min(STOP_RULES.seconds, state.stopHold + dt);
+    return { complete: state.stopHold >= STOP_RULES.seconds - 1e-9, label: `${Math.floor(state.stopHold / STOP_RULES.seconds * 100)}%` };
+  }
+  const label = distance > STOP_RULES.radius ? 'CENTER' : 'BRAKE';
+  if (distance > STOP_RULES.exitRadius || speed > STOP_RULES.exitSpeed) {
+    state.stopHold = 0;
+    state.stopGrace = 0;
+  } else {
+    const previousGrace = state.stopGrace || 0;
+    state.stopGrace = previousGrace + dt;
+    const decayTime = Math.max(0, state.stopGrace - STOP_RULES.grace) - Math.max(0, previousGrace - STOP_RULES.grace);
+    state.stopHold = Math.max(0, state.stopHold - decayTime * 2);
+  }
+  return { complete: false, label };
+}
+
+
 /* Source: progress.mjs */
 const RECORD_STATUS = Object.freeze({
   DAMAGED: "DAMAGED", PARTIAL: "PARTIALLY RESTORED", FULL: "FULLY RESTORED", LOST: "RECORD LOST",
@@ -838,7 +872,7 @@ class ArchiveGame extends Phaser.Scene {
       risk: this.risk ?? 0,
       fragmentCollected: this.fragmentCollected,
       fragmentHint: this.fragment?.hint,
-      wallHits: this.stageId === "maze" ? this.state.ball.collisions : null,
+      wallHits: this.stageId === "maze" ? this.state.ball.collisions : this.stageId === "friction" ? this.state.wallHits : null,
       timePenalty: this.timePenalty,
     });
   }
@@ -1148,14 +1182,22 @@ class ArchiveGame extends Phaser.Scene {
       { x: 728, y: 150, w: 30, h: 360 },
     ];
     this.drawWalls(walls, 0x3b5262, 0x7698aa);
-    this.drawGoal(850, 92, 22, "DOCK");
+    this.drawGoal(850, 92, 18, "DOCK");
     this.state = {
       x: 92, y: 452, vx: 0, vy: 0, radius: 15,
       direction: null, walls, goalHold: 0, wasInside: false, overruns: 0,
+      wallHits: 0, contacts: new Set(), hitCooldown: 0,
+      stops: [{ x: 440, y: 108 }, { x: 640, y: 428 }], stopIndex: 0, stopHold: 0, stopGrace: 0,
     };
     this.player = this.add.rectangle(92, 452, 30, 30, 0xffca75).setStrokeStyle(3, 0xffe1ad).setDepth(5);
     this.cargoTrail = this.add.graphics().setDepth(3);
     this.goalText = this.add.text(850, 92, "0%", { fontFamily: "monospace", fontSize: "10px", color: "#d9ffdd" }).setOrigin(0.5).setDepth(6);
+    this.stopRings = this.state.stops.map((stop, index) => {
+      const ring = this.add.circle(stop.x, stop.y, STOP_RULES.radius, 0xffca75, 0.08).setStrokeStyle(2, 0xffca75).setDepth(3);
+      this.add.circle(stop.x, stop.y, 3, 0xffca75).setDepth(6);
+      const label = this.add.text(stop.x, stop.y + 28, `STOP ${index + 1}`, { fontFamily: "monospace", fontSize: "11px", color: "#ffca75" }).setOrigin(0.5).setDepth(3);
+      return { ring, label };
+    });
   }
 
   frictionPress(direction) {
@@ -1173,27 +1215,63 @@ class ArchiveGame extends Phaser.Scene {
     const vectors = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
     const [dx, dy] = vectors[s.direction] || [0, 0];
     const acceleration = 470;
-    const drag = Math.max(28, 640 - this.actions * 105);
+    const drag = Math.max(14, 560 - this.actions * 110);
     if (dx) s.vx += dx * acceleration * dt; else s.vx = moveTowardZero(s.vx, drag * dt);
     if (dy) s.vy += dy * acceleration * dt; else s.vy = moveTowardZero(s.vy, drag * dt);
     const speed = Math.hypot(s.vx, s.vy);
     if (speed > 265) { s.vx = s.vx / speed * 265; s.vy = s.vy / speed * 265; }
+    settleFrictionStop(s, s.stops[s.stopIndex], dt);
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    for (const wall of s.walls) circleRectCollision(s, wall, 0.35);
+    s.hitCooldown = Math.max(0, s.hitCooldown - dt);
+    const contacts = new Set();
+    let impact = false;
+    s.walls.forEach((wall, index) => {
+      const dx = s.x - clamp(s.x, wall.x, wall.x + wall.w);
+      const dy = s.y - clamp(s.y, wall.y, wall.y + wall.h);
+      const distance = Math.hypot(dx, dy);
+      const approach = distance > 0 ? -(s.vx * dx + s.vy * dy) / distance : Math.hypot(s.vx, s.vy);
+      if (distance <= s.radius + 5) contacts.add(index);
+      if (circleRectCollision(s, wall, 0.35) && !s.contacts.has(index) && approach > 20 && s.hitCooldown <= 0) impact = true;
+    });
+    s.contacts = contacts;
+    if (impact) {
+      s.wallHits++; s.hitCooldown = 0.35;
+      this.timePenalty += 1;
+      this.remaining = Math.max(0, this.remaining - 1);
+      const popup = this.add.text(clamp(s.x, 85, 875), clamp(s.y - 30, 155, 480), "−1.00s", { fontFamily: "monospace", fontSize: "25px", color: "#ff947d", stroke: "#07141d", strokeThickness: 5 }).setOrigin(0.5).setDepth(10);
+      this.tweens.add({ targets: popup, y: popup.y - 22, alpha: 0, duration: 650, onComplete: () => popup.destroy() });
+      emit("archive-wall-hit", { seconds: 1 });
+      emit("archive-sfx", { name: "warning" });
+      if (this.remaining <= 0) { this.finish(false, "벽 충돌로 재생 시간 소진"); return; }
+    }
     this.player.setPosition(s.x, s.y).setRotation(Math.atan2(s.vy, s.vx) * 0.18);
     this.cargoTrail.clear().lineStyle(3, 0xffb35d, 0.14 + this.risk / 500).lineBetween(s.x - s.vx * 0.12, s.y - s.vy * 0.12, s.x, s.y);
 
     const currentSpeed = Math.hypot(s.vx, s.vy);
-    const inside = Math.hypot(s.x - 850, s.y - 92) <= 22;
-    if (inside && currentSpeed <= 28) s.goalHold += dt;
+    const stop = s.stops[s.stopIndex];
+    let stopLabel = "0%";
+    if (stop) {
+      const result = advanceFrictionStop(s, Math.hypot(s.x - stop.x, s.y - stop.y), currentSpeed, dt);
+      stopLabel = result.label;
+      if (result.complete) { s.stopIndex++; s.stopHold = 0; s.stopGrace = 0; stopLabel = "0%"; emit("archive-sfx", { name: "hit" }); }
+    }
+    this.stopRings.forEach(({ ring, label }, index) => {
+      const done = index < s.stopIndex;
+      ring.setStrokeStyle(2, done ? 0x93fca0 : index === s.stopIndex ? 0xffca75 : 0x557788);
+      label.setText(done ? "LOCKED" : `STOP ${index + 1}${index === s.stopIndex ? ` ${stopLabel}` : " · WAIT"}`);
+    });
+    this.anomaly = `마찰 ${Math.max(3, Math.round(drag / 560 * 100))}% · 정차 ${s.stopIndex}/2`;
+    const ready = s.stopIndex === s.stops.length;
+    const inside = Math.hypot(s.x - 850, s.y - 92) <= 18;
+    if (ready && inside && currentSpeed <= 18) s.goalHold += dt;
     else if (!inside) s.goalHold = 0;
     else s.goalHold = Math.max(0, s.goalHold - dt * 2);
-    if (s.wasInside && !inside && s.goalHold < 0.8) s.overruns += 1;
+    if (s.wasInside && !inside && s.goalHold < 1) s.overruns += 1;
     s.wasInside = inside;
-    const progress = clamp(s.goalHold / 0.8, 0, 1);
-    this.goalText.setText(inside && currentSpeed > 28 ? "FAST" : `${Math.round(progress * 100)}%`)
-      .setColor(inside && currentSpeed > 28 ? "#ffb35d" : "#d9ffdd");
+    const progress = clamp(s.goalHold, 0, 1);
+    this.goalText.setText(!ready ? "LOCK" : inside && currentSpeed > 18 ? "FAST" : `${Math.round(progress * 100)}%`)
+      .setColor(!ready || (inside && currentSpeed > 18) ? "#ffb35d" : "#d9ffdd");
     if (progress >= 1) this.finish(true, `지나침 ${s.overruns}회`);
   }
 

@@ -164,15 +164,53 @@ try {
   await evaluate("document.querySelector('#primary-button').click()");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
+  for (const hz of [40,60,120]) {
+    await start('friction');
+    const stops=await evaluate(`(() => {
+      Object.assign(testScene.state,{x:440,y:108,vx:0,vy:0,direction:null});
+      for(let i=0;i<${hz};i++) testScene.update(0,1000/${hz});
+      const first=testScene.state.stopIndex;
+      testScene.actions=10;
+      Object.assign(testScene.state,{x:648,y:428,vx:22,vy:0,direction:null});
+      for(let i=0;i<${hz}*2;i++) testScene.update(0,1000/${hz});
+      return { first, second:testScene.state.stopIndex, speed:Math.hypot(testScene.state.vx,testScene.state.vy), labels:testScene.stopRings.map(stop=>stop.label.text) };
+    })()`);
+    assert.deepEqual(stops,{first:1,second:2,speed:0,labels:['LOCKED','LOCKED']});
+  }
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:850,y:92,vx:0,vy:0}); for(let i=0;i<100;i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate('testScene.mode'),'playing','Dock cannot bypass both stops');
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:262,y:250,vx:160,vy:0,direction:'right'}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),1);
+  assert.ok(Math.abs(await evaluate('testScene.remaining')-19.235)<0.0001);
+  await evaluate("for(let i=0;i<60;i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate('testScene.timePenalty'),1,'Continuous wall contact is one hit');
+  await evaluate("Object.assign(testScene.state,{x:220,y:250,vx:0,vy:0,direction:null}); testScene.update(0,25); Object.assign(testScene.state,{x:262,vx:160,direction:'right'}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),2,'Leaving and hitting again costs another second');
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:58,y:58,vx:-160,vy:-160}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),1,'A corner impact is one hit');
+  await start('friction');
+  await evaluate("testScene.remaining=0.5; Object.assign(testScene.state,{x:262,y:250,vx:160,vy:0}); testScene.update(0,25)");
+  assert.equal(await evaluate('UI.modalTitle.textContent'),'RECORD LOST');
+  assert.equal(await evaluate('testScene.remaining'),0);
+  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate('testScene.timePenalty'),0);
+  assert.equal(await evaluate('testScene.state.stopIndex'),0);
   for (const memory of [false, true]) {
     await start('friction');
+    await evaluate("testScene.pausedByMenu=true; window.archivePhaserGame.loop.wake()");
+    await screen('friction-course');
+    await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu=false");
     const result = await evaluate(`(() => {
       const route = [[92,108],[440,108], ...(${memory} ? [[440,64],[440,108]] : []), [440,428],[640,428],[640,108],[850,92]];
       let index=0;
       for(let i=0;i<1216 && testScene.mode==='playing';i++) {
         const s=testScene.state, t=route[index];
         const ex=t[0]-s.x, ey=t[1]-s.y;
-        if(Math.hypot(ex,ey)<14 && Math.hypot(s.vx,s.vy)<75 && index<route.length-1) index++;
+        const waiting = (t[0]===440 && t[1]===108 && s.stopIndex<1) || (t[0]===640 && t[1]===428 && s.stopIndex<2);
+        if(!waiting && Math.hypot(ex,ey)<14 && Math.hypot(s.vx,s.vy)<75 && index<route.length-1) index++;
         const cap=v=>Math.max(-230,Math.min(230,v));
         const ax=cap(ex*3)-s.vx, ay=cap(ey*3)-s.vy;
         const direction=Math.max(Math.abs(ax),Math.abs(ay))<10?null:Math.abs(ax)>Math.abs(ay)?(ax>0?'right':'left'):(ay>0?'down':'up');
@@ -182,11 +220,12 @@ try {
         }
         testScene.update(0,1000/60);
       }
-      return { title:UI.modalTitle.textContent, fragment:testScene.fragmentCollected, elapsed:testScene.elapsed, index, x:testScene.state.x, y:testScene.state.y };
+      return { title:UI.modalTitle.textContent, fragment:testScene.fragmentCollected, elapsed:testScene.elapsed, penalty:testScene.timePenalty, stops:testScene.state.stopIndex, index, x:testScene.state.x, y:testScene.state.y };
     })()`);
     console.log('FRICTION ROUTE', memory, result);
     assert.equal(result.title, memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED');
     assert.equal(result.fragment,memory);
+    assert.equal(result.stops,2);
   }
   for (const memory of [false, true]) {
     await start('stack');
@@ -216,7 +255,7 @@ try {
   for (const stage of ["maze", "gravity", "bounce", "friction", "stack"]) {
     await start(stage);
     assert.equal(await evaluate("testScene.timePenalty"), 0, `${stage}: time penalty reset`);
-    assert.equal(await evaluate("UI.stageHudPenalty.hidden"), stage !== 'maze');
+    assert.equal(await evaluate("UI.stageHudPenalty.hidden"), !['maze','friction'].includes(stage));
     assert.equal(await evaluate("testScene.fragmentCollected"), false, `${stage}: retry resets fragment`);
     // Drive each stage's existing update method through the real collection adapter.
     await evaluate(`(() => {

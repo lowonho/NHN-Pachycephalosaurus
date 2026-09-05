@@ -11,6 +11,7 @@ $sourceNames = @(
   "gravity-core.mjs",
   "bounce-core.mjs",
   "stack-core.mjs",
+  "friction-stop.mjs",
   "progress.mjs",
   "fragments.mjs",
   "game.mjs"
