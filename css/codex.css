@@ -106,7 +106,7 @@
   /* 내용이 한 줄 늘어도 3×3 격자가 흔들리지 않게 높이를 잡아 둔다. */
   align-content: start;
   gap: 10px;
-  min-height: 226px;
+  min-height: 182px;
   padding: 18px 22px 20px;
   border: 1px solid var(--codex-line-soft);
   clip-path: polygon(
@@ -177,23 +177,12 @@
   letter-spacing: 0.02em;
 }
 
-.codex-card-line {
-  display: flex;
-  gap: 10px;
+/* 목표 한 줄 — 도감이 칸마다 적는 유일한 설명이다. */
+.codex-card-goal {
   margin: 0;
-  font: 700 15px/1.45 var(--font-ui);
-}
-
-/* 조작 · 목표 · 변수 — 세 줄의 머리표. 폭을 고정해 글이 한 세로줄에서 시작한다. */
-.codex-card-tag {
-  flex: 0 0 38px;
-  color: var(--codex-line);
-  letter-spacing: 0.08em;
-}
-
-.codex-card-text {
   color: var(--codex-dim);
-  /* 조작 안내는 줄바꿈이 들어 있는 문장이 아니라 한 덩어리라 그대로 흘린다. */
+  font: 700 15px/1.45 var(--font-ui);
+  /* 낱말 가운데서 끊기지 않게 둔다 — 짧은 문장이라 줄 끝이 눈에 띈다. */
   word-break: keep-all;
 }
 

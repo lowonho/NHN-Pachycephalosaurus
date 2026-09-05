@@ -12,11 +12,14 @@
   const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','map','toGoal','seen'].includes(key) ? undefined : value)) });
   load('e1');
   const flippedGates = new Set();
+  const lead = scene.hurdles[0].x, gateGap = scene.hurdles[2].x - scene.hurdles[0].x;
   advance(20.3, () => {
     const s = scene.state;
-    // 다음 묶음 110px 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
-    const next = scene.hurdles.find(h => h.x - s.x > -15);
-    if (next && next.x - s.x < 110 && !flippedGates.has(next.x)) { flippedGates.add(next.x); scene.primaryAction(); }
+    // 다음 묶음 0.386초 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
+    // 코스 간격은 속도에 따라 달라지므로 반응 거리도 속도에서 뽑습니다.
+    // 가시는 묶음마다 두 개씩 붙어 있으므로 묶음 번호로 묶어 한 번만 반전합니다.
+    const next = scene.hurdles.find(h => h.x - s.x > -15), gate = next && Math.round((next.x - lead) / gateGap);
+    if (next && next.x - s.x < scene.stageGame.tuning.speed * .386 && !flippedGates.has(gate)) { flippedGates.add(gate); scene.primaryAction(); }
   }); save('e1');
   load('e2'); scene.directionPress('right');
   advance(20.3, () => {

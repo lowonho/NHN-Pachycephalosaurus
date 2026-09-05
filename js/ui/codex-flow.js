@@ -6,7 +6,8 @@
  * 아직 안 해 본 게임이 무엇인지 보여 주는 것이 이 화면의 일이다.
  *
  * 열림/딤드의 기준은 클리어가 아니라 "한 번이라도 해 봤는가"다(js/archive/plays.mjs).
- * 해 보지 않은 칸은 번호와 이름만 남기고 딤드로 두며, 조작·목표·변수는 감춘다.
+ * 해 보지 않은 칸은 번호와 이름만 남기고 딤드로 두며, 목표는 감춘다.
+ * 열린 칸에도 목표 한 줄만 적는다 — 조작과 변수는 판을 시작할 때 브리핑이 말해 준다.
  *
  * 예전에 클리어한 사람은 플레이 기록(archive-2026-minigame-plays-v1)이 없어도
  * 복구 등급·최고 기록이 남아 있으므로 그것도 "해 본 것"으로 친다.
@@ -142,11 +143,12 @@ class CodexFlow {
     card.append(head, title);
 
     if (discovered) {
-      card.append(
-        CodexFlow.buildLine("조작", stage.controls),
-        CodexFlow.buildLine("목표", stage.objective),
-        CodexFlow.buildLine("변수", stage.anomaly),
-      );
+      /*
+       * 도감은 "무엇을 해야 하는 게임인가"만 보여 준다.
+       * 조작·변수 안내는 판을 시작할 때 브리핑(프로토콜 선택 화면)이 맡는다 —
+       * 아홉 칸이 한 화면에 늘어서는 곳이라 줄이 길어지면 목록으로 읽히지 않는다.
+       */
+      card.append(CodexFlow.buildGoal(stage.objective));
 
       const best = window.archiveRecords?.best(stage.id);
       const full = window.archiveProgress?.status(stage.id) === CODEX_RECORD_FULL;
@@ -167,17 +169,12 @@ class CodexFlow {
     return card;
   }
 
-  static buildLine(label, value) {
-    const line = document.createElement("p");
-    line.className = "codex-card-line";
-    const tag = document.createElement("span");
-    tag.className = "codex-card-tag";
-    tag.textContent = label;
-    const text = document.createElement("span");
-    text.className = "codex-card-text";
-    text.textContent = value;
-    line.append(tag, text);
-    return line;
+  /* 한 줄뿐이라 머리표("목표")를 달지 않는다 — 붙일 이름이 없는 유일한 문장이다. */
+  static buildGoal(objective) {
+    const goal = document.createElement("p");
+    goal.className = "codex-card-goal";
+    goal.textContent = objective;
+    return goal;
   }
 }
 

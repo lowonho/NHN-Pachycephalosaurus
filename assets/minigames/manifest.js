@@ -4,7 +4,17 @@
  * 예외는 e3 하나로, 사람 모형의 충돌체를 그림의 알파에서 뽑아 씁니다(아래 참고).
  */
 globalThis.MINIGAME_ASSETS = {
-  e1: { player: null, obstacle: null }, e2: { player: null },
+  // e1: 상태별 캐릭터 네 장과 골지점 표지. 원점=이미지 중심이고, 발끝은 판정 사각형의
+  // 중력 쪽 모서리에 맞춘다. 표시 높이는 e1_gravityDash.js 의 POSE_HEIGHT 가 정하고,
+  // 원본 png 에서 굽는 일은 scripts/bake-geomatric-dash.ps1 이 한다.
+  e1: {
+    run: 'assets/images/minigame/geomatric%20dash/run.webp',
+    jump: 'assets/images/minigame/geomatric%20dash/jump.webp',
+    hurt: 'assets/images/minigame/geomatric%20dash/hurt.webp',
+    fall: 'assets/images/minigame/geomatric%20dash/fall.webp',
+    goal: 'assets/images/minigame/geomatric%20dash/goal.webp',
+    obstacle: null,
+  }, e2: { player: null },
   // e3: 자세별 투명 이미지 여덟 장과 성공선 표지. 원점=이미지 중심이고, 표시 비율과
   // 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 구운 e3/pose-shapes.js 가 정한다.
   e3: {
