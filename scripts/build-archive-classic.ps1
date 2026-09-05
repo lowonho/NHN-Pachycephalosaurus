@@ -19,7 +19,6 @@ $sourceNames = @(
   "stages/e6_gravityFlight.js",
   "stages/e7_roulette.js",
   "stages/e8_webSwing.js",
-  "stages/e9_iceCurling.js",
   "stages/e10_numberDecode.js",
   "stages/index.mjs",
   "game.mjs"

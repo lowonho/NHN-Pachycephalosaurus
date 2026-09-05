@@ -147,6 +147,24 @@ function drawFire(scene, x, y, rx, ry, heat) {
   }
 }
 
+/* 골지점 표지. e1 중력 대쉬와 같은 연출이다 — 제자리에서 통통 튀고, 꼭대기에서 길쭉해지고
+   바닥에서 납작해지도록 가로세로를 반대로 늘여 넓이를 지킨다. */
+const GOAL = {
+  height: 189,   // 표시 높이. 통로(381)의 절반이다.
+  hop: 16,       // 제자리에서 튀어오르는 높이
+  hops: 1.2,     // 초당 튀는 횟수
+  show: 980,     // 이보다 화면 왼쪽으로 들어와야 그린다(그 전에는 화면 밖이다)
+};
+
+/* 키에 묶인 그림 한 장을 만들거나 다시 쓴다. 텍스처가 없으면 그림을 감추고 null 을 돌려주므로,
+   부르는 쪽은 그때 예전 도형으로 그리면 된다 — 에셋이 빠져도 게임은 돈다. */
+function sprite(scene, key, texture, depth) {
+  if (!scene.textures.exists(texture)) { MINI.hideActor(scene, key); return null; }
+  let image = scene.assetSprites.get(key);
+  if (!image) { image = scene.add.image(0, 0, texture).setMask(scene.ink.mask).setDepth(depth); scene.assetSprites.set(key, image); }
+  return image.setTexture(texture).setVisible(true);
+}
+
 /* 판정 상자는 그려지는 고양이 그림 그대로다 — 그림 끝이 벽이나 글자 기둥에 닿는 순간 실패다.
    예전에는 그림과 상관없는 26×30 사각형이라 고양이가 벽에 절반쯤 파묻혀도 통과했다.
    여섯 장을 같은 사각형으로 잘라 구웠으므로 어느 프레임이든 크기가 같다(bake-oiia-cat.ps1).
@@ -255,17 +273,16 @@ export const E6_GRAVITY_FLIGHT = {
     const s = this.state;
     const texture = `e6:spin${Math.floor(s.spin) + 1}`;
     // 소환 연출 앞부분(pop 0)에는 MINI.actor 가 스프라이트를 감춰 준다.
-    if (!(pop > 0) || !this.textures.exists(texture)) {
+    const image = pop > 0 ? sprite(this, 'player', texture, 2) : null;
+    if (!image) {
       MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
       return;
     }
-    let sprite = this.assetSprites.get('player');
-    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask).setDepth(2); this.assetSprites.set('player', sprite); }
     const height = SPIN.height * pop;
     // 불이 붙은 만큼 털에도 주황빛이 돈다. 불길이 몸 앞뒤로만 있으면 고양이만 따로 노는 느낌이 든다.
     const tint = 0xff0000 | Math.round(255 - 40 * s.heat) << 8 | Math.round(255 - 95 * s.heat);
-    sprite.setTexture(texture).setVisible(true).setPosition(180, s.y).setRotation(s.vy / 900)
-      .setDisplaySize(height * sprite.width / sprite.height, height).setTint(tint);
+    image.setPosition(180, s.y).setRotation(s.vy / 900)
+      .setDisplaySize(height * image.width / image.height, height).setTint(tint);
   },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
@@ -332,7 +349,19 @@ export const E6_GRAVITY_FLIGHT = {
     drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
+    // 골지점은 그림 한 장이다. 그림이 없으면 예전 고리 표시로 돌아간다.
+    const goalX = t.distance - s.x + 180, lane = (TUNNEL.top + TUNNEL.bottom) / 2;
+    if (goalX >= GOAL.show) MINI.hideActor(this, 'goal');
+    else {
+      const banner = sprite(this, 'goal', 'e6:goal', 1);
+      if (!banner) MINI.goal(this, goalX, lane);
+      else {
+        const hop = Math.abs(Math.sin(this.elapsed * Math.PI * GOAL.hops));
+        const stretch = 1 + (hop - .5) * .08, ratio = banner.width / banner.height;
+        banner.setPosition(goalX, lane - hop * GOAL.hop)
+          .setDisplaySize(GOAL.height * ratio / stretch, GOAL.height * stretch);
+      }
+    }
     MINI.meter(this, s.x / t.distance);
   },
 };

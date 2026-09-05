@@ -711,7 +711,26 @@ const PACE = SPEED / 285;                  // 예전 기준 속도 285 대비 �
 const GATE = Math.round(390 * PACE);       // 장애물 묶음 사이 간격
 const LEAD = Math.round(650 * PACE);       // 출발선에서 첫 묶음까지
 const DISTANCE = Math.round(4650 * PACE);  // 골인 지점
-const SPIKE_GAP = Math.round(38 * PACE);   // 한 묶음에 나란히 붙는 가시 두 개의 간격
+const SPIKE_W = 35;   // 가시 판정 가로
+const SPIKE_H = 24;   // 가시 판정 세로
+/* 가시 한 개의 표시 크기입니다. 가시 그림(obstacle 폴더의 낱글자 네 장)은 모두 같은 배율로
+   같은 정사각 칸에 앉혀 두었으므로, 한 변 길이 하나로 넷을 다 그립니다. 판정 사각형
+   (SPIKE_W×SPIKE_H)보다 조금 커서 그림이 판정 밖으로 조금 나오지만, 부딪히는 범위는
+   예전 삼각형 그대로입니다 — 그림을 키워도 어려워지지 않습니다. */
+const SPIKE_ART = 46;
+/* 한 묶음에 나란히 붙는 가시 두 개의 간격입니다. 표시 크기와 같은 값이라 두 글자가 딱
+   맞붙어 한 낱말로 읽힙니다. 코스 속도(PACE)를 따라가지 않는 유일한 간격입니다 — 글자
+   크기는 화면에서 고정이라, 속도에 따라 벌어지면 낱말이 갈라집니다. */
+const SPIKE_GAP = SPIKE_ART;
+/* 게이트마다 세우는 두 글자짜리 낱말. 게이트 홀짝으로 번갈아 서므로 바닥에는 '거제',
+   천장에는 '야호'가 붙습니다. 값은 manifest.js 의 e1 역할 이름입니다. */
+const SPIKE_WORDS = [['geo', 'je'], ['ya', 'ho']];
+/* 아직 벽에 붙어 있는 가시는 어두운 짝(<이름>-dim)으로 그립니다. 풀렸는지 아닌지는 이
+   게임에서 가장 중요한 신호이므로 예전 삼각형의 갈색과 금색만큼 차이를 둡니다. 밝기를
+   스프라이트의 tint 로 낮추지 않고 그림을 두 벌 구워 두는 까닭은, index.html 을 파일로 직접
+   열면 Phaser.CANVAS 로 뜨는데(js/archive/game.mjs) 캔버스 렌더러가 tint 를 조용히 무시하기
+   때문입니다 — 그렇게 하면 그 경로에서만 붙은 가시와 풀린 가시가 똑같아 보입니다. */
+const SPIKE_ATTACHED = '-dim';
 const BLOCK_OFF = Math.round(90 * PACE);   // 묶음 안에서 블록이 서는 자리
 const FLOAT_OFF = Math.round(285 * PACE);  // 묶음 안에서 공중 블록이 뜨는 자리
 const SPIKES = GATES * 2;  // 가시 20개 — 게이트마다 두 개씩 나란히
@@ -730,12 +749,20 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
-/* 밈 캐릭터 세트. 한 판이 시작될 때 이 중 한 벌을 뽑아 다섯 장(달리기·건너뛰기·피격·
-   주저앉기·골지점)을 통째로 갈아 끼웁니다. 값은 manifest.js 의 e1 역할 이름 앞에 붙는
-   딱지이고, 빈 문자열이 기본 세트입니다. 세트를 늘리려면 그림을 굽고(bake-geomatric-dash.ps1
-   -Variant <이름>) manifest 에 <이름>- 역할 다섯 개를 더한 뒤 여기에 한 줄 적으면 됩니다.
+/* 밈 캐릭터 세트. 한 판이 시작될 때 이 중 한 벌을 뽑아 열 장(여섯 장짜리 달리기와
+   건너뛰기·피격·주저앉기·골지점)을 통째로 갈아 끼웁니다. 값은 manifest.js 의 e1 역할
+   이름 앞에 붙는 딱지이고, 빈 문자열이 기본 세트입니다. 세트를 늘리려면 그림을 굽고
+   (bake-geomatric-dash.ps1 과 bake-dash-run.ps1 에 -Variant <이름>) manifest 에 <이름>-
+   역할을 더한 뒤 여기에 한 줄 적으면 됩니다. QA 모드에서 세트를 고르는 목록은
+   js/config/qa.js 의 STAGE_ART_SETS 라 그쪽에도 한 줄이 필요합니다.
    두 세트의 몸 크기가 비슷해 표시 높이(POSE_HEIGHT)는 함께 씁니다. */
 const ART_SETS = ['', 'woni-'];
+/* 달리기 걸음. 여섯 장을 코스 좌표로 넘기므로 속도를 올리면 걸음도 같이 빨라지고,
+   판이 멈추면 걸음도 멈춥니다. RUN_FPS 는 지금 속도(SPEED)에서의 초당 장수라, 여기서
+   장당 달리는 거리(RUN_STEP)를 뽑습니다. 초당 열네 장이면 발이 미끄러져 보이지 않습니다. */
+const RUN_FRAMES = 6;
+const RUN_FPS = 14;
+const RUN_STEP = SPEED / RUN_FPS;
 /* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
    원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
    계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
@@ -776,11 +803,12 @@ const E1_GRAVITY_DASH = {
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
       // 게이트마다 가시 두 개를 나란히 붙여 둡니다. 반전 리듬은 예전처럼 게이트 간격 그대로입니다.
-      const gate = Math.floor(i / 2), wall = gate % 2 ? CEIL_BOTTOM : FLOOR_TOP - 24;
+      // 두 개가 각각 낱말의 첫 글자와 둘째 글자라, 나란히 붙어야 '거제'·'야호'로 읽힙니다.
+      const gate = Math.floor(i / 2), wall = gate % 2 ? CEIL_BOTTOM : FLOOR_TOP - SPIKE_H;
       return {
-        x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: 35, h: 24,
+        x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: SPIKE_W, h: SPIKE_H,
         vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
-        wall, loose: false,
+        wall, loose: false, letter: SPIKE_WORDS[gate % 2][i % 2],
       };
     });
     this.state.obstacles.push(...this.hurdles);
@@ -868,6 +896,15 @@ const E1_GRAVITY_DASH = {
     const wave = Math.cos((phase - LEAP_RISE) / (1 - LEAP_RISE) * Math.PI * 1.5);
     return wave < 0 ? wave * LEAP_DIP : wave;
   },
+  /* 자세 하나가 읽어야 할 텍스처 이름입니다. 달리기만 여섯 장짜리 걸음이라, 지금 프레임을
+     코스 좌표에서 뽑습니다 — 시간이 아니라 달린 거리라서 판이 멈추면 걸음도 함께 멈추고,
+     되살아나며 뒤로 밀리면 걸음도 그만큼 되감깁니다. 시트가 없는 세트는 run 한 장으로 답니다. */
+  poseTexture(pose) {
+    if (pose !== 'run') return `e1:${this.state.art}${pose}`;
+    const frame = Math.floor(Math.max(0, this.state.x) / RUN_STEP) % RUN_FRAMES + 1;
+    const key = `e1:${this.state.art}run${frame}`;
+    return this.textures.exists(key) ? key : `e1:${this.state.art}run`;
+  },
   /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
      모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
      천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
@@ -875,7 +912,7 @@ const E1_GRAVITY_DASH = {
     const s = this.state;
     // 건너뛰는 자세에만 과장을 얹습니다. 달리기·피격·주저앉기는 원래 크기 그대로입니다.
     const scale = pop * (pose === 'jump' ? 1 + LEAP_POP * E1_GRAVITY_DASH.leap(s.leap) : 1);
-    const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${s.art}${pose}`);
+    const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', E1_GRAVITY_DASH.poseTexture.call(this, pose));
     if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
     const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;
     sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
@@ -938,9 +975,18 @@ const E1_GRAVITY_DASH = {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
       if (o.spike) {
-        // 붙어 있는 가시는 자기 벽에서 통로 쪽을 향하고, 풀려난 뒤에야 중력을 따라 떨어집니다.
-        const down = o.loose ? s.sign * o.response < 0 : o.wall === CEIL_BOTTOM;
-        MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, o.loose ? 0xffcf7b : 0xb08341);
+        // 가시는 낱글자 한 자입니다. 판정 사각형 한가운데에 앉히므로 벽에 붙어 있든 떨어지든
+        // 자리가 어긋나지 않고, 글자는 뒤집지 않습니다 — 천장 가시도 바로 서 있어야 읽힙니다.
+        // 아직 붙어 있는 동안에는 색을 죽여 둡니다. 풀려나 밝아지는 것이 이 게임의 신호입니다.
+        const texture = `e1:${o.letter}${o.loose ? '' : SPIKE_ATTACHED}`;
+        const letter = E1_GRAVITY_DASH.sprite.call(this, `o${i}`, texture);
+        if (letter) {
+          letter.setPosition(cx, cy).setDisplaySize(SPIKE_ART, SPIKE_ART);
+        } else {
+          // 그림이 없으면 예전 삼각형으로 답니다. 벽에서 통로 쪽을 향하게 세웁니다.
+          const down = o.loose ? s.sign * o.response < 0 : o.wall === CEIL_BOTTOM;
+          MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, o.loose ? 0xffcf7b : 0xb08341);
+        }
       } else if (o.float) {
         // 보라색은 플레이어의 반대 방향으로 이동합니다.
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, s.x / 55, 0xb98cff);
@@ -2556,6 +2602,24 @@ function drawFire(scene, x, y, rx, ry, heat) {
   }
 }
 
+/* 골지점 표지. e1 중력 대쉬와 같은 연출이다 — 제자리에서 통통 튀고, 꼭대기에서 길쭉해지고
+   바닥에서 납작해지도록 가로세로를 반대로 늘여 넓이를 지킨다. */
+const GOAL = {
+  height: 189,   // 표시 높이. 통로(381)의 절반이다.
+  hop: 16,       // 제자리에서 튀어오르는 높이
+  hops: 1.2,     // 초당 튀는 횟수
+  show: 980,     // 이보다 화면 왼쪽으로 들어와야 그린다(그 전에는 화면 밖이다)
+};
+
+/* 키에 묶인 그림 한 장을 만들거나 다시 쓴다. 텍스처가 없으면 그림을 감추고 null 을 돌려주므로,
+   부르는 쪽은 그때 예전 도형으로 그리면 된다 — 에셋이 빠져도 게임은 돈다. */
+function sprite(scene, key, texture, depth) {
+  if (!scene.textures.exists(texture)) { MINI.hideActor(scene, key); return null; }
+  let image = scene.assetSprites.get(key);
+  if (!image) { image = scene.add.image(0, 0, texture).setMask(scene.ink.mask).setDepth(depth); scene.assetSprites.set(key, image); }
+  return image.setTexture(texture).setVisible(true);
+}
+
 /* 판정 상자는 그려지는 고양이 그림 그대로다 — 그림 끝이 벽이나 글자 기둥에 닿는 순간 실패다.
    예전에는 그림과 상관없는 26×30 사각형이라 고양이가 벽에 절반쯤 파묻혀도 통과했다.
    여섯 장을 같은 사각형으로 잘라 구웠으므로 어느 프레임이든 크기가 같다(bake-oiia-cat.ps1).
@@ -2664,17 +2728,16 @@ const E6_GRAVITY_FLIGHT = {
     const s = this.state;
     const texture = `e6:spin${Math.floor(s.spin) + 1}`;
     // 소환 연출 앞부분(pop 0)에는 MINI.actor 가 스프라이트를 감춰 준다.
-    if (!(pop > 0) || !this.textures.exists(texture)) {
+    const image = pop > 0 ? sprite(this, 'player', texture, 2) : null;
+    if (!image) {
       MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
       return;
     }
-    let sprite = this.assetSprites.get('player');
-    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask).setDepth(2); this.assetSprites.set('player', sprite); }
     const height = SPIN.height * pop;
     // 불이 붙은 만큼 털에도 주황빛이 돈다. 불길이 몸 앞뒤로만 있으면 고양이만 따로 노는 느낌이 든다.
     const tint = 0xff0000 | Math.round(255 - 40 * s.heat) << 8 | Math.round(255 - 95 * s.heat);
-    sprite.setTexture(texture).setVisible(true).setPosition(180, s.y).setRotation(s.vy / 900)
-      .setDisplaySize(height * sprite.width / sprite.height, height).setTint(tint);
+    image.setPosition(180, s.y).setRotation(s.vy / 900)
+      .setDisplaySize(height * image.width / image.height, height).setTint(tint);
   },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
@@ -2741,7 +2804,19 @@ const E6_GRAVITY_FLIGHT = {
     drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
+    // 골지점은 그림 한 장이다. 그림이 없으면 예전 고리 표시로 돌아간다.
+    const goalX = t.distance - s.x + 180, lane = (TUNNEL.top + TUNNEL.bottom) / 2;
+    if (goalX >= GOAL.show) MINI.hideActor(this, 'goal');
+    else {
+      const banner = sprite(this, 'goal', 'e6:goal', 1);
+      if (!banner) MINI.goal(this, goalX, lane);
+      else {
+        const hop = Math.abs(Math.sin(this.elapsed * Math.PI * GOAL.hops));
+        const stretch = 1 + (hop - .5) * .08, ratio = banner.width / banner.height;
+        banner.setPosition(goalX, lane - hop * GOAL.hop)
+          .setDisplaySize(GOAL.height * ratio / stretch, GOAL.height * stretch);
+      }
+    }
     MINI.meter(this, s.x / t.distance);
   },
 };
@@ -3169,106 +3244,6 @@ const E8_WEB_SWING = {
 };
 
 
-/* Source: stages/e9_iceCurling.js */
-
-const E9_ICE_CURLING = {
-  tuning: { friction: 220, decay: .69, minFriction: 26, force: 5.7, maxPull: 130, targetRadius: 41, stoneRadius: 14 },
-  /* 성공 판정: 돌이 과녁(붉은 하우스)에 걸친 채 멈추면 그 한 번으로 클리어다.
-     돌 반지름만큼 여유를 두므로 가장자리에 살짝 걸쳐도 성공으로 친다. */
-  landingRadius() { const t = E9_ICE_CURLING.tuning; return t.targetRadius + t.stoneRadius; },
-  build() {
-    MINI.init(this, 0xabe5ff);
-    this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0 };
-    this.target = { x: 769, y: 287 };
-  },
-  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
-  pointerDown(x, y) {
-    const s = this.state;
-    if (s.moving || s.cooldown || Math.hypot(x - s.x, y - s.y) > 43) return;
-    s.drag = { x: s.x, y: s.y };
-  },
-  pointerMove(x, y) {
-    const s = this.state, t = E9_ICE_CURLING.tuning;
-    if (!s.drag) return;
-    const dx = x - s.x, dy = y - s.y, scale = Math.min(1, t.maxPull / Math.max(1, Math.hypot(dx, dy)));
-    s.drag = { x: s.x + dx * scale, y: s.y + dy * scale };
-  },
-  pointerUp() {
-    const s = this.state, d = s.drag;
-    s.drag = null;
-    if (!d || Math.hypot(d.x - s.x, d.y - s.y) < 5) return;
-    s.vx = (s.x - d.x) * E9_ICE_CURLING.tuning.force; s.vy = (s.y - d.y) * E9_ICE_CURLING.tuning.force;
-    s.moving = true; this.actions++; this.sfx('jump');
-  },
-  cancelInput() { this.state.drag = null; },
-  retryStone() {
-    const s = this.state;
-    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = 0;
-    MINI.summon(this); this.sfx('failure');
-  },
-  update(dt) {
-    const s = this.state;
-    s.cooldown = Math.max(0, s.cooldown - dt);
-    if (s.moving) {
-      const speed = Math.hypot(s.vx, s.vy), next = Math.max(0, speed - E9_ICE_CURLING.friction.call(this) * dt);
-      if (speed) {
-        s.x += s.vx / speed * (speed + next) * .5 * dt; s.y += s.vy / speed * (speed + next) * .5 * dt;
-        s.vx *= next / speed; s.vy *= next / speed;
-      }
-      if (s.x < 37 || s.x > 923 || s.y < 167 || s.y > 470) E9_ICE_CURLING.retryStone.call(this);
-      // 멈춘 자리가 과녁이면 재시도 없이 바로 성공. 아니면 새 돌로 다시 던진다.
-      else if (next === 0) {
-        if (Math.hypot(s.x - this.target.x, s.y - this.target.y) <= E9_ICE_CURLING.landingRadius()) {
-          this.finish(true, s.failures ? `${s.failures + 1}번째 투구로 과녁 안착` : '첫 투구로 과녁 안착');
-        } else E9_ICE_CURLING.retryStone.call(this);
-      }
-    }
-    this.anomaly = `마찰 ${Math.round(E9_ICE_CURLING.friction.call(this))} · 실패 ${s.failures}회 · 과녁에 한 번만 멈추면 성공`;
-    this.risk = Math.min(100, s.failures * 18);
-  },
-  render() {
-    const s = this.state, target = this.target, f = MINI.FIELD;
-    MINI.frame(this);
-    // 링크 둘레는 화면 끝까지 채우고, 그 안쪽만 돌이 미끄러지는 얼음이다.
-    MINI.box(this, f.x, f.y, f.w, f.h, 0x123243);
-    MINI.box(this, 32, 158, 896, 321, 0xc7e8f0, .12);
-    for (let y = 187; y < 466; y += 35) MINI.line(this, 55, y, 905, y - 18, 0xd6f5ff, .5);
-    MINI.circle(this, target.x, target.y, 71, 0x719dd5, .5);
-    MINI.circle(this, target.x, target.y, 53, 0xe6faff, .7);
-    MINI.circle(this, target.x, target.y, 41, 0xf77891, .85);
-    MINI.circle(this, target.x, target.y, 14, 0xf5feff);
-    // 성공으로 인정되는 정지 범위를 그대로 보여 준다 — 이 안에서 멈추면 한 번에 끝난다.
-    E9_ICE_CURLING.landingRing.call(this, target);
-    if (s.drag) {
-      MINI.line(this, s.drag.x, s.drag.y, s.x, s.y, 0xffdc90, 3);
-      MINI.line(this, s.x, s.y, s.x + (s.x - s.drag.x) * 1.4, s.y + (s.y - s.drag.y) * 1.4, 0xffdc90, 2);
-      MINI.circle(this, s.drag.x, s.drag.y, 6, 0xffdc90);
-    }
-    const pop = MINI.spawnScale(this);
-    MINI.actor(this, 'stone', 'stone', s.x, s.y, 28 * pop, 28 * pop, 0, 0xffd78f);
-    if (pop) MINI.line(this, s.x - 7 * pop, s.y - 3, s.x + 7 * pop, s.y - 3, 0x735743, 5);
-    MINI.spawnFx(this, s.x, s.y, 28);
-  },
-  /* 판정 원을 점선 고리로 두른다. 밝은 얼음 위에서도 읽히도록 어두운 테두리를 깔고,
-     돌이 다가올수록 초록이 진해져 "여기서 멈추면 끝"임을 알린다. */
-  landingRing(target) {
-    const s = this.state, radius = E9_ICE_CURLING.landingRadius();
-    const near = Math.max(0, 1 - Math.hypot(s.x - target.x, s.y - target.y) / 260);
-    const g = this.ink;
-    const dashes = [];
-    for (let i = 0; i < 28; i += 2) {
-      const from = i / 28 * Math.PI * 2, to = (i + 1.15) / 28 * Math.PI * 2;
-      dashes.push([target.x + Math.cos(from) * radius, target.y + Math.sin(from) * radius,
-        target.x + Math.cos(to) * radius, target.y + Math.sin(to) * radius]);
-    }
-    g.lineStyle(6, 0x0b3324, .55);
-    for (const [x, y, xx, yy] of dashes) g.lineBetween(x, y, xx, yy);
-    g.lineStyle(3, 0x6dffa8, .7 + near * .3);
-    for (const [x, y, xx, yy] of dashes) g.lineBetween(x, y, xx, yy);
-  },
-};
-
-
 /* Source: stages/e10_numberDecode.js */
 
 // 가로 조준 폭은 유지하고, 세로는 96px 스프라이트의 실제 머리~발 높이에 맞춘다.
@@ -3660,7 +3635,7 @@ const E10_NUMBER_DECODE = {
 const STAGE_GAMES = Object.freeze({
   e1: E1_GRAVITY_DASH, e2: E2_BOUNCE_BALL, e3: E3_HUMAN_STACK,
   e4: E4_ACCELERATION_DASH, e5: E5_SLINGSHOT, e6: E6_GRAVITY_FLIGHT,
-  e7: E7_ROULETTE, e8: E8_WEB_SWING, e9: E9_ICE_CURLING,
+  e7: E7_ROULETTE, e8: E8_WEB_SWING,
   e10: E10_NUMBER_DECODE,
 });
 
@@ -3809,7 +3784,7 @@ class ArchiveGame extends Phaser.Scene {
         e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
         e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
         e7: '안전 정렬: 금색 영역', e8: '안전 연결: 가장 가까운 거미줄 지점',
-        e9: '안전 속도: 점선 고리 안에서 한 번만 정지', e10: '안전 입력: 목표 순서',
+        e10: '안전 입력: 목표 순서',
       };
       this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
       if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {

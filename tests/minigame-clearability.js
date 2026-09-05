@@ -95,11 +95,6 @@
   load('e7'); scene.state.rotation = scene.stageGame.POINTER_ANGLE - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');
   load('e8'); driveE8(); save('e8');
-  load('e9');
-  const dx=scene.target.x-scene.state.x, dy=scene.target.y-scene.state.y, distance=Math.hypot(dx,dy);
-  const pull=Math.sqrt(2*220*distance)/5.7;
-  scene.pointerAction(scene.state.x,scene.state.y); scene.stageGame.pointerMove.call(scene,scene.state.x-dx/distance*pull,scene.state.y-dy/distance*pull); scene.stageGame.pointerUp.call(scene);
-  advance(20.3); save('e9');
   load('e10');
   // 실제 이동·제동·점프만으로 가장 긴 왕복 조합을 입력한다(9→0→9→0).
   scene.state.target = '9090';

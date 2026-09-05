@@ -4,23 +4,53 @@
  * 예외는 e3 하나로, 사람 모형의 충돌체를 그림의 알파에서 뽑아 씁니다(아래 참고).
  */
 globalThis.MINIGAME_ASSETS = {
-  // e1: 상태별 캐릭터 네 장과 골지점 표지. 이 다섯 장이 한 세트고, 기본과 woni 두 벌 중
+  // e1: 여섯 장짜리 달리기와 나머지 자세 세 장, 골지점 표지가 한 세트다. 기본과 woni 두 벌 중
   // 한 벌이 판마다 무작위로 뽑힌다. 원점=이미지 중심이고, 발끝은 판정 사각형의
   // 중력 쪽 모서리에 맞춘다. 표시 높이는 e1_gravityDash.js 의 POSE_HEIGHT 가 정하고,
-  // 원본 png 에서 굽는 일은 scripts/bake-geomatric-dash.ps1 이 한다.
+  // 굽는 일은 자세와 표지가 scripts/bake-geomatric-dash.ps1, 달리기 시트가 scripts/bake-dash-run.ps1 이다.
   e1: {
     // backdrop 은 필드를 통째로 덮는 배경 한 장이다(16:9). 벽 안쪽 통로에서만 보이고,
     // 깔리는 순간 MINI.frame 의 격자는 사라지고 어둠막만 남는다. 원본 geoje-sea.png 에서
     // 굽는 일은 scripts/bake-geoje-sea.ps1 이 한다.
     backdrop: 'assets/images/minigame/geomatric%20dash/geoje-sea.webp',
+    // 달리기는 여섯 장짜리 걸음이다(run1…run6). 시트 한 장을 scripts/bake-dash-run.ps1 이
+    // 공통 사각형으로 잘라 굽는다 — 여섯 장의 크기가 같아야 달리는 동안 키가 흔들리지 않는다.
+    // run 한 장은 시트가 없는 세트를 위한 대비다. 프레임이 없으면 이 한 장으로 달린다.
     run: 'assets/images/minigame/geomatric%20dash/run.webp',
+    run1: 'assets/images/minigame/geomatric%20dash/run1.webp',
+    run2: 'assets/images/minigame/geomatric%20dash/run2.webp',
+    run3: 'assets/images/minigame/geomatric%20dash/run3.webp',
+    run4: 'assets/images/minigame/geomatric%20dash/run4.webp',
+    run5: 'assets/images/minigame/geomatric%20dash/run5.webp',
+    run6: 'assets/images/minigame/geomatric%20dash/run6.webp',
     jump: 'assets/images/minigame/geomatric%20dash/jump.webp',
     hurt: 'assets/images/minigame/geomatric%20dash/hurt.webp',
     fall: 'assets/images/minigame/geomatric%20dash/fall.webp',
     goal: 'assets/images/minigame/geomatric%20dash/goal.webp',
+    // 노란 가시는 '거제'·'야호' 네 글자다. 글자 하나가 가시 하나고, 게이트마다 두 자가
+    // 나란히 붙어 한 낱말로 선다(짝은 e1_gravityDash.js 의 SPIKE_WORDS 가 정한다).
+    // 네 장 모두 같은 배율로 같은 정사각 칸에 앉혀 두었으므로 게임은 한 변 길이(SPIKE_ART)
+    // 하나로만 그린다 — 글자마다 크기를 따로 맞추면 한 낱말로 읽히지 않는다.
+    // 굽는 일은 scripts/bake-dash-obstacle.ps1 이 한다. 캐릭터 세트와 무관하게 함께 쓴다.
+    // -dim 이 붙은 짝은 아직 벽에 붙어 있는 가시다. 밝기를 tint 로 낮추지 않고 그림을 두 벌
+    // 구워 두는 까닭은, 파일로 직접 열었을 때의 Phaser.CANVAS 가 tint 를 조용히 무시해서다.
+    geo: 'assets/images/minigame/geomatric%20dash/obstacle/geo.webp',
+    'geo-dim': 'assets/images/minigame/geomatric%20dash/obstacle/geo-dim.webp',
+    je: 'assets/images/minigame/geomatric%20dash/obstacle/je.webp',
+    'je-dim': 'assets/images/minigame/geomatric%20dash/obstacle/je-dim.webp',
+    ya: 'assets/images/minigame/geomatric%20dash/obstacle/ya.webp',
+    'ya-dim': 'assets/images/minigame/geomatric%20dash/obstacle/ya-dim.webp',
+    ho: 'assets/images/minigame/geomatric%20dash/obstacle/ho.webp',
+    'ho-dim': 'assets/images/minigame/geomatric%20dash/obstacle/ho-dim.webp',
     // 밈 캐릭터 세트는 판마다 한 벌만 무작위로 뽑힌다. woni- 가 붙은 것이 두 번째 세트고,
     // 세트 목록은 e1_gravityDash.js 의 ART_SETS 가 들고 있다. 배경 한 장은 두 세트가 같이 쓴다.
     'woni-run': 'assets/images/minigame/geomatric%20dash/woni/run.webp',
+    'woni-run1': 'assets/images/minigame/geomatric%20dash/woni/run1.webp',
+    'woni-run2': 'assets/images/minigame/geomatric%20dash/woni/run2.webp',
+    'woni-run3': 'assets/images/minigame/geomatric%20dash/woni/run3.webp',
+    'woni-run4': 'assets/images/minigame/geomatric%20dash/woni/run4.webp',
+    'woni-run5': 'assets/images/minigame/geomatric%20dash/woni/run5.webp',
+    'woni-run6': 'assets/images/minigame/geomatric%20dash/woni/run6.webp',
     'woni-jump': 'assets/images/minigame/geomatric%20dash/woni/jump.webp',
     'woni-hurt': 'assets/images/minigame/geomatric%20dash/woni/hurt.webp',
     'woni-fall': 'assets/images/minigame/geomatric%20dash/woni/fall.webp',
@@ -124,9 +154,11 @@ globalThis.MINIGAME_ASSETS = {
     'word-shagal': 'assets/images/minigame/geomatric%20fly/word-shagal.webp',
     'word-yareu': 'assets/images/minigame/geomatric%20fly/word-yareu.webp',
     'word-ajaseu': 'assets/images/minigame/geomatric%20fly/word-ajaseu.webp',
+    // 골지점 표지. e1 중력 대쉬와 같이 통로 한가운데에서 통통 튄다.
+    goal: 'assets/images/minigame/geomatric%20fly/goal.webp',
     player: null,
   },
-  e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },
+  e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null },
   // e10: 정사각 프레임. 이동 4×1, 점프 4×2 (왼쪽부터 행 우선). 셀 해상도는 자동 감지.
   e10: {
     glide: 'assets/minigames/e10/skater_glide_4frame_sheet.png',
