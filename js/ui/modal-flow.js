@@ -1,4 +1,4 @@
-/* 스테이지 기록 등록 및 목숨 차감 결과. */
+/* 스테이지 기록 등록 및 기억 차감 결과. */
 class ModalFlow {
   constructor(events, dom) {
     this.events = events;
@@ -81,14 +81,14 @@ class ModalFlow {
     } else {
       const actRestarted = run?.transition === 'act-restarted';
       this.ui.modalStep.textContent = actRestarted ? `ACT ${act} / 재도전` : 'ARCHIVE CONNECTION LOST';
-      this.ui.modalTitle.textContent = actRestarted ? '현재 막을 다시 시작합니다' : '목숨을 잃었습니다';
+      this.ui.modalTitle.textContent = actRestarted ? '당신은 기억을 되찾는 데 실패했습니다.' : '기억을 잃었습니다.';
       this.ui.modalCopy.textContent = actRestarted
-        ? '목숨을 모두 소진했습니다.\n현재 막의 게임 구성을 새로 뽑아 다시 도전합니다.'
-        : `${extra || '기록 접속에 실패했습니다.'}\n남은 목숨 ${lives}`;
+        ? '기억을 모두 잃어버렸습니다.\n다시 기억을 되찾겠습니까?'
+        : `${extra || '기록 접속에 실패했습니다.'}\n남은 기억 ${lives}`;
       this.ui.modalResult.textContent = actRestarted
         ? `${run?.actAttemptCount?.[act - 1] ?? 1}번째 도전`
         : '같은 게임과 순서로 다시 접속합니다.';
-      this.ui.primaryButton.textContent = actRestarted ? '현재 막 다시 도전 (R)' : '재접속 (R)';
+      this.ui.primaryButton.textContent = actRestarted ? '기억 다시 되찾기 (R)' : '재접속 (R)';
       this.nextEvent = actRestarted ? GAME_EVENTS.REQUEST_CONTINUE : GAME_EVENTS.REQUEST_RESTART;
     }
     this.ui.primaryButton.disabled = false;

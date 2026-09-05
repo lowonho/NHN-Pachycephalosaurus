@@ -66,6 +66,9 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  # 자동화 스크립트는 화면 전환을 실제 사람처럼 기다리지 않고 곧바로 다음 상태를
+  # 확인하므로, 암전 전환(js/ui/scene-fade.js)의 지연을 꺼서 그대로 동기적으로 맞춘다.
+  Evaluate "globalThis.ARCHIVE_DISABLE_TRANSITIONS = true;" | Out-Null
   if ($E10Only) {
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)

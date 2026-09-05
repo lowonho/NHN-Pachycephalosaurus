@@ -127,23 +127,26 @@ class CutsceneFlow {
       return;
     }
 
-    this.setAuto(auto ?? Boolean(this.copy.auto));
-    this.closeLog();
-    this.renderLog();
+    // 컷신이 실제로 드러나는 순간을 암전으로 감싼다 — 직전 화면이 무엇이었든 상관없다.
+    sceneFade.cut(() => {
+      this.setAuto(auto ?? Boolean(this.copy.auto));
+      this.closeLog();
+      this.renderLog();
 
-    this.chapter = chapter || this.copy.chapter;
-    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
-    this.ui.cutscene?.classList.remove("hidden");
-    // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
-    this.ui.cutscene?.focus();
+      this.chapter = chapter || this.copy.chapter;
+      if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
+      this.ui.cutscene?.classList.remove("hidden");
+      // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
+      this.ui.cutscene?.focus();
 
-    // 대본이 비어 있으면 빈 화면을 띄우지 않고 곧장 다음 단계로 넘긴다.
-    if (this.script.length === 0) {
-      this.finish();
-      return;
-    }
+      // 대본이 비어 있으면 빈 화면을 띄우지 않고 곧장 다음 단계로 넘긴다.
+      if (this.script.length === 0) {
+        this.finish();
+        return;
+      }
 
-    this.next();
+      this.next();
+    });
   }
 
   /* 화면 클릭·Space·Enter — 타자 중이면 완성, 다 나왔으면 다음 줄. */
@@ -317,8 +320,11 @@ class CutsceneFlow {
     if (!this.isOpen()) return;
     const done = this.onDone;
     this.onDone = null;
-    this.close();
-    done?.();
+    // 컷신을 걷고 다음 화면을 여는 순간도 암전으로 감싼다 — 다음 화면이 무엇이든 상관없다.
+    sceneFade.cut(() => {
+      this.close();
+      done?.();
+    });
   }
 
   close() {

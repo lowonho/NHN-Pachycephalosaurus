@@ -506,7 +506,7 @@
   assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
   assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
     'The briefing shows the stage the story expects next');
-  assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
+  assert(UI.protocolBriefLives.textContent === 'MEMORY ◆◆◆', 'The briefing footer shows the remaining memory');
   const retryId = archiveRun.snapshot().expectedStageId;
   protocolSelectFlow.launchStage(retryId); scene.finish(false);
   await new Promise(resolve => setTimeout(resolve, 1050));
@@ -515,10 +515,10 @@
     && document.querySelector('#primary-button').textContent === '재접속 (R)', 'Stage failure waits for retry or main-menu input');
   document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');
-  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one act life');
+  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one memory');
   assert(UI.stageHudAct.textContent === 'ACT 1/3' && UI.stageHudStage.textContent === 'STAGE 2/6'
-    && UI.stageHudLives.textContent.endsWith('◆◆◇') && UI.stageHudActRecords.textContent === '1/6'
-    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, lives, act records and total records');
+    && UI.stageHudLives.textContent === 'MEMORY ◆◆◇' && UI.stageHudActRecords.textContent === '1/6'
+    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, remaining memory, act records and total records');
   scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
   protocolSelectFlow.reset(); protocolSelectFlow.open();
@@ -531,8 +531,9 @@
   const exhaustedRun = archiveRun.snapshot();
   assert(modalFlow.isOpen()
     && exhaustedRun.transition === 'act-restarted'
-    && UI.modalTitle.textContent === '현재 막을 다시 시작합니다'
-    && UI.primaryButton.textContent === '현재 막 다시 도전 (R)'
+    && UI.modalTitle.textContent === '당신은 기억을 되찾는 데 실패했습니다.'
+    && UI.modalCopy.textContent === '기억을 모두 잃어버렸습니다.\n다시 기억을 되찾겠습니까?'
+    && UI.primaryButton.textContent === '기억 다시 되찾기 (R)'
     && document.querySelector('#result-main-button').textContent === '메인 메뉴로', 'Exhausting all lives waits on clear retry/current-act and main-menu choices');
   document.querySelector('#primary-button').click();
   assert(!modalFlow.isOpen() && protocolSelectFlow.isBriefOpen()

@@ -4,6 +4,9 @@
  */
 
 const UI = Object.freeze({
+  /* 화면 전환 암전 — js/ui/scene-fade.js 전용. */
+  sceneFade: document.querySelector("#scene-fade"),
+
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),

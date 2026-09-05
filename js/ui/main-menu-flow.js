@@ -9,7 +9,7 @@
  * protocol-select-flow가 통째로 들고 있다. 여기서는 열라는 신호만 보내고,
  * 컷신이 끝났을 때 다음 화면(브리핑)만 정해 준다.
  *
- * 메인으로 나가도 막·스테이지·목숨·선정 목록은 저장되며 이어하기로 복귀한다.
+ * 메인으로 나가도 막·스테이지·남은 기억·선정 목록은 저장되며 이어하기로 복귀한다.
  */
 
 class MainMenuFlow {
@@ -30,7 +30,7 @@ class MainMenuFlow {
 
     /*
      * 판을 떠나는 길은 일시정지 창의 "메인 화면으로" 하나다(js/ui/pause-flow.js).
-     * 되묻지 않는다 — 막·목숨·선정된 게임은 저장돼 이어하기로 그대로 돌아온다.
+     * 되묻지 않는다 — 막·남은 기억·선정된 게임은 저장돼 이어하기로 그대로 돌아온다.
      */
 
     /*
@@ -104,8 +104,9 @@ class MainMenuFlow {
     if (!window.archiveRun?.hasSave()) return;
     this.soundBus.resume();
     this.close();
+    // 컷신이 끼는 전환은 그쪽이 알아서 암전을 감싼다. 여기서는 곧장 브리핑으로 갈 때만 감싼다.
     if (window.archiveRun.snapshot().transition) this.protocolSelect.continueStory();
-    else this.protocolSelect.open();
+    else sceneFade.cut(() => this.protocolSelect.open());
   }
 
   renderAvailability() {
