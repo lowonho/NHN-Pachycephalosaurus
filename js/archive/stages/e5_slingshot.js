@@ -2,18 +2,18 @@ import { MINI } from './minigame-kit.js';
 
 export const E5_SLINGSHOT = {
   // Late full pulls still reach the far roof on an arc, but low shots fall short.
-  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: .5, targetHP: 100, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
+  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: .2, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, settleSpeed: 18, settleAngularSpeed: .25, settleHold: .18, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    this.state = { shots: 0, cooldown: 0, waiting: false, settledFor: 0, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
-    this.slingWorld = M.Engine.create({ positionIterations: 8, velocityIterations: 8 });
+    this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
     M.Composite.add(this.slingWorld.world, M.Bodies.rectangle(480, 491, 2200, 40, { isStatic: true, friction: .65 }));
     const timber = (x, y, w, h, roof = false) => {
-      const options = { density: .0016, friction: .55, frictionStatic: .8, frictionAir: .005, restitution: .02 };
+      const options = { density: .0019, friction: .55, frictionStatic: .75, frictionAir: .018, restitution: .02 };
       const body = roof ? M.Bodies.trapezoid(x, y, w, h, .35, options) : M.Bodies.rectangle(x, y, w, h, options);
-      const wood = { x: x - w / 2, y: y - h / 2, w, h, hp: 65, body, angle: 0, flash: 0, roof, wood: true };
+      const wood = { x: x - w / 2, y: y - h / 2, w, h, hp: E5_SLINGSHOT.tuning.woodHP, body, angle: 0, flash: 0, roof, wood: true, joints: [] };
       body.plugin.timber = wood; this.state.timbers.push(wood); M.Composite.add(this.slingWorld.world, body);
     };
     // Separate load-bearing posts and floors form rooms around the cookie residents.
@@ -23,6 +23,25 @@ export const E5_SLINGSHOT = {
       timber(cx, 393, 108, 12);
       timber(cx - 43, 357, 12, 60); timber(cx + 43, 357, 12, 60);
       timber(cx, 321, 108, 12); timber(cx, 303, 110, 24, true);
+      const parts = this.state.timbers.slice(-7);
+      parts.forEach((part, index) => { part.house = col; part.foundation = index < 2; });
+      const join = (a, b, x, y) => {
+        const joint = M.Constraint.create({
+          bodyA: a?.body, pointA: a ? { x: x - a.body.position.x, y: y - a.body.position.y } : { x, y },
+          bodyB: b.body, pointB: { x: x - b.body.position.x, y: y - b.body.position.y },
+          length: 0, stiffness: E5_SLINGSHOT.tuning.jointStiffness, damping: .2,
+        });
+        a?.joints.push(joint); b.joints.push(joint); M.Composite.add(this.slingWorld.world, joint);
+      };
+      // Timber joints hold the house until repeated impacts break a load-bearing piece.
+      for (const side of [0, 1]) {
+        const x = cx + (side ? 43 : -43);
+        join(null, parts[side], x, 471);
+        join(parts[side], parts[2], x, 399);
+        join(parts[2], parts[3 + side], x, 387);
+        join(parts[3 + side], parts[5], x, 327);
+        join(parts[5], parts[6], x, 315);
+      }
       for (let row = 0; row < 2; row++) {
         const w = 34, h = 36, x = cx - w / 2, y = (row ? 387 : 471) - h;
         const body = M.Bodies.rectangle(cx, y + h / 2, w, h, {
@@ -36,6 +55,7 @@ export const E5_SLINGSHOT = {
     M.Events.on(this.slingWorld, 'collisionStart', event => {
       for (const pair of event.pairs) {
         const bullet = pair.bodyA.plugin.shot || pair.bodyB.plugin.shot;
+        if (bullet && (pair.bodyA.isStatic || pair.bodyB.isStatic)) bullet.groundAge ??= 0;
         const target = pair.bodyA.plugin.cookie || pair.bodyB.plugin.cookie || pair.bodyA.plugin.timber || pair.bodyB.plugin.timber;
         const cookie = pair.bodyA.plugin.cookie || pair.bodyB.plugin.cookie;
         const wood = pair.bodyA.plugin.timber || pair.bodyB.plugin.timber;
@@ -55,11 +75,11 @@ export const E5_SLINGSHOT = {
     this.cookieNotice = this.add.text(480, 182, '', { fontFamily: 'Arial, sans-serif', fontSize: '23px', color: '#ffe6a7', stroke: '#221e21', strokeThickness: 4 }).setOrigin(.5).setDepth(8);
     this.add.text(178, 463, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
     this.add.text(715, 261, '두딱쿠의 나무집 · 기둥을 노려보세요', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.instruction.setText('처음엔 강하게 관통! · 장력이 약해지면 아래로 당겨 높게 띄워 지붕을 노리세요');
+    this.instruction.setText('금이 간 기둥을 노려보세요 · 공과 건물이 안정되면 다음 두쫀쿠가 준비돼요');
   },
   power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
   pointerDown(x, y) {
-    if (this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 382) > 55) return;
+    if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 382) > 55) return;
     this.state.drag = { x: 164, y: 382 };
     E5_SLINGSHOT.pointerMove.call(this, x, y);
   },
@@ -83,12 +103,16 @@ export const E5_SLINGSHOT = {
     shot.body.plugin.shot = shot;
     M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
     M.Composite.add(this.slingWorld.world, shot.body);
-    s.shots++; this.actions++; s.cooldown = t.cooldown; s.combo = 0; this.sfx('jump');
+    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.settledFor = 0; s.combo = 0; this.sfx('jump');
   },
   cancelInput() { this.state.drag = null; },
   damage(target, amount, collapse = false) {
     if (target.hp <= 0) return;
     target.hp = Math.max(0, target.hp - amount); target.flash = .18;
+    if (target.wood) {
+      const t = E5_SLINGSHOT.tuning;
+      for (const joint of target.joints) joint.stiffness = Math.min(joint.stiffness, t.jointStiffness * (.25 + .75 * target.hp / t.woodHP));
+    }
     const s = this.state, broken = target.hp === 0;
     // Cosmetic randomness never changes damage or collision results.
     if (this.settings.effects) for (let i = 0; i < (broken ? 14 : 5); i++) {
@@ -97,11 +121,25 @@ export const E5_SLINGSHOT = {
         color: i % 3 ? 0x9b6544 : 0xc0bd70 });
     }
     if (broken) {
-      // Defeated cookies remain as moving rubble, supporting and pushing neighbours.
+      if (target.wood) {
+        const M = Phaser.Physics.Matter.Matter;
+        // Loss of a ground-floor support releases the frame instead of hanging it
+        // from the opposite post. Gravity and the shot's momentum drive the fall.
+        const released = target.foundation ? s.timbers.filter(part => part.house === target.house) : [target];
+        for (const part of released) {
+          for (const joint of part.joints) M.Composite.remove(this.slingWorld.world, joint);
+          part.joints.length = 0;
+          M.Sleeping.set(part.body, false);
+        }
+      }
+      // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
       if (target.wood) {
         s.feedback = '우지끈! 기둥이 부러졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
       }
+      Phaser.Physics.Matter.Matter.Composite.remove(this.slingWorld.world, target.body);
+      const spriteKey = 'target' + s.targets.indexOf(target);
+      this.assetSprites.get(spriteKey)?.destroy(); this.assetSprites.delete(spriteKey);
       s.combo++; s.feedback = collapse ? '와르르! 중심이 무너졌다' : s.combo > 1 ? s.combo + '개 연속 파괴!' : '바삭! 두딱쿠 파괴';
       s.feedbackAge = 1.1; this.sfx('hit');
       if (this.settings.shake) this.cameras.main.shake(70, .002);
@@ -124,8 +162,10 @@ export const E5_SLINGSHOT = {
       }
       const { bullet, target, vx, vy } = impact;
       const speed = Math.hypot(vx, vy);
-      const pierce = bullet.power >= t.piercePower && speed >= t.pierceSpeed;
-      E5_SLINGSHOT.damage.call(this, target, pierce ? 100 : Math.min(28, speed * .035));
+      const strong = bullet.power >= t.piercePower && speed >= t.pierceSpeed;
+      const damage = target.wood ? Math.min(t.woodHitMax, Math.max(speed >= 220 ? 30 : 8, speed * .075)) : strong ? 100 : Math.min(28, speed * .035);
+      E5_SLINGSHOT.damage.call(this, target, damage);
+      const pierce = strong && target.hp <= 0;
       bullet.squash = .2;
       if (pierce) {
         M.Body.setVelocity(bullet.body, { x: vx * .78 / 60, y: vy * .78 / 60 });
@@ -136,8 +176,11 @@ export const E5_SLINGSHOT = {
     this.slingImpacts.length = 0;
     for (const ball of s.balls) {
       ball.age += dt; ball.squash = Math.max(0, ball.squash - dt);
+      if (ball.groundAge !== undefined) ball.groundAge += dt;
       ball.x = ball.body.position.x; ball.y = ball.body.position.y;
       ball.vx = ball.body.velocity.x * 60; ball.vy = ball.body.velocity.y * 60;
+      const spent = ball.body.isSleeping || (ball.hit.size > 0 && Math.hypot(ball.vx, ball.vy) < 100);
+      ball.spentAge = spent ? (ball.spentAge || 0) + dt : 0;
       if (this.settings.effects) {
         ball.trail.unshift({ x: ball.x, y: ball.y }); ball.trail.length = Math.min(12, ball.trail.length);
       }
@@ -157,10 +200,24 @@ export const E5_SLINGSHOT = {
       return c.age < .75;
     });
     s.balls = s.balls.filter(b => {
-      const keep = b.age < 5 && b.x < 980 && b.x > -30;
+      // Keep the first impact, but do not wait for a floor-bound ball to finish rolling.
+      const keep = b.x < 980 && b.x > -30 && b.y < 560 && !(b.groundAge >= .12) && !(b.spentAge >= .18);
       if (!keep) { M.Composite.remove(this.slingWorld.world, b.body); this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
       return keep;
     });
+    if (s.waiting) {
+      // Count moving projectiles, intact pieces and rubble; ignore only off-field bodies.
+      const moving = [...s.balls, ...s.timbers, ...s.targets].some(item => {
+        if (item.hp <= 0 && !item.wood) return false;
+        const body = item.body;
+        if (body.isSleeping || body.position.x < -30 || body.position.x > 980 || body.position.y > 560) return false;
+        return Math.hypot(body.velocity.x, body.velocity.y) * 60 > t.settleSpeed || Math.abs(body.angularVelocity) * 60 > t.settleAngularSpeed;
+      });
+      s.settledFor = moving ? 0 : s.settledFor + dt;
+      if (s.cooldown === 0 && s.settledFor >= t.settleHold) {
+        s.waiting = false; s.feedback = '다음 두쫀쿠 준비!'; s.feedbackAge = .7;
+      }
+    }
     const left = s.targets.filter(o => o.hp > 0).length;
     this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
     this.risk = (1 - E5_SLINGSHOT.power.call(this)) * 180;
@@ -201,7 +258,7 @@ export const E5_SLINGSHOT = {
     MINI.line(this, 137, 360, d.x, d.y, 0xe9c18c, 3);
     MINI.line(this, 184, 357, d.x, d.y, 0xe9c18c, 4);
     const pull = Math.hypot(d.x - 164, d.y - 382) / t.maxPull;
-    if (s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, 'projectile', 'ready', d.x, d.y, 29 + pull * 11, 29 - pull * 6, s.drag ? Math.atan2(382 - d.y, 164 - d.x) : 0);
+    if (!s.waiting && s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, 'projectile', 'ready', d.x, d.y, 29 + pull * 11, 29 - pull * 6, s.drag ? Math.atan2(382 - d.y, 164 - d.x) : 0);
     else MINI.hideActor(this, 'ready');
     if (s.drag) {
       let x = d.x, y = d.y, vx = (164 - d.x) * t.force * power, vy = (382 - d.y) * t.force * power;
@@ -210,7 +267,7 @@ export const E5_SLINGSHOT = {
         const hit = [...s.targets, ...s.timbers].some(o => o.hp > 0 && MINI.hit({ x: x - 12, y: y - 12, w: 24, h: 24 }, o));
         if (hit || y > 457) break;
         if (x > 950 || x < 20) break;
-        if (frame % 6 === 0) MINI.circle(this, x, y, 2.4, 0xffe1b8, Math.max(.12, .65 * (1 - frame / 36)));
+        if (frame % 6 === 0) MINI.circle(this, x, y, 3, 0xffe9bc, Math.max(.3, .9 * (1 - frame / 44)));
       }
       MINI.box(this, 88, 282, 126, 8, 0x4c3d30);
       MINI.box(this, 88, 282, 126 * pull, 8, pull > .8 ? 0xc7d981 : 0xe3bc7d);
@@ -231,10 +288,19 @@ export const E5_SLINGSHOT = {
         MINI.line(this, -32, -4, 32, -4, 0xc28b66, 2);
         MINI.line(this, -44, 5, 44, 5, 0xc28b66, 2);
       }
-      if (wood.hp < 65) MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);
+      if (wood.hp < t.woodHP) {
+        MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);
+        if (wood.hp < t.woodHP / 2) {
+          MINI.line(this, 5, 5, -4, 13, 0x30251d, 2);
+          MINI.line(this, -3, -4, 4, -12, 0x30251d, 2);
+        }
+        MINI.box(this, -wood.w / 2, -wood.h / 2 - 5, wood.w, 3, 0x38271f);
+        MINI.box(this, -wood.w / 2, -wood.h / 2 - 5, wood.w * Math.max(0, wood.hp) / t.woodHP, 3, wood.hp < t.woodHP / 2 ? 0xee9267 : 0xe5c17d);
+      }
       g.restore();
     }
     s.targets.forEach((o, i) => {
+      if (o.hp <= 0) { MINI.hideActor(this, 'target' + i); return; }
       E5_SLINGSHOT.cookie.call(this, 'target', 'target' + i, o.x + o.w / 2, o.y + o.h / 2, o.w, o.h, o.angle);
       const g = this.ink; g.save(); g.translateCanvas(o.x + o.w / 2, o.y + o.h / 2); g.rotateCanvas(o.angle);
       if (o.hp < t.targetHP) {
@@ -251,7 +317,7 @@ export const E5_SLINGSHOT = {
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
     }
     for (const c of s.crumbs) MINI.box(this, c.x, c.y, c.size, c.size, c.color, 1 - c.age / .75);
-    this.cookieNotice.setText(s.feedbackAge > 0 ? s.feedback : '').setAlpha(Math.min(1, s.feedbackAge * 3));
+    this.cookieNotice.setText(s.feedbackAge > 0 ? s.feedback : s.waiting ? '공과 건물이 멈추면 다음 발사' : '').setAlpha(s.feedbackAge > 0 ? Math.min(1, s.feedbackAge * 3) : .75);
     MINI.meter(this, broken / 4);
   },
   dispose() {

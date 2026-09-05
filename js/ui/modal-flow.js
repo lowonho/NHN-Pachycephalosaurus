@@ -26,7 +26,7 @@ class ModalFlow {
     this.open();
     this.ui.modalStep.textContent = `${stage.id.toUpperCase()} / ${success ? 'CLEAR' : 'RETRY'}`;
     // 제한시간은 QA 모드가 바꿔 둘 수 있다(js/config/qa.js). 문구도 그 값을 따라간다.
-    const limit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
+    const limit = globalThis.archiveStageTimeLimit?.(stage.timeLimit) ?? stage.timeLimit ?? 20.26;
     const total = run?.totalStages ?? 5;
     this.ui.modalTitle.textContent = success ? (run?.clearedCount === total ? `${total}개 스테이지 클리어!` : '클리어!') : '다시 도전!';
     this.ui.modalCopy.textContent = success ? `${stage.title} · ${elapsed.toFixed(2)}초` : (extra || `${limit.toFixed(2)}초 안에 목표를 달성하지 못했습니다.`);

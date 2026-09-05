@@ -80,8 +80,8 @@ class ArchiveGame extends Phaser.Scene {
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
-    this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
-    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
+    this.timeLimit = globalThis.archiveStageTimeLimit?.(this.stageGame.timeLimit) ?? this.stageGame.timeLimit ?? 20.26;
+    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.timePenalty = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
     this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
   }
@@ -115,7 +115,7 @@ class ArchiveGame extends Phaser.Scene {
     while (this.accumulator >= step && this.playable()) {
       this.accumulator -= step;
       const dt = Math.min(step, this.remaining);
-      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed);
+      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed - this.timePenalty);
       window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: dt * 1000 } }));
       this.stageGame.update.call(this, dt);
       if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
@@ -126,6 +126,7 @@ class ArchiveGame extends Phaser.Scene {
     if (!this.playable()) return;
     this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
+    this.sendHud();
     window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));
   }
 }

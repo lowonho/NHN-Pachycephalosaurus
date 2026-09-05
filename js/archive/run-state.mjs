@@ -10,7 +10,7 @@ export function sampleStages(ids, count = 5, random = Math.random) {
 
 export function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
   let selected = sampleStages(stageIds), phase = 'menu', currentStageId = null, paused = false;
-  // 한 시도의 시간 예산. QA 모드만 20.26초에서 바꿔 놓는다(js/config/qa.js).
+  // 스테이지 기본값과 QA 설정을 반영한 한 시도의 시간 예산.
   let budgetMs = totalTimeMs;
   let remaining = budgetMs, elapsedMs = 0;
   const cleared = new Set();
@@ -35,7 +35,7 @@ export function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
       for (const id of [...cleared]) if (!selected.includes(id)) cleared.delete(id);
       return snapshot();
     },
-    /* QA 모드 전용 — 한 시도의 예산(책상 시계)을 바뀐 제한시간에 맞춘다. */
+    /* 한 시도의 예산(책상 시계)을 스테이지 제한시간에 맞춘다. */
     setAttemptTime(ms) {
       const value = Number(ms);
       if (!Number.isFinite(value) || value <= 0) throw new RangeError('Invalid attempt time');
@@ -49,6 +49,10 @@ export function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
     },
     consume(ms) {
       if (phase === 'playing' && !paused) { const delta = Math.min(remaining, Math.max(0, Number(ms) || 0)); remaining -= delta; elapsedMs += delta; }
+      return snapshot();
+    },
+    syncRemaining(ms) {
+      if (Number.isFinite(ms)) remaining = Math.max(0, Math.min(budgetMs, ms));
       return snapshot();
     },
     completeAttempt(success) { if (phase === 'playing' && success && currentStageId) cleared.add(currentStageId); phase = 'result'; paused = false; return snapshot(); },

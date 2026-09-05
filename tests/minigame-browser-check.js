@@ -98,19 +98,42 @@
   // The weakened ball needs W assistance and late takeoffs on the harder course.
   scene.state.jumps = 100; driveE2();
   assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: assisted minimum jump can clear the terrain (${scene.state.x}, deaths ${scene.state.deaths})`);
-  // Sample different elevator phases with slower input and no W lift assistance.
+  // Reach the fixed final staircase across different elevator phases using end-of-platform takeoffs.
   for (const phase of [0, .7, 1.4, 2.1]) {
     load('e2'); const p = scene.platforms[5];
     Object.assign(scene.state, { x: p.x + 50, y: p.y - 20, checkpoint: p.x + 50, platformIndex: p.index, jumps: 100 });
     scene.elapsed = phase;
-    driveE2(18, { reactionFrames: 12, edge: 20, allowAssist: false });
-    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late course clears at minimum bounce without W with 100ms inputs (phase ${phase})`);
+    driveE2(18, { reactionFrames: 2, edge: 6, allowAssist: false });
+    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears without W at minimum bounce with edge jumps (phase ${phase})`);
   }
+  load('e2');
+  const stair = scene.platforms[12], nextStair = scene.platforms[13];
+  Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
+  scene.touch.add('right'); scene.primaryAction(); advance(.8);
+  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
   load('e3'); scene.primaryAction(); advance(.5); scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');
-  assert(scene.state.points.length === 12, 'e4: exactly ten corners');
+  assert(scene.state.tiles.length === 7 && scene.state.tiles[0].length === 19, 'e4: compact maze');
+  const startX = scene.state.x; advance(.2);
+  assert(scene.state.x === startX, 'e4: no automatic movement');
+  scene.directionPress('left'); advance(.5);
+  assert(scene.state.hits === 1 && scene.timePenalty === 1, 'e4: wall costs exactly one second');
+  advance(.5);
+  assert(scene.state.hits === 1, 'e4: sustained wall contact does not repeat penalty');
+  scene.directionRelease('left'); advance(.1); scene.directionPress('left'); advance(.1);
+  assert(scene.state.hits === 1, 'e4: repress against wall does not repeat penalty');
+  scene.directionRelease('left'); scene.directionPress('right'); advance(.1);
+  scene.directionRelease('right'); scene.directionPress('left'); advance(.2);
+  assert(scene.state.hits === 2 && scene.timePenalty === 2, 'e4: separate impact costs another second');
+  assert(Math.abs(scene.remaining - (90 - scene.elapsed - 2)) < .00001, 'e4: timer retains penalties');
+  scene.remaining = .5; scene.timePenalty = 90 - scene.elapsed - .5;
+  scene.directionRelease('left'); scene.directionPress('right'); advance(.1);
+  scene.directionRelease('right'); scene.directionPress('left'); advance(.2);
+  assert(scene.mode === 'done' && scene.remaining === 0, 'e4: impact can exhaust timer');
+  load('e4');
+  assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 90, 'e4: retry resets timer and penalty');
   load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
@@ -123,12 +146,32 @@
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: actual losing wedge shrinks to 1/${2 * (miss + 1)}`);
   }
-  load('e8'); advance(20.3, () => {
-    const s = scene.state, right = 1200 + s.weights.filter(w => w.landed).reduce((sum, w) => sum + w.mass * w.x, 0);
-    const desired = -right / 12 - s.angle * 200 - s.omega * 100;
-    scene.touch.clear(); if (Math.abs(s.x - desired) > 1) scene.touch.add(s.x > desired ? 'left' : 'right');
-  });
-  assert(scene.mode === 'done' && scene.state.count === 7 && scene.elapsed > 20.25, 'e8: seven drops and achievable full survival');
+  load('e8'); advance(20.3);
+  assert(scene.mode === 'done' && scene.state.deaths > 0 && scene.state.x < scene.goalX, 'e8: no-input run falls and times out instead of surviving to win');
+  load('e8'); driveE8(1.9); advance(.15);
+  const rope = scene.state.rope, anchor = scene.anchors[rope?.anchor];
+  assert(rope?.taut && Math.abs(Math.hypot(scene.state.x - anchor.x, scene.state.y - anchor.y) - rope.length) < .01, 'e8: taut web constrains the runner to a circular swing');
+  scene.touch.delete('action'); advance(1 / 120);
+  assert(!scene.state.rope && scene.state.vy < 0, 'e8: releasing Space preserves upward launch velocity');
+  load('e8'); driveE8(1.5); scene.touch.clear(); advance(.25); scene.pointerAction(600, 300); advance(.1);
+  assert(scene.state.pointerHeld && scene.state.rope, 'e8: airborne mouse hold attaches and maintains a web');
+  scene.stageGame.pointerUp.call(scene);
+  assert(!scene.state.pointerHeld && !scene.state.rope, 'e8: mouse release detaches the web');
+  scene.pointerAction(600, 300);
+  const pauseX = scene.state.x;
+  archiveGame.pause(true); scene.update(0, 1000);
+  assert(scene.state.x === pauseX && !scene.state.pointerHeld && !scene.state.rope, 'e8: pause freezes motion and cancels held web input');
+  archiveGame.pause(false);
+  const speedBeforeFall = scene.state.speed;
+  scene.state.y = 700; scene.state.vy = 100; advance(.02);
+  assert(scene.state.deaths === 1 && scene.state.speed >= speedBeforeFall && scene.state.retry > 0, 'e8: fall returns to a roof while retaining acceleration');
+  load('e8');
+  assert(scene.state.speed === scene.stageGame.tuning.speed && scene.state.hooks === 0 && scene.state.deaths === 0, 'e8: fresh retry resets speed and web counters');
+  for (const options of [{}, { reactionFrames: 10, hookDelay: .35, releaseAt: .3 }, { hookDelay: .25 }, { jumpLead: .22 }]) {
+    load('e8'); driveE8(20.3, options);
+    assert(scene.state.x >= scene.goalX && scene.state.deaths === 0 && scene.elapsed < 18 && scene.state.speed >= scene.stageGame.tuning.speed * 3,
+      `e8: eight roof gaps clear with accelerating speed and human-scale input timing ${JSON.stringify(options)}`);
+  }
   load('e9'); scene.pointerAction(166, 361); scene.stageGame.pointerMove.call(scene, 150, 361); scene.stageGame.pointerUp.call(scene); advance(1);
   assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
   load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);

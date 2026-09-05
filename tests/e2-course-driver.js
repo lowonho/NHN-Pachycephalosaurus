@@ -1,5 +1,5 @@
 // Play through real inputs: approach an edge, aim for the next landing, and brake in the air.
-window.driveE2 = (seconds = 20.3, { reactionFrames = 1, edge = 8, allowAssist = true } = {}) => {
+window.driveE2 = (seconds = 20.3, { reactionFrames = 1, edge = 2, allowAssist = true } = {}) => {
   const scene = archivePhaserGame.scene.getScene('archive-game');
   let target = 1, assist = false;
   for (let frame = 0; frame < Math.ceil(seconds * 120) && scene.playable(); frame++) {

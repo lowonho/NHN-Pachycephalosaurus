@@ -1,7 +1,7 @@
 import { MINI } from './minigame-kit.js';
 
 export const E2_BOUNCE_BALL = {
-  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 280, radius: 20, goal: 3180,
+  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 280, radius: 20, goal: 3730,
     liftRange: 22, liftSpeed: 2.1, crumbleTime: .55, rebuildTime: 1.4 },
   build() {
     MINI.init(this, 0xb8f77b);
@@ -18,8 +18,10 @@ export const E2_BOUNCE_BALL = {
       { x: 1160, y: 380, w: 100, h: 24 }, { x: 1365, y: 417, w: 150, h: 24 },
       { x: 1580, y: 410, w: 135, h: 24, kind: 'lift', range: 10 }, { x: 1780, y: 430, w: 155, h: 24, kind: 'crumble' },
       { x: 2000, y: 416, w: 125, h: 24 }, { x: 2190, y: 438, w: 160, h: 24 },
-      { x: 2415, y: 432, w: 130, h: 24, kind: 'lift', range: 10 }, { x: 2610, y: 444, w: 150, h: 24, kind: 'crumble' },
-      { x: 2825, y: 428, w: 140, h: 24 }, { x: 3030, y: 439, w: 240, h: 28 },
+      { x: 2415, y: 432, w: 130, h: 24, kind: 'lift', range: 10 }, { x: 2610, y: 444, w: 160, h: 24, kind: 'crumble' },
+      // 높이는 고정하고 간격은 90px. 최소 점프력에서도 체공 보정 없이 끝에서 도약할 수 있습니다.
+      { x: 2860, y: 424, w: 150, h: 24 }, { x: 3100, y: 404, w: 150, h: 24 },
+      { x: 3340, y: 384, w: 150, h: 24 }, { x: 3580, y: 364, w: 240, h: 28 },
     ].map((p, index) => ({ ...p, index, baseY: p.y, previousY: p.y, active: true, crumbleLeft: null, rebuildLeft: 0 }));
   },
   jumpPower() {

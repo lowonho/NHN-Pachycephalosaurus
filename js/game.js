@@ -43,6 +43,7 @@ class ArchiveGameBridge {
     /* 도감은 클리어가 아니라 "해 봤는가"로 열린다 — 시작하는 이 자리에서 남긴다.
        QA 모드의 시도는 최고 기록과 마찬가지로 남기지 않는다. */
     if (!globalThis.ARCHIVE_QA?.active) window.archivePlays?.record(stageId);
+    window.archiveRun.setAttemptTime((globalThis.archiveStageTimeLimit?.(stage.timeLimit) ?? stage.timeLimit ?? 20.26) * 1000);
     this.emitRunSnapshot(window.archiveRun.beginAttempt(stageId));
     this.api.loadStage(stageId); this.api.start();
     this.events.emit(GAME_EVENTS.STAGE_START, { stageId, stage });
@@ -72,6 +73,7 @@ class ArchiveGameBridge {
     /* QA 모드가 제한시간을 바꿔 두면 remaining도 그 값에서 내려온다(js/config/qa.js). */
     if (!this.currentStage) return;
     this.ui.stageHudTimer.textContent = Math.max(0, remaining).toFixed(2);
+    if (this.active) this.emitRunSnapshot(window.archiveRun.syncRemaining(remaining * 1000));
     this.ui.stageHudAction.textContent = `${this.currentStage.actionLabel} ${actions}`;
     this.ui.stageHudAnomaly.textContent = anomaly;
     this.ui.stageHudRisk.style.width = `${Math.max(0, Math.min(100, risk))}%`;
@@ -86,9 +88,8 @@ class ArchiveGameBridge {
     this.emitRunSnapshot(run);
     let record = null;
     /*
-     * QA 모드의 판은 남기지 않는다 — 제한시간을 늘려 둔 기록은 20.26초 기준의
-     * 최고 기록·ARCHIVE 복구율과 같은 자리에 둘 수 없다(records.mjs가 20.26초를 넘는
-     * 기록을 거부하기도 한다).
+     * QA 모드의 판은 남기지 않는다. 기록은 각 스테이지의 기본 제한시간을
+     * 기준으로 검증한다(일반 20.26초, e4 미로 90초).
      */
     if (success && !globalThis.ARCHIVE_QA?.active) {
       window.archiveProgress.record(this.currentStage.id, true, true);

@@ -1,3 +1,4 @@
+param([switch]$E4Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -65,7 +66,21 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  if ($E4Only) {
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-maze-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); for(let i=0;i<100 && !archiveRun.snapshot().selectedStageIds.includes('e4');i++) protocolSelectFlow.reset(); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.wake(); archiveGame.pause(true);" | Out-Null
+    Start-Sleep -Milliseconds 100
+    $artifactDir = Join-Path $root 'tests/.artifacts'
+    New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-maze.png'), [Convert]::FromBase64String($shot.data))
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output 'PASS: E4 maze collision, timer, retry, and 25 generated mazes'
+    return
+  }
   Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
+  Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-course-driver.js'))) | Out-Null
   $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-browser-check.js')))
   Write-Output ($checks | ConvertTo-Json -Depth 20)
   $playability = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-clearability.js')))
@@ -118,6 +133,49 @@ try {
   Start-Sleep -Milliseconds 70
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e2-terrain.png'), [Convert]::FromBase64String($shot.data))
+  Evaluate "testLaunch('e2'); archivePhaserGame.loop.sleep(); driveE2(12); archiveGame.pause(true); archivePhaserGame.loop.wake();" | Out-Null
+  Start-Sleep -Milliseconds 70
+  $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+  [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e2-stairs.png'), [Convert]::FromBase64String($shot.data))
+  # Native D + Space only at minimum power: W must not be required for the last stairs.
+  Evaluate "testLaunch('e2'); (() => { const s=archivePhaserGame.scene.getScene('archive-game'), p=s.platforms[12]; Object.assign(s.state,{x:p.x+p.w-6,y:p.y-20,vy:0,grounded:true,platformIndex:12,checkpoint:p.x+50,jumps:100}); })()" | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Start-Sleep -Milliseconds 580
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown; })()")) { throw 'Native D + Space failed to land on final stair without W' }
+  Write-Output 'PASS: native D + Space reaches final staircase at minimum jump without W'
+  # Native e8 press / release / second press / hold on both input routes.
+  Evaluate "testLaunch('e8'); archivePhaserGame.scene.getScene('archive-game').state.x=500;" | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Start-Sleep -Milliseconds 220
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Start-Sleep -Milliseconds 80
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.jumps===1 && s.hooks===1 && !!s.rope; })()")) { throw 'Native e8 Space jump / airborne hold failed' }
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Start-Sleep -Milliseconds 40
+  if (!(Evaluate "!archivePhaserGame.scene.getScene('archive-game').state.rope")) { throw 'Native e8 Space release failed' }
+  Evaluate "testLaunch('e8'); archivePhaserGame.scene.getScene('archive-game').state.x=500;" | Out-Null
+  $rect = Evaluate "(() => { const r=archivePhaserGame.canvas.getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height}; })()"
+  $webMouse = @{ button = 'left'; clickCount = 1; x = $rect.x + 600 * $rect.w / 960; y = $rect.y + 300 * $rect.h / 540 }
+  Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mousePressed';buttons=1}) | Out-Null
+  Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mouseReleased';buttons=0}) | Out-Null
+  Start-Sleep -Milliseconds 220
+  Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mousePressed';buttons=1}) | Out-Null
+  Start-Sleep -Milliseconds 80
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.jumps===1 && s.hooks===1 && s.pointerHeld && !!s.rope; })()")) { throw 'Native e8 mouse jump / airborne hold failed' }
+  Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mouseReleased';buttons=0}) | Out-Null
+  Start-Sleep -Milliseconds 40
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return !s.pointerHeld && !s.rope; })()")) { throw 'Native e8 mouse release failed' }
+  Write-Output 'PASS: native e8 keyboard and scaled mouse jump / web hold / release'
+  foreach ($webTime in @(2.05, 12.95)) {
+    Evaluate "testLaunch('e8'); archivePhaserGame.loop.sleep(); driveE8($webTime); archivePhaserGame.scene.getScene('archive-game').pausedByMenu=true; archivePhaserGame.loop.wake();" | Out-Null
+    Start-Sleep -Milliseconds 70
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir "e8-swing-$webTime.png"), [Convert]::FromBase64String($shot.data))
+  }
   if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
   Write-Output 'PASS: no uncaught browser exceptions'
 } finally {
