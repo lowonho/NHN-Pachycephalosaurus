@@ -89,14 +89,14 @@ const UI = Object.freeze({
   recoveryFailed: document.querySelector("#recovery-failed"),
   recoveryFailedButton: document.querySelector("#recovery-failed-button"),
 
-  /* 기록실 — 미니게임 도감 + 증언 기록 두 탭. 메인 화면에서만 연다(js/ui/codex-flow.js). */
+  /* 기록실 — 밈 기록 + 미니게임 도감 두 탭. 메인 화면에서만 연다(js/ui/codex-flow.js). */
   codexBackdrop: document.querySelector("#codex-modal"),
   codexDialog: document.querySelector("#codex-dialog"),
   codexGrid: document.querySelector("#codex-grid"),
   codexCount: document.querySelector("#codex-count"),
   codexHint: document.querySelector("#codex-hint"),
   codexTabs: document.querySelectorAll("[data-codex-tab]"),
-  codexRecordsTab: document.querySelector("#codex-tab-records"),
+  codexMemesTab: document.querySelector("#codex-tab-memes"),
   codexCloseButton: document.querySelector("#codex-close-button"),
 
   settingsBackdrop: document.querySelector("#settings-modal"),

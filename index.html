@@ -117,11 +117,10 @@
             </button>
 
             <!--
-              기록실(미니게임 도감 + 증언 기록) — 판때기는 03_button_challenge_cyan
+              기록실(밈 기록 + 미니게임 도감) — 판때기는 03_button_challenge_cyan
               에셋을 쓴다. (챌린지 모드는 두지 않으므로 그 자리의 시안 판을 물려받는다.)
 
-              도감은 언제나 열리므로 disabled를 두지 않는다 — 엔딩 전에는
-              모달 안의 "증언 기록" 탭만 잠긴다(js/ui/codex-flow.js).
+              밈 기록과 도감은 언제나 열리므로 disabled를 두지 않는다.
             -->
             <button class="menu-button menu-button--codex" id="main-codex-button" type="button">
               <span>기록실</span>
@@ -726,11 +725,11 @@
     <!--
       기록실 — 탭 두 장을 한 판때기에 담는다.
 
+        · 밈 기록       : 현재 사용하는 9개 밈을 한 칸씩 펼친다. 기록실의 기본 탭이다.
         · 미니게임 도감 : 9개 미니게임. 언제나 열려 있고, 한 번이라도 플레이한
                           칸만 목표와 BEST를 보여 준다(js/archive/plays.mjs).
-        · 증언 기록     : 엔딩 이후 실제 진행에서 등록한 18개 기록을 다시 읽는다.
 
-      두 목록은 개수(10 / 18)도 칸 크기도 달라서 격자는 data-view로 갈아 끼운다.
+      두 목록은 각각 9개지만 카드 내용과 칸 크기가 달라서 격자는 data-view로 갈아 끼운다.
     -->
     <div class="codex-backdrop hidden" id="codex-modal">
       <section
@@ -743,36 +742,31 @@
       >
         <header class="codex-head">
           <h2 class="codex-title" id="codex-title">기록실</h2>
-          <p class="codex-count" id="codex-count">PLAYED 0 / 10</p>
+          <p class="codex-count" id="codex-count">MEMES 9 / 9</p>
         </header>
 
         <div class="codex-tabs" role="tablist" aria-label="기록실 분류">
           <button
             class="codex-tab"
-            id="codex-tab-minigames"
+            id="codex-tab-memes"
             type="button"
             role="tab"
             aria-selected="true"
             aria-controls="codex-grid"
-            data-codex-tab="minigames"
+            data-codex-tab="memes"
           >
-            <span>미니게임 도감</span>
+            <span>밈 기록</span>
           </button>
-          <!--
-            엔딩 전에는 disabled로 둔다 — 눌러도 열리지 않는 탭이 아니라
-            "아직 없는 탭"으로 보여야 해서 codex-flow.js가 상태를 맞춘다.
-          -->
           <button
             class="codex-tab"
-            id="codex-tab-records"
+            id="codex-tab-minigames"
             type="button"
             role="tab"
             aria-selected="false"
             aria-controls="codex-grid"
-            data-codex-tab="records"
-            disabled
+            data-codex-tab="minigames"
           >
-            <span>증언 기록</span>
+            <span>미니게임 도감</span>
           </button>
         </div>
 
@@ -780,12 +774,12 @@
           class="codex-grid"
           id="codex-grid"
           role="tabpanel"
-          data-view="minigames"
-          aria-labelledby="codex-tab-minigames"
+          data-view="memes"
+          aria-labelledby="codex-tab-memes"
         ></ul>
 
         <footer class="codex-foot">
-          <p class="codex-hint" id="codex-hint">한 번이라도 플레이한 미니게임이 열립니다.</p>
+          <p class="codex-hint" id="codex-hint">현재 기록된 밈을 한 칸씩 확인할 수 있습니다.</p>
           <button class="codex-close" id="codex-close-button" type="button">
             <span>닫기</span>
           </button>
@@ -908,6 +902,7 @@
     <script src="js/core/game-events.js"></script>
     <script src="js/content/scenario-data.js"></script>
     <script src="js/content/minigame-catalog.js"></script>
+    <script src="js/content/meme-records.js"></script>
     <script src="assets/minigames/manifest.js"></script>
     <script src="assets/minigames/e3/pose-shapes.js"></script>
     <script src="js/config/stage-geometry.js"></script>
