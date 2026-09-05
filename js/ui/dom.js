@@ -4,6 +4,9 @@
  */
 
 const UI = Object.freeze({
+  /* 화면 전환 암전 — js/ui/scene-fade.js 전용. */
+  sceneFade: document.querySelector("#scene-fade"),
+
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),
@@ -32,13 +35,13 @@ const UI = Object.freeze({
   cutscene: document.querySelector("#cutscene"),
   cutsceneBackdrop: document.querySelector("#cutscene-backdrop"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
+  cutsceneDialogue: document.querySelector(".cutscene-dialogue"),
   cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
   cutscenePanel: document.querySelector("#cutscene-panel"),
   cutsceneLine: document.querySelector("#cutscene-line"),
   cutsceneAutoButton: document.querySelector("#cutscene-auto-button"),
   cutsceneLogButton: document.querySelector("#cutscene-log-button"),
   cutsceneSkipButton: document.querySelector("#cutscene-skip-button"),
-  cutsceneSkipTopButton: document.querySelector("#cutscene-skip-top-button"),
   cutsceneLog: document.querySelector("#cutscene-log"),
   cutsceneLogList: document.querySelector("#cutscene-log-list"),
 
@@ -49,6 +52,7 @@ const UI = Object.freeze({
    */
   stageSelectScreen: document.querySelector("#stage-select-screen"),
   protocolScreen: document.querySelector("#protocol-screen"),
+  protocolPower: document.querySelector("#protocol-power"),
   protocolPauseButton: document.querySelector("#protocol-pause-button"),
 
   /* 브리핑 레이어 — 이번 차례의 기억과 그 프로토콜을 설명한다. */
@@ -73,10 +77,9 @@ const UI = Object.freeze({
   deskHandLeft: document.querySelector("#desk-hand-left"),
   deskHandRight: document.querySelector("#desk-hand-right"),
 
-  deskClock: document.querySelector("#desk-clock"),
-  deskClockMinutes: document.querySelector("#desk-clock-minutes"),
-  deskClockSeconds: document.querySelector("#desk-clock-seconds"),
-  deskClockCentis: document.querySelector("#desk-clock-centis"),
+  /* 같은 손의 연출 자세 — 죽고 다시 소환될 때(주먹)와 클리어(따봉) 때만 뜬다. */
+  deskPoseFists: document.querySelector("#desk-pose-fists"),
+  deskPoseThumbs: document.querySelector("#desk-pose-thumbs"),
 
   /*
    * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
@@ -129,6 +132,10 @@ const UI = Object.freeze({
   stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
   stageHudPenalty: document.querySelector("#stage-hud-penalty"),
+  stageCountdown: document.querySelector("#stage-countdown"),
+  stageCountdownValue: document.querySelector("#stage-countdown-value"),
+  stageCountdownAnomaly: document.querySelector("#stage-countdown-anomaly"),
+  stageCountdownAnomalyText: document.querySelector("#stage-countdown-anomaly-text"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),

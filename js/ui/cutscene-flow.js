@@ -11,6 +11,7 @@
  * 줄을 늘리거나 문구를 고칠 때 이 파일은 건드리지 않는다.
  *
  * 조작
+ *   새 장면에서 아무 키·클릭 — 배경 확인 후 첫 대사 표시
  *   화면 아무 데나 클릭 · Space · Enter — 타자 중이면 즉시 완성, 다 나왔으면 다음 줄
  *   AUTO — 한 줄이 다 나오면 잠시 뒤 자동으로 다음 줄
  *   LOG  — 지나간 대사 목록
@@ -40,6 +41,11 @@ class CutsceneFlow {
     this.typed = 0;
     this.fullText = "";
     this.auto = false;
+    this.currentSceneKey = null;
+    this.pendingSceneCue = null;
+    this.awaitingSceneInput = false;
+    this.sceneTransitioning = false;
+    this.sceneReadyTimer = 0;
     this.backgrounds = globalThis.SCENARIO_DATA?.backgrounds ?? {};
     this.backgroundCache = new Map();
     this.preloadBackgrounds();
@@ -55,7 +61,6 @@ class CutsceneFlow {
     onButton(this.ui.cutsceneAutoButton, () => this.toggleAuto());
     onButton(this.ui.cutsceneLogButton, () => this.toggleLog());
     onButton(this.ui.cutsceneSkipButton, () => this.finish());
-    onButton(this.ui.cutsceneSkipTopButton, () => this.finish());
 
     // 로그가 열려 있는 동안에는 로그 안을 눌러도 대사가 넘어가지 않아야 한다.
     this.ui.cutsceneLog?.addEventListener("click", (event) => event.stopPropagation());
@@ -104,6 +109,14 @@ class CutsceneFlow {
       return;
     }
 
+    /* 장면이 완전히 밝아진 뒤에는 문자·방향키 등 어떤 키든 첫 대사를 연다. */
+    if (this.awaitingSceneInput || this.sceneTransitioning) {
+      if (event.repeat) return;
+      event.preventDefault();
+      if (!this.sceneTransitioning) this.revealSceneCue();
+      return;
+    }
+
     if (event.key !== " " && event.key !== "Enter") return;
     // 버튼에 포커스가 있으면 Space·Enter는 그 버튼이 처리한다(중복 실행 방지).
     if (document.activeElement?.closest(".cutscene-button")) return;
@@ -120,6 +133,7 @@ class CutsceneFlow {
     this.onDone = typeof onDone === "function" ? onDone : null;
     this.returnFocus = document.activeElement;
     this.index = -1;
+    this.resetSceneHold();
 
     if (!forceDisplay && globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
       const done = this.onDone;
@@ -128,28 +142,36 @@ class CutsceneFlow {
       return;
     }
 
-    this.setAuto(auto ?? Boolean(this.copy.auto));
-    this.closeLog();
-    this.renderLog();
+    // 컷신이 실제로 드러나는 순간을 암전으로 감싼다 — 직전 화면이 무엇이었든 상관없다.
+    sceneFade.cut(() => {
+      this.setAuto(auto ?? Boolean(this.copy.auto));
+      this.closeLog();
+      this.renderLog();
 
-    this.chapter = chapter || this.copy.chapter;
-    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
-    this.ui.cutscene?.classList.remove("hidden");
-    // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
-    this.ui.cutscene?.focus();
+      this.chapter = chapter || this.copy.chapter;
+      if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
+      this.ui.cutscene?.classList.remove("hidden");
+      // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
+      this.ui.cutscene?.focus();
 
-    // 대본이 비어 있으면 빈 화면을 띄우지 않고 곧장 다음 단계로 넘긴다.
-    if (this.script.length === 0) {
-      this.finish();
-      return;
-    }
+      // 대본이 비어 있으면 빈 화면을 띄우지 않고 곧장 다음 단계로 넘긴다.
+      if (this.script.length === 0) {
+        this.finish();
+        return;
+      }
 
-    this.next();
+      this.next({ transitionCovered: true });
+    }).then(() => this.armSceneInput());
   }
 
   /* 화면 클릭·Space·Enter — 타자 중이면 완성, 다 나왔으면 다음 줄. */
   advance() {
     if (!this.isOpen()) return;
+    if (this.sceneTransitioning) return;
+    if (this.awaitingSceneInput) {
+      this.revealSceneCue();
+      return;
+    }
     // 로그가 열려 있으면 먼저 로그를 닫는다.
     if (this.isLogOpen()) {
       this.closeLog();
@@ -159,7 +181,8 @@ class CutsceneFlow {
     else this.next();
   }
 
-  next() {
+  next({ transitionCovered = false } = {}) {
+    if (this.awaitingSceneInput || this.sceneTransitioning) return;
     this.clearAuto();
     this.index += 1;
 
@@ -170,21 +193,105 @@ class CutsceneFlow {
 
     const currentCue = this.script[this.index] || {};
     const {
-      speaker = "",
-      text = "",
       phase = "dialogue",
-      kind = speaker === "SYSTEM" ? "system" : "dialogue",
       backgroundPhase = phase,
     } = currentCue;
     const visualPhase = backgroundPhase || phase;
+    /*
+     * 장면 이름(phase)이 아니라 실제로 걸리는 그림 경로로 비교한다.
+     * OP-01·OP-02처럼 장면 이름은 달라도 같은 그림을 그대로 쓰는 구간은
+     * 화면상 바뀌는 게 없으므로 암전을 걸지 않는다.
+     */
+    const sceneKey = this.backgrounds[visualPhase] ?? "";
+
+    /*
+     * 실제로 걸리는 그림이 바뀔 때만 새 장면(배경만 · 무대사)을 먼저 보여 준다.
+     * AUTO가 켜져 있어도 여기서는 멈추며, 반드시 플레이어 확인 입력을 기다린다.
+     */
+    if (sceneKey !== this.currentSceneKey) {
+      this.currentSceneKey = sceneKey;
+      this.pendingSceneCue = { cue: currentCue, visualPhase };
+      this.awaitingSceneInput = true;
+      this.sceneTransitioning = true;
+      const showScene = () => this.showSceneOnly(currentCue, visualPhase);
+      if (transitionCovered) showScene();
+      else sceneFade.cut(showScene).then(() => this.armSceneInput());
+      return;
+    }
+
+    this.renderCue(currentCue, visualPhase);
+  }
+
+  showSceneOnly(currentCue, visualPhase) {
+    this.stopTyping();
+    this.clearAuto();
+    this.closeLog();
+    this.showBackground(visualPhase);
+    this.ui.cutscene?.setAttribute("data-phase", visualPhase);
+    this.ui.cutscene?.setAttribute("data-cue-kind", "scene");
+    this.ui.cutscene?.setAttribute("data-awaiting-scene", "true");
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
+    this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));
+    this.ui.cutsceneDialogue?.setAttribute("inert", "");
+    if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = "";
+    if (this.ui.cutsceneLine) this.ui.cutsceneLine.textContent = "";
+    this.ui.cutscenePanel?.setAttribute("data-state", "scene");
+    this.fullText = "";
+    this.typed = 0;
+    this.renderLog();
+  }
+
+  armSceneInput() {
+    window.clearTimeout(this.sceneReadyTimer);
+    this.sceneReadyTimer = 0;
+    if (!this.awaitingSceneInput || !this.isOpen()) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const delay = globalThis.ARCHIVE_DISABLE_TRANSITIONS || reduced ? 0 : SceneFade.HOLD_MS;
+    const ready = () => {
+      this.sceneReadyTimer = 0;
+      if (this.awaitingSceneInput && this.isOpen()) this.sceneTransitioning = false;
+    };
+    if (delay === 0) ready();
+    else this.sceneReadyTimer = window.setTimeout(ready, delay);
+  }
+
+  revealSceneCue() {
+    if (!this.awaitingSceneInput || this.sceneTransitioning || !this.pendingSceneCue) return;
+    const { cue, visualPhase } = this.pendingSceneCue;
+    this.pendingSceneCue = null;
+    this.awaitingSceneInput = false;
+    this.ui.cutscene?.removeAttribute("data-awaiting-scene");
+    this.ui.cutsceneDialogue?.removeAttribute("inert");
+    this.renderCue(cue, visualPhase);
+  }
+
+  renderCue(currentCue, visualPhase) {
+    const {
+      speaker = "",
+      text = "",
+      kind = speaker === "SYSTEM" ? "system" : "dialogue",
+    } = currentCue;
     this.showBackground(visualPhase);
     this.ui.cutscene?.setAttribute("data-phase", visualPhase);
     this.ui.cutscene?.setAttribute("data-cue-kind", kind);
+    /* 화자에 따라 대사창 자리와 색이 달라진다(ARIA는 좌하단·보라). css/cutscene.css 참고. */
+    this.ui.cutscene?.setAttribute("data-speaker", speaker);
     if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
     this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
     this.startTyping(String(text), { instant: kind !== "dialogue" });
     this.renderLog();
+  }
+
+  resetSceneHold() {
+    window.clearTimeout(this.sceneReadyTimer);
+    this.sceneReadyTimer = 0;
+    this.currentSceneKey = null;
+    this.pendingSceneCue = null;
+    this.awaitingSceneInput = false;
+    this.sceneTransitioning = false;
+    this.ui.cutscene?.removeAttribute("data-awaiting-scene");
+    this.ui.cutsceneDialogue?.removeAttribute("inert");
   }
 
   /* ── 타자 효과 ────────────────────────────────────────────────────── */
@@ -293,7 +400,8 @@ class CutsceneFlow {
     if (!list) return;
     list.replaceChildren();
 
-    const seen = this.script.slice(0, Math.max(0, this.index + 1));
+    const seenThrough = this.awaitingSceneInput ? this.index : this.index + 1;
+    const seen = this.script.slice(0, Math.max(0, seenThrough));
     if (seen.length === 0) {
       const empty = document.createElement("p");
       empty.className = "cutscene-log-empty";
@@ -318,18 +426,23 @@ class CutsceneFlow {
     if (!this.isOpen()) return;
     const done = this.onDone;
     this.onDone = null;
-    this.close();
-    done?.();
+    // 컷신을 걷고 다음 화면을 여는 순간도 암전으로 감싼다 — 다음 화면이 무엇이든 상관없다.
+    sceneFade.cut(() => {
+      this.close();
+      done?.();
+    });
   }
 
   close() {
     this.stopTyping();
     this.clearAuto();
+    this.resetSceneHold();
     this.closeLog();
     this.setAuto(false);
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
     this.ui.cutscene?.removeAttribute("data-cue-kind");
+    this.ui.cutscene?.removeAttribute("data-speaker");
     this.ui.cutscene?.removeAttribute("data-qa-cue");
     this.ui.cutscene?.removeAttribute("data-has-background");
     this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");

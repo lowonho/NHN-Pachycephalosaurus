@@ -129,7 +129,7 @@
       testimonyReached: "TESTIMONY POINT REACHED\n기억 반응을 기록으로 변환합니다.",
       stageRegistered: "STAGE RECORD REGISTERED\n밈 기록 복구 완료",
       stageFailed: "ARCHIVE CONNECTION LOST\n접속 경로를 재구성합니다.",
-      actRestarted: "LIVES RESTORED: 3\nARCHIVE SET RESHUFFLED",
+      actRestarted: "MEMORY RESTORED: 3\nARCHIVE SET RESHUFFLED",
     }),
     opening: cutscenes.opening,
     cutscenes,

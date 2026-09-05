@@ -211,6 +211,51 @@
   width: 1148px;
 }
 
+/* 새 장면은 배경만 먼저 보여 주고, 확인 입력을 받은 뒤 대사 UI를 연다. */
+.cutscene[data-awaiting-scene="true"] .cutscene-dialogue {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * ARIA는 좌하단에서 말한다 — 디자인은 그대로 두고 좌우 위치만 반대편으로 옮긴다.
+ * 오른쪽 여백(1920 − 592 − 1148 = 180px)을 그대로 왼쪽 여백으로 쓴 대칭 배치다.
+ * 아래 여백만 92 → 116px로 올려 좌하단 버전 표기(아래에서 102px까지)와 겹치지 않게 한다.
+ */
+.cutscene[data-speaker^="ARIA"] .cutscene-dialogue {
+  left: 180px;
+  bottom: 116px;
+
+  /*
+   * 색도 보라색 네온으로 바뀐다 — 김민(시안)과 화자를 색으로 구분한다.
+   * 팔레트 변수만 갈아 끼우면 이름표·패널·악센트 바·AUTO/LOG/SKIP까지 함께 물든다.
+   */
+  --cut-line: #c07bff;
+  --cut-line-soft: rgba(192, 123, 255, 0.34);
+  --cut-glass: rgba(28, 8, 58, 0.82);
+  --cut-glass-deep: rgba(16, 3, 38, 0.9);
+  --cut-text: #f4eaff;
+  --cut-dim: #bb9fd8;
+}
+
+/* 변수로 뽑혀 있지 않은 발광색(시안 하드코딩)도 같은 보라로 맞춘다. */
+.cutscene[data-speaker^="ARIA"] .cutscene-panel {
+  box-shadow: 0 0 42px rgba(192, 123, 255, 0.22), inset 0 0 60px rgba(192, 123, 255, 0.07);
+}
+
+.cutscene[data-speaker^="ARIA"] .cutscene-dialogue .cutscene-button:hover,
+.cutscene[data-speaker^="ARIA"] .cutscene-dialogue .cutscene-button:focus-visible {
+  background: rgba(192, 123, 255, 0.2);
+  box-shadow: 0 0 22px rgba(192, 123, 255, 0.35);
+}
+
+/* 눌린 상태의 글자색 — 보라 바탕 위에서 읽히도록 어두운 자주로 둔다. */
+.cutscene[data-speaker^="ARIA"] .cutscene-dialogue .cutscene-button[aria-pressed="true"],
+.cutscene[data-speaker^="ARIA"] .cutscene-dialogue .cutscene-button[aria-expanded="true"] {
+  color: #1c0433;
+}
+
 /* 대본에서 대사가 없는 고정 장면은 배경만 보여 준다. */
 .cutscene[data-cue-kind="silent"] .cutscene-dialogue {
   display: none;
@@ -431,13 +476,6 @@
 
 .cutscene-button-mark {
   font-size: 15px;
-}
-
-/* 우상단 SKIP — 슬레이트 높이에 맞춰 늘어나는 변형. */
-.cutscene-button--slate {
-  width: 118px;
-  height: auto;
-  font-size: 16px;
 }
 
 /* ── 로그(지나간 대사) ──────────────────────────────────────────────── */

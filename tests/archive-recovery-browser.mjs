@@ -64,7 +64,9 @@ try {
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
+  /* 이 스위트는 씬을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다. */
+  await evaluate("ARCHIVE_STORY_SETTINGS.skipCountdown = true");
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 10);
   const screen = async (name) => {
     await wait(150);
     const { data } = await send("Page.captureScreenshot");
@@ -79,7 +81,9 @@ try {
   */
   await evaluate("document.querySelector('#main-play-button').click()");
   await screen("opening");
-  await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
+  await wait(420);
+  await evaluate("document.querySelector('#cutscene-skip-button').click()");
+  await wait(300);
   // 오프닝 뒤 첫 기록 소개가 자동으로 열리며, 이 소개를 끝내야 실제 플레이가 시작된다.
   await screen("stage-intro");
   await evaluate("cutsceneFlow.finish(); gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {})");
@@ -89,7 +93,12 @@ try {
    */
   await screen("records");
   await evaluate("window.addEventListener('archive-stage-end', event => { window.lastStageEnd=event.detail; })");
-  const retry = async () => { await wait(520); assert.equal(await evaluate("testScene.mode"),"playing"); };
+  const retry = async () => {
+    assert.equal(await evaluate("modalFlow.isOpen()"), true, "Failure waits for player input");
+    await evaluate("document.querySelector('#primary-button').click()");
+    await wait(80);
+    assert.equal(await evaluate("testScene.mode"), "playing");
+  };
   const start = async (stage) => evaluate(`protocolSelectFlow.launchStage(${JSON.stringify(stage)}); window.archiveRun.setPaused(true); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
   const continueToRecords = async () => {
     const saved = await evaluate("window.archiveProgress.summary()");
@@ -157,11 +166,12 @@ try {
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
   const totalBeforeFall = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
   await evaluate("Object.assign(testScene.state, { x: 430, y: 565, vy: 180, onGround: false, support: null }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), false);
   assert.equal(await evaluate("testScene.mode"), "done");
   assert.equal(await evaluate("window.archiveProgress.status('gravity')"), 'DAMAGED');
   const totalDuringRetry = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
-  await wait(520);
+  await evaluate("document.querySelector('#primary-button').click()");
+  await wait(80);
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
@@ -192,8 +202,9 @@ try {
   }
   await start('bounce');
   await evaluate("Object.assign(testScene.state, { x: 575, y: 560, vy: 150 }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
-  await wait(520);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), false);
+  await evaluate("document.querySelector('#primary-button').click()");
+  await wait(80);
   assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
@@ -305,7 +316,7 @@ try {
     assert.equal(await evaluate("UI.modalTitle.textContent"), "SHARED TESTIMONY");
     assert.equal(await evaluate(`window.archiveProgress.status(${JSON.stringify(stage)})`), "FULLY RESTORED");
     if (stage === 'friction') {
-      await evaluate("modalFlow.onPrimary(); cutsceneFlow.finish()");
+      await evaluate("modalFlow.activatePrimary(); cutsceneFlow.finish()");
       assert.equal(await evaluate('UI.cutsceneChapter.textContent'), 'RECORD 04 // CONTRADICTION');
       await evaluate("cutsceneFlow.finish()");
     }
@@ -318,17 +329,19 @@ try {
   await evaluate("cutsceneFlow.finish(); protocolSelectFlow.open()");
   await start("maze");
   await evaluate("testScene.state.ball.x = testScene.fragment.x; testScene.state.ball.y = testScene.fragment.y; testScene.update(0, 16); testScene.remaining = 0.001; testScene.update(0, 16)");
-  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), false);
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
-  await wait(520);
+  await evaluate("document.querySelector('#primary-button').click()");
+  await wait(80);
   assert.equal(await evaluate("testScene.fragmentCollected"), false);
   await returnToRecords();
   await start('maze');
   await evaluate("testScene.remaining = 0.5; Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), false);
   assert.equal(await evaluate("testScene.remaining"), 0);
   assert.equal(await evaluate("testScene.timePenalty"), 1);
-  await wait(520);
+  await evaluate("document.querySelector('#primary-button').click()");
+  await wait(80);
   assert.equal(await evaluate("testScene.timePenalty"), 0);
   await returnToRecords();
   await screen("restored-records");
@@ -346,7 +359,7 @@ try {
   await send("Page.navigate", { url: new URL(`file:///${root.replaceAll('\\', '/')}/index.html`).href });
   await wait(1200);
   assert.equal(await evaluate("Boolean(window.archiveGame)"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 10);
   assert.deepEqual(errors, []);
   console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 5 pickups, pause, persistence, file:// boot, no runtime errors");
 } finally {

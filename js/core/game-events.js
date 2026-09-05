@@ -22,6 +22,8 @@ const GAME_EVENTS = Object.freeze({
   STAGE_RESUME: "stage:resume", // {}
   STAGE_CLEAR: "stage:clear", // { elapsed, stageId? }
   STAGE_FAIL: "stage:fail", // { stageId? }
+  /* 제한시간 안에서 죽고 다시 소환될 때. 스테이지는 끝나지 않는다. */
+  STAGE_RESPAWN: "stage:respawn", // { stageId? }
 
   // 외부 요청(UI → 씬)
   REQUEST_START: "request:start", // { stageId }
@@ -36,7 +38,7 @@ const GAME_EVENTS = Object.freeze({
   // 타이머
   TIMER_TICK: "timer:tick", // { remainingMs } — 매 프레임, payload 재사용됨
   TIMER_WARNING: "timer:warning", // {} — 임계 진입 시 1회만
-  TOTAL_TIMER_TICK: "timer:total", // 호환 이름: 현재 스테이지·막·목숨·기록 스냅샷
+  TOTAL_TIMER_TICK: "timer:total", // 호환 이름: 현재 스테이지·막·기억·기록 스냅샷
   RUN_RESET: "run:reset", // 새 3막 진행 상태 초기화
   RUN_END: "run:end", // { ending: "shared" }
 

@@ -7,6 +7,7 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
+  const waitFor = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
   const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
   const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
@@ -60,13 +61,58 @@
   assert(UI.cutscene.dataset.hasBackground === 'true'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('09_34_55.png')
     && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'CS-02 uses the deletion-source artwork without the centered archive-core placeholder');
+  assert(document.querySelector('#cutscene-skip-top-button') === null
+    && document.querySelectorAll('#cutscene [id*="skip"]').length === 1
+    && UI.cutsceneSkipButton?.id === 'cutscene-skip-button', 'Cutscenes keep only the lower dialogue-panel skip button');
+
+  cutsceneFlow.close();
+  ARCHIVE_DISABLE_TRANSITIONS = false;
+  cutsceneFlow.play({
+    chapter: 'SCENE TRANSITION TEST',
+    auto: false,
+    forceDisplay: true,
+    script: [
+      { speaker: '김민', text: '첫 장면 대사', phase: 'op-01', kind: 'dialogue' },
+      { speaker: 'ARIA-26', text: '두 번째 장면 대사', phase: 'op-03', kind: 'dialogue' },
+    ],
+  });
+  for (let waited = 0; waited < 3000 && (!cutsceneFlow.awaitingSceneInput || cutsceneFlow.sceneTransitioning); waited += 50) await waitFor(50);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-01'
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden', 'A newly faded-in scene waits with no dialogue visible');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+  cutsceneFlow.completeTyping();
+  assert(!cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '첫 장면 대사', 'Any key reveals the first dialogue after the scene is visible');
+  cutsceneFlow.advance();
+  assert(cutsceneFlow.sceneTransitioning && UI.sceneFade.classList.contains('is-active'), 'Changing scenes starts a fade to black');
+  for (let waited = 0; waited < 3000 && (!cutsceneFlow.awaitingSceneInput || cutsceneFlow.sceneTransitioning); waited += 50) await waitFor(50);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === ''
+    && !UI.sceneFade.classList.contains('is-active'), 'The next scene fades in without showing its dialogue');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneLine.textContent === '두 번째 장면 대사', 'The next scene also requires a fresh input before dialogue');
+  cutsceneFlow.finish();
+  await waitFor(560);
+  ARCHIVE_DISABLE_TRANSITIONS = true;
+
   cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '', 'A story cutscene starts on a dialogue-free scene frame');
+  cutsceneFlow.advance();
   for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
+  await Promise.resolve();
   const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
   assert(cutsceneFlow.index === 3
     && UI.cutscene.dataset.phase === 'ending-a-break'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
     && indexedEnding[3].chapterLabel.includes('CS-06A 최종 증거 전송 · 대사 4/5'), 'CS-06A switches to the firewall-breaking artwork on its fourth dialogue');
+  cutsceneFlow.advance();
+  cutsceneFlow.completeTyping();
   const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
   assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
   cutsceneFlow.close();
@@ -83,27 +129,36 @@
     && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   document.querySelector('.qa-story-button[data-story-id="opening"]').click();
+  await Promise.resolve();
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
-    && UI.cutscene.dataset.cueKind === 'narration'
+    && UI.cutscene.dataset.cueKind === 'scene'
     && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 장면 설명 1/1 · 큐 1/14'
     && !cutsceneFlow.auto
     && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden'
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening also starts on a dialogue-free scene frame');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutscene.dataset.cueKind === 'narration'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display !== 'none'
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'visible'
     && UI.cutsceneLine.textContent.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.')
     && UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
-    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the OP-01 scene description and AUTO disabled');
+    && UI.qaPanel.classList.contains('hidden'), 'QA shows the first scene description only after input');
   UI.cutsceneAutoButton.click();
   assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
   UI.cutsceneAutoButton.click();
   assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
   cutsceneFlow.advance();
-  assert(UI.cutscene.dataset.phase === 'op-02'
+  assert(!cutsceneFlow.awaitingSceneInput
+    && UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
     && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'OP-01 to OP-02 reuses the same artwork, so no pause and no fade is needed');
   const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
   const systemLineRect = UI.cutsceneLine.getBoundingClientRect();
   cutsceneFlow.advance();
@@ -115,6 +170,14 @@
     && UI.cutsceneLine.textContent === '이상하다. 릴스가 끊길 리가 없는데.'
     && sameRect(systemPanelRect, dialoguePanelRect)
     && sameRect(systemLineRect, dialogueLineRect), 'OP-02 names Kim Min and keeps screen directions and dialogue at the same position');
+  cutsceneFlow.advance();
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === '', 'QA keeps later scene transitions dialogue-free too');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', code: 'KeyC' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneSpeaker.textContent === 'ARIA-26'
+    && UI.cutsceneLine.textContent.startsWith('디지털 공간에서 삭제된 순간'), 'QA reveals the later scene dialogue after one key');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
   assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();
@@ -125,6 +188,8 @@
     auto: false,
     forceDisplay: true,
   });
+  await Promise.resolve();
+  cutsceneFlow.advance();
   const everyScreenCueFits = screenCues.every(({ text }) => {
     UI.cutsceneLine.textContent = text;
     return UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1;
@@ -307,11 +372,11 @@
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   // 장애물은 코스에 미리 깔아 두지 않는다 — 사정거리 안으로 들어온 것만, 그것도 화면 오른쪽 바깥에서 태어난다.
   load('e6');
-  const flight = scene.stageGame.tuning;
+  const flight = scene.stageGame.tuning, tunnel = scene.stageGame.tunnel;
   assert(scene.gates.length <= 4 && scene.gates.every(gate => gate.x <= flight.spawnAhead), 'e6: only obstacles inside the spawn range exist');
   const bornGates = new Set(scene.gates.map(gate => gate.x));
   let poppedOnScreen = false, liveGates = scene.gates.length;
-  const memeWords = [];
+  const memeWords = scene.gates.map(gate => gate.word);
   advance(9, frame => {
     // 앞뒤 장애물의 통과 지점을 이어 그 선을 따라 난다(클리어 검사와 같은 조종).
     if (frame % 16 === 0) {
@@ -330,16 +395,28 @@
       bornGates.add(gate.x); memeWords.push(gate.word);
       if (gate.x - scene.state.x < 810) poppedOnScreen = true;
       // 밈 글자는 벽에 붙어 서고, 남은 통로는 언제나 minGap 이상 열려 있다.
-      const onWall = gate.side === 'top' ? gate.top === 168 : gate.bottom === 468;
-      const gap = gate.side === 'top' ? 468 - gate.bottom : gate.top - 168;
+      const onWall = gate.side === 'top' ? gate.top === tunnel.top : gate.bottom === tunnel.bottom;
+      const gap = gate.side === 'top' ? tunnel.bottom - gate.bottom : gate.top - tunnel.top;
       if (!onWall || gap < flight.minGap - .5 || gate.halfWidth <= 5) throw Error(`e6: bad meme pillar ${JSON.stringify(gate)}`);
     }
     liveGates = Math.max(liveGates, scene.gates.length);
   });
   assert(!poppedOnScreen, 'e6: obstacles are born off-screen instead of popping into view');
   assert(bornGates.size > scene.gates.length && liveGates <= 6, 'e6: passed obstacles are dropped instead of piling up');
-  const memeSentence = scene.stageGame.words;
-  assert(memeWords.length > 0 && memeWords.every((word, index) => word === memeSentence[(index + 2) % memeSentence.length]), 'e6: the meme sentence cycles through its words in order');
+  // 밈은 낱말이 아니라 세트로 선다. 어느 세트가 먼저 올지는 무작위라 순서는 보지 않고,
+  // 한 세트가 쪼개지지 않는지(여러분→저됐어요→뭣됐어요가 늘 붙어 나오는지)만 본다.
+  const memeSets = scene.stageGame.sets;
+  assert(memeWords.length > 0, 'e6: meme pillars carry words');
+  const usedSets = new Set();
+  for (let at = 0; at < memeWords.length;) {
+    const set = memeSets.find(candidate => candidate[0] === memeWords[at]);
+    if (!set) throw Error(`e6: '${memeWords[at]}' is not the head of any meme set`);
+    const run = memeWords.slice(at, at + set.length);
+    assert(run.every((word, step) => word === set[step]), `e6: meme set split apart at ${at}: ${run.join('/')}`);
+    usedSets.add(set); at += set.length;
+  }
+  // 한 세트가 두 바퀴째로 넘어가기 전에 나머지가 모두 나온다 — 열한 기둥이면 한 바퀴는 돈다.
+  assert(usedSets.size === memeSets.length, 'e6: every meme set shows up before any repeats a full cycle');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
   scene.state.y = 100; advance(.02);
   assert(scene.state.hits === 1 && scene.state.presses === presses, 'e6: collision retains gravity penalty');
@@ -348,7 +425,7 @@
   const spin = scene.stageGame.tuning;
   assert(scene.state.spinning && Math.abs(scene.state.speed) <= spin.maxSpeed && Math.abs(scene.state.speed) >= spin.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
-    scene.state.rotation = .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
+    scene.state.rotation = scene.stageGame.POINTER_ANGLE + Math.PI; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: miss ${miss} reduces friction`);
   }
@@ -504,16 +581,38 @@
   assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
   assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
     'The briefing shows the stage the story expects next');
-  assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
+  assert(UI.protocolBriefLives.textContent === 'MEMORY ◆◆◆', 'The briefing footer shows the remaining memory');
   const retryId = archiveRun.snapshot().expectedStageId;
-  protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
+  protocolSelectFlow.launchStage(retryId); scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  assert(modalFlow.isOpen()
+    && archiveRun.snapshot().phase === 'result'
+    && document.querySelector('#primary-button').textContent === '재접속 (R)', 'Stage failure waits for retry or main-menu input');
+  document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');
-  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one act life');
+  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one memory');
   assert(UI.stageHudAct.textContent === 'ACT 1/3' && UI.stageHudStage.textContent === 'STAGE 2/6'
-    && UI.stageHudLives.textContent.endsWith('◆◆◇') && UI.stageHudActRecords.textContent === '1/6'
-    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, lives, act records and total records');
+    && UI.stageHudLives.textContent === 'MEMORY ◆◆◇' && UI.stageHudActRecords.textContent === '1/6'
+    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, remaining memory, act records and total records');
   scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
+  protocolSelectFlow.reset(); protocolSelectFlow.open();
+  const exhaustionId = archiveRun.snapshot().expectedStageId;
+  protocolSelectFlow.launchStage(exhaustionId);
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  const exhaustedRun = archiveRun.snapshot();
+  assert(modalFlow.isOpen()
+    && exhaustedRun.transition === 'act-restarted'
+    && UI.modalTitle.textContent === '당신은 기억을 되찾는 데 실패했습니다.'
+    && UI.modalCopy.textContent === '기억을 모두 잃어버렸습니다.\n다시 기억을 되찾겠습니까?'
+    && UI.primaryButton.textContent === '기억 다시 되찾기 (R)'
+    && document.querySelector('#result-main-button').textContent === '메인 메뉴로', 'Exhausting all lives waits on clear retry/current-act and main-menu choices');
+  document.querySelector('#primary-button').click();
+  assert(!modalFlow.isOpen() && protocolSelectFlow.isBriefOpen()
+    && archiveRun.snapshot().transition === null, 'Current-act retry proceeds only after player confirmation');
   // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   protocolSelectFlow.reset();
@@ -537,6 +636,26 @@
   assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
     && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');
   codexFlow.close({ restoreFocus: false });
+  // 시작 카운트다운 — 판은 그려진 채로 3 · 2 · 1 · 시작!을 세고, 다 세고 나서야 엔진이 돈다.
+  ARCHIVE_STORY_SETTINGS.skipCountdown = false;
+  archiveGameBridge.stop();
+  const countdownStage = MINIGAME_CATALOG.find(stage => stage.id === 'e1');
+  archiveGameBridge.currentStage = countdownStage;
+  scene.loadStage('e1');
+  archiveGameBridge.beginCountdown();
+  const countdownShown = !UI.stageCountdown.hidden, countdownMode = scene.mode;
+  const countdownAnomaly = { shown: !UI.stageCountdownAnomaly.hidden, text: UI.stageCountdownAnomalyText.textContent };
+  const countdownLabels = [UI.stageCountdownValue.textContent];
+  while (archiveGameBridge.nextCountdownStep()) countdownLabels.push(UI.stageCountdownValue.textContent);
+  assert(countdownShown && countdownMode === 'ready' && countdownLabels.join(' ') === '3 2 1 시작!'
+    && UI.stageCountdown.hidden && scene.mode === 'playing' && scene.elapsed === 0,
+    'Countdown holds the stage at ready through 3 · 2 · 1 and then hands it to the engine');
+  // 숫자 아래 붉은 줄은 브리핑의 ANOMALY 칸과 같은 문장이고, 세는 내내 그대로 서 있는다.
+  assert(countdownAnomaly.shown && countdownAnomaly.text === countdownStage.anomaly
+    && UI.stageCountdownAnomalyText.textContent === countdownStage.anomaly,
+    'Countdown shows the stage anomaly under the number for every beat');
+  ARCHIVE_STORY_SETTINGS.skipCountdown = true;
+  archiveGameBridge.stop();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   return { passed: checks.length, checks: checks.filter(name => !name.startsWith('Unique random selection')) };
 })()

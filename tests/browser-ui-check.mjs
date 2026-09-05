@@ -81,8 +81,9 @@ check("Phaser 캔버스 생성", initial.canvas === 1, `${initial.canvas}개`);
 
 // "게임 시작" → 컷신 → 프로토콜 브리핑. 컷신은 SKIP으로 건너뛴다.
 await evaluate("document.querySelector('#main-play-button').click()");
-await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
-await wait(80);
+await wait(560);
+await evaluate("document.querySelector('#cutscene-skip-button').click()");
+await wait(300);
 /* 고를 목록은 없다 — 컷신이 끝나면 이번 차례의 브리핑이 바로 뜬다. */
 const briefState = await evaluate(`({
   visible: !document.querySelector('#stage-select-screen').classList.contains('hidden'),
@@ -111,7 +112,9 @@ const startState = await evaluate(`({
   pauseVisible: !document.querySelector('#pause-button').hidden,
   hudVisible: !document.querySelector('#stage-hud').hidden,
   title: document.querySelector('#stage-hud-title').textContent,
-  timer: Number(document.querySelector('#stage-hud-timer').textContent)
+  timer: Number(document.querySelector('#stage-hud-timer').textContent),
+  countdownVisible: !document.querySelector('#stage-countdown').hidden,
+  countdownText: document.querySelector('#stage-countdown-value').textContent
 })`);
 check(
   "모니터 안에서 스테이지 시작",
@@ -134,6 +137,20 @@ const canvasFit = await evaluate(`(() => {
   };
 })()`);
 check("캔버스가 모니터 스크린을 꽉 채움", canvasFit.gapX <= 1 && canvasFit.gapY <= 1, JSON.stringify(canvasFit));
+
+/*
+ * 시작 카운트다운 — 판은 그려진 채로 3 · 2 · 1 · 시작!을 세고, 그동안 20.26초는 그대로다.
+ * (칸 길이는 js/game.js의 COUNTDOWN_STEPS. 다 세는 데 2.3초쯤 걸린다.)
+ */
+check("시작 카운트다운 노출", startState.countdownVisible && startState.countdownText === "3", JSON.stringify(startState));
+const countingTimer = await evaluate("Number(document.querySelector('#stage-hud-timer').textContent)");
+check("카운트다운 중 타이머 정지", countingTimer === startState.timer, `${startState.timer} → ${countingTimer}`);
+await wait(2600);
+const countdownDone = await evaluate(`({
+  hidden: document.querySelector('#stage-countdown').hidden,
+  mode: window.archivePhaserGame.scene.getScene('archive-game').mode
+})`);
+check("카운트다운이 끝나면 판이 돈다", countdownDone.hidden && countdownDone.mode === "playing", JSON.stringify(countdownDone));
 
 await wait(350);
 const runningTimer = await evaluate("Number(document.querySelector('#stage-hud-timer').textContent)");
@@ -175,7 +192,8 @@ check("결과 화면 재도전", retryState.resultHidden && retryState.timer > 1
 
 const stageIds = ["maze", "gravity", "bounce", "friction", "stack"];
 for (const stageId of stageIds) {
-  const state = await evaluate(`archiveGameBridge.start(${JSON.stringify(stageId)}); ({
+  /* 여기서는 로드만 확인한다 — 3 · 2 · 1은 위에서 이미 검사했으므로 곧바로 넘긴다. */
+  const state = await evaluate(`archiveGameBridge.start(${JSON.stringify(stageId)}); archiveGameBridge.finishCountdown(); ({
     id: archiveGameBridge.currentStage?.id,
     mode: window.archivePhaserGame.scene.getScene('archive-game').mode,
     childCount: window.archivePhaserGame.scene.getScene('archive-game').children.length

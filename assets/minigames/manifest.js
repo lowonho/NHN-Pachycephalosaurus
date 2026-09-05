@@ -40,7 +40,19 @@ globalThis.MINIGAME_ASSETS = {
     thatch: 'assets/minigames/e4/초가집 (1).png', thatchAlt: 'assets/minigames/e4/초가집2.png',
     inn: null, longHouse: null,
   },
-  e5: { projectile: null, target: null }, e6: { player: null },
+  e5: { projectile: null, target: null },
+  // e6: oiia 고양이 회전 여섯 장. 스페이스를 누르는 동안 spin1→spin6 을 돌리고 놓으면 spin1 에
+  // 멈춘다(e6_gravityFlight.js 의 SPIN_FPS). 여섯 장 모두 같은 사각형으로 잘라 회전축이
+  // 흔들리지 않고, 원본 시트에서 굽는 일은 scripts/bake-oiia-cat.ps1 이 한다.
+  e6: {
+    spin1: 'assets/images/minigame/geomatric%20fly/spin1.webp',
+    spin2: 'assets/images/minigame/geomatric%20fly/spin2.webp',
+    spin3: 'assets/images/minigame/geomatric%20fly/spin3.webp',
+    spin4: 'assets/images/minigame/geomatric%20fly/spin4.webp',
+    spin5: 'assets/images/minigame/geomatric%20fly/spin5.webp',
+    spin6: 'assets/images/minigame/geomatric%20fly/spin6.webp',
+    player: null,
+  },
   e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },
   // e10: 정사각 프레임. 이동 4×1, 점프 4×2 (왼쪽부터 행 우선). 셀 해상도는 자동 감지.
   e10: {

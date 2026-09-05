@@ -7,9 +7,9 @@
  * 컨셉 이미지와 다른 점.
  *   · 고를 목록(캐러셀·타일 판)이 없다. 이번 차례의 브리핑 한 장만 뜬다.
  *   · 화면을 떠나는 PAUSE는 모니터 밖(방의 우상단)에 둔다.
- *   · 현재 스테이지의 20.26초는 책상 위 탁상시계에 표시한다.
+ *   · 현재 스테이지의 20.26초는 스크린 안 HUD가 표시한다(책상 위 시계는 두지 않는다).
  *
- * 방·책상·소품(머그·포스트잇·메모·시계 몸체)·키보드·양손은 에셋이다
+ * 방·책상·소품(머그·포스트잇·메모)·키보드·양손은 에셋이다
  * (assets/images/ui/stage select/*). 모니터 몸체와 스크린 안쪽만 CSS로 그린다.
  * 크기는 전부 1920×1080 설계 좌표(px)다 — css/base.css의 "UI 배율 규칙"을 따른다.
  */
@@ -252,6 +252,144 @@
   }
 }
 
+/*
+ * ── 연출 자세(주먹 · 따봉) ──────────────────────────────────────────
+ *
+ * 제한시간 안에서 죽고 다시 소환될 때 주먹으로 키보드를 샷건 치고,
+ * 클리어했을 때 따봉을 든다.
+ * 뜨는 동안에는 타자 손이 숨는다(js/ui/desk-hands.js의 playPose).
+ *
+ * 타자 손과 달리 좌우를 나누지 않는다 — 두 손이 같이 움직이는 자세라
+ * 엇갈릴 일이 없고, 한 장이면 두 손 사이 간격이 원화 그대로 유지된다.
+ *
+ * 자리와 크기는 팔뚝 단면으로 맞췄다. 세 자세 모두 소매가 아래변으로 빠져나가는데,
+ * 그 단면의 폭과 중심을 타자 손과 같게 두면 자세가 바뀌어도 팔이 같은 데서
+ * 뻗어 나온 것처럼 보인다. 손 크기로 맞추면 안 된다 — 주먹은 편 손보다 원래 좁다.
+ * 아래변도 타자 손과 같은 자리(y 1456, 화면 밖)에 세워 두었다.
+ *   주먹  팔뚝 원본폭 321 → 화면 240  배율 0.746  → 시트 1672 × 0.746 ≈ 1247
+ *   따봉  팔뚝 원본폭 400 → 화면 240  배율 0.599  → 시트 2048 × 0.599 ≈ 1226
+ */
+.scene-pose {
+  z-index: 8;
+  will-change: transform;
+}
+
+.scene-pose--fists {
+  top: 924px;
+  left: 336px;
+  width: 1247px;
+}
+
+/* 따봉은 엄지가 키보드 위로 올라오므로 시작 자리가 타자 손보다 높다. */
+.scene-pose--thumbs {
+  top: 865px;
+  left: 347px;
+  width: 1226px;
+}
+
+/*
+ * 샷건 — 한 번 내려찍고 마는 게 아니라 세 번 두들긴다.
+ * 들어 올릴 때는 ease-out, 내려찍을 때는 ease-in으로 가속을 붙여야 "친다"가 된다
+ * (한 가지 타이밍 함수로 통일하면 물에 잠긴 것처럼 흐물거린다).
+ * 내려찍은 직후 조금 되튀는 구간(18 → 12)이 충격을 만든다.
+ * 마지막에는 제자리(0)로 돌아온다 — 여기서 타자 손으로 갈아타므로
+ * 다른 값에서 끝나면 손이 툭 튄다.
+ */
+.scene-pose--fists[data-playing] {
+  animation: desk-pose-slam 900ms both;
+}
+
+@keyframes desk-pose-slam {
+  0% {
+    transform: translateY(-42px);
+    animation-timing-function: ease-in;
+  }
+
+  9% {
+    transform: translateY(18px);
+    animation-timing-function: ease-out;
+  }
+
+  15% {
+    transform: translateY(12px);
+    animation-timing-function: ease-out;
+  }
+
+  24% {
+    transform: translateY(-38px);
+    animation-timing-function: ease-in;
+  }
+
+  34% {
+    transform: translateY(20px);
+    animation-timing-function: ease-out;
+  }
+
+  40% {
+    transform: translateY(13px);
+    animation-timing-function: ease-out;
+  }
+
+  49% {
+    transform: translateY(-38px);
+    animation-timing-function: ease-in;
+  }
+
+  59% {
+    transform: translateY(22px);
+    animation-timing-function: ease-out;
+  }
+
+  66% {
+    transform: translateY(14px);
+    animation-timing-function: ease-out;
+  }
+
+  82% {
+    transform: translateY(-14px);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 따봉 — 책상 아래에서 올라왔다가 잠깐 서고 다시 내려간다.
+ * 230px이면 자세가 화면 밖으로 완전히 빠진다(윗변 865 + 230 > 1080).
+ * 그래서 서서히 사라지게 할 필요가 없다 — 키보드 뒤에서 올라오는 게 더 자연스럽다.
+ * 올라올 때 살짝 지나쳤다가(-16px) 제자리에 서는 게 "척" 드는 맛을 만든다.
+ */
+.scene-pose--thumbs[data-playing] {
+  animation: desk-pose-thumbs 900ms both;
+}
+
+@keyframes desk-pose-thumbs {
+  0% {
+    transform: translateY(230px);
+    animation-timing-function: cubic-bezier(0.18, 0.9, 0.3, 1.25);
+  }
+
+  26% {
+    transform: translateY(-16px);
+    animation-timing-function: ease-out;
+  }
+
+  38% {
+    transform: translateY(0);
+  }
+
+  68% {
+    transform: translateY(0);
+    animation-timing-function: ease-in;
+  }
+
+  100% {
+    transform: translateY(230px);
+  }
+}
+
 /* ── 모니터 ────────────────────────────────────────────────────────── */
 
 /*
@@ -364,90 +502,6 @@
   content: "";
 }
 
-/* ── 탁상시계 ──────────────────────────────────────────────────────── */
-
-/*
- * 컨셉 이미지의 책상 위 시계. 현재 스테이지 20.26초를 1/100초까지 띄운다.
- *
- * 모니터 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 계속 보인다.
- * 남은 스테이지 시간을 보여 주는 곳은 여기 하나뿐이다(스크린 안에는 두지 않는다).
- *
- * 몸체는 에셋이고 유리판은 비어 있다. 숫자만 그 위에 얹는다.
- */
-.desk-clock {
-  position: absolute;
-  z-index: 6;
-  top: 894px;
-  left: 1596px;
-  width: 304px;
-}
-
-.desk-clock-body {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-}
-
-/*
- * LED 유리판 자리 — 06_front_blank_clock_2k.png(1854×678)에서 잰 값이다.
- *   left 5.39% · top 25.96% · width 75.84% · height 55.16%
- * 몸체 폭에 대한 %라서 시계 크기를 바꿔도 숫자가 유리판 밖으로 나가지 않는다.
- */
-.desk-clock-face {
-  position: absolute;
-  top: 25.96%;
-  left: 5.39%;
-  display: grid;
-  width: 75.84%;
-  height: 55.16%;
-  margin: 0;
-  place-items: center;
-}
-
-/* baseline 정렬이라 작은 1/100초 자리가 초 숫자의 밑줄에 맞는다. */
-.desk-clock-time {
-  display: flex;
-  align-items: baseline;
-  color: var(--pro-alarm);
-  font: 900 44px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 16px rgba(255, 59, 82, 0.85);
-}
-
-.desk-clock-sep {
-  opacity: 0.72;
-}
-
-/* 1/100초는 한 단계 작게 — 분·초를 먼저 읽게 한다. */
-.desk-clock-centis {
-  font-size: 28px;
-  opacity: 0.9;
-}
-
-/* 30초 아래로 떨어지면 깜빡인다. */
-.desk-clock[data-state="urgent"] .desk-clock-time {
-  animation: desk-clock-pulse 820ms ease-in-out infinite;
-}
-
-@keyframes desk-clock-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.42;
-  }
-}
-
-/* 스테이지 종료 뒤에는 시계를 세우고 경보색을 푼다. */
-.desk-clock[data-state="done"] .desk-clock-time {
-  color: #ffd9de;
-  text-shadow: 0 0 16px rgba(255, 217, 222, 0.8);
-}
-
 /* ── 스크린 ────────────────────────────────────────────────────────── */
 
 /*
@@ -549,6 +603,171 @@
   opacity: 0.45;
 }
 
+/* ── 전원 연출(막이 시작될 때 모니터에 불이 들어온다) ─────────────── */
+
+/*
+ * 옛 브라운관이 켜지는 모양이다. 순서는 네 겹이 시간차로 만든다.
+ *   1) 검은 커튼 두 장이 스크린을 덮은 채 시작한다.
+ *   2) 십자 광선(세로 + 가로)이 가운데에서 번쩍인다.
+ *   3) 세로선이 먼저 꺼지고 가로선 한 줄만 남는다.
+ *   4) 커튼이 그 선을 따라 위아래로 갈라지며 화면이 뜬다(끝에 한 번 껌뻑).
+ *
+ * 스크린 안 맨 위 겹이다 — 주사선·반사광(z-index 30)까지 덮어야 "꺼진 화면"이 된다.
+ * 연출이 도는 동안에도 브리핑은 그대로 살아 있다(hidden 속성으로만 여닫는다).
+ */
+.protocol-power {
+  /* 연출 길이 한 곳 — 네 겹이 같은 시간을 나눠 쓴다(js/ui/protocol-select-flow.js의 POWER_ON_MS와 같은 값). */
+  --power-on-ms: 980ms;
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.protocol-power[hidden] {
+  display: none;
+}
+
+/* 검은 커튼 — 위·아래 두 장이 가운데 선에서 갈라진다. */
+.protocol-power-shade {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  /* 딱 50%면 가운데 이음매에 1px 틈이 비친다. 아주 조금 겹쳐 둔다. */
+  height: 50.4%;
+  background: #01040a;
+  animation: protocol-power-shade var(--power-on-ms, 980ms) cubic-bezier(0.16, 0.84, 0.3, 1) both;
+}
+
+.protocol-power-shade[data-half="top"] {
+  top: 0;
+  transform-origin: top;
+}
+
+.protocol-power-shade[data-half="bottom"] {
+  bottom: 0;
+  transform-origin: bottom;
+}
+
+/* 세로 광선 — 십자의 기둥. 가로선보다 먼저 사라진다. */
+.protocol-power-cross {
+  position: absolute;
+  top: 0;
+  left: calc(50% - 2px);
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, #eafcff 14%, #ffffff 50%, #eafcff 86%, transparent);
+  box-shadow:
+    0 0 18px rgba(87, 232, 255, 0.9),
+    0 0 52px rgba(31, 92, 255, 0.7);
+  animation: protocol-power-cross var(--power-on-ms, 980ms) ease-out both;
+}
+
+/* 가로 광선 — 커튼이 갈라지는 자리. 화면이 열린 뒤에 번지며 꺼진다. */
+.protocol-power-beam {
+  position: absolute;
+  top: calc(50% - 2px);
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, #eafcff 8%, #ffffff 50%, #eafcff 92%, transparent);
+  box-shadow:
+    0 0 22px rgba(150, 240, 255, 0.95),
+    0 0 64px rgba(31, 92, 255, 0.75);
+  animation: protocol-power-beam var(--power-on-ms, 980ms) cubic-bezier(0.18, 0.86, 0.28, 1) both;
+}
+
+/* 화면이 열리는 순간의 과노출. 마지막에 한 번 껌뻑인다. */
+.protocol-power-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(122% 74% at 50% 50%, rgba(214, 248, 255, 0.55), rgba(31, 92, 255, 0.14) 56%, transparent 78%);
+  animation: protocol-power-flash var(--power-on-ms, 980ms) ease-out both;
+}
+
+@keyframes protocol-power-shade {
+  0%,
+  38% {
+    transform: scaleY(1);
+  }
+  82%,
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes protocol-power-cross {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  8% {
+    opacity: 1;
+  }
+  18%,
+  30% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  40%,
+  100% {
+    opacity: 0;
+    transform: scaleY(0.02);
+  }
+}
+
+@keyframes protocol-power-beam {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  6% {
+    opacity: 1;
+  }
+  22%,
+  40% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  72% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1) scaleY(2.4);
+  }
+}
+
+@keyframes protocol-power-flash {
+  0%,
+  34% {
+    opacity: 0;
+  }
+  42% {
+    opacity: 1;
+  }
+  58% {
+    opacity: 0.22;
+  }
+  66% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/*
+ * 모션을 줄여 달라고 한 사람에게는 번쩍임을 보이지 않는다.
+ * (js/ui/protocol-select-flow.js도 같은 조건에서 아예 켜지 않는다.)
+ */
+@media (prefers-reduced-motion: reduce) {
+  .protocol-power {
+    display: none;
+  }
+}
+
 /* 컨셉 이미지 우상단의 바코드 같은 눈금. */
 .protocol-meta-rule {
   width: 132px;
@@ -561,7 +780,7 @@
 
 /*
  * 화면이 열리면 스크린 안에 이 앱이 뜬다 — 화면을 덮는 대사창이 아니라
- * 모니터 안의 UI다(data-mode="brief"). 방·책상·모니터·탁상시계는 그대로 서 있고
+ * 모니터 안의 UI다(data-mode="brief"). 방·책상·모니터는 그대로 서 있고
  * 스크린 안쪽만 브리핑 → 플레이로 갈린다.
  *
  * 뼈대는 표제 → 본문 → 하단 바 순서로 쌓는다.
@@ -803,7 +1022,7 @@
   font-size: 17px;
 }
 
-/* 하단 바 — 왼쪽에 남은 목숨과 안내 문구, 오른쪽에 시작 버튼. */
+/* 하단 바 — 왼쪽에 남은 기억과 안내 문구, 오른쪽에 시작 버튼. */
 .protocol-brief-actions {
   display: flex;
   align-items: center;
@@ -821,7 +1040,7 @@
 }
 
 /*
- * 남은 목숨 — 브리핑에 남긴 유일한 진행도다.
+ * 남은 기억 — 브리핑에 남긴 유일한 진행도다.
  * 마름모는 시안, 잃은 자리는 흐리게 두어 한눈에 개수가 읽힌다.
  */
 .protocol-brief-lives {

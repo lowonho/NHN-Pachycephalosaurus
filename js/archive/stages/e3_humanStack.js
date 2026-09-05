@@ -33,14 +33,16 @@ export const E3_HUMAN_STACK = {
     settleSpeed: 18, settleAngularSpeed: .22,
     // 대기 위치가 오가는 폭. 성공선도 이 폭에 맞춰 긋습니다.
     railLeft: 260, railRight: 700,
-    // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
-    // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
-    baseY: 452, baseWidth: 228, floorY: 500, dropHeight: 292, debugPhysics: false,
+    // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리이며 고정값입니다.
+    // 탑이 자라도 대기 위치는 움직이지 않으므로 떨어뜨리는 높이가 수시로 바뀌지 않고,
+    // 마지막 한 명까지 늘 같은 감으로 겨냥할 수 있습니다.
+    baseY: 452, baseWidth: 276, floorY: 500, dropHeight: 330, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
-    // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
-    markerX: 900, markerHeight: 76, goalRight: 838,
+    // 성공선 오른쪽 끝에 붙여 세워 두는 표지. 화살표가 선을 가리킵니다.
+    // markerGap은 선의 오른쪽 끝에서 표지 중심까지의 거리라, 선이 짧아지면 표지도 따라붙습니다.
+    markerHeight: 76, markerGap: 62,
   },
   // 좌표 원점은 그림의 정중앙. [중심x, 중심y, 가로, 세로] 사각형들이 실제 충돌체이고,
   // 같은 원점의 그림이 그 위에 얹힙니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
@@ -71,8 +73,7 @@ export const E3_HUMAN_STACK = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
     };
-    // 조작 안내는 띄우지 않는다 — 회전 화살표와 클릭만으로 조작이 드러난다.
-    this.instruction?.setVisible(false);
+    // 조작 안내는 다른 미니게임과 같은 자리(화면 최하단)에 그대로 둔다.
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
         const a = pair.collision.parentA, b = pair.collision.parentB;
@@ -200,14 +201,15 @@ export const E3_HUMAN_STACK = {
     M.Engine.update(this.stackWorld, dt * 1000);
     E3_HUMAN_STACK.cullFallen.call(this);
     const top = E3_HUMAN_STACK.measureTower.call(this);
-    // 대기 위치는 늘 탑 꼭대기(없으면 단상 윗면)에서 dropHeight만큼 위입니다 —
-    // 탑이 자라도 겨냥할 거리가 그대로라 마지막 한 명도 처음과 같은 감으로 놓습니다.
-    // 그만큼 대기 위치가 올라가므로 시야는 아래 zoom이 부드럽게 물려 줍니다.
-    s.spawnY = Math.min(t.baseY, top) - t.dropHeight;
+    // 대기 위치는 단상 윗면에서 dropHeight만큼 위로 고정입니다 — 탑이 자라도
+    // 떨어뜨리는 높이가 수시로 바뀌지 않아 매번 같은 감으로 겨냥할 수 있습니다.
+    s.spawnY = t.baseY - t.dropHeight;
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    // 누운 자세는 가로로 기니 그만큼 넓게 살피고, 탑이 고정 대기 위치보다 높이 자라면 그만큼만 밀어 올립니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
-    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - s.spawnY + 62), .35, 1);
+    // 시야는 대기 위치와 실제 탑 높이 중 더 높은(작은 y) 쪽에 맞춰 물러납니다.
+    const viewTop = Math.min(s.spawnY, top);
+    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - viewTop + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
     for (const impact of s.impacts) impact.age += dt;
@@ -262,11 +264,12 @@ export const E3_HUMAN_STACK = {
     for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
     // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
     this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
-    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
-    // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
+    // 표지는 성공선 오른쪽 끝에 붙어 따라다닙니다. 가슴의 화살표가 선을 가리키며,
+    // 시야가 줄어 선이 짧아져도 선 끝과의 간격은 그대로라 크기만 변하지 않습니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
     if (marker) {
-      marker.setPosition(t.markerX, goal.y)
+      marker.setPosition(dashTo + t.markerGap, goal.y)
         .setDisplaySize(t.markerHeight * E3_SHAPES.line.width / E3_SHAPES.line.height, t.markerHeight);
     }
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.

@@ -10,7 +10,7 @@
   for (let miss = 0; miss < 4; miss++) {
     const s = scene.state, count = 8;
     assert(s.countries.length === count && s.countries.filter(c => c === s.target).length === 1, 'Exactly one winning country per equal-sector wheel');
-    s.rotation = .3; s.speed = .0001; s.deceleration = 8; s.spinning = true;
+    s.rotation = scene.stageGame.POINTER_ANGLE + Math.PI; s.speed = .0001; s.deceleration = 8; s.spinning = true;
     step(.02);
     assert(s.misses === miss + 1 && scene.coachBack.visible && !scene.coach.visible, 'Miss displays back pose');
     scene.pointerAction(620, 321);
@@ -18,7 +18,7 @@
     step(1.2);
     assert(scene.coach.visible && !scene.coachBack.visible && s.countries.length === count, 'Next draw preserves sectors and resets pose');
   }
-  scene.state.rotation = -.1; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
+  scene.state.rotation = scene.stageGame.POINTER_ANGLE - .1; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
   step(.02);
   assert(scene.mode === 'done', 'Winning country finishes the game');
   scene.loadStage('e7');
