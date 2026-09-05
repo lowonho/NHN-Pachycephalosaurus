@@ -116,7 +116,12 @@ export const E3_HUMAN_STACK = {
     const s = this.state, t = E3_HUMAN_STACK.tuning;
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
-    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
+    // 대기 위치(s.spawnY)는 화면에 늘 고정으로 보여 주지만, 드물게 탑이 그 높이까지
+    // 올라온 채로 떨어뜨리면 사람이 겹쳐 생성될 수 있어 실제 생성 위치만 국소적으로 밀어 올립니다.
+    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    let spawnY = s.spawnY;
+    for (const other of this.people) if (Math.abs(other.position.x - s.x) < 130) spawnY = Math.min(spawnY, other.bounds.min.y - 70);
+    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, spawnY, s.nextPose, s.nextAngle);
     // 레일이 달리던 좌우 속도를 그대로 물려줍니다 — 빠를 때 떨어뜨리면 그만큼 옆으로 흐릅니다.
     // Matter의 속도 단위는 60Hz 한 프레임의 이동량이라 초당 픽셀을 60으로 나눠 넣습니다.
     // 초기 방향 이후의 회전은 실제 충돌에 맡깁니다.
@@ -201,12 +206,10 @@ export const E3_HUMAN_STACK = {
     M.Engine.update(this.stackWorld, dt * 1000);
     E3_HUMAN_STACK.cullFallen.call(this);
     const top = E3_HUMAN_STACK.measureTower.call(this);
-    // 대기 위치는 단상 윗면에서 dropHeight만큼 위로 고정입니다 — 탑이 자라도
-    // 떨어뜨리는 높이가 수시로 바뀌지 않아 매번 같은 감으로 겨냥할 수 있습니다.
+    // 대기 위치는 단상 윗면에서 dropHeight만큼 위로 완전히 고정입니다 — 카트가 탑 위를
+    // 지나가며 근처 사람 유무가 바뀌어도 이 값 자체는 흔들리지 않습니다. 겹침 방지는
+    // 실제로 떨어뜨리는 순간(action)에만 국소적으로 처리합니다.
     s.spawnY = t.baseY - t.dropHeight;
-    // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    // 누운 자세는 가로로 기니 그만큼 넓게 살피고, 탑이 고정 대기 위치보다 높이 자라면 그만큼만 밀어 올립니다.
-    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
     // 시야는 대기 위치와 실제 탑 높이 중 더 높은(작은 y) 쪽에 맞춰 물러납니다.
     const viewTop = Math.min(s.spawnY, top);
     const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - viewTop + 62), .35, 1);

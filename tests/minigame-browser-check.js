@@ -294,8 +294,8 @@
   }
   assert(heights.slice(1, 5).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
   assert(heights[0] > 190 && heights[2] < heights[0] * .75 && heights[4] > 80, 'e2: early jump reduction preserves useful mid-course height');
-  assert(heights[8] < heights[5] && heights[8] > heights[10] + 5, 'e2: jump height keeps changing into the late course');
-  assert(Math.abs(heights[11] - heights[12]) < .01 && heights[12] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
+  assert(heights[8] < heights[5] && heights[8] > heights[9] + 2, 'e2: jump height keeps changing into the late course');
+  assert(Math.abs(heights[10] - heights[12]) < .01 && heights[12] > 30, 'e2: heavily damaged ball retains a usable minimum bounce');
   assert(scene.state.shards.length === 0, 'e2: emitted wax shards expire');
   scene.primaryAction();
   const pausedShards = JSON.stringify(scene.state.shards);
@@ -304,9 +304,18 @@
   archiveGame.pause(false);
   load('e2');
   assert(scene.state.jumps === 0 && scene.state.shards.length === 0 && scene.stageGame.jumpPower.call(scene) > weakened, 'e2: fresh attempt restores shell and jump power');
-  // A high assisted jump can pass the former ceiling without dying or resetting damage.
-  scene.touch.add('up'); scene.primaryAction(); advance(.8);
-  assert(scene.state.y < 188 && scene.state.deaths === 0 && scene.state.jumps === 1, 'e2: former ceiling is open for high jumps');
+  const verticalSample = direction => {
+    load('e2'); scene.state.jumps = 100; scene.touch.clear();
+    if (direction) scene.touch.add(direction);
+    scene.primaryAction(); advance(.2);
+    return { y: scene.state.y, vy: scene.state.vy };
+  };
+  const neutralJump = verticalSample(null), upJump = verticalSample('up'), downJump = verticalSample('down');
+  assert(Math.abs(neutralJump.y - upJump.y) < .001 && Math.abs(neutralJump.vy - upJump.vy) < .001
+    && Math.abs(neutralJump.y - downJump.y) < .001 && Math.abs(neutralJump.vy - downJump.vy) < .001,
+  'e2: W/S inputs do not alter the jump trajectory');
+  assert(MINIGAME_CATALOG.find(stage => stage.id === 'e2').controls === 'A/D 이동 · Space 점프',
+    'e2: stage UI lists only A/D and Space controls');
   load('e2');
   const lift = scene.platforms.find(p => p.kind === 'lift'), startLiftY = lift.y;
   Object.assign(scene.state, { x: lift.x + lift.w / 2, y: lift.y - 20, platformIndex: lift.index, grounded: true, vy: 0 });
@@ -327,22 +336,22 @@
   advance(1);
   assert(crumble.active && crumble.crumbleLeft === null, 'e2: collapsed platform rebuilds for another attempt');
   load('e2');
-  // The weakened ball needs W assistance and late takeoffs on the harder course.
-  scene.state.jumps = 100; driveE2();
-  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: assisted minimum jump can clear the terrain (${scene.state.x}, deaths ${scene.state.deaths})`);
+  // Natural jump decay still allows a full clear using only late A/D + Space jumps.
+  driveE2();
+  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: progressively weakened jumps clear without air control (${scene.state.x}, deaths ${scene.state.deaths})`);
   // Reach the fixed final staircase across different elevator phases using end-of-platform takeoffs.
   for (const phase of [0, .7, 1.4, 2.1]) {
     load('e2'); const p = scene.platforms[5];
     Object.assign(scene.state, { x: p.x + 50, y: p.y - 20, checkpoint: p.x + 50, platformIndex: p.index, jumps: 100 });
     scene.elapsed = phase;
-    driveE2(18, { reactionFrames: 2, edge: 6, allowAssist: false });
-    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears without W at minimum bounce with edge jumps (phase ${phase})`);
+    driveE2(18, { reactionFrames: 2, edge: 6 });
+    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears at minimum bounce with edge jumps (phase ${phase})`);
   }
   load('e2');
   const stair = scene.platforms[12], nextStair = scene.platforms[13];
   Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
   scene.touch.add('right'); scene.primaryAction(); advance(.8);
-  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
+  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses at minimum bounce');
   // Aim both drops at the pedestal: with no floor, a miss falls off the screen and is removed.
   load('e3'); scene.state.x = 480; scene.primaryAction(); advance(.5); scene.state.x = 480; scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
