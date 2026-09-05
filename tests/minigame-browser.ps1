@@ -103,7 +103,7 @@ try {
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'qa-story-panel.png'), [Convert]::FromBase64String($shot.data))
   Evaluate "qaModeFlow.deactivate();" | Out-Null
-  foreach ($phase in @('op-01', 'op-02', 'op-03', 'op-05', 'op-09', 'assist', 'betrayal', 'experiment', 'ending-d-break', 'ending-d')) {
+  foreach ($phase in @('op-01', 'op-02', 'op-03', 'op-05', 'op-09', 'assist', 'betrayal', 'experiment', 'ending-a', 'ending-b', 'ending-c', 'ending-d-break', 'ending-d')) {
     Evaluate "mainMenuFlow.close(); protocolSelectFlow.close(); UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('$phase'); UI.cutscene.dataset.phase='$phase'; UI.cutscene.dataset.cueKind='system'; UI.cutsceneChapter.textContent='컷신 미리보기 // $phase'; UI.cutsceneSpeaker.textContent=''; UI.cutsceneLine.textContent='배경 확인'; UI.cutscenePanel.dataset.state='done';" | Out-Null
     Start-Sleep -Milliseconds 80
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }

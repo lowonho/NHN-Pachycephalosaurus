@@ -35,17 +35,20 @@ assert.equal(story.cutscenes.betrayal.script.reduce((sum, cue) => sum + cue.dura
 assert.equal(story.cutscenes.source.script.reduce((sum, cue) => sum + cue.durationMs, 0), 8_100);
 assert.equal(story.cutscenes.experiment.script.reduce((sum, cue) => sum + cue.durationMs, 0), 11_800);
 assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 18_500);
-assert.equal(story.cutscenes.opening.script[0].kind, 'silent', 'OP-01에는 대사가 없어야 한다');
-assert.equal(story.cutscenes.opening.script[0].text, '');
+assert.equal(story.cutscenes.opening.script[0].kind, 'narration', 'OP-01은 인물 대사가 아닌 장면 설명이어야 한다');
+assert.ok(story.cutscenes.opening.script[0].text.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.'));
 assert.deepEqual(Object.keys(story.cutscenes), [
   'opening', 'assist', 'betrayal', 'source', 'experiment', 'ending',
 ]);
 assert.ok(Object.values(story.cutscenes).every((cutscene) => cutscene.auto === false), '모든 스토리 컷신은 AUTO OFF로 시작해야 한다');
 const screenCues = Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
+const dialogueCues = Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'dialogue');
 assert.ok(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), '컷신 화면 문구에는 영문이 없어야 한다');
+assert.ok(dialogueCues.some(({ speaker }) => speaker === '김민') && dialogueCues.every(({ speaker }) => speaker !== '플레이어'), '주인공 화자명은 김민으로 통일해야 한다');
+assert.ok(story.cutscenes.opening.script.some(({ speaker, text }) => speaker === '김민' && text === '이상하다. 릴스가 끊길 리가 없는데.'), 'OP-02 김민 대사를 반영해야 한다');
 assert.deepEqual(
   Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'silent').map(({ phase }) => phase),
-  ['op-01', 'op-09', 'ending-d-break'],
+  ['op-09', 'ending-d-break'],
   '영문 화면 문구를 삭제한 자리에 빈 무대사 큐가 남으면 안 된다',
 );
 assert.equal(story.backgrounds['op-01'], story.backgrounds['op-02'], 'OP-02까지 첫 화면을 유지해야 한다');

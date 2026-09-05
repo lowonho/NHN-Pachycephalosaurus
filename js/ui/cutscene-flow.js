@@ -300,10 +300,10 @@ class CutsceneFlow {
       return;
     }
 
-    seen.filter(({ kind }) => kind !== "silent").forEach(({ speaker = "", text = "" }) => {
+    seen.filter(({ kind }) => kind !== "silent").forEach(({ speaker = "", text = "", kind = "dialogue" }) => {
       const item = document.createElement("li");
       const who = document.createElement("strong");
-      who.textContent = speaker;
+      who.textContent = speaker || (kind === "narration" ? "장면 설명" : "");
       item.append(who, document.createTextNode(String(text)));
       list.append(item);
     });

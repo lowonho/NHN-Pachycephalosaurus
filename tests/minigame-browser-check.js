@@ -15,13 +15,18 @@
     image.onerror = () => reject(new Error(`Cutscene image failed to load: ${path}`));
     image.src = new URL(path, document.baseURI).href;
   })));
-  assert(cutsceneImagePaths.length === 8 && cutsceneImageSizes.every(({ width, height }) => Math.abs(width / height - 16 / 9) < .002), 'Eight cutscene backgrounds load at 16:9');
+  assert(cutsceneImagePaths.length === 9
+    && cutsceneImageSizes.every(({ width, height }) => width >= 1280 && height >= 720)
+    && cutsceneImageSizes.slice(0, -1).every(({ width, height }) => Math.abs(width / height - 16 / 9) < .03), 'Nine cutscene backgrounds load at widescreen presentation resolution');
   assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
     && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op1.png')
     && SCENARIO_DATA.backgrounds['op-03'].endsWith('/op02.png')
     && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
     && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
     && SCENARIO_DATA.backgrounds.experiment.endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png')
+    && SCENARIO_DATA.backgrounds['ending-a'].endsWith('/barrier.png')
+    && SCENARIO_DATA.backgrounds['ending-b'].endsWith('/barrier.png')
+    && SCENARIO_DATA.backgrounds['ending-c'].endsWith('/barrier.png')
     && SCENARIO_DATA.backgrounds['ending-d-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
     && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png'), 'Opening, assist, betrayal, experiment and ending phases use their matching artwork');
   UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
@@ -29,7 +34,15 @@
     && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
   cutsceneFlow.showBackground('ending-d-break'); UI.cutscene.dataset.phase = 'ending-d-break';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
-    && getComputedStyle(document.querySelector('.story-records')).display === 'none', 'Firewall-break artwork replaces the temporary ending graphic');
+    && document.querySelector('.story-records') === null, 'The temporary centered English records graphic is removed');
+  const barrierPhasesRender = ['ending-a', 'ending-b', 'ending-c'].every((phase) => {
+    cutsceneFlow.showBackground(phase); UI.cutscene.dataset.phase = phase;
+    const backdropStyle = getComputedStyle(UI.cutsceneBackdrop);
+    return UI.cutscene.dataset.hasBackground === 'true'
+      && backdropStyle.backgroundImage.includes('barrier.png')
+      && backdropStyle.backgroundSize.includes('cover');
+  });
+  assert(barrierPhasesRender, 'CS-06A through CS-06C use the barrier artwork as a cover background');
   cutsceneFlow.showBackground('op-03'); UI.cutscene.dataset.phase = 'op-03';
   assert(UI.cutscene.dataset.hasBackground === 'true'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op02.png')
@@ -52,12 +65,15 @@
   document.querySelector('.qa-story-button[data-story-id="opening"]').click();
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
-    && UI.cutscene.dataset.cueKind === 'silent'
-    && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 무대사/정적 1/1 · 큐 1/14'
+    && UI.cutscene.dataset.cueKind === 'narration'
+    && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 장면 설명 1/1 · 큐 1/14'
     && !cutsceneFlow.auto
     && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
-    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display === 'none'
-    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with OP-01 and AUTO disabled even when normal cutscene skipping is enabled');
+    && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
+    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display !== 'none'
+    && UI.cutsceneLine.textContent.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.')
+    && UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the OP-01 scene description and AUTO disabled');
   UI.cutsceneAutoButton.click();
   assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
   UI.cutsceneAutoButton.click();
@@ -75,7 +91,10 @@
   const dialoguePanelRect = UI.cutscenePanel.getBoundingClientRect();
   const dialogueLineRect = UI.cutsceneLine.getBoundingClientRect();
   const sameRect = (a, b) => ['left', 'top', 'width', 'height'].every((key) => Math.abs(a[key] - b[key]) < .5);
-  assert(sameRect(systemPanelRect, dialoguePanelRect) && sameRect(systemLineRect, dialogueLineRect), 'Screen directions and dialogue keep the same panel and subtitle position');
+  assert(UI.cutsceneSpeaker.textContent === '김민'
+    && UI.cutsceneLine.textContent === '이상하다. 릴스가 끊길 리가 없는데.'
+    && sameRect(systemPanelRect, dialoguePanelRect)
+    && sameRect(systemLineRect, dialogueLineRect), 'OP-02 names Kim Min and keeps screen directions and dialogue at the same position');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
   assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();

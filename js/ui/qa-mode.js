@@ -55,6 +55,7 @@ const QA_SCENE_LABELS = Object.freeze({
 
 const QA_CUE_KIND_LABELS = Object.freeze({
   dialogue: "대사",
+  narration: "장면 설명",
   system: "화면 문구",
   silent: "무대사/정적",
 });

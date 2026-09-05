@@ -126,28 +126,6 @@
 .cutscene[data-has-background="true"] .story-archive-core { display: none; }
 @keyframes archive-collapse { 50% { transform: translate(18px,-9px) rotate(32deg) scale(.88); filter: blur(2px); } }
 
-.story-records {
-  padding: 54px 78px;
-  border: 2px solid var(--cut-line);
-  background: rgba(4, 20, 49, .86);
-  color: #ffdd83;
-  font: 900 58px/1.5 var(--font-ui);
-  letter-spacing: .18em;
-  text-align: center;
-  text-shadow: 0 0 34px rgba(255, 206, 98, .7);
-}
-.story-records strong { color: var(--cut-line); font-size: 34px; }
-.cutscene[data-phase="ending-a"] .story-records,
-.cutscene[data-phase="ending-b"] .story-records,
-.cutscene[data-phase="ending-c"] .story-records,
-.cutscene[data-phase="ending-d"] .story-records,
-.cutscene[data-phase="shared-ending"] .story-records { display: block; }
-
-/* 완성된 엔딩 그림이 있으면 중앙의 임시 RECORDS 도형은 겹쳐 그리지 않는다. */
-.cutscene[data-phase="ending-d"][data-has-background="true"] .story-records {
-  display: none;
-}
-
 .cutscene[data-phase="stage-brief"] .cutscene-story-visual::before,
 .cutscene[data-phase="last-witness"] .cutscene-story-visual::before {
   content: "2026 ARCHIVE\A LAST WITNESS";
@@ -246,9 +224,17 @@
   display: none;
 }
 
-/* 화면 문구도 인물 대사와 같은 패널 좌표와 자막 위치를 사용한다. */
-.cutscene[data-cue-kind="system"] .cutscene-speaker {
+/* 화면 문구와 장면 설명은 화자 탭 없이 대사와 같은 패널 좌표를 사용한다. */
+.cutscene[data-cue-kind="system"] .cutscene-speaker,
+.cutscene[data-cue-kind="narration"] .cutscene-speaker {
   display: none;
+}
+
+/* OP-01의 네 줄 장면 설명이 고정 패널 안에 들어오도록 글자 크기만 조정한다. */
+.cutscene[data-cue-kind="narration"] .cutscene-line {
+  height: 5.8em;
+  font-size: 20px;
+  line-height: 1.45;
 }
 
 /*
