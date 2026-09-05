@@ -24,7 +24,7 @@ class MainMenuFlow {
 
     this.ui.mainPlayButton?.addEventListener("click", () => this.playIntro());
     this.ui.mainContinueButton?.addEventListener("click", () => this.continueRun());
-    /* 기록실은 도감 탭이 있어 언제나 열린다 — 증언 기록 탭만 엔딩에서 풀린다. */
+    /* 기록실은 밈 기록과 미니게임 도감이 있어 언제나 열린다. */
     this.ui.mainCodexButton?.addEventListener("click", () => this.codex.toggle());
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
 
@@ -113,8 +113,7 @@ class MainMenuFlow {
     const run = window.archiveRun?.snapshot();
     if (this.ui.mainContinueButton) this.ui.mainContinueButton.disabled = !run?.hasSave;
     /*
-     * 기록실 버튼은 잠그지 않는다 — 미니게임 도감은 첫 판 전에도 볼 것이 있다.
-     * 엔딩 전에 잠기는 것은 모달 안의 "증언 기록" 탭뿐이다(js/ui/codex-flow.js).
+     * 기록실 버튼은 잠그지 않는다 — 밈 기록과 미니게임 도감은 첫 판 전에도 볼 것이 있다.
      */
   }
 

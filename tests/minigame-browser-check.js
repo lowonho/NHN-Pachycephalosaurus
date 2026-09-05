@@ -198,8 +198,33 @@
   cutsceneFlow.finish();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   qaModeFlow.deactivate();
-  // 기록실 버튼은 도감이 있어 언제나 열린다 — 엔딩 전에 잠기는 것은 증언 기록 탭이다.
-  assert(!UI.mainCodexButton.disabled && UI.codexRecordsTab.disabled, 'Testimony archive stays locked before the ending');
+  // 기록실은 진행도와 관계없이 열리고, 밈 기록 9개가 미니게임 도감보다 먼저 보인다.
+  codexFlow.open();
+  const initialMemeTitles = [...document.querySelectorAll('.codex-card[data-meme-id] .codex-card-title')]
+    .map((node) => node.textContent);
+  const memeIconMarkup = new Map([...document.querySelectorAll('.codex-card[data-meme-id]')]
+    .map((card) => [card.dataset.memeId, card.querySelector('.codex-card-icon').innerHTML]));
+  assert(!UI.mainCodexButton.disabled
+    && codexFlow.view === 'memes'
+    && UI.codexGrid.dataset.view === 'memes'
+    && JSON.stringify(initialMemeTitles) === JSON.stringify([
+      '거제 야호', '메챠 카멜레온', '밤티 호랑이', '밀라노 동계 올림픽', '스파이더맨',
+      '두쫀쿠', '왁뿌볼', '월드컵', '회전 고양이',
+    ]), 'Meme records are the default codex tab and show nine one-slot entries');
+  assert(globalThis.MEME_RECORDS.find((meme) => meme.id === 'milano-winter-olympics').stageIds.join(',') === 'e10',
+    'Milano Winter Olympics record does not include the curling game');
+  codexFlow.showTab('minigames');
+  assert(UI.codexGrid.dataset.view === 'minigames' && UI.codexGrid.children.length === 10,
+    'Minigame catalog remains available as the second tab');
+  assert(globalThis.MEME_RECORDS.every((meme) => {
+    const stage = MINIGAME_CATALOG.find((item) => item.id === meme.stageIds[0]);
+    if (!stage) return false;
+    const expected = document.createElement('span');
+    if (stage.recordSymbol.trim().startsWith('<')) expected.innerHTML = stage.recordSymbol;
+    else expected.textContent = stage.recordSymbol;
+    return memeIconMarkup.get(meme.id) === expected.innerHTML;
+  }), 'Every meme record reuses its linked minigame icon exactly');
+  codexFlow.close({ restoreFocus: false });
   const menuRect = UI.mainMenu.getBoundingClientRect();
   assert(document.querySelectorAll('.main-menu-actions .menu-button').length === 4
     && menuRect.top >= -1 && menuRect.bottom <= innerHeight + 1, 'Main menu shows four story actions inside the viewport');
@@ -637,13 +662,14 @@
   }
   const completedRun = archiveRun.snapshot();
   assert(completedRun.finished && completedRun.ending === 'shared' && completedRun.totalRecordCount === 18, 'Eighteen clears reach the single shared-memory ending');
-  assert(completedRun.archiveViewerUnlocked && completedRun.archiveEntries.length === 18 && !UI.mainCodexButton.disabled, 'Ending unlocks all eighteen testimony entries');
-  // 기록실은 도감 탭으로 뜬다 — 증언 기록은 엔딩에서 풀린 탭으로 넘어가 읽는다.
+  assert(completedRun.archiveViewerUnlocked && completedRun.archiveEntries.length === 18 && !UI.mainCodexButton.disabled, 'Ending keeps all eighteen internal story records');
+  // 엔딩 이후에도 기록실은 밈 기록을 기본으로 열며 증언 기록 탭을 만들지 않는다.
   codexFlow.open();
-  codexFlow.showTab('records');
   const codexRect = UI.codexDialog.getBoundingClientRect();
-  assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
-    && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');
+  assert(codexFlow.view === 'memes'
+    && document.querySelector('#codex-tab-records') === null
+    && document.querySelectorAll('.codex-card[data-meme-id]').length === 9
+    && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Meme records remain the default codex view after the ending');
   codexFlow.close({ restoreFocus: false });
   // 시작 카운트다운 — 판은 그려진 채로 3 · 2 · 1 · 시작!을 세고, 다 세고 나서야 엔진이 돈다.
   ARCHIVE_STORY_SETTINGS.skipCountdown = false;

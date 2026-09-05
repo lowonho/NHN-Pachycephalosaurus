@@ -1,8 +1,8 @@
 /*
- * 기록실 — 탭 두 장을 한 판때기에 담는다.
+ * 기록실 — 밈 기록과 미니게임 도감을 한 판때기에 담는다.
  *
+ *   · 밈 기록       : 현재 게임에 쓰는 9개 밈을 한 칸씩 펼친다. 기본 탭이다.
  *   · 미니게임 도감 : 10개 미니게임을 전부 펼친다. 언제나 열려 있다.
- *   · 증언 기록     : 18개 증언 기록. 엔딩(archiveViewerUnlocked)에서 열린다.
  *
  * 두 목록이 한 화면을 나눠 쓰는 이유는 성격이 같아서다 —
  * 둘 다 "지금까지 무엇이 남았는가"를 보여 주고, 아직 못 채운 칸은
@@ -22,9 +22,9 @@
  *
  * 목록은 엔진을 기다리지 않는다 — 프로토콜 선택 화면과 같은 MINIGAME_CATALOG로 그린다.
  *
- * ── 증언 기록 ───────────────────────────────────────────────────────
- * 엔딩 뒤 해금된다. 이번 회차에 실제로 등록한 기록(run.archiveEntries)만 열리고,
- * 어느 미니게임으로 증언했는지와 기록 본문을 함께 적는다.
+ * ── 밈 기록 ─────────────────────────────────────────────────────────
+ * 밈 하나가 반드시 카드 한 칸을 차지한다. 하나의 밈에서 여러 미니게임을 만들더라도
+ * 카드 수는 늘리지 않고 stageIds로 관련 게임만 함께 표시한다.
  */
 
 /* progress.mjs의 RECORD_STATUS와 같은 문자열이다(클래식 스크립트라 import할 수 없다). */
@@ -45,8 +45,8 @@ const CODEX_LOCK_ICON = `
 
 /* 탭마다 발치에 적는 한 줄 — 이 화면이 지금 무엇을 세고 있는지 말한다. */
 const CODEX_HINTS = {
+  memes: "현재 기록된 밈을 한 칸씩 확인할 수 있습니다.",
   minigames: "한 번이라도 플레이한 미니게임이 열립니다.",
-  records: "최종 증언을 마치면 진행 중 등록한 기록을 다시 읽을 수 있습니다.",
 };
 
 class CodexFlow {
@@ -55,8 +55,8 @@ class CodexFlow {
     this.ui = dom;
     this.soundBus = soundBus;
     this.catalog = PROTOCOLS;
-    /* 열 때마다 도감으로 돌아온다 — 언제나 볼 것이 있는 쪽이라서다. */
-    this.view = "minigames";
+    /* 기록실을 열 때마다 밈 기록이 미니게임 도감보다 먼저 보인다. */
+    this.view = "memes";
 
     this.ui.codexTabs?.forEach((tab) => {
       tab.addEventListener("click", () => this.showTab(tab.dataset.codexTab));
@@ -79,10 +79,10 @@ class CodexFlow {
     else this.open();
   }
 
-  /* 도감은 조건 없이 열린다 — 잠기는 것은 안쪽의 "증언 기록" 탭뿐이다. */
+  /* 밈 기록과 도감은 조건 없이 열린다. */
   open() {
     this.soundBus.resume();
-    this.showTab("minigames");
+    this.showTab("memes");
     this.ui.codexBackdrop?.classList.remove("hidden");
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.codexDialog?.focus();
@@ -100,10 +100,8 @@ class CodexFlow {
     if (this.isOpen()) this.render();
   }
 
-  /* 엔딩 전에 증언 기록으로 넘어가려 하면 도감에 그대로 둔다. */
   showTab(view) {
-    const unlocked = Boolean(window.archiveRun?.snapshot().archiveViewerUnlocked);
-    this.view = view === "records" && unlocked ? "records" : "minigames";
+    this.view = view === "minigames" ? "minigames" : "memes";
     this.render();
   }
 
@@ -111,19 +109,63 @@ class CodexFlow {
     const grid = this.ui.codexGrid;
     if (!grid) return;
 
-    const unlocked = Boolean(window.archiveRun?.snapshot().archiveViewerUnlocked);
-    if (this.ui.codexRecordsTab) this.ui.codexRecordsTab.disabled = !unlocked;
     this.ui.codexTabs?.forEach((tab) => {
       tab.setAttribute("aria-selected", String(tab.dataset.codexTab === this.view));
     });
 
-    /* 두 목록은 칸 수(10 / 18)도 칸 크기도 달라서 격자를 data-view로 갈아 끼운다. */
+    /* 두 목록은 칸 수(9 / 10)와 칸 크기가 달라서 격자를 data-view로 갈아 끼운다. */
     grid.dataset.view = this.view;
     grid.setAttribute("aria-labelledby", `codex-tab-${this.view}`);
     if (this.ui.codexHint) this.ui.codexHint.textContent = CODEX_HINTS[this.view];
 
-    if (this.view === "records") this.renderRecords(grid);
-    else this.renderMinigames(grid);
+    if (this.view === "minigames") this.renderMinigames(grid);
+    else this.renderMemes(grid);
+  }
+
+  /* ── 밈 기록 ─────────────────────────────────────────────────────── */
+
+  renderMemes(grid) {
+    grid.replaceChildren(...globalThis.MEME_RECORDS.map((meme) => this.buildMemeCard(meme)));
+    if (this.ui.codexCount) {
+      this.ui.codexCount.textContent = `MEMES ${globalThis.MEME_RECORDS.length} / ${globalThis.MEME_RECORDS.length}`;
+    }
+  }
+
+  buildMemeCard(meme) {
+    const card = document.createElement("li");
+    card.className = "codex-card codex-card--meme";
+    card.dataset.memeId = meme.id;
+    card.dataset.discovered = "true";
+
+    const head = document.createElement("div");
+    head.className = "codex-card-head";
+    const number = document.createElement("span");
+    number.className = "codex-card-number";
+    number.textContent = meme.number;
+    const icon = document.createElement("span");
+    icon.className = "codex-card-icon";
+    const iconStage = this.catalog.find((stage) => stage.id === meme.stageIds[0]);
+    const recordSymbol = iconStage?.recordSymbol ?? "◇";
+    if (recordSymbol.trim().startsWith("<")) icon.innerHTML = recordSymbol;
+    else icon.textContent = recordSymbol;
+    head.append(number, icon);
+
+    const title = document.createElement("strong");
+    title.className = "codex-card-title";
+    title.textContent = meme.title;
+
+    const linkedStages = meme.stageIds
+      .map((stageId) => this.catalog.find((stage) => stage.id === stageId))
+      .filter(Boolean)
+      .map((stage) => `${stage.number} · ${stage.title}`);
+    const linked = document.createElement("p");
+    linked.className = "codex-card-linked";
+    linked.textContent = linkedStages.length > 0
+      ? `연결 미니게임 ${linkedStages.join(" / ")}`
+      : "연결 미니게임 준비 중";
+
+    card.append(head, title, linked);
+    return card;
   }
 
   /* ── 미니게임 도감 ───────────────────────────────────────────────── */
@@ -207,59 +249,6 @@ class CodexFlow {
     return goal;
   }
 
-  /* ── 증언 기록 ───────────────────────────────────────────────────── */
-
-  renderRecords(grid) {
-    const run = window.archiveRun?.snapshot();
-    const entries = run?.archiveEntries ?? [];
-    const byRecord = new Map(entries.map((entry) => [entry.recordId, entry]));
-    grid.replaceChildren(
-      ...SCENARIO_DATA.records.map((record) => this.buildRecordCard(record, byRecord.get(record.id))),
-    );
-    if (this.ui.codexCount) {
-      this.ui.codexCount.textContent = `RECORDS ${entries.length} / ${SCENARIO_DATA.totalRecords}`;
-    }
-  }
-
-  buildRecordCard(record, entry) {
-    const stage = this.catalog.find((item) => item.id === entry?.gameId);
-    const card = document.createElement("li");
-    card.className = "codex-card";
-    card.dataset.recordId = record.id;
-    card.dataset.discovered = String(Boolean(entry));
-
-    const head = document.createElement("div");
-    head.className = "codex-card-head";
-    const number = document.createElement("span");
-    number.className = "codex-card-number";
-    number.textContent = record.id;
-    const icon = document.createElement("span");
-    icon.className = "codex-card-icon";
-    icon.textContent = entry ? "◆" : "◇";
-    head.append(number, icon);
-
-    const title = document.createElement("strong");
-    title.className = "codex-card-title";
-    title.textContent = record.title;
-    card.append(head, title);
-
-    if (entry) {
-      const game = document.createElement("p");
-      game.className = "codex-card-record";
-      game.textContent = `${entry.gameId.toUpperCase()} · ${stage?.title ?? "기록 미상"}`;
-      game.dataset.full = "true";
-      const detail = document.createElement("p");
-      detail.className = "codex-card-text codex-card-testimony";
-      detail.textContent = record.text;
-      card.append(game, detail);
-    } else {
-      const locked = document.createElement("p");
-      locked.className = "codex-card-locked";
-      locked.textContent = "등록되지 않은 증언";
-      card.append(locked);
-    }
-    return card;
-  }
 }
 
 const codexFlow = new CodexFlow(gameEvents, UI, audioBus);
