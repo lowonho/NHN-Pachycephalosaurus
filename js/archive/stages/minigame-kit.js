@@ -20,6 +20,9 @@ export const MINI = {
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
+    // 바닥칠·격자는 판마다 기본으로 되돌린다. loadStage 는 scene 을 새로 만들지 않으므로,
+    // 여기서 지우지 않으면 한 게임이 칠한 색이 다음 게임까지 따라간다.
+    scene.fieldColor = null; scene.fieldGrid = undefined;
     const f = MINI.FIELD;
     // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
     scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
@@ -96,6 +99,7 @@ export const MINI = {
     // 게임이 fieldColor 를 두면 그 색으로 바닥을 칠한다(없으면 기본 어두운 남색).
     // 밝은 바닥에서는 accent 격자가 묻히므로 격자 색도 fieldGrid 로 따로 받는다.
     g.fillStyle(scene.fieldColor ?? 0x0c202e).fillRect(f.x, f.y, f.w, f.h);
+    if (scene.fieldGrid === false) return;   // 격자를 아예 긋지 않는 게임(민무늬 바닥)
     g.lineStyle(1, scene.fieldGrid ?? scene.accent, 0.13);
     for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
     for (let y = f.y + 28; y < f.bottom; y += 40) g.lineBetween(f.x, y, f.right, y);

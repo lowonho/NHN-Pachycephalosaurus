@@ -14,6 +14,8 @@
 param(
   # 인코더로 쓸 크롬. 비우면 아래 기본 경로와 PATH 를 찾는다.
   [string]$Chrome = "",
+  # 굽고 싶은 밈 에셋 세트. 비우면 기본 세트, "woni" 면 하위 폴더 woni 안의 원본을 굽는다.
+  [string]$Variant = "",
   # 구운 텍스처의 긴 변 픽셀 수.
   [int]$MaxSide = 416,
   # webp 품질. 부드러운 채색 원본이라 0.92면 눈으로 원본과 구분되지 않는다.
@@ -25,6 +27,7 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $artRoot = Join-Path $projectRoot "assets\images\minigame\geomatric dash"
+if ($Variant) { $artRoot = Join-Path $artRoot $Variant }
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("e1-dash-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 

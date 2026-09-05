@@ -278,6 +278,34 @@
   assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
+  // 밈 에셋 세트는 판마다 한 벌씩 뽑힙니다. 두 벌 모두 다섯 장이 실려 있어야 하고,
+  // 뽑힌 세트는 그리는 텍스처 이름에 그대로 붙습니다.
+  const dashSets = ['', 'woni-'], dashPoses = ['run', 'jump', 'hurt', 'fall', 'goal'];
+  assert(dashSets.every(set => dashPoses.every(pose => scene.textures.exists(`e1:${set}${pose}`))), 'e1: both meme asset sets load all five pictures');
+  const dashPicks = new Set();
+  for (let i = 0; i < 60; i++) { load('e1'); dashPicks.add(scene.state.art); }
+  assert(dashPicks.size === 2 && [...dashPicks].every(art => dashSets.includes(art)), 'e1: each play picks one of the two meme asset sets');
+  load('e1'); scene.stageGame.render.call(scene);
+  assert(scene.assetSprites.get('player').texture.key === `e1:${scene.state.art}run`, 'e1: the picked set is what actually gets drawn');
+  // 세트가 갈려도 밖에서는 한 스테이지다. 도감은 e1 하나 그대로고, 세트별 타일은 QA 패널에만 선다.
+  const dashSetConfig = ARCHIVE_QA.STAGE_ART_SETS.e1;
+  assert(dashSetConfig.length === 2 && dashSetConfig.every(set => dashSets.includes(set.id))
+    && MINIGAME_CATALOG.filter(stage => stage.id === 'e1').length === 1, 'e1: meme sets never split the catalog');
+  const qaTiles = [...document.querySelectorAll('#qa-stage-grid .qa-stage')];
+  const dashTiles = qaTiles.filter(tile => tile.dataset.stageId === 'e1');
+  assert(qaTiles.length === MINIGAME_CATALOG.length + 1 && dashTiles.length === 2
+    && dashTiles.map(tile => tile.dataset.artSet).join('|') === '|woni-', 'e1: QA panel stands one tile per meme set');
+  // QA 에서 고른 세트는 다시하기까지 그대로 붙어 있고, HUD 가 어느 세트인지 알려 준다.
+  ARCHIVE_QA.active = true; ARCHIVE_QA.artSet.e1 = 'woni-';
+  const forcedPicks = new Set();
+  for (let i = 0; i < 8; i++) { load('e1'); forcedPicks.add(scene.state.art); }
+  advance(.1);
+  assert(forcedPicks.size === 1 && forcedPicks.has('woni-') && scene.anomaly.includes('세트 WONI'), 'e1: a QA-picked set holds every play and shows in the HUD');
+  ARCHIVE_QA.artSet.e1 = 'ghost-'; load('e1');
+  assert(dashSets.includes(scene.state.art), 'e1: an unknown QA set falls back to a real one');
+  ARCHIVE_QA.artSet = {}; ARCHIVE_QA.active = false;
+  load('e1'); advance(.1);
+  assert(!scene.anomaly.includes('세트'), 'e1: outside QA the HUD says nothing about the set');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
   const weakened = scene.stageGame.jumpPower.call(scene), shards = scene.state.shards.length;
   scene.primaryAction();

@@ -35,6 +35,12 @@ const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 �
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
    같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
 const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
+/* 밈 캐릭터 세트. 한 판이 시작될 때 이 중 한 벌을 뽑아 다섯 장(달리기·건너뛰기·피격·
+   주저앉기·골지점)을 통째로 갈아 끼웁니다. 값은 manifest.js 의 e1 역할 이름 앞에 붙는
+   딱지이고, 빈 문자열이 기본 세트입니다. 세트를 늘리려면 그림을 굽고(bake-geomatric-dash.ps1
+   -Variant <이름>) manifest 에 <이름>- 역할 다섯 개를 더한 뒤 여기에 한 줄 적으면 됩니다.
+   두 세트의 몸 크기가 비슷해 표시 높이(POSE_HEIGHT)는 함께 씁니다. */
+const ART_SETS = ['', 'woni-'];
 /* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
    원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
    계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
@@ -64,7 +70,13 @@ export const E1_GRAVITY_DASH = {
   build() {
     MINI.init(this, 0x67e8f9);
     // leap은 건너뛰는 연출에 남은 시간(초)입니다. 표시 크기에만 쓰이고 판정에는 끼어들지 않습니다.
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, obstacles: [] };
+    // art 는 이번 판에 쓸 밈 에셋 세트입니다. 판이 시작될 때 한 번만 뽑으므로 도중에 그림이
+    // 바뀌지 않고, 판정과 코스에는 전혀 끼어들지 않는 겉모습이라 코스 시드(this.random)를
+    // 쓰지 않습니다 — 같은 판을 다시 해도 다른 캐릭터가 나옵니다. 뽑는 일은 js/config/qa.js 에
+    // 맡깁니다. QA 모드에서 세트를 골라 두었으면 그 세트로 고정되고(개발자에게는 세트마다 다른
+    // 스테이지), 평소에는 무작위입니다. 그 파일이 없으면 여기서 그냥 무작위로 뽑습니다.
+    const art = globalThis.archiveStageArtSet?.('e1', ART_SETS) ?? ART_SETS[Math.floor(Math.random() * ART_SETS.length)];
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, art, obstacles: [] };
     // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
@@ -132,7 +144,11 @@ export const E1_GRAVITY_DASH = {
     }
     // 충돌하더라도 그 프레임의 모든 장애물은 끝까지 움직입니다.
     if (!s.immune && s.obstacles.some(o => MINI.hit(player, { ...o, x: o.x - s.x + 180 }))) crash();
-    this.anomaly = `중력 ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'} · 충돌 ${s.deaths}회`;
+    // QA 모드에서는 지금 도는 그림 세트를 HUD 에 적어 둡니다. 겉으로는 같은 스테이지라
+    // 플레이어는 알 수 없지만, 검수하는 쪽은 어느 세트를 보고 있는지 알아야 합니다.
+    const qaSet = globalThis.ARCHIVE_QA?.active
+      ? globalThis.ARCHIVE_QA.STAGE_ART_SETS?.e1?.find(set => set.id === s.art)?.label : null;
+    this.anomaly = `중력 ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'} · 충돌 ${s.deaths}회${qaSet ? ` · 세트 ${qaSet}` : ''}`;
     this.risk = Math.min(100, this.actions / MAX_FLIPS * 100);
     if (s.x >= t.distance) this.finish(true);
   },
@@ -164,7 +180,7 @@ export const E1_GRAVITY_DASH = {
     const s = this.state;
     // 건너뛰는 자세에만 과장을 얹습니다. 달리기·피격·주저앉기는 원래 크기 그대로입니다.
     const scale = pop * (pose === 'jump' ? 1 + LEAP_POP * E1_GRAVITY_DASH.leap(s.leap) : 1);
-    const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
+    const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${s.art}${pose}`);
     if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * scale, HITBOX * scale, -s.sign * s.x / 80); return; }
     const height = POSE_HEIGHT[pose] * scale, feet = s.y + s.sign * HITBOX / 2;
     sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
@@ -255,7 +271,7 @@ export const E1_GRAVITY_DASH = {
     if (!s.failed) MINI.spawnFx(this, 180, s.y, SPAWN_FX);
     const goal = t.distance - s.x + 180;
     if (goal < 980) {
-      const banner = E1_GRAVITY_DASH.sprite.call(this, 'goal', 'e1:goal');
+      const banner = E1_GRAVITY_DASH.sprite.call(this, 'goal', `e1:${s.art}goal`);
       // 표지는 제자리에서 통통 튑니다. 꼭대기에서 길쭉, 바닥에서 납작해지도록 가로세로를
       // 반대로 늘여 넓이를 지킵니다. 공통 게임 시간만 읽으므로 따로 타이머를 두지 않습니다.
       if (banner) {

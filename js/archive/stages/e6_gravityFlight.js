@@ -41,6 +41,11 @@ function nextMeme(scene) {
   return scene.memeQueue.shift();
 }
 
+/* 통로 안은 흰 바탕이고 위아래 벽만 연한 형광 연두다 — 두 색이 갈려야 천장·바닥이 어디인지 보인다.
+   격자는 긋지 않으므로 화면에 남는 것은 이 두 색과 밈 글자, 고양이뿐이다. */
+const FIELD_WHITE = 0xffffff;
+const WALL_GREEN = 0xd9fb7a;
+
 /* 위아래 벽 사이의 통로. 판정과 그림이 같은 값을 본다.
    필드 세로 중심(320.5)을 기준으로 위아래 대칭이고, 남는 68씩이 벽이다 — e1 중력 대쉬와 같은 통로다.
    고양이 그림 전체가 판정이 된 뒤로 좁은 통로는 너무 빡빡했다. */
@@ -221,13 +226,18 @@ export const E6_GRAVITY_FLIGHT = {
   tuning: {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
-    cell: 52, minGap: 152, aimMargin: 52, spacing: 235, firstX: 470,
+    // spacing 은 기둥 사이 거리다. 예전 355 에서 295 로 좁혀 한 판에 서는 기둥이 11 개에서 14 개가 됐다.
+    // cell(글자 한 칸 높이)은 건드리지 않는다 — 키우면 위아래로 오갈 거리가 늘어 통과가 급격히 어려워진다.
+    cell: 42, minGap: 152, aimMargin: 52, spacing: 295, firstX: 470,
     spawnAhead: 880, spawnStop: 140, despawnBehind: 420,
   },
   build() {
     MINI.init(this, 0x7cd9ff);
-    // 통로 바닥은 연한 형광 연두. 격자는 같은 계열의 짙은 풀색이라야 밝은 바닥에서 보인다.
-    this.fieldColor = 0xd9fb7a; this.fieldGrid = 0x3f6b12;
+    // 바닥은 흰 바탕에 민무늬다. 벽은 render 에서 연두로 덮어 통로 경계를 낸다.
+    this.fieldColor = FIELD_WHITE; this.fieldGrid = false;
+    // 조작 안내는 어두운 바닥을 전제로 한 옅은 회청색이라 벽 연두 위에서는 묻힌다.
+    // 이 판에서만 짙은 풀색 글씨에 연두 테두리로 바꿔 벽과 같은 계열로 읽히게 한다.
+    this.instruction.setColor('#24450a').setStroke('#eaffb4', 5);
     // spin 은 누르고 있는 동안 쌓이는 프레임 수(정수부가 곧 지금 프레임)다. 손을 떼면 0으로 돌아간다.
     // heat 는 불이 붙은 정도(0~1)다. 누르고 떼는 순간 불이 튀지 않도록 시간을 두고 오간다.
     this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0, heat: 0 };
@@ -293,9 +303,10 @@ export const E6_GRAVITY_FLIGHT = {
   render() {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning, f = MINI.FIELD;
     MINI.frame(this);
-    // 통로 위아래는 부딪히면 밀려나는 벽이다. 화면 끝까지 채워 통로를 또렷하게 만든다.
-    MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, 0x27384a);
-    MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
+    // 통로 위아래는 부딪히면 밀려나는 벽이다. 흰 바닥 위에 연두로 덮어 화면 끝까지 채우면
+    // 천장과 바닥이 어디서 끝나는지가 색만으로 읽힌다.
+    MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, WALL_GREEN);
+    MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, WALL_GREEN);
     for (const gate of this.gates) {
       const x = gateX(this, gate) - s.x + 180;
       const reach = gateReach(this, gate);
@@ -314,9 +325,7 @@ export const E6_GRAVITY_FLIGHT = {
         gate.label.setCrop(0, 0, texture.width, texture.height * reach);
       }
       if (reach >= 1) gate.label.setCrop();  // 다 나온 뒤에는 잘라 낼 것이 없다(반 픽셀 이음매 방지).
-      // 글자가 벽에 붙어 있다는 자국. 판정 끝선은 글자 자체가 보여 주므로 따로 긋지 않는다.
-      const wall = gate.side === 'top' ? TUNNEL.top : TUNNEL.bottom;
-      MINI.box(this, x - gate.halfWidth, gate.side === 'top' ? wall : wall - shown, gate.halfWidth * 2, shown, 0x4c657f, .22);
+      // 글자 뒤에는 아무것도 깔지 않는다 — 판정 범위는 글자 그림 자체가 보여 준다.
     }
     const pop = MINI.spawnScale(this);
     const box = this.catBox;

@@ -4,7 +4,8 @@
  * 예외는 e3 하나로, 사람 모형의 충돌체를 그림의 알파에서 뽑아 씁니다(아래 참고).
  */
 globalThis.MINIGAME_ASSETS = {
-  // e1: 상태별 캐릭터 네 장과 골지점 표지. 원점=이미지 중심이고, 발끝은 판정 사각형의
+  // e1: 상태별 캐릭터 네 장과 골지점 표지. 이 다섯 장이 한 세트고, 기본과 woni 두 벌 중
+  // 한 벌이 판마다 무작위로 뽑힌다. 원점=이미지 중심이고, 발끝은 판정 사각형의
   // 중력 쪽 모서리에 맞춘다. 표시 높이는 e1_gravityDash.js 의 POSE_HEIGHT 가 정하고,
   // 원본 png 에서 굽는 일은 scripts/bake-geomatric-dash.ps1 이 한다.
   e1: {
@@ -17,8 +18,39 @@ globalThis.MINIGAME_ASSETS = {
     hurt: 'assets/images/minigame/geomatric%20dash/hurt.webp',
     fall: 'assets/images/minigame/geomatric%20dash/fall.webp',
     goal: 'assets/images/minigame/geomatric%20dash/goal.webp',
+    // 밈 캐릭터 세트는 판마다 한 벌만 무작위로 뽑힌다. woni- 가 붙은 것이 두 번째 세트고,
+    // 세트 목록은 e1_gravityDash.js 의 ART_SETS 가 들고 있다. 배경 한 장은 두 세트가 같이 쓴다.
+    'woni-run': 'assets/images/minigame/geomatric%20dash/woni/run.webp',
+    'woni-jump': 'assets/images/minigame/geomatric%20dash/woni/jump.webp',
+    'woni-hurt': 'assets/images/minigame/geomatric%20dash/woni/hurt.webp',
+    'woni-fall': 'assets/images/minigame/geomatric%20dash/woni/fall.webp',
+    'woni-goal': 'assets/images/minigame/geomatric%20dash/woni/goal.webp',
     obstacle: null,
-  }, e2: { player: null },
+  },
+  // e2: 왁뿌볼 넉 장과 발판 그림들. 공은 정사각 그림 한가운데가 곧 공의 중심이라 굴러도
+  // 회전축이 흔들리지 않고(한 변 = 판정 지름 x e2_bounceBall.js 의 BALL_ART), 발판은
+  // 폭을 발판에 맞추고 윗면을 판정선에 건다. 판정은 예전 그대로 반지름 20과 윗면 한 줄이다.
+  // 원본 png 에서 굽는 일은 scripts/bake-wakppu.ps1 이 한다.
+  e2: {
+    // backdrop 은 필드를 통째로 덮는 배경 한 장이다(16:9). 깔리는 순간 MINI.frame 의
+    // 격자는 사라지고 어둠막만 남는다. 원본은 같은 폴더의 12번 키덜트 컬렉터 룸이다.
+    backdrop: 'assets/images/minigame/wakppu/room.webp',
+    // 껍질이 깨질수록 다음 그림으로 넘어간다. 점프 0~2 / 3~5 / 6~8 / 9회 이상.
+    ball1: 'assets/images/minigame/wakppu/ball1.webp',
+    ball2: 'assets/images/minigame/wakppu/ball2.webp',
+    ball3: 'assets/images/minigame/wakppu/ball3.webp',
+    ball4: 'assets/images/minigame/wakppu/ball4.webp',
+    // 버터말랑이 = 보통 발판. 폭에 따라 장·중·단을 골라 늘어나 보이지 않게 한다.
+    platformLong: 'assets/images/minigame/wakppu/platform-long.webp',
+    platformMedium: 'assets/images/minigame/wakppu/platform-medium.webp',
+    platformShort: 'assets/images/minigame/wakppu/platform-short.webp',
+    // 왁뿌바 = 붕괴 발판. 밟으면 갈라진 그림으로 바뀌었다가 사라진다.
+    crumble: 'assets/images/minigame/wakppu/crumble.webp',
+    crumbleSplit: 'assets/images/minigame/wakppu/crumble-split.webp',
+    // 파란 호빵 말랑이 = 승강 발판. 폭 135 이상은 넓은 쪽을 쓴다.
+    liftWide: 'assets/images/minigame/wakppu/lift-wide.webp',
+    liftNarrow: 'assets/images/minigame/wakppu/lift-narrow.webp',
+  },
   // e3: 자세별 투명 이미지 여덟 장과 성공선 표지. 원점=이미지 중심이고, 표시 비율과
   // 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 구운 e3/pose-shapes.js 가 정한다.
   e3: {

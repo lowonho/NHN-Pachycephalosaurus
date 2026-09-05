@@ -303,8 +303,6 @@ export const E5_SLINGSHOT = {
       MINI.box(this, MINI.FIELD.x, 516, MINI.FIELD.w, MINI.FIELD.bottom - 516, 0x372923);
       for (let i = 0; i < 2; i++) MINI.box(this, 626 + i * 116, 507, 108, 5, 0xf0c9a0);
     }
-    // 대기 중인 두쫀쿠 세 개는 상판 위(y=507)에 발을 붙이고 앉는다.
-    for (let i = 0; i < 3; i++) E5_SLINGSHOT.cookie.call(this, 'proud', 'reserve' + i, 48 + i * 38, 490, 34, 33);
     if (!this.textures.exists('e5:slingshot')) {
       MINI.line(this, 146, 483, 137, 394, 0xa78260, 14);
       MINI.line(this, 146, 440, 184, 393, 0xa78260, 12);
@@ -314,7 +312,8 @@ export const E5_SLINGSHOT = {
     MINI.line(this, 184, 393, d.x, d.y, 0xe9c18c, 4);
     const pull = Math.hypot(d.x - 164, d.y - 418) / t.maxPull;
     // 당기는 동안에는 힘을 주는 얼굴로 바뀌고, 발사 방향으로 몸을 돌린다.
-    if (!s.waiting && s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, s.drag ? 'tense' : 'proud', 'ready', d.x, d.y, 29 + pull * 11, 29 - pull * 6, s.drag ? Math.atan2(418 - d.y, 164 - d.x) : 0);
+    // 두쫀쿠는 판정(반지름 12 원)보다 크게 그린다 — 새총과 과자집 옆에서 알아볼 만한 크기로.
+    if (!s.waiting && s.cooldown === 0) E5_SLINGSHOT.cookie.call(this, s.drag ? 'tense' : 'proud', 'ready', d.x, d.y, 40 + pull * 15, 40 - pull * 8, s.drag ? Math.atan2(418 - d.y, 164 - d.x) : 0);
     else MINI.hideActor(this, 'ready');
     if (s.drag) {
       let x = d.x, y = d.y, vx = (164 - d.x) * t.force * power, vy = (418 - d.y) * t.force * power;
@@ -416,7 +415,7 @@ export const E5_SLINGSHOT = {
     for (const b of s.balls) {
       for (let i = 0; i < b.trail.length; i += 2) MINI.circle(this, b.trail[i].x, b.trail[i].y, 5 - i * .25, 0xbac480, .22 * (1 - i / 12));
       // 날아가는 동안은 신난 얼굴이고, 무언가에 맞은 뒤에는 반으로 갈라진 채 구른다.
-      E5_SLINGSHOT.cookie.call(this, b.hit.size ? 'split' : 'launch', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
+      E5_SLINGSHOT.cookie.call(this, b.hit.size ? 'split' : 'launch', 'ball' + b.id, b.x, b.y, 36 + b.squash * 30, 36 - b.squash * 20, Math.atan2(b.vy, b.vx));
     }
     // 부스러기도 debris 에 그린다 — ink 에 그리면 튀어나온 것들이 과자집 그림 뒤에 깔려 반쯤 사라진다.
     for (const c of s.crumbs) {
