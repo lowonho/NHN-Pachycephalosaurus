@@ -7,7 +7,7 @@ export const E9_ICE_CURLING = {
     this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0, hold: 0 };
     this.target = { x: 769, y: 287 };
   },
-  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** this.state.failures); },
+  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
   pointerDown(x, y) {
     const s = this.state;
     if (s.moving || s.cooldown || Math.hypot(x - s.x, y - s.y) > 43) return;
@@ -52,8 +52,10 @@ export const E9_ICE_CURLING = {
     this.risk = Math.min(100, s.failures * 18);
   },
   render() {
-    const s = this.state, target = this.target;
-    MINI.frame(this, `ICE ${Math.round(E9_ICE_CURLING.friction.call(this))}    SHOT ${this.actions}    과녁 안에 돌 전체를 멈추세요`);
+    const s = this.state, target = this.target, f = MINI.FIELD;
+    MINI.frame(this);
+    // 링크 둘레는 화면 끝까지 채우고, 그 안쪽만 돌이 미끄러지는 얼음이다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x123243);
     MINI.box(this, 32, 158, 896, 321, 0xc7e8f0, .12);
     for (let y = 187; y < 466; y += 35) MINI.line(this, 55, y, 905, y - 18, 0xd6f5ff, .5);
     MINI.circle(this, target.x, target.y, 71, 0x719dd5, .5);

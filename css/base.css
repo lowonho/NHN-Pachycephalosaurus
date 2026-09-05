@@ -26,6 +26,38 @@ button {
 }
 
 /*
+ * ── 화면 전체가 게임이다 — 드래그·선택은 막는다 ─────────────────────
+ *
+ * 방향키 대신 화면을 길게 누르거나 좌우로 끌면 브라우저가 글자를 블록으로
+ * 잡고, 이미지에는 반투명 고스트가 끌려다니고, 터치에서는 당겨서 새로고침이
+ * 걸린다. 셋 다 조작으로 오해되므로 페이지 단위로 끈다.
+ *
+ * 예외는 값을 직접 고쳐야 하는 입력 칸(QA 패널의 제한시간 등)뿐이다.
+ */
+html,
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+img,
+a,
+canvas {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/*
  * ── UI 배율 규칙 ─────────────────────────────────────────────────────
  *
  * 모든 DOM UI는 1920×1080(STAGE_GEOMETRY.canvas) 설계 화면 위에 px로 그린다.

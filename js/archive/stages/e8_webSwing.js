@@ -61,7 +61,7 @@ export const E8_WEB_SWING = {
     const oldMultiplier = s.multiplier;
     const fresh = !s.visited.includes(a.index);
     if (fresh) {
-      s.visited.push(a.index); s.multiplier = Math.min(t.maxMultiplier, s.multiplier * t.boost);
+      s.visited.push(a.index); s.multiplier = Math.min(t.maxMultiplier, s.multiplier * (1 + this.penalty(t.boost - 1)));
       s.boostAt = this.elapsed;
     }
     // 줄을 잡을 때 반지름 방향의 속도는 사라지고 접선 성분이 남습니다.
@@ -97,7 +97,7 @@ export const E8_WEB_SWING = {
   },
   airGravity() {
     const t = E8_WEB_SWING.tuning;
-    return t.airGravity * (1 + (this.state.multiplier - 1) * t.weightGain);
+    return t.airGravity * (1 + (this.state.multiplier - 1) * this.penalty(t.weightGain));
   },
   update(dt) {
     const s = this.state, t = E8_WEB_SWING.tuning;
@@ -204,7 +204,7 @@ export const E8_WEB_SWING = {
     const s = this.state, t = E8_WEB_SWING.tuning, g = this.ink;
     const progress = MINI.clamp(s.x / this.goalX, 0, 1);
     MINI.frame(this, `WEB SWING  ${Math.floor(progress * 100)}%     BOOST ×${s.multiplier.toFixed(2)}     FALL ${s.deaths}`);
-    g.fillStyle(0x101a36).fillRect(22, 146, 916, 339);
+    g.fillStyle(0x101a36).fillRect(MINI.FIELD.x, MINI.FIELD.y, MINI.FIELD.w, MINI.FIELD.h);
     MINI.circle(this, 808, 203, 24, 0xeee2c3, .85);
     for (let i = 0; i < 14; i++) {
       const x = ((i * 103 - s.x * .13) % 1450 + 1450) % 1450 - 200;

@@ -1,12 +1,12 @@
 import { MINI } from './minigame-kit.js';
 
 export const E7_ROULETTE = {
-  tuning: { minSpeed: 9, maxSpeed: 24, minSpinSeconds: 1.4, extraTurns: 2 },
+  tuning: { minSpeed: 7.5, maxSpeed: 21, minSpinSeconds: 1.2, extraTurns: 1 },
   build() {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
     this.add.text(723, 276, '꽝', { fontFamily: 'Arial', fontSize: '18px', color: '#a6b7ce' });
-    this.state = { rotation: MINI.rand(0, Math.PI * 2), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
   },
   pointerDown(x, y) {
     const s = this.state, radius = Math.hypot(x - 480, y - 321);
@@ -30,7 +30,7 @@ export const E7_ROULETTE = {
     // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
     // extraTurns는 정수 바퀴이므로 균일성은 그대로 두고 회전량만 늘립니다.
     // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2);
+    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2, this.random);
     s.deceleration = s.speed * s.speed / (2 * travel);
     s.spinning = true; this.actions++; this.sfx('click');
   },
@@ -54,8 +54,10 @@ export const E7_ROULETTE = {
     this.risk = Math.min(100, s.misses * 17);
   },
   render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1));
-    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${2 * (s.misses + 1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
+    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1)), f = MINI.FIELD;
+    MINI.frame(this);
+    // 룰렛이 놓인 무대. 화면을 통째로 덮어 원판이 뜬금없이 떠 있지 않게 한다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x1a1430, .55);
     MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
     const points = [{ x: 480, y: 321 }];
     for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });

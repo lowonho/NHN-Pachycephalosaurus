@@ -17,10 +17,10 @@ export const E4_ACCELERATION_DASH = {
   },
   // 8개 직선(7번 회전)의 주 경로를 먼저 만들고, 나머지 방을 가지로 연결한다.
   // 이미 열린 방끼리는 연결하지 않아 출구까지의 지름길이 생기지 않는다.
-  route() {
+  route(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid;
     const tiles = Array.from({ length: rows }, () => Array(cols).fill(1));
-    const rooms = [], pick = list => list[Math.floor(Math.random() * list.length)];
+    const rooms = [], pick = list => list[Math.floor(random() * list.length)];
     const carve = (from, to) => {
       tiles[(from.y + to.y) / 2][(from.x + to.x) / 2] = 0;
       tiles[to.y][to.x] = 0; rooms.push(to);
@@ -53,10 +53,8 @@ export const E4_ACCELERATION_DASH = {
   },
   build() {
     MINI.init(this, 0xc6a2ff);
-    this.readout.setVisible(false);
-    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 80, 920, 417);
     const E4 = E4_ACCELERATION_DASH;
-    this.state = { ...E4.route(), ...E4.tileCenter(1, 1),
+    this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
       speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
@@ -65,7 +63,7 @@ export const E4_ACCELERATION_DASH = {
     const E4 = E4_ACCELERATION_DASH;
     if (!E4.steps[direction]) return;
     this.actions++;
-    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + E4.tuning.tapGain);
+    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + this.penalty(E4.tuning.tapGain));
   },
   wallsAt(x, y) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid, r = E4.tuning.radius;
@@ -129,7 +127,7 @@ export const E4_ACCELERATION_DASH = {
       E4.wallsAt.call(this, s.x, s.y - 5), E4.wallsAt.call(this, s.x, s.y + 5))
       .forEach(key => { if (s.contacts.has(key)) contacts.add(key); });
     if (impacted && !s.contacts.size) {
-      s.hits++; s.flash = .65; this.timePenalty += t.wallPenalty;
+      s.hits++; s.flash = .65; this.timePenalty += this.penalty(t.wallPenalty);
       this.remaining = Math.max(0, this.timeLimit - this.elapsed - this.timePenalty); this.bump();
     }
     s.contacts = contacts;
@@ -146,8 +144,7 @@ export const E4_ACCELERATION_DASH = {
     const E4 = E4_ACCELERATION_DASH, s = this.state, g = E4.grid;
     const actualSpeed = Math.hypot(s.vx, s.vy);
     const boost = MINI.clamp((actualSpeed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed), 0, 1);
-    this.ink.clear();
-    this.ink.fillStyle(0x0c202e).fillRoundedRect(20, 80, 920, 417, 14);
+    MINI.frame(this);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
     this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);

@@ -5,8 +5,26 @@
  * 다이얼로그를 열 때 값을 스냅샷으로 떠 두고, 조작은 즉시 반영한다(귀로 확인해야 하니까).
  * "적용"은 그대로 닫고, "뒤로가기"는 스냅샷으로 되돌린다.
  *
- * 음성 조작을 걷어내면서 "음성 입력 감도" 행은 제거했다. 지금은 4행(마스터·BGM·효과음·전체 화면)이다.
+ * 오디오·전체 화면과 함께 컷신 자동 속도 및 전체 건너뛰기 설정을 관리한다.
  */
+
+const STORY_SETTINGS_KEY = "archive-2026-story-settings-v1";
+const STORY_SETTINGS_DEFAULTS = Object.freeze({ cutsceneSpeed: 1, skipCutscenes: false });
+
+function loadStorySettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORY_SETTINGS_KEY) || "null");
+    const cutsceneSpeed = Number(saved?.cutsceneSpeed);
+    return {
+      cutsceneSpeed: Number.isFinite(cutsceneSpeed) ? Math.max(.5, Math.min(2, cutsceneSpeed)) : 1,
+      skipCutscenes: Boolean(saved?.skipCutscenes),
+    };
+  } catch {
+    return { ...STORY_SETTINGS_DEFAULTS };
+  }
+}
+
+globalThis.ARCHIVE_STORY_SETTINGS = loadStorySettings();
 
 class SettingsFlow {
   constructor(events, dom, soundBus) {
@@ -51,6 +69,14 @@ class SettingsFlow {
     });
 
     this.ui.settingsFullscreenToggle?.addEventListener("click", () => this.toggleFullscreen());
+    this.ui.cutsceneSpeed?.addEventListener("input", () => {
+      globalThis.ARCHIVE_STORY_SETTINGS.cutsceneSpeed = Number(this.ui.cutsceneSpeed.value) / 100;
+      this.syncStory();
+    });
+    this.ui.settingsSkipCutscenesToggle?.addEventListener("click", () => {
+      globalThis.ARCHIVE_STORY_SETTINGS.skipCutscenes = !globalThis.ARCHIVE_STORY_SETTINGS.skipCutscenes;
+      this.syncStory();
+    });
     this.ui.settingsApplyButton?.addEventListener("click", () => this.apply());
     this.ui.settingsBackButton?.addEventListener("click", () => this.cancel());
 
@@ -70,6 +96,7 @@ class SettingsFlow {
 
     this.syncAudio();
     this.syncFullscreen();
+    this.syncStory();
   }
 
   isOpen() {
@@ -86,11 +113,13 @@ class SettingsFlow {
       volumes: { ...this.soundBus.volumes },
       muted: this.soundBus.muted,
       channelMuted: { ...this.soundBus.channelMuted },
+      story: { ...globalThis.ARCHIVE_STORY_SETTINGS },
     };
     this.ui.settingsBackdrop?.classList.remove("hidden");
     this.ui.mainSettingsButton?.setAttribute("aria-expanded", "true");
     this.syncAudio();
     this.syncFullscreen();
+    this.syncStory();
     // 슬라이더에 바로 포커스를 주면 두꺼운 포커스 링이 먼저 눈에 띈다. 컨테이너로 넘긴다.
     this.ui.settingsDialog?.focus();
   }
@@ -103,6 +132,7 @@ class SettingsFlow {
   }
 
   apply() {
+    try { localStorage.setItem(STORY_SETTINGS_KEY, JSON.stringify(globalThis.ARCHIVE_STORY_SETTINGS)); } catch { /* 설정은 현재 탭에서 유지 */ }
     this.close();
   }
 
@@ -116,6 +146,7 @@ class SettingsFlow {
         this.soundBus.setChannelMuted(channel, muted);
       });
       this.soundBus.setMuted(previous.muted);
+      Object.assign(globalThis.ARCHIVE_STORY_SETTINGS, previous.story);
     }
     this.close();
   }
@@ -148,6 +179,18 @@ class SettingsFlow {
       // 꺼진 줄은 슬라이더와 숫자를 흐리게 둔다. css/settings.css가 읽는다.
       toggle?.closest(".settings-row")?.setAttribute("data-muted", String(!on));
     });
+  }
+
+  syncStory() {
+    const { cutsceneSpeed, skipCutscenes } = globalThis.ARCHIVE_STORY_SETTINGS;
+    if (this.ui.cutsceneSpeed) {
+      const percent = Math.round(cutsceneSpeed * 100);
+      this.ui.cutsceneSpeed.value = String(percent);
+      this.ui.cutsceneSpeed.style.setProperty("--p", String((percent - 50) / 150));
+    }
+    if (this.ui.cutsceneSpeedValue) this.ui.cutsceneSpeedValue.textContent = `${cutsceneSpeed.toFixed(2)}×`;
+    this.ui.settingsSkipCutscenesToggle?.setAttribute("aria-checked", String(skipCutscenes));
+    if (this.ui.settingsSkipCutscenesState) this.ui.settingsSkipCutscenesState.textContent = skipCutscenes ? "ON" : "OFF";
   }
 }
 

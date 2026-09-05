@@ -30,7 +30,7 @@
   const e4 = scene.stageGame, grid = e4.grid, bounds = e4.tileRect(grid.cols - 1, grid.rows - 1);
   assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 497, 'e4: whole maze fits fixed viewport');
   assert(grid.passageX >= 80 && grid.passageY >= 80 && grid.wall === 12, 'e4: wide passages with thin walls');
-  assert(!scene.readout.visible && grid.y === 88 && bounds.y + bounds.h === 384, 'e4: explanation row is replaced with a taller playable maze');
+  assert(!scene.readout?.visible && grid.y === 88 && bounds.y + bounds.h === 384, 'e4: explanation row is replaced with a taller playable maze');
   const direction = scene.state.tiles[1][2] === 0 ? 'right' : 'down';
   const origin = { x: scene.state.x, y: scene.state.y };
   scene.directionPress(direction); advance(.1);

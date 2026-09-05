@@ -5,8 +5,6 @@ export const E5_SLINGSHOT = {
   tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 20, 920, 477);
-    this.readout.setVisible(false);
     this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
@@ -79,7 +77,7 @@ export const E5_SLINGSHOT = {
 
     this.instruction.setText('');
   },
-  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
+  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * this.penalty(E5_SLINGSHOT.tuning.decay)); },
   pointerDown(x, y) {
     if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 382) > 55) return;
     this.state.drag = { x: 164, y: 382 };
@@ -251,15 +249,12 @@ export const E5_SLINGSHOT = {
     const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
     const field = this.ink;
-    field.clear();
-    field.fillStyle(0x0c202e).fillRoundedRect(20, 20, 920, 477, 14);
-    field.lineStyle(1, this.accent, .13);
-    for (let x = 40; x < 940; x += 40) field.lineBetween(x, 26, x, 490);
-    for (let y = 50; y < 497; y += 40) field.lineBetween(20, y, 940, y);
+    MINI.frame(this);
     this.instruction.setText('파괴 ' + broken + ' / 4 · 장력 ' + Math.round(power * 100) + '%' + (s.waiting ? ' · 다음 발사 ' + s.cooldown.toFixed(1) + '초' : ''));
     // Warm pastry counter, trays and reserves keep the play field readable.
     MINI.box(this, 22, 444, 916, 34, 0x372923);
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
+    MINI.box(this, MINI.FIELD.x, 480, MINI.FIELD.w, MINI.FIELD.bottom - 480, 0x372923);
     for (let i = 0; i < 3; i++) {
       if (i < 2) MINI.box(this, 546 + i * 116, 471, 108, 5, 0xd3b278);
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);

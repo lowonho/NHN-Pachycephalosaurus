@@ -9,19 +9,24 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
-  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','timbers'].includes(key) ? undefined : value)) });
+  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','timbers','map','toGoal','seen'].includes(key) ? undefined : value)) });
   load('e1');
   const flippedGates = new Set();
+  const lead = scene.hurdles[0].x, gateGap = scene.hurdles[2].x - scene.hurdles[0].x;
   advance(20.3, () => {
     const s = scene.state;
-    // 다음 묶음 110px 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
-    const next = scene.hurdles.find(h => h.x - s.x > -15);
-    if (next && next.x - s.x < 110 && !flippedGates.has(next.x)) { flippedGates.add(next.x); scene.primaryAction(); }
+    // 다음 묶음 0.386초 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
+    // 코스 간격은 속도에 따라 달라지므로 반응 거리도 속도에서 뽑습니다.
+    // 가시는 묶음마다 두 개씩 붙어 있으므로 묶음 번호로 묶어 한 번만 반전합니다.
+    const next = scene.hurdles.find(h => h.x - s.x > -15), gate = next && Math.round((next.x - lead) / gateGap);
+    if (next && next.x - s.x < scene.stageGame.tuning.speed * .386 && !flippedGates.has(gate)) { flippedGates.add(gate); scene.primaryAction(); }
   }); save('e1');
   load('e2'); driveE2(); save('e2');
   load('e3');
   let lastDrop = -10;
-  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
+  // 메챠 포즈는 옛 마네킹보다 훨씬 홀쭉해서, 한 명이 자리를 잡는 데 1초쯤 걸린다.
+  // 그보다 빨리 떨어뜨리면 이미 서 있는 사람을 무너뜨리기만 한다.
+  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > 1 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
   const maze = scene.state, center = scene.stageGame.tileCenter;
@@ -47,28 +52,15 @@
     scene.directionPress(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
   }); save('e4');
   load('e5');
-  const chooseShot = () => {
-    const s = scene.state, power = scene.stageGame.power.call(scene); let best = null;
-    for (let angle = .18; angle < 1.35; angle += .025) for (let pull = 66; pull <= 112; pull += 2) {
-      let x = 164-Math.cos(angle)*pull, y = 382+Math.sin(angle)*pull;
-      let vx = Math.cos(angle)*pull*scene.stageGame.tuning.force*power, vy = -Math.sin(angle)*pull*scene.stageGame.tuning.force*power;
-      let score = 0; const hits = new Set();
-      for(let frame = 0; frame < 280; frame++) {
-        vy += scene.stageGame.tuning.gravity/120; x += vx/120; y += vy/120;
-        if(y > 457 || x > 960) break;
-        const obstacle = [...s.timbers, ...s.targets].find(o => o.hp > 0 && x+12>=o.x && x-12<=o.x+o.w && y+12>=o.y && y-12<=o.y+o.h);
-        if (obstacle) {
-          score = obstacle.wood ? (obstacle.joints.length ? 90 + (obstacle.foundation ? 90 : 0) + (scene.stageGame.tuning.woodHP - obstacle.hp) * 3 : 20) : 250;
-          break;
-        }
-      }
-      if(!best || score>best.score) best={score,x:164-Math.cos(angle)*pull,y:382+Math.sin(angle)*pull};
-    }
-    return best;
-  };
-  while(scene.playable() && scene.elapsed < 19) {
-    while (scene.state.waiting && scene.playable()) advance(1/120); if (!scene.playable()) break;
-    const aim=chooseShot(); scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,aim.x,aim.y); scene.stageGame.pointerUp.call(scene); advance(.05);
+  // Real full-pull inputs: fracture the supports, then hit the remaining resident through the rubble.
+  // The former predictor ignored Matter joints and kept aiming at the same ineffective obstacle.
+  for(const angle of [.1, .3, .3, .3, .1]) {
+    if(!scene.playable()) break;
+    const pull=scene.stageGame.tuning.maxPull;
+    scene.pointerAction(164,382);
+    scene.stageGame.pointerMove.call(scene,164-Math.cos(angle)*pull,382+Math.sin(angle)*pull);
+    scene.stageGame.pointerUp.call(scene);
+    advance(1.5);
   }
   advance(2); save('e5');
   load('e6');
@@ -94,6 +86,38 @@
   const pull=Math.sqrt(2*220*distance)/5.7;
   scene.pointerAction(scene.state.x,scene.state.y); scene.stageGame.pointerMove.call(scene,scene.state.x-dx/distance*pull,scene.state.y-dy/distance*pull); scene.stageGame.pointerUp.call(scene);
   advance(20.3); save('e9');
+  load('e10');
+  // 실제 이동·제동·점프만으로 가장 긴 왕복 조합을 입력한다(9→0→9→0).
+  scene.state.target = '9090';
+  let decodeDirection = null;
+  const steerDecode = direction => {
+    if (direction === decodeDirection) return;
+    if (decodeDirection) scene.directionRelease(decodeDirection);
+    decodeDirection = direction;
+    if (decodeDirection) scene.directionPress(decodeDirection);
+  };
+  advance(20.3, () => {
+    const s = scene.state, t = scene.stageGame.tuning;
+    const expected = s.target[s.input.length];
+    if (!expected) { steerDecode(null); return; }
+    const block = scene.digitBlocks.find(item => item.digit === expected);
+    const targetX = block.x + block.w / 2;
+    const error = targetX - s.x;
+    if (!s.grounded) {
+      if (Math.abs(s.vx) > 28) steerDecode(s.vx > 0 ? 'left' : 'right');
+      else steerDecode(null);
+      return;
+    }
+    if (Math.abs(error) < 25 && Math.abs(s.vx) < 32) {
+      steerDecode(null); scene.primaryAction(); return;
+    }
+    const towardTarget = Math.sign(s.vx) === Math.sign(error);
+    const brakeDistance = s.vx * s.vx / (2 * t.acceleration);
+    if (towardTarget && Math.abs(error) < brakeDistance + 13) steerDecode(s.vx > 0 ? 'left' : 'right');
+    else steerDecode(error < 0 ? 'left' : 'right');
+  });
+  steerDecode(null);
+  save('e10');
   window.removeEventListener('archive-stage-end', listener);
   const failures = results.filter(result => !result.success);
   if (failures.length) throw new Error(`Clearability failed: ${JSON.stringify(failures)}`);

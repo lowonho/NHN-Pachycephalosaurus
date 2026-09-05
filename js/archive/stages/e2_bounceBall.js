@@ -26,7 +26,7 @@ export const E2_BOUNCE_BALL = {
   },
   jumpPower() {
     const t = E2_BOUNCE_BALL.tuning;
-    return Math.max(t.minJump, t.jump * t.jumpDecay ** this.state.jumps);
+    return Math.max(t.minJump, t.jump * (1 - this.penalty(1 - t.jumpDecay)) ** this.state.jumps);
   },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;

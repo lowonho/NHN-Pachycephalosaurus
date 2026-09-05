@@ -210,66 +210,319 @@ function createMinigamePlayLog(stageIds, storage = null) {
 
 
 /* Source: run-state.mjs */
-const TOTAL_TIME_MS = 20_260;
+const STAGE_TIME_MS = 20_260;
+const TOTAL_TIME_MS = STAGE_TIME_MS; // 이전 호출부와 QA 도구 호환용 이름
+const ACT_COUNT = 3;
+const STAGES_PER_ACT = 6;
+const LIVES_PER_ACT = 3;
+const STORY_RECORD_COUNT = ACT_COUNT * STAGES_PER_ACT;
+const RUN_STORAGE_KEY = 'archive-2026-story-run-v3';
 
-function sampleStages(ids, count = 5, random = Math.random) {
+function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random) {
   const bag = [...new Set(ids)];
   for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]];
+    const j = Math.floor(random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
   }
-  return bag.slice(0, count);
+  return bag.slice(0, Math.min(count, bag.length));
 }
 
-function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
-  let selected = sampleStages(stageIds), phase = 'menu', currentStageId = null, paused = false;
-  // 스테이지 기본값과 QA 설정을 반영한 한 시도의 시간 예산.
-  let budgetMs = totalTimeMs;
-  let remaining = budgetMs, elapsedMs = 0;
-  const cleared = new Set();
-  const resolveEnding = () => cleared.size === selected.length ? 'normal' : null;
-  const snapshot = () => ({
-    totalTimeMs: budgetMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
-    selectedStageIds: [...selected], clearedStageIds: [...cleared], clearedCount: cleared.size,
-    totalStages: selected.length, memoryCount: cleared.size, memoryStageIds: [...cleared],
-    ending: resolveEnding(),
+function makeGrid(value = false) {
+  return Array.from({ length: ACT_COUNT }, () => Array(STAGES_PER_ACT).fill(value));
+}
+
+function createArchiveRunState(stageIds, options = {}) {
+  const ids = [...new Set(stageIds)];
+  const config = typeof options === 'number' ? { stageTimeMs: options } : options;
+  const storage = config.storage ?? null;
+  const random = config.random ?? Math.random;
+  let stageTimeMs = Math.max(1, Math.round(config.stageTimeMs ?? STAGE_TIME_MS));
+
+  const blank = () => ({
+    version: 3,
+    active: false,
+    finished: false,
+    archiveViewerUnlocked: false,
+    archiveEntries: [],
+    currentAct: 1,
+    currentStageInAct: 1,
+    currentStageId: null,
+    selectedGames: [[], [], []],
+    selectionSeeds: [null, null, null],
+    lives: LIVES_PER_ACT,
+    actAttemptCount: [1, 1, 1],
+    assistProtocolAct1: false,
+    stageRecords: makeGrid(false),
+    cutscenesSeen: {},
+    phase: 'menu',
+    paused: false,
+    elapsedMs: 0,
+    remainingMs: stageTimeMs,
+    transition: null,
+    qaMode: false,
   });
+
+  let state = blank();
+  let qaBackup = null;
+
+  const validSelection = (selection) => Array.isArray(selection)
+    && selection.every((id) => ids.includes(id))
+    && new Set(selection).size === selection.length;
+
+  try {
+    const saved = JSON.parse(storage?.getItem(RUN_STORAGE_KEY) || 'null');
+    if (saved?.version === 3 && Array.isArray(saved.selectedGames)
+      && saved.selectedGames.length === ACT_COUNT
+      && saved.selectedGames.every(validSelection)) {
+      state = {
+        ...blank(),
+        ...saved,
+        archiveEntries: Array.isArray(saved.archiveEntries) ? saved.archiveEntries.map((entry) => ({ ...entry })) : [],
+        selectedGames: saved.selectedGames.map((selection) => [...selection]),
+        selectionSeeds: [...saved.selectionSeeds],
+        actAttemptCount: [...saved.actAttemptCount],
+        stageRecords: saved.stageRecords.map((row) => row.map(Boolean)),
+        cutscenesSeen: { ...saved.cutscenesSeen },
+        phase: saved.phase === 'playing' ? 'menu' : saved.phase,
+        paused: false,
+        currentStageId: null,
+        elapsedMs: 0,
+        remainingMs: stageTimeMs,
+        qaMode: false,
+      };
+    }
+  } catch { /* 손상되거나 사용할 수 없는 저장소는 새 상태로 대체한다. */ }
+
+  const persist = () => {
+    try { storage?.setItem(RUN_STORAGE_KEY, JSON.stringify(state)); } catch { /* 세션 진행은 유지 */ }
+  };
+
+  const currentSelection = () => state.selectedGames[state.currentAct - 1] ?? [];
+  const expectedStageId = () => currentSelection()[state.currentStageInAct - 1] ?? null;
+  const recordCount = () => state.stageRecords.flat().filter(Boolean).length;
+  const actRecordCount = () => state.stageRecords[state.currentAct - 1]?.filter(Boolean).length ?? 0;
+  const suppressionMultiplier = () => {
+    const base = [0.85, 1, 1.35][state.currentAct - 1] ?? 1;
+    return state.currentAct === 1 && state.assistProtocolAct1 ? base * .8 : base;
+  };
+
+  const stageConfigSeed = () => {
+    const stageId = state.currentStageId || expectedStageId() || '';
+    let hash = 2166136261;
+    for (const character of stageId) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    const actSeed = Number(state.selectionSeeds[state.currentAct - 1]) >>> 0;
+    return (actSeed ^ Math.imul(state.currentStageInAct, 0x9e3779b1) ^ hash) >>> 0;
+  };
+
+  const selectAct = (actIndex) => {
+    state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
+    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random);
+  };
+
+  const snapshot = () => {
+    const selected = currentSelection();
+    const currentActRecords = state.stageRecords[state.currentAct - 1] ?? [];
+    const selectedCleared = selected.filter((_, index) => currentActRecords[index]);
+    const totalRecordCount = recordCount();
+    return {
+      active: state.active,
+      hasSave: state.active && !state.finished,
+      finished: state.finished,
+      archiveViewerUnlocked: state.archiveViewerUnlocked,
+      archiveEntries: state.archiveEntries.map((entry) => ({ ...entry })),
+      currentAct: state.currentAct,
+      currentStageInAct: state.currentStageInAct,
+      currentStageId: state.currentStageId || expectedStageId(),
+      expectedStageId: expectedStageId(),
+      selectedGames: state.selectedGames.map((selection) => [...selection]),
+      selectedStageIds: [...selected],
+      selectionSeeds: [...state.selectionSeeds],
+      stageConfigSeed: stageConfigSeed(),
+      lives: state.lives,
+      actAttemptCount: [...state.actAttemptCount],
+      assistProtocolAct1: state.assistProtocolAct1,
+      suppressionMultiplier: suppressionMultiplier(),
+      ariaPhase: ['GUIDE', 'REVEALED', 'HOSTILE'][state.currentAct - 1],
+      stageRecords: state.stageRecords.map((row) => [...row]),
+      registeredRecordIds: state.stageRecords.flatMap((row, actIndex) => row.flatMap((registered, slotIndex) => (
+        registered ? [`A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`] : []
+      ))),
+      actRecordCount: actRecordCount(),
+      totalRecordCount,
+      clearedStageIds: selectedCleared,
+      clearedCount: actRecordCount(),
+      totalStages: selected.length || STAGES_PER_ACT,
+      memoryCount: totalRecordCount,
+      memoryStageIds: [],
+      stageTimeMs,
+      totalTimeMs: stageTimeMs,
+      stageRemainingMs: Math.round(state.remainingMs),
+      totalRemainingMs: Math.round(state.remainingMs),
+      elapsedMs: state.elapsedMs,
+      phase: state.phase,
+      paused: state.paused,
+      transition: state.transition,
+      ending: state.finished ? 'shared' : null,
+      qaMode: state.qaMode,
+    };
+  };
+
+  const startNew = () => {
+    const viewerUnlocked = state.archiveViewerUnlocked;
+    const archiveEntries = state.archiveEntries.map((entry) => ({ ...entry }));
+    state = blank();
+    state.archiveViewerUnlocked = viewerUnlocked;
+    state.archiveEntries = archiveEntries;
+    state.active = true;
+    selectAct(0);
+    persist();
+    return snapshot();
+  };
+
   return {
-    snapshot, resolveEnding,
-    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = budgetMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
-    /*
-     * QA 모드 전용 — 랜덤 5개 대신 지정한 목록을 이번 판의 선택으로 쓴다.
-     * (게임 브리지는 selectedStageIds에 없는 스테이지를 열어 주지 않는다.)
-     */
-    setSelection(ids) {
-      const next = [...new Set(ids)].filter(id => stageIds.includes(id));
+    snapshot,
+    resolveEnding: () => state.finished ? 'shared' : null,
+    hasSave: () => state.active && !state.finished,
+    startNew,
+    reset: startNew,
+    setSelection(selection) {
+      const next = [...new Set(selection)].filter((id) => ids.includes(id));
       if (next.length === 0) throw new RangeError('Empty stage selection');
-      selected = next;
-      for (const id of [...cleared]) if (!selected.includes(id)) cleared.delete(id);
+      if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
+      state.active = true;
+      state.qaMode = true;
+      state.currentAct = 1;
+      state.currentStageInAct = 1;
+      state.selectedGames[0] = next;
+      state.currentStageId = null;
+      state.stageRecords[0] = Array(STAGES_PER_ACT).fill(false);
+      state.phase = 'menu';
+      state.transition = null;
       return snapshot();
     },
-    /* 한 시도의 예산(책상 시계)을 스테이지 제한시간에 맞춘다. */
+    exitQa() {
+      if (qaBackup) state = qaBackup;
+      qaBackup = null;
+      state.qaMode = false;
+      state.paused = false;
+      state.phase = 'menu';
+      state.currentStageId = null;
+      persist();
+      return snapshot();
+    },
     setAttemptTime(ms) {
       const value = Number(ms);
       if (!Number.isFinite(value) || value <= 0) throw new RangeError('Invalid attempt time');
-      budgetMs = Math.round(value);
-      if (phase !== 'playing') remaining = budgetMs;
+      stageTimeMs = Math.round(value);
+      if (state.phase !== 'playing') state.remainingMs = stageTimeMs;
       return snapshot();
     },
     beginAttempt(id) {
-      if (!selected.includes(id)) throw new RangeError(`Stage not selected in this run: ${id}`);
-      currentStageId = id; remaining = budgetMs; paused = false; phase = 'playing'; return snapshot();
+      const selected = currentSelection();
+      if (!selected.includes(id)) throw new RangeError(`Stage not selected in this act: ${id}`);
+      if (!state.qaMode && id !== expectedStageId()) throw new RangeError(`Expected story stage: ${expectedStageId()}`);
+      state.currentStageId = id;
+      state.remainingMs = stageTimeMs;
+      state.elapsedMs = 0;
+      state.paused = false;
+      state.phase = 'playing';
+      persist();
+      return snapshot();
     },
     consume(ms) {
-      if (phase === 'playing' && !paused) { const delta = Math.min(remaining, Math.max(0, Number(ms) || 0)); remaining -= delta; elapsedMs += delta; }
+      if (state.phase === 'playing' && !state.paused) {
+        const delta = Math.min(state.remainingMs, Math.max(0, Number(ms) || 0));
+        state.remainingMs -= delta;
+        state.elapsedMs += delta;
+      }
       return snapshot();
     },
+    // 미로의 벽 충돌 시간 차감도 스토리 HUD와 책상 시계에 동일하게 반영합니다.
     syncRemaining(ms) {
-      if (Number.isFinite(ms)) remaining = Math.max(0, Math.min(budgetMs, ms));
+      if (Number.isFinite(ms)) state.remainingMs = Math.max(0, Math.min(stageTimeMs, ms));
       return snapshot();
     },
-    completeAttempt(success) { if (phase === 'playing' && success && currentStageId) cleared.add(currentStageId); phase = 'result'; paused = false; return snapshot(); },
-    leaveAttempt() { phase = 'menu'; currentStageId = null; paused = false; return snapshot(); },
-    setPaused(value) { paused = Boolean(value); return snapshot(); },
+    completeAttempt(success) {
+      if (state.phase !== 'playing') return snapshot();
+      state.phase = 'result';
+      state.paused = false;
+      if (state.qaMode) {
+        state.transition = success ? 'qa-clear' : 'qa-retry';
+        persist();
+        return snapshot();
+      }
+
+      if (success) {
+        state.stageRecords[state.currentAct - 1][state.currentStageInAct - 1] = true;
+        state.transition = state.currentAct === ACT_COUNT && state.currentStageInAct === STAGES_PER_ACT
+          ? 'ending'
+          : state.currentStageInAct === STAGES_PER_ACT ? 'next-act' : 'next-stage';
+      } else {
+        state.lives -= 1;
+        if (state.lives > 0) {
+          state.transition = 'retry';
+        } else {
+          const actIndex = state.currentAct - 1;
+          state.actAttemptCount[actIndex] += 1;
+          state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
+          state.currentStageInAct = 1;
+          state.currentStageId = null;
+          state.lives = LIVES_PER_ACT;
+          selectAct(actIndex);
+          if (state.currentAct === 1 && state.actAttemptCount[0] >= 4) state.assistProtocolAct1 = true;
+          state.transition = 'act-restarted';
+        }
+      }
+      persist();
+      return snapshot();
+    },
+    advance() {
+      const transition = state.transition;
+      if (transition === 'next-stage') state.currentStageInAct += 1;
+      else if (transition === 'next-act') {
+        state.currentAct += 1;
+        state.currentStageInAct = 1;
+        state.lives = LIVES_PER_ACT;
+        if (!state.selectedGames[state.currentAct - 1].length) selectAct(state.currentAct - 1);
+      } else if (transition === 'ending') {
+        state.archiveEntries = state.selectedGames.flatMap((selection, actIndex) => selection.map((gameId, slotIndex) => ({
+          recordId: `A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`,
+          gameId,
+        })));
+        state.finished = true;
+        state.active = false;
+        state.archiveViewerUnlocked = true;
+      }
+      state.currentStageId = null;
+      state.remainingMs = stageTimeMs;
+      state.elapsedMs = 0;
+      state.paused = false;
+      state.phase = 'menu';
+      state.transition = null;
+      persist();
+      return { transition, snapshot: snapshot() };
+    },
+    leaveAttempt() {
+      state.currentStageId = null;
+      state.paused = false;
+      if (state.phase === 'playing') state.phase = 'menu';
+      persist();
+      return snapshot();
+    },
+    setPaused(value) {
+      state.paused = Boolean(value);
+      persist();
+      return snapshot();
+    },
+    markCutsceneSeen(id) {
+      if (id) state.cutscenesSeen[id] = true;
+      persist();
+      return snapshot();
+    },
+    hasSeenCutscene: (id) => Boolean(state.cutscenesSeen[id]),
   };
 }
 
@@ -277,17 +530,38 @@ function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
 /* Source: stages/minigame-kit.js */
 /* 렌더링/충돌 도구만 공유합니다. 모든 게임 상태는 scene.state에 새로 생성합니다. */
 const MINI = {
+  /*
+   * 플레이 화면(필드) = 모니터 스크린 전체.
+   *
+   * 예전에는 캔버스(960×540) 한가운데 920×353짜리 판을 그리고 위아래 빈 띠에
+   * 글자를 얹었다. 지금은 그 판이 곧 화면이다 — 설계 좌표(가로 20~940)는 그대로 두고
+   * 카메라 한 번으로 필드를 16:9 화면에 꽉 채운다. 게임 좌표·판정은 하나도 바뀌지 않고
+   * 같은 배율만큼 위아래로 더 보이게 되어, 각 게임이 가장자리까지 그림을 잇는다.
+   *
+   * 화면 위 UI(조작 안내 · 진행 막대)는 이 필드 위에 겹쳐 그린다.
+   */
+  FIELD: (() => {
+    const x = 20, w = 920, cy = 320.5;      // 옛 필드의 가로 범위와 세로 중심
+    const h = w * 540 / 960;                // 16:9 — 517.5
+    return { x, y: cy - h / 2, w, h, right: x + w, bottom: cy + h / 2, cx: x + w / 2, cy };
+  })(),
   clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
-  rand: (lo, hi) => lo + Math.random() * (hi - lo),
+  rand: (lo, hi, random = Math.random) => lo + random() * (hi - lo),
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
+    const f = MINI.FIELD;
+    // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
+    scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
     scene.ink = scene.add.graphics();
     scene.fieldMask = scene.make.graphics({ x: 0, y: 0, add: false });
-    scene.fieldMask.fillStyle(0xffffff).fillRect(20, 144, 920, 353);
+    scene.fieldMask.fillStyle(0xffffff).fillRect(f.x, f.y, f.w, f.h);
     scene.ink.setMask(scene.fieldMask.createGeometryMask());
-    scene.readout = scene.add.text(32, 109, '', { fontFamily: 'Arial, sans-serif', fontSize: '19px', color: '#f4f3e9' });
-    scene.instruction = scene.add.text(480, 513, scene.stage.controls, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2' }).setOrigin(0.5);
+    // 조작 안내는 플레이 화면 위에 겹친다. 배경 위에서도 읽히도록 테두리를 준다.
+    scene.instruction = scene.add.text(f.cx, f.bottom - 26, scene.stage.controls, {
+      fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2',
+      stroke: '#04121b', strokeThickness: 4,
+    }).setOrigin(0.5).setAlpha(.9);
     scene.assetSprites = new Map();
     scene.spawnAt = -1;
   },
@@ -312,7 +586,7 @@ const MINI = {
   spawnFx(scene, x, y, size = 30, color = scene.accent) {
     const phase = MINI.spawnPhase(scene);
     if (phase === null) return;
-    const g = scene.ink, top = 144;
+    const g = scene.ink, top = MINI.FIELD.y;
     const drop = Math.min(1, phase / .32), land = Math.max(0, phase - .32) / .68;
     const bottom = top + (y - top) * (1 - (1 - drop) ** 3), fade = 1 - land * land;
     const half = size * (.5 + .45 * fade);
@@ -331,13 +605,13 @@ const MINI = {
     g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
     g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
-  frame(scene, text) {
-    const g = scene.ink; g.clear();
-    g.fillStyle(0x0c202e).fillRoundedRect(20, 144, 920, 353, 14);
+  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다. */
+  frame(scene) {
+    const g = scene.ink, f = MINI.FIELD; g.clear();
+    g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
     g.lineStyle(1, scene.accent, 0.13);
-    for (let x = 40; x < 940; x += 40) g.lineBetween(x, 150, x, 490);
-    for (let y = 170; y < 497; y += 40) g.lineBetween(20, y, 940, y);
-    scene.readout.setText(text);
+    for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
+    for (let y = f.y + 28; y < f.bottom; y += 40) g.lineBetween(f.x, y, f.right, y);
   },
   box(scene, x, y, w, h, color, alpha = 1) {
     scene.ink.fillStyle(color, alpha).fillRoundedRect(x, y, w, h, Math.min(5, w / 3, h / 3));
@@ -348,6 +622,10 @@ const MINI = {
   goal(scene, x, y, r = 22) {
     scene.ink.lineStyle(3, 0xa7ffc6).strokeCircle(x, y, r);
     scene.ink.lineStyle(2, 0xa7ffc6, 0.3).strokeCircle(x, y, r + 7);
+    if (scene.assistProtocol && scene.elapsed % 5 < .45) {
+      const wave = (scene.elapsed % .45) / .45;
+      scene.ink.lineStyle(4, 0x93fca0, 1 - wave).strokeCircle(x, y, r + 12 + wave * 28);
+    }
     MINI.circle(scene, x, y, 4, 0xa7ffc6);
   },
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
@@ -379,48 +657,82 @@ const MINI = {
     g.restore();
   },
   hideActor(scene, key) { scene.assetSprites.get(key)?.setVisible(false); },
+  /* 진행 막대도 화면 위 오버레이다 — 필드 맨 아래에 얇게 눕힌다. */
   meter(scene, fraction) {
-    MINI.box(scene, 32, 487, 896, 4, 0x204251);
-    MINI.box(scene, 32, 487, 896 * MINI.clamp(fraction, 0, 1), 4, scene.accent);
+    const f = MINI.FIELD, x = f.x + 12, y = f.bottom - 9, w = f.w - 24;
+    MINI.box(scene, x, y, w, 4, 0x204251, .85);
+    MINI.box(scene, x, y, w * MINI.clamp(fraction, 0, 1), 4, scene.accent);
   },
 };
 
 
 /* Source: stages/e1_gravityDash.js */
 
-/* 코스 좌표. 플레이어는 점프하지 않고 바닥 벽과 천장 벽 사이를 오갑니다. */
-const FLOOR_TOP = 467;   // 바닥 벽의 윗면
-const CEIL_BOTTOM = 174; // 천장 벽의 아랫면
-const FLOOR_Y = 450;     // 바닥에 붙었을 때 플레이어 중심
-const CEIL_Y = 189;      // 천장에 붙었을 때 플레이어 중심
+/* 코스 좌표. 플레이어는 점프하지 않고 바닥 벽과 천장 벽 사이를 오갑니다.
+   통로 높이는 381 — 필드 세로 중심(320.5)을 기준으로 위아래 대칭이고, 남는 68씩이 벽입니다. */
+const FLOOR_TOP = 511;   // 바닥 벽의 윗면
+const CEIL_BOTTOM = 130; // 천장 벽의 아랫면
+const FLOOR_Y = 494;     // 바닥에 붙었을 때 플레이어 중심
+const CEIL_Y = 145;      // 천장에 붙었을 때 플레이어 중심
 const BLOCK = 34;        // 장애물 높이
-const FLOAT_Y = 286;     // 떠 있는 장애물의 시작 높이
-const GATE = 390;        // 장애물 묶음 사이 간격
+const FLOAT_Y = 276;     // 떠 있는 장애물의 시작 높이
 const GATES = 10;
+/* 맵이 흐르는 속도(px/s)입니다. 코스 길이와 장애물 간격을 모두 이 속도에 비례해 잡으므로,
+   속도를 올리면 간격도 그만큼 벌어져 묶음 사이 시간(약 1.37초)과 코스 시간(약 16.3초)은 그대로입니다. */
+const SPEED = 340;
+const PACE = SPEED / 285;                  // 예전 기준 속도 285 대비 배율
+const GATE = Math.round(390 * PACE);       // 장애물 묶음 사이 간격
+const LEAD = Math.round(650 * PACE);       // 출발선에서 첫 묶음까지
+const DISTANCE = Math.round(4650 * PACE);  // 골인 지점
+const SPIKE_GAP = Math.round(38 * PACE);   // 한 묶음에 나란히 붙는 가시 두 개의 간격
+const BLOCK_OFF = Math.round(90 * PACE);   // 묶음 안에서 블록이 서는 자리
+const FLOAT_OFF = Math.round(285 * PACE);  // 묶음 안에서 공중 블록이 뜨는 자리
+const SPIKES = GATES * 2;  // 가시 20개 — 게이트마다 두 개씩 나란히
+const MAX_FLIPS = 25;      // risk 게이지가 100%에 닿는 반전 횟수. 이때 가시가 전부 풀립니다.
+// 한 번에 풀리는 양은 앞에서 한 개, 뒤로 갈수록 여러 개. 합계는 SPIKES와 같습니다.
+const RELEASE_STEPS = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3];
+// 판정 간격을 두 반전에 한 번으로 벌려, 마지막 묶음이 MAX_FLIPS번째에 떨어지도록 뒤에서부터 맞춥니다.
+const SPIKE_RELEASE = RELEASE_STEPS.flatMap((n, i) => Array(n).fill(MAX_FLIPS - (RELEASE_STEPS.length - 1 - i) * 2));
+
+const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 크기로만 부딪칩니다.
+/* 캐릭터 그림(assets/images/minigame/geomatric dash)의 표시 높이입니다. 가로는 텍스처
+   비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
+   같아 보이도록 자세별로 따로 맞춘 값입니다. 그림을 다시 그렸다면 여기부터 맞춥니다. */
+const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
+const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 절반입니다.
+const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
+const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
+const SPAWN_FX = 52;      // 되살아날 때의 빛기둥 굵기. 달리기 그림 가로(약 59)에 맞춥니다.
 
 const E1_GRAVITY_DASH = {
-  // 약 16.3초 코스. 캐릭터는 약 0.39초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
-  tuning: { speed: 285, distance: 4650, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: 190 },
+  // 약 16.3초 코스. 캐릭터는 약 0.45초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
+  // (통로가 381로 넓어져 건너는 거리가 261 → 349가 되었습니다. 중력은 그대로 둡니다.)
+  tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: 190 },
   build() {
     MINI.init(this, 0x67e8f9);
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, obstacles: [] };
-    // 가시도 블록과 같은 이동/충돌 경로를 사용합니다. 노란색과 빨간색은 플레이어를
-    // 천천히 따라가고, 보라색은 반대쪽으로 움직여 반전 시점을 고민하게 합니다.
-    this.hurdles = Array.from({ length: GATES }, (_, i) => ({
-      x: 650 + i * GATE, y: i % 2 ? CEIL_BOTTOM : FLOOR_TOP - 24, w: 35, h: 24,
-      vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
-    }));
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, obstacles: [] };
+    // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
+    // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
+    this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
+      // 게이트마다 가시 두 개를 나란히 붙여 둡니다. 반전 리듬은 예전처럼 게이트 간격 그대로입니다.
+      const gate = Math.floor(i / 2), wall = gate % 2 ? CEIL_BOTTOM : FLOOR_TOP - 24;
+      return {
+        x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: 35, h: 24,
+        vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
+        wall, loose: false, releaseAt: SPIKE_RELEASE[i],
+      };
+    });
     this.state.obstacles.push(...this.hurdles);
     for (let i = 0; i < GATES; i++) {
-      const gate = 650 + i * GATE;
+      const gate = LEAD + i * GATE;
       // 플레이어보다 늦게 벽을 옮깁니다. 너무 일찍 뒤집으면 도착한 벽에서 다시 만납니다.
-      this.state.obstacles.push({
-        x: gate + 90, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
+      if (i % 2 === 0) this.state.obstacles.push({
+        x: gate + BLOCK_OFF, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
         factor: .8 + (i % 4) * .15, response: 1, float: false,
       });
       // 기존 고정 공중 블록도 반전에 반응합니다. 반대 방향으로 움직이는 느린 장애물입니다.
-      if (i < GATES - 1) this.state.obstacles.push({
-        x: gate + 285, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
+      if (i % 2 === 1 && i < GATES - 1) this.state.obstacles.push({
+        x: gate + FLOAT_OFF, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
       });
     }
   },
@@ -443,38 +755,67 @@ const E1_GRAVITY_DASH = {
       MINI.summon(this); this.bump();
     };
     for (const o of s.obstacles) {
+      // 붙어 있는 가시는 정해진 반전 횟수를 넘기기 전까지 자기 벽에 그대로 고정됩니다.
+      if (o.spike && !o.loose) {
+        if (this.actions < o.releaseAt) { o.y = o.wall; o.vy = 0; continue; }
+        o.loose = true;
+      }
       const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
-      o.vy = MINI.clamp(o.vy + s.sign * o.response * t.obstacleGravity * o.factor * dt, -limit, limit);
+      o.vy = MINI.clamp(o.vy + s.sign * o.response * this.penalty(t.obstacleGravity) * o.factor * dt, -limit, limit);
       o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
       if ((o.y === CEIL_BOTTOM && o.vy < 0) || (o.y === FLOOR_TOP - o.h && o.vy > 0)) o.vy = 0;
     }
     // 충돌하더라도 그 프레임의 모든 장애물은 끝까지 움직입니다.
     if (!s.immune && s.obstacles.some(o => MINI.hit(player, { ...o, x: o.x - s.x + 180 }))) crash();
     this.anomaly = `중력 ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'} · 충돌 ${s.deaths}회`;
-    this.risk = Math.min(100, this.actions * 9);
+    this.risk = Math.min(100, this.actions / MAX_FLIPS * 100);
     if (s.x >= t.distance) this.finish(true);
   },
+  /* 시간이 다 되면 실패입니다. 판정이 끝난 뒤에도 render가 한 번 더 도니까,
+     여기서 표시만 바꿔 두면 화면에 남는 마지막 그림이 주저앉은 자세가 됩니다. */
+  timeout() { this.state.failed = true; return false; },
+  /* 키에 묶인 이미지를 만들거나 다시 씁니다. 없는 텍스처면 null을 돌려줍니다. */
+  sprite(key, texture) {
+    if (!this.textures.exists(texture)) { this.assetSprites.get(key)?.setVisible(false); return null; }
+    let sprite = this.assetSprites.get(key);
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
+    return sprite.setTexture(texture).setVisible(true);
+  },
+  /* 표시만 그림으로 바꾸고 판정 사각형은 그대로 둡니다. 발끝을 판정 사각형의 중력 쪽
+     모서리에 맞추므로, 그림이 판정보다 커도 발은 지금 달리는 벽에 붙어 있습니다.
+     천장을 달릴 때는 위아래로 뒤집어 발이 천장을 딛게 합니다(좌우는 그대로). */
+  drawPlayer(pose, pop) {
+    const s = this.state;
+    const sprite = E1_GRAVITY_DASH.sprite.call(this, 'player', `e1:${pose}`);
+    if (!sprite) { MINI.actor(this, 'player', 'player', 180, s.y, HITBOX * pop, HITBOX * pop, -s.sign * s.x / 80); return; }
+    const height = POSE_HEIGHT[pose] * pop, feet = s.y + s.sign * HITBOX / 2;
+    sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
+      .setDisplaySize(height * sprite.width / sprite.height, height);
+  },
   render() {
-    const s = this.state, t = E1_GRAVITY_DASH.tuning;
-    MINI.frame(this, `GRAVITY ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'}    ${Math.floor(100 * s.x / t.distance)}%`);
-    // 천장 벽과 바닥 벽. 빗금은 진행 방향으로 흘러 속도감을 줍니다.
-    MINI.box(this, 22, 156, 916, 18, 0x123a4c);
-    MINI.box(this, 22, FLOOR_TOP, 916, 18, 0x123a4c);
+    const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 천장 벽과 바닥 벽. 벽 속은 화면 끝까지 채운다 — 통로 밖은 벽이지 빈 자리가 아니다.
+    MINI.box(this, f.x, f.y, f.w, CEIL_BOTTOM - f.y, 0x123a4c);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, f.bottom - FLOOR_TOP, 0x123a4c);
+    // 빗금은 진행 방향으로 흘러 속도감을 줍니다.
     const shift = -(s.x % 40);
     for (let x = shift - 40; x < 960; x += 40) {
-      MINI.line(this, x, 158, x + 12, 172, 0x1d5670, 3);
+      MINI.line(this, x, CEIL_BOTTOM - 16, x + 12, CEIL_BOTTOM - 2, 0x1d5670, 3);
       MINI.line(this, x, FLOOR_TOP + 2, x + 12, FLOOR_TOP + 16, 0x1d5670, 3);
     }
-    MINI.box(this, 22, 168, 916, 6, 0x2c6e85);
-    MINI.box(this, 22, FLOOR_TOP, 916, 6, 0x2c6e85);
+    // 벽면 띠는 통로 안쪽으로 두께 6을 차지합니다. 통로 높이를 바꿔도 따라오도록 좌표에서 뽑습니다.
+    MINI.box(this, f.x, CEIL_BOTTOM - 6, f.w, 6, 0x2c6e85);
+    MINI.box(this, f.x, FLOOR_TOP, f.w, 6, 0x2c6e85);
     // 지금 끌려가는 쪽 벽면을 강조해 반전 상태를 한눈에 보여 줍니다.
-    MINI.box(this, 22, s.sign === 1 ? FLOOR_TOP : 168, 916, 6, this.accent, .95);
+    MINI.box(this, f.x, s.sign === 1 ? FLOOR_TOP : CEIL_BOTTOM - 6, f.w, 6, this.accent, .95);
     for (let i = 0; i < s.obstacles.length; i++) {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
       if (o.spike) {
-        const down = s.sign * o.response < 0;
-        MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, 0xffcf7b);
+        // 붙어 있는 가시는 자기 벽에서 통로 쪽을 향하고, 풀려난 뒤에야 중력을 따라 떨어집니다.
+        const down = o.loose ? s.sign * o.response < 0 : o.wall === CEIL_BOTTOM;
+        MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, o.loose ? 0xffcf7b : 0xb08341);
       } else if (o.float) {
         // 보라색은 플레이어의 반대 방향으로 이동합니다.
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, s.x / 55, 0xb98cff);
@@ -482,18 +823,34 @@ const E1_GRAVITY_DASH = {
       } else {
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, 0, 0xff6584);
       }
+      // 붙어 있는 가시는 아직 움직이지 않으므로 방향 표시를 생략합니다.
+      if (o.spike && !o.loose) continue;
       // 모든 장애물에 중력이 끌어당기는 방향을 표시합니다.
       const dir = s.sign * o.response;
       MINI.line(this, cx, cy + dir * 26, cx, cy + dir * 44, 0xffadb8);
       MINI.line(this, cx - 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
       MINI.line(this, cx + 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
     }
-    const pop = MINI.spawnScale(this);
-    if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30 * pop, 30 * pop, -s.sign * s.x / 80);
+    // 자세는 상태를 그대로 읽습니다. 실패하면 주저앉고, 부딪친 뒤 무적인 동안은 아파하고,
+    // 두 벽 어디에도 닿아 있지 않으면 중력에 끌려가는 중이라 점프, 나머지는 달리기입니다.
+    const pop = s.failed ? 1 : MINI.spawnScale(this);
+    const airborne = s.y !== CEIL_Y && s.y !== FLOOR_Y;
+    const pose = s.failed ? 'fall' : s.immune ? 'hurt' : airborne ? 'jump' : 'run';
+    if (s.failed || !s.immune || Math.floor(s.immune * 16) % 2) E1_GRAVITY_DASH.drawPlayer.call(this, pose, pop);
     else MINI.hideActor(this, 'player');
-    MINI.spawnFx(this, 180, s.y, 30);
+    if (!s.failed) MINI.spawnFx(this, 180, s.y, SPAWN_FX);
     const goal = t.distance - s.x + 180;
-    if (goal < 980) { MINI.box(this, goal - 4, CEIL_BOTTOM, 8, FLOOR_TOP - CEIL_BOTTOM, 0xa7ffc6, .3); MINI.goal(this, goal, 320); }
+    if (goal < 980) {
+      const banner = E1_GRAVITY_DASH.sprite.call(this, 'goal', 'e1:goal');
+      // 표지는 제자리에서 통통 튑니다. 꼭대기에서 길쭉, 바닥에서 납작해지도록 가로세로를
+      // 반대로 늘여 넓이를 지킵니다. 공통 게임 시간만 읽으므로 따로 타이머를 두지 않습니다.
+      if (banner) {
+        const hop = Math.abs(Math.sin(this.elapsed * Math.PI * GOAL_HOPS));
+        const stretch = 1 + (hop - .5) * .08, ratio = banner.width / banner.height;
+        banner.setPosition(goal, (CEIL_BOTTOM + FLOOR_TOP) / 2 - hop * GOAL_HOP).setDepth(1)
+          .setDisplaySize(GOAL_HEIGHT * ratio / stretch, GOAL_HEIGHT * stretch);
+      } else MINI.goal(this, goal, (CEIL_BOTTOM + FLOOR_TOP) / 2);
+    } else MINI.hideActor(this, 'goal');
     MINI.meter(this, s.x / t.distance);
   },
 };
@@ -527,7 +884,7 @@ const E2_BOUNCE_BALL = {
   },
   jumpPower() {
     const t = E2_BOUNCE_BALL.tuning;
-    return Math.max(t.minJump, t.jump * t.jumpDecay ** this.state.jumps);
+    return Math.max(t.minJump, t.jump * (1 - this.penalty(1 - t.jumpDecay)) ** this.state.jumps);
   },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
@@ -669,42 +1026,38 @@ const E2_BOUNCE_BALL = {
 
 /* Source: stages/e3_humanStack.js */
 
+/*
+ * 떨어지는 사람은 assets/images/minigame/stacks/metcha 의 포즈 여덟 장이다.
+ * 표시 크기와 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 그림의 알파에서 구워
+ * assets/minigames/e3/pose-shapes.js 에 넣어 둔다. 조각은 알파가 반 넘게 찬 칸만 덮으므로
+ * 투명한 여백은 서로 지나가고 사람 모형끼리는 겹치지 않는다.
+ *
+ * 구운 파일을 못 찾으면 아래 한 자세로만 돌아간다. 게임이 멈추지는 않지만 그림도 안 나온다.
+ */
+const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
+  poses: [{ id: 'pose7', name: '차렷', width: 59, height: 116, parts: [
+    [0, -41.6, 33.7, 33.5], [0, 21.6, 39.3, 72.8], [-24.6, 2.5, 9.8, 41.4], [24.6, 2.5, 9.8, 41.4],
+  ] }],
+  line: { width: 59, height: 116 },
+};
+
 const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
-    dropAngles: [90, -35, -90, 25, 145, -65, 180, 50],
+    // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    dropAngles: [90, -35, -90, 25, 145, -65, 180],
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
     restitution: .045, density: .0022, carryMomentum: .075,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
     baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
+    markerX: 900, markerHeight: 76, goalRight: 838,
   },
-  // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
-  // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
-  poses: [
-    { id: 'crouch', name: '버티기', width: 102, height: 96, head: [0, -28, 11], limbs: [
-      [0, -10, 0, 8, 14], [-9, -10, -25, -19, 8], [-25, -19, -39, -7, 7],
-      [9, -10, 25, -19, 8], [25, -19, 39, -7, 7],
-      [-6, 9, -22, 20, 9], [-22, 20, -27, 32, 7],
-      [6, 9, 22, 20, 9], [22, 20, 27, 32, 7],
-      [-32, 34, -21, 34, 7], [21, 34, 32, 34, 7],
-    ] },
-    { id: 'wide', name: '팔 벌리기', width: 120, height: 104, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -29, -11, 8], [-29, -11, -47, -20, 7],
-      [9, -12, 29, -11, 8], [29, -11, 47, -20, 7],
-      [-6, 9, -12, 23, 9], [-12, 23, -19, 39, 7],
-      [6, 9, 12, 23, 9], [12, 23, 19, 39, 7],
-      [-25, 41, -15, 41, 7], [15, 41, 25, 41, 7],
-    ] },
-    { id: 'reach', name: '만세', width: 96, height: 124, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -25, -29, 8], [-25, -29, -31, -47, 7],
-      [9, -12, 25, -29, 8], [25, -29, 31, -47, 7],
-      [-6, 9, -18, 24, 9], [-18, 24, -24, 40, 7],
-      [6, 9, 18, 24, 9], [18, 24, 24, 40, 7],
-      [-30, 42, -19, 42, 7], [19, 42, 30, 42, 7],
-    ] },
-  ],
+  // 좌표 원점은 그림의 정중앙. [중심x, 중심y, 가로, 세로] 사각형들이 실제 충돌체이고,
+  // 같은 원점의 그림이 그 위에 얹힙니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
+  poses: E3_SHAPES.poses,
   build() {
     MINI.init(this, 0xe4eeec);
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
@@ -732,7 +1085,7 @@ const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '사람이 누운 방향을 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
@@ -752,7 +1105,7 @@ const E3_HUMAN_STACK = {
   },
   speed() {
     const t = E3_HUMAN_STACK.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.drops * t.speedGain);
+    return Math.min(t.maxSpeed, t.speed + this.state.drops * this.penalty(t.speedGain));
   },
   createPerson(x, y, poseIndex, angle = 0) {
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
@@ -761,17 +1114,14 @@ const E3_HUMAN_STACK = {
       friction: t.friction, frictionStatic: t.frictionStatic, restitution: t.restitution,
       density: t.density, slop: .025,
     };
-    const parts = pose.limbs.map(([ax, ay, bx, by, r]) => M.Bodies.rectangle(
-      x + (ax + bx) / 2, y + (ay + by) / 2, Math.hypot(bx - ax, by - ay) + r * 2, r * 2,
-      { ...material, angle: Math.atan2(by - ay, bx - ax), chamfer: { radius: r, quality: 8 } },
-    ));
-    parts.push(M.Bodies.circle(x + pose.head[0], y + pose.head[1], pose.head[2], { ...material, density: t.density * .7 }, 16));
+    // 구워 둔 사각형은 서로 겹치지 않으므로 넓이를 그대로 더해 질량이 됩니다.
+    const parts = pose.parts.map(([cx, cy, w, h]) => M.Bodies.rectangle(x + cx, y + cy, w, h, material));
     const body = M.Body.create({
       parts, ...material, frictionAir: t.frictionAir, label: 'e3:person',
     });
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
     body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
-    // 팔다리 모양을 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
+    // 자세를 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
     M.Body.rotate(body, angle, { x, y });
     return body;
   },
@@ -830,7 +1180,8 @@ const E3_HUMAN_STACK = {
     // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
     s.spawnY = Math.min(200, top - t.spawnClearance);
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 125) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 65);
+    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
     const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
@@ -844,34 +1195,28 @@ const E3_HUMAN_STACK = {
     const z = this.state.zoom, floor = E3_HUMAN_STACK.tuning.floorY;
     return { x: 480 + (x - 480) * z, y: floor + (y - floor) * z };
   },
+  /* 키에 묶인 이미지를 만들거나 다시 씁니다. 없는 텍스처면 null을 돌려줍니다. */
+  sprite(key, texture) {
+    if (!this.textures.exists(texture)) { this.assetSprites.get(key)?.setVisible(false); return null; }
+    let sprite = this.assetSprites.get(key);
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
+    return sprite.setTexture(texture).setVisible(true);
+  },
   drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1) {
     const pose = E3_HUMAN_STACK.poses[poseIndex], z = this.state.zoom;
     const p = E3_HUMAN_STACK.project.call(this, x, y), g = this.ink;
-    const specific = `e3:person_${pose.id}`;
-    const texture = this.textures.exists(specific) ? specific : this.textures.exists('e3:person') ? 'e3:person' : null;
-    if (texture) {
-      let sprite = this.assetSprites.get(key);
-      if (!sprite) { sprite = this.add.image(p.x, p.y, texture).setMask(g.mask); this.assetSprites.set(key, sprite); }
-      // person=공통 이미지, person_crouch/wide/reach=자세별 이미지. 원점=이미지 중심.
-      sprite.setTexture(texture).setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha).setVisible(true);
+    // 그림의 원점은 잘라낸 이미지의 정중앙이라 충돌 사각형과 같은 좌표계를 씁니다.
+    const sprite = E3_HUMAN_STACK.sprite.call(this, key, `e3:${pose.id}`);
+    if (sprite) {
+      sprite.setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha);
       return;
     }
-    this.assetSprites.get(key)?.setVisible(false);
-    // 미리보기와 낙하물에 같은 실루엣을 사용합니다.
+    // 그림이 없으면 충돌 조각을 그대로 실루엣으로 씁니다. 미리보기와 낙하물이 같은 모양입니다.
     g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
-    const stroke = (limb, radius, color, opacity, ox = 0, oy = 0) => {
-      const [ax, ay, bx, by] = limb;
-      g.lineStyle(radius * 2, color, opacity).lineBetween(ax + ox, ay + oy, bx + ox, by + oy);
-      g.fillStyle(color, opacity).fillCircle(ax + ox, ay + oy, radius).fillCircle(bx + ox, by + oy, radius);
-    };
-    // 그림자/몸체/얇은 하이라이트만으로 흰색 무표정 마네킹을 표현합니다.
-    for (const limb of pose.limbs) stroke(limb, limb[4] + 1.2, 0x506c7a, alpha);
-    for (const limb of pose.limbs) stroke(limb, limb[4], 0xd8e5e8, alpha);
-    for (const limb of pose.limbs) stroke(limb, Math.max(1.2, limb[4] * .4), 0xfafffa, alpha * .8, -1.1, -1.1);
-    const [hx, hy, hr] = pose.head;
-    g.fillStyle(0x506c7a, alpha).fillCircle(hx, hy, hr + 1.2);
-    g.fillStyle(0xe8f0ee, alpha).fillCircle(hx, hy, hr);
-    g.fillStyle(0xffffff, alpha * .7).fillEllipse(hx - 2.4, hy - 2.7, hr * .9, hr);
+    for (const [cx, cy, w, h] of pose.parts) {
+      g.fillStyle(0x506c7a, alpha).fillRect(cx - w / 2 - 1.2, cy - h / 2 - 1.2, w + 2.4, h + 2.4);
+    }
+    for (const [cx, cy, w, h] of pose.parts) g.fillStyle(0xd8e5e8, alpha).fillRect(cx - w / 2, cy - h / 2, w, h);
     g.restore();
   },
   render() {
@@ -888,10 +1233,16 @@ const E3_HUMAN_STACK = {
       MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
     }
     const goal = project(0, t.baseY - t.targetHeight);
-    for (let x = 115; x < 850; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(902, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
+    this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     this.stackLabels.hint.setVisible(s.drops === 0);
+    // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
+    const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
+    if (marker) {
+      marker.setPosition(t.markerX, goal.y)
+        .setDisplaySize(t.markerHeight * E3_SHAPES.line.width / E3_SHAPES.line.height, t.markerHeight);
+    }
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.
     this.people.forEach((body, i) => {
       const pose = body.plugin.e3, c = Math.cos(body.angle), sn = Math.sin(body.angle);
@@ -947,10 +1298,10 @@ const E4_ACCELERATION_DASH = {
   },
   // 8개 직선(7번 회전)의 주 경로를 먼저 만들고, 나머지 방을 가지로 연결한다.
   // 이미 열린 방끼리는 연결하지 않아 출구까지의 지름길이 생기지 않는다.
-  route() {
+  route(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid;
     const tiles = Array.from({ length: rows }, () => Array(cols).fill(1));
-    const rooms = [], pick = list => list[Math.floor(Math.random() * list.length)];
+    const rooms = [], pick = list => list[Math.floor(random() * list.length)];
     const carve = (from, to) => {
       tiles[(from.y + to.y) / 2][(from.x + to.x) / 2] = 0;
       tiles[to.y][to.x] = 0; rooms.push(to);
@@ -983,10 +1334,8 @@ const E4_ACCELERATION_DASH = {
   },
   build() {
     MINI.init(this, 0xc6a2ff);
-    this.readout.setVisible(false);
-    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 80, 920, 417);
     const E4 = E4_ACCELERATION_DASH;
-    this.state = { ...E4.route(), ...E4.tileCenter(1, 1),
+    this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
       speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
@@ -995,7 +1344,7 @@ const E4_ACCELERATION_DASH = {
     const E4 = E4_ACCELERATION_DASH;
     if (!E4.steps[direction]) return;
     this.actions++;
-    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + E4.tuning.tapGain);
+    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + this.penalty(E4.tuning.tapGain));
   },
   wallsAt(x, y) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid, r = E4.tuning.radius;
@@ -1059,7 +1408,7 @@ const E4_ACCELERATION_DASH = {
       E4.wallsAt.call(this, s.x, s.y - 5), E4.wallsAt.call(this, s.x, s.y + 5))
       .forEach(key => { if (s.contacts.has(key)) contacts.add(key); });
     if (impacted && !s.contacts.size) {
-      s.hits++; s.flash = .65; this.timePenalty += t.wallPenalty;
+      s.hits++; s.flash = .65; this.timePenalty += this.penalty(t.wallPenalty);
       this.remaining = Math.max(0, this.timeLimit - this.elapsed - this.timePenalty); this.bump();
     }
     s.contacts = contacts;
@@ -1076,8 +1425,7 @@ const E4_ACCELERATION_DASH = {
     const E4 = E4_ACCELERATION_DASH, s = this.state, g = E4.grid;
     const actualSpeed = Math.hypot(s.vx, s.vy);
     const boost = MINI.clamp((actualSpeed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed), 0, 1);
-    this.ink.clear();
-    this.ink.fillStyle(0x0c202e).fillRoundedRect(20, 80, 920, 417, 14);
+    MINI.frame(this);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
     this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
@@ -1120,8 +1468,6 @@ const E5_SLINGSHOT = {
   tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 20, 920, 477);
-    this.readout.setVisible(false);
     this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
@@ -1194,7 +1540,7 @@ const E5_SLINGSHOT = {
 
     this.instruction.setText('');
   },
-  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
+  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * this.penalty(E5_SLINGSHOT.tuning.decay)); },
   pointerDown(x, y) {
     if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 382) > 55) return;
     this.state.drag = { x: 164, y: 382 };
@@ -1366,15 +1712,12 @@ const E5_SLINGSHOT = {
     const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
     const field = this.ink;
-    field.clear();
-    field.fillStyle(0x0c202e).fillRoundedRect(20, 20, 920, 477, 14);
-    field.lineStyle(1, this.accent, .13);
-    for (let x = 40; x < 940; x += 40) field.lineBetween(x, 26, x, 490);
-    for (let y = 50; y < 497; y += 40) field.lineBetween(20, y, 940, y);
+    MINI.frame(this);
     this.instruction.setText('파괴 ' + broken + ' / 4 · 장력 ' + Math.round(power * 100) + '%' + (s.waiting ? ' · 다음 발사 ' + s.cooldown.toFixed(1) + '초' : ''));
     // Warm pastry counter, trays and reserves keep the play field readable.
     MINI.box(this, 22, 444, 916, 34, 0x372923);
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
+    MINI.box(this, MINI.FIELD.x, 480, MINI.FIELD.w, MINI.FIELD.bottom - 480, 0x372923);
     for (let i = 0; i < 3; i++) {
       if (i < 2) MINI.box(this, 546 + i * 116, 471, 108, 5, 0xd3b278);
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);
@@ -1457,22 +1800,96 @@ const E5_SLINGSHOT = {
 
 /* Source: stages/e6_gravityFlight.js */
 
+/*
+ * 장애물은 그림이 아니라 글자다. 밈 문장을 한 글자씩 세로로 세워 통로를 막는 기둥으로 쓰고,
+ * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.words만
+ * 고치면 되고, 기둥 높이·판정 폭은 실제로 그려진 글자 크기에서 뽑으므로 따로 맞출 값이 없다.
+ *
+ * 장애물은 처음에 모두 만들어 두지 않는다. 쿠키런처럼 캐릭터가 tuning.spawnAhead 안으로
+ * 들어온 것만 그때 태어나고(화면 오른쪽 바깥이라 갑자기 튀어나오지 않는다) 지나간 것은 지운다.
+ * scene.gates에는 살아 있는 장애물만 있고, 각 항목의 y는 그 기둥을 비켜 지나가는 지점이다
+ * — 충돌 후 되돌아갈 자리이자 조준 목표로 함께 쓴다.
+ */
+const MEME = {
+  family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
+  words: ['여러분', '저 됐어요', 'X됐어요', '샤갈!', '야르~'],
+  color: '#fff3d6', stroke: '#07141d',
+};
+
+/* 위아래 벽 사이의 통로. 판정과 그림이 같은 값을 본다. */
+const TUNNEL = { top: 168, bottom: 468, height: 300 };
+
+/* 밈 글꼴은 웹에서 받아 온다. 아직 오기 전에 만든 글자는 대체 글꼴 크기로 재어 두므로,
+   도착하면 살아 있는 장애물을 모두 다시 재서 그림과 판정을 맞춘다. */
+function loadMemeFont(scene) {
+  const fonts = globalThis.document?.fonts;
+  if (!fonts?.load) return;
+  const spec = `${E6_GRAVITY_FLIGHT.tuning.cell}px "YeogiOttaeJalnan"`;
+  if (fonts.check?.(spec)) return;
+  fonts.load(spec).catch(() => {}).then(() => {
+    if (scene.stageId !== 'e6') return;
+    for (const gate of scene.gates ?? []) fitGate(gate);
+  });
+}
+
+/* 글자 기둥의 높이·폭·붙는 벽을 정한다. 긴 밈은 통로를 다 막지 않도록 tuning.minGap만큼 비운다. */
+function fitGate(gate) {
+  const t = E6_GRAVITY_FLIGHT.tuning;
+  const height = Math.min(t.cell * gate.word.length, TUNNEL.height - t.minGap);
+  const scale = height / (gate.label.height || height);
+  gate.label.setScale(scale);
+  gate.halfWidth = gate.label.width * scale / 2;
+  gate.top = gate.side === 'top' ? TUNNEL.top : TUNNEL.bottom - height;
+  gate.bottom = gate.top + height;
+  // 조준선은 통로 한가운데 — 기둥에 막히는 만큼만 비켜난다. 벽에 딱 붙는 길보다 사람이 실제로 나는 길이다.
+  const centre = (TUNNEL.top + TUNNEL.bottom) / 2;
+  gate.y = gate.side === 'top' ? Math.max(centre, gate.bottom + t.aimMargin) : Math.min(centre, gate.top - t.aimMargin);
+}
+
+/* 캐릭터가 다가온 만큼만 새 장애물을 만들고, 뒤로 흘려보낸 장애물은 글자까지 지운다. */
+function syncGates(scene) {
+  const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
+  while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
+    const index = scene.nextGate.index, word = MEME.words[index % MEME.words.length];
+    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', bornAt: scene.elapsed };
+    gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
+      fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
+      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
+    }).setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+    fitGate(gate); scene.gates.push(gate);
+    scene.nextGate = { x: scene.nextGate.x + t.spacing, index: index + 1 };
+  }
+  for (let i = scene.gates.length - 1; i >= 0; i--) {
+    if (scene.gates[i].x >= x - t.despawnBehind) continue;
+    scene.gates[i].label.destroy(); scene.gates.splice(i, 1);
+  }
+}
+
 const E6_GRAVITY_FLIGHT = {
-  tuning: { speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240, lift: 570, liftGain: 24, maxLift: 850, gap: 155, knockback: 245 },
+  words: MEME.words,
+  tuning: {
+    speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
+    lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
+    cell: 42, minGap: 152, aimMargin: 52, spacing: 355, firstX: 500,
+    spawnAhead: 880, spawnStop: 140, despawnBehind: 420, fadeIn: .3,
+  },
   build() {
     MINI.init(this, 0x7cd9ff);
     this.state = { x: 0, y: 323, vy: 0, presses: 0, hits: 0, immune: 0 };
-    this.gates = Array.from({ length: 12 }, (_, i) => ({ x: 500 + i * 305, y: 314 + Math.sin(i * 1.7) * 65 }));
+    this.gates = []; this.nextGate = { x: E6_GRAVITY_FLIGHT.tuning.firstX, index: 0 };
+    loadMemeFont(this); syncGates(this);
   },
+  dispose() { for (const gate of this.gates ?? []) gate.label?.destroy(); this.gates = []; },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    const gravity = Math.max(t.minGravity, t.gravity - s.presses * t.gravityLoss);
-    const lift = Math.min(t.maxLift, t.lift + s.presses * t.liftGain);
+    const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));
+    const lift = Math.min(t.maxLift, t.lift + s.presses * this.penalty(t.liftGain));
     s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
     s.vy = MINI.clamp(s.vy + (this.held('action') ? -lift : gravity) * dt, -340, 320);
     s.y += s.vy * dt;
-    const gate = this.gates.find(g => Math.abs(g.x - s.x) < 45 && (s.y - 13 < g.y - t.gap / 2 || s.y + 13 > g.y + t.gap / 2));
+    syncGates(this);
+    const gate = this.gates.find(g => Math.abs(g.x - s.x) < g.halfWidth + 15 && s.y + 13 > g.top && s.y - 13 < g.bottom);
     if (!s.immune && (gate || s.y < 169 || s.y > 467)) {
       s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; MINI.summon(this); this.bump();
     }
@@ -1482,15 +1899,23 @@ const E6_GRAVITY_FLIGHT = {
     if (s.x >= t.distance) this.finish(true);
   },
   render() {
-    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    MINI.frame(this, `FLIGHT ${Math.floor(s.x / t.distance * 100)}%    ${this.held('action') ? '↑ 상승' : '↓ 하강'}    PUSH BACK ${s.hits}`);
+    const s = this.state, t = E6_GRAVITY_FLIGHT.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 통로 위아래는 부딪히면 밀려나는 벽이다. 화면 끝까지 채워 통로를 또렷하게 만든다.
+    MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, 0x27384a);
+    MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
     for (const gate of this.gates) {
       const x = gate.x - s.x + 180;
-      if (x < -50 || x > 990) continue;
-      MINI.box(this, x - 30, 153, 60, gate.y - t.gap / 2 - 153, 0x4c657f);
-      MINI.box(this, x - 30, gate.y + t.gap / 2, 60, 480 - gate.y - t.gap / 2, 0x4c657f);
-      MINI.line(this, x - 30, gate.y - t.gap / 2, x + 30, gate.y - t.gap / 2, 0xff779b, 5);
-      MINI.line(this, x - 30, gate.y + t.gap / 2, x + 30, gate.y + t.gap / 2, 0xff779b, 5);
+      const onScreen = x > -60 && x < 1000;
+      gate.label.setVisible(onScreen);
+      if (!onScreen) continue;
+      // 화면 밖에서 태어나 오른쪽 끝에 닿을 무렵 또렷해진다.
+      const fade = MINI.clamp((this.elapsed - gate.bornAt) / t.fadeIn, 0, 1);
+      gate.label.setPosition(x, gate.top).setAlpha(fade);
+      // 글자가 벽에 붙어 있다는 자국. 판정 끝선은 글자 자체가 보여 주므로 따로 긋지 않는다.
+      const wall = gate.side === 'top' ? TUNNEL.top : TUNNEL.bottom;
+      const edge = gate.side === 'top' ? gate.bottom : gate.top;
+      MINI.box(this, x - gate.halfWidth, Math.min(wall, edge), gate.halfWidth * 2, Math.abs(edge - wall), 0x4c657f, .22 * fade);
     }
     const pop = MINI.spawnScale(this);
     MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
@@ -1505,12 +1930,12 @@ const E6_GRAVITY_FLIGHT = {
 /* Source: stages/e7_roulette.js */
 
 const E7_ROULETTE = {
-  tuning: { minSpeed: 9, maxSpeed: 24, minSpinSeconds: 1.4, extraTurns: 2 },
+  tuning: { minSpeed: 7.5, maxSpeed: 21, minSpinSeconds: 1.2, extraTurns: 1 },
   build() {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
     this.add.text(723, 276, '꽝', { fontFamily: 'Arial', fontSize: '18px', color: '#a6b7ce' });
-    this.state = { rotation: MINI.rand(0, Math.PI * 2), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
   },
   pointerDown(x, y) {
     const s = this.state, radius = Math.hypot(x - 480, y - 321);
@@ -1534,7 +1959,7 @@ const E7_ROULETTE = {
     // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
     // extraTurns는 정수 바퀴이므로 균일성은 그대로 두고 회전량만 늘립니다.
     // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2);
+    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2, this.random);
     s.deceleration = s.speed * s.speed / (2 * travel);
     s.spinning = true; this.actions++; this.sfx('click');
   },
@@ -1558,8 +1983,10 @@ const E7_ROULETTE = {
     this.risk = Math.min(100, s.misses * 17);
   },
   render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1));
-    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${2 * (s.misses + 1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
+    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1)), f = MINI.FIELD;
+    MINI.frame(this);
+    // 룰렛이 놓인 무대. 화면을 통째로 덮어 원판이 뜬금없이 떠 있지 않게 한다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x1a1430, .55);
     MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
     const points = [{ x: 480, y: 321 }];
     for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });
@@ -1640,7 +2067,7 @@ const E8_WEB_SWING = {
     const oldMultiplier = s.multiplier;
     const fresh = !s.visited.includes(a.index);
     if (fresh) {
-      s.visited.push(a.index); s.multiplier = Math.min(t.maxMultiplier, s.multiplier * t.boost);
+      s.visited.push(a.index); s.multiplier = Math.min(t.maxMultiplier, s.multiplier * (1 + this.penalty(t.boost - 1)));
       s.boostAt = this.elapsed;
     }
     // 줄을 잡을 때 반지름 방향의 속도는 사라지고 접선 성분이 남습니다.
@@ -1676,7 +2103,7 @@ const E8_WEB_SWING = {
   },
   airGravity() {
     const t = E8_WEB_SWING.tuning;
-    return t.airGravity * (1 + (this.state.multiplier - 1) * t.weightGain);
+    return t.airGravity * (1 + (this.state.multiplier - 1) * this.penalty(t.weightGain));
   },
   update(dt) {
     const s = this.state, t = E8_WEB_SWING.tuning;
@@ -1783,7 +2210,7 @@ const E8_WEB_SWING = {
     const s = this.state, t = E8_WEB_SWING.tuning, g = this.ink;
     const progress = MINI.clamp(s.x / this.goalX, 0, 1);
     MINI.frame(this, `WEB SWING  ${Math.floor(progress * 100)}%     BOOST ×${s.multiplier.toFixed(2)}     FALL ${s.deaths}`);
-    g.fillStyle(0x101a36).fillRect(22, 146, 916, 339);
+    g.fillStyle(0x101a36).fillRect(MINI.FIELD.x, MINI.FIELD.y, MINI.FIELD.w, MINI.FIELD.h);
     MINI.circle(this, 808, 203, 24, 0xeee2c3, .85);
     for (let i = 0; i < 14; i++) {
       const x = ((i * 103 - s.x * .13) % 1450 + 1450) % 1450 - 200;
@@ -1839,7 +2266,7 @@ const E9_ICE_CURLING = {
     this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0, hold: 0 };
     this.target = { x: 769, y: 287 };
   },
-  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** this.state.failures); },
+  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
   pointerDown(x, y) {
     const s = this.state;
     if (s.moving || s.cooldown || Math.hypot(x - s.x, y - s.y) > 43) return;
@@ -1884,8 +2311,10 @@ const E9_ICE_CURLING = {
     this.risk = Math.min(100, s.failures * 18);
   },
   render() {
-    const s = this.state, target = this.target;
-    MINI.frame(this, `ICE ${Math.round(E9_ICE_CURLING.friction.call(this))}    SHOT ${this.actions}    과녁 안에 돌 전체를 멈추세요`);
+    const s = this.state, target = this.target, f = MINI.FIELD;
+    MINI.frame(this);
+    // 링크 둘레는 화면 끝까지 채우고, 그 안쪽만 돌이 미끄러지는 얼음이다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x123243);
     MINI.box(this, 32, 158, 896, 321, 0xc7e8f0, .12);
     for (let y = 187; y < 466; y += 35) MINI.line(this, 55, y, 905, y - 18, 0xd6f5ff, .5);
     MINI.circle(this, target.x, target.y, 71, 0x719dd5, .5);
@@ -1905,11 +2334,232 @@ const E9_ICE_CURLING = {
 };
 
 
+/* Source: stages/e10_numberDecode.js */
+
+const PLAYER = Object.freeze({ width: 30, height: 44 });
+const GROUND_Y = 474;
+
+const moveTowardZero = (value, amount) => (
+  Math.abs(value) <= amount ? 0 : value - Math.sign(value) * amount
+);
+
+function makeTarget(random = Math.random) {
+  const first = 1 + Math.floor(random() * 9);
+  return `${first}${Math.floor(random() * 10)}${Math.floor(random() * 10)}${Math.floor(random() * 10)}`;
+}
+
+const E10_NUMBER_DECODE = {
+  tuning: {
+    acceleration: 1250,
+    maxSpeed: 300,
+    gravity: 1650,
+    jump: 700,
+    baseFriction: 820,
+    frictionLoss: 150,
+    minFriction: 70,
+    minTraction: .32,
+  },
+
+  traction(state) {
+    const t = E10_NUMBER_DECODE.tuning;
+    return Math.max(t.minTraction, state.friction / t.baseFriction);
+  },
+
+  build() {
+    MINI.init(this, 0xf4c76b);
+    const target = makeTarget(this.random);
+    this.state = {
+      x: 480,
+      y: GROUND_Y - PLAYER.height / 2,
+      vx: 0,
+      vy: 0,
+      grounded: true,
+      target,
+      input: '',
+      directionPresses: 0,
+      friction: E10_NUMBER_DECODE.tuning.baseFriction,
+      mistakes: 0,
+      feedback: '숫자 블록의 아랫면을 점프로 터치하세요.',
+      feedbackUntil: 2.2,
+      lastHit: null,
+      lastHitCorrect: true,
+    };
+
+    this.digitBlocks = Array.from({ length: 10 }, (_, digit) => ({
+      digit: String(digit),
+      x: 38 + digit * 89,
+      y: 250,
+      w: 68,
+      h: 50,
+    }));
+    const targetStyle = {
+      fontFamily: 'monospace', fontSize: '42px', fontStyle: 'bold',
+      color: '#fff4bf', stroke: '#7a315a', strokeThickness: 3,
+    };
+    this.targetGlyphs = [...target].map((digit, index) => this.add.text(420 + index * 40, 193, digit, targetStyle).setOrigin(.5));
+    // 글자를 다 가로지르지 않고, 숫자 위에 짧게 겹치는 선 2개만 얹는다.
+    this.targetScribbles = [...target].flatMap((digit, index) => {
+      const x = 420 + index * 40;
+      const offset = (Number(digit) * 5 + index * 3) % 7 - 3;
+      return [
+        { x1: x - 15, y1: 178 + offset, x2: x + 15, y2: 188 + offset, color: 0xff4f87, width: 3 },
+        { x1: x - 14, y1: 198 - offset, x2: x + 14, y2: 208 - offset, color: 0x67e8ff, width: 2 },
+      ];
+    });
+    this.scribbleInk = this.add.graphics();
+    this.blockLabels = this.digitBlocks.map(block => this.add.text(block.x + block.w / 2, block.y + block.h / 2, block.digit, {
+      fontFamily: 'monospace', fontSize: '27px', fontStyle: 'bold', color: '#102536',
+    }).setOrigin(.5));
+    this.inputText = this.add.text(480, 348, '', {
+      fontFamily: 'monospace', fontSize: '28px', fontStyle: 'bold', color: '#eaf7ff',
+    }).setOrigin(.5);
+    this.feedbackText = this.add.text(480, 389, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#a8c6d2',
+    }).setOrigin(.5);
+  },
+
+  press(direction) {
+    if (direction !== 'left' && direction !== 'right') return;
+    const s = this.state;
+    s.directionPresses += 1;
+    s.friction = Math.max(
+      E10_NUMBER_DECODE.tuning.minFriction,
+      E10_NUMBER_DECODE.tuning.baseFriction - s.directionPresses * this.penalty(E10_NUMBER_DECODE.tuning.frictionLoss),
+    );
+    s.feedback = `방향 입력 ${s.directionPresses}회 · 바닥이 더 미끄러워졌습니다.`;
+    s.feedbackUntil = this.elapsed + 1.15;
+    this.actions += 1;
+  },
+
+  action() {
+    const s = this.state;
+    if (!s.grounded) return;
+    s.vy = -E10_NUMBER_DECODE.tuning.jump;
+    s.grounded = false;
+    this.actions += 1;
+    this.sfx('jump');
+  },
+
+  enterDigit(digit) {
+    const s = this.state;
+    s.lastHit = digit;
+    s.input += digit;
+
+    if (s.input.length < s.target.length) {
+      s.lastHitCorrect = true;
+      s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
+      s.feedbackUntil = this.elapsed + 1;
+      this.sfx('action');
+      return;
+    }
+
+    const correct = s.input === s.target;
+    s.lastHitCorrect = correct;
+    if (!correct) {
+      const wrongInput = s.input;
+      s.input = '';
+      s.mistakes += 1;
+      s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
+      s.feedbackUntil = this.elapsed + 1.2;
+      this.bump();
+      return;
+    }
+
+    this.sfx('action');
+    this.finish(true, `CODE ${s.target} 해독`);
+  },
+
+  update(dt) {
+    const s = this.state;
+    const t = E10_NUMBER_DECODE.tuning;
+    const axis = this.axis('left', 'right');
+    const traction = E10_NUMBER_DECODE.traction(s);
+    if (axis) s.vx = MINI.clamp(s.vx + axis * t.acceleration * traction * dt, -t.maxSpeed, t.maxSpeed);
+    else s.vx = moveTowardZero(s.vx, s.friction * dt);
+
+    s.x += s.vx * dt;
+    if (s.x < 34 || s.x > 926) {
+      s.x = MINI.clamp(s.x, 34, 926);
+      s.vx *= -.24;
+      this.bump();
+    }
+
+    const previousTop = s.y - PLAYER.height / 2;
+    s.vy += t.gravity * dt;
+    s.y += s.vy * dt;
+    const currentTop = s.y - PLAYER.height / 2;
+
+    if (s.vy < 0) {
+      const hit = this.digitBlocks.find(block => {
+        const bottom = block.y + block.h;
+        const overlapsX = s.x + PLAYER.width / 2 > block.x && s.x - PLAYER.width / 2 < block.x + block.w;
+        return overlapsX && previousTop >= bottom - 1 && currentTop <= bottom;
+      });
+      if (hit) {
+        s.y = hit.y + hit.h + PLAYER.height / 2 + .5;
+        s.vy = 95;
+        E10_NUMBER_DECODE.enterDigit.call(this, hit.digit);
+      }
+    }
+
+    if (s.y + PLAYER.height / 2 >= GROUND_Y && s.vy >= 0) {
+      s.y = GROUND_Y - PLAYER.height / 2;
+      s.vy = 0;
+      s.grounded = true;
+    } else {
+      s.grounded = false;
+    }
+
+    this.anomaly = `마찰 ${Math.round(s.friction)} · 가속력 ${Math.round(traction * 100)}% · 오답 ${s.mistakes}회`;
+    this.risk = (t.baseFriction - s.friction) / (t.baseFriction - t.minFriction) * 100;
+  },
+
+  render() {
+    const s = this.state;
+    MINI.frame(this, `AI READ ERROR    TARGET 4 DIGITS    INPUT ${s.input.length}/4`);
+
+    MINI.box(this, 347, 157, 266, 74, 0x2b1735, .96);
+    MINI.line(this, 358, 218, 602, 218, 0x78e9ff, 1);
+    this.scribbleInk.clear();
+    this.targetScribbles.forEach(stroke => {
+      this.scribbleInk.lineStyle(stroke.width, stroke.color, .94).lineBetween(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
+    });
+
+    this.digitBlocks.forEach((block, index) => {
+      const active = s.lastHit === block.digit && this.elapsed <= s.feedbackUntil;
+      const color = active ? (s.lastHitCorrect ? 0x93fca0 : 0xff6f8f) : 0xf4c76b;
+      MINI.box(this, block.x, block.y, block.w, block.h, color, active ? 1 : .88);
+      MINI.line(this, block.x + 5, block.y + block.h, block.x + block.w - 5, block.y + block.h, 0xffffff, .8);
+      this.blockLabels[index].setColor(active && !s.lastHitCorrect ? '#fff4f7' : '#102536');
+    });
+
+    MINI.box(this, 333, 324, 294, 49, 0x16384b, .94);
+    const shown = Array.from({ length: 4 }, (_, index) => s.input[index] ?? '＿').join(' ');
+    this.inputText.setText(shown);
+    this.feedbackText.setText(this.elapsed <= s.feedbackUntil ? s.feedback : '목표 숫자를 왼쪽부터 차례로 입력하세요.');
+    this.feedbackText.setColor(this.elapsed <= s.feedbackUntil && !s.lastHitCorrect ? '#ff9bb7' : '#a8c6d2');
+
+    MINI.box(this, 22, GROUND_Y, 916, 12, 0x557073);
+    const speed = Math.abs(s.vx);
+    if (speed > 25) {
+      const direction = Math.sign(s.vx);
+      for (let index = 0; index < 4; index++) {
+        const trailX = s.x - direction * (25 + index * 16);
+        MINI.line(this, trailX, s.y + 12 + index * 2, trailX - direction * (12 + speed / 30), s.y + 12 + index * 2, 0x8cecff, 1);
+      }
+    }
+    MINI.actor(this, 'player', 'player', s.x, s.y, PLAYER.width, PLAYER.height, MINI.clamp(s.vx / 700, -.22, .22));
+    MINI.meter(this, s.input.length / s.target.length);
+  },
+};
+
+
 /* Source: stages/index.mjs */
 const STAGE_GAMES = Object.freeze({
   e1: E1_GRAVITY_DASH, e2: E2_BOUNCE_BALL, e3: E3_HUMAN_STACK,
   e4: E4_ACCELERATION_DASH, e5: E5_SLINGSHOT, e6: E6_GRAVITY_FLIGHT,
   e7: E7_ROULETTE, e8: E8_WEB_SWING, e9: E9_ICE_CURLING,
+  e10: E10_NUMBER_DECODE,
 });
 
 
@@ -1919,11 +2569,22 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* 세션 저장만 사용 */ }
 window.archiveProgress = createProgressStore(STAGES.map(stage => stage.id), progressStorage);
-window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id));
+window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id), { storage: progressStorage });
 window.archiveRecords = createMinigameRecords(STAGES.map(stage => stage.id), progressStorage);
 /* 미니게임 도감(js/ui/codex-flow.js)이 읽는 "해 본 게임" 기록. */
 window.archivePlays = createMinigamePlayLog(STAGES.map(stage => stage.id), progressStorage);
 window.addEventListener('archive-sfx', event => audio.play(event.detail?.name));
+
+function seededRandom(seed) {
+  let value = Number(seed) >>> 0;
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let mixed = value;
+    mixed = Math.imul(mixed ^ mixed >>> 15, mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ mixed >>> 7, mixed | 61);
+    return ((mixed ^ mixed >>> 14) >>> 0) / 4294967296;
+  };
+}
 
 class ArchiveGame extends Phaser.Scene {
   constructor() {
@@ -1947,12 +2608,18 @@ class ArchiveGame extends Phaser.Scene {
     });
     this.input.on('pointerdown', p => {
       if (!this.playable() || this.pointerId !== null || p.button > 0) return;
-      this.pointerId = p.id; this.pointerAction(p.x, p.y);
+      const point = this.worldPoint(p);
+      this.pointerId = p.id; this.pointerAction(point.x, point.y);
     });
-    this.input.on('pointermove', p => { if (this.playable() && this.pointerId === p.id) this.stageGame.pointerMove?.call(this, p.x, p.y); });
+    this.input.on('pointermove', p => {
+      if (!this.playable() || this.pointerId !== p.id) return;
+      const point = this.worldPoint(p);
+      this.stageGame.pointerMove?.call(this, point.x, point.y);
+    });
     const up = p => {
       if (this.pointerId !== p.id) return;
-      if (this.playable()) this.stageGame.pointerUp?.call(this, p.x, p.y);
+      const point = this.worldPoint(p);
+      if (this.playable()) this.stageGame.pointerUp?.call(this, point.x, point.y);
       this.pointerId = null;
     };
     this.input.on('pointerup', up); this.input.on('pointerupoutside', up);
@@ -1972,6 +2639,9 @@ class ArchiveGame extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('archive-game-ready', { detail: { scene: this, stages: STAGES } }));
   }
   playable() { return this.mode === 'playing' && !this.pausedByMenu; }
+  /* 필드를 화면에 꽉 채우느라 카메라에 배율이 걸려 있다(stages/minigame-kit.js의 MINI.init).
+     포인터는 캔버스 좌표로 오므로 게임이 쓰는 설계 좌표로 되돌려서 넘긴다. */
+  worldPoint(pointer) { return this.cameras.main.getWorldPoint(pointer.x, pointer.y); }
   held(name) {
     const alias = { left: 'arrowLeft', right: 'arrowRight', up: 'arrowUp', down: 'arrowDown' };
     return this.touch.has(name) || Boolean(this.keys[name]?.isDown || this.keys[alias[name]]?.isDown);
@@ -1988,11 +2658,20 @@ class ArchiveGame extends Phaser.Scene {
     this.ink?.clearMask(true); this.fieldMask?.destroy();
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
+    const run = window.archiveRun?.snapshot();
+    this.suppressionMultiplier = run?.active && !run?.qaMode ? run.suppressionMultiplier : 1;
+    this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
+    this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
     this.timeLimit = globalThis.archiveStageTimeLimit?.(this.stageGame.timeLimit) ?? this.stageGame.timeLimit ?? 20.26;
     this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.timePenalty = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
-    this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.build.call(this);
+    this.assistText = this.assistProtocol ? this.add.text(42, 158, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '16px', fontStyle: 'bold', color: '#93fca0',
+      backgroundColor: '#08261f', padding: { x: 10, y: 6 },
+    }).setDepth(30) : null;
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   startStage() {
     if (!this.stageId) return;
@@ -2010,11 +2689,39 @@ class ArchiveGame extends Phaser.Scene {
   }
   directionRelease(direction) { this.touch.delete(direction); }
   primaryAction() { if (this.playable()) this.stageGame.action?.call(this); }
+  penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
   sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
   bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
+  }
+  renderStoryOverlay() {
+    if (!this.ink) return;
+    const run = window.archiveRun?.snapshot();
+    if (!run?.active || run.qaMode) return;
+    if (this.assistProtocol) {
+      const starting = this.elapsed < 1.5;
+      const pulse = this.elapsed % 5 < .45;
+      const hints = {
+        e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
+        e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
+        e7: '안전 정렬: 금색 영역', e8: '안전 연결: 가장 가까운 거미줄 지점',
+        e9: '안전 속도: 과녁 안 완전 정지', e10: '안전 입력: 목표 순서',
+      };
+      this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
+      if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {
+        this.ink.lineStyle(4, 0x93fca0, .8).lineBetween(60, 190, 135, 190);
+        this.ink.fillStyle(0x93fca0, .8).fillTriangle(135, 176, 160, 190, 135, 204);
+      }
+    }
+    if (run.currentAct === 3) {
+      const wobble = Math.sin(this.elapsed * 3) * 3;
+      this.ink.lineStyle(3, 0xff6584, .48).strokeCircle(725 + wobble, 226, 22);
+      this.ink.lineStyle(2, 0xff6584, .32).strokeCircle(825 - wobble, 404, 28);
+      this.ink.lineBetween(704 + wobble, 205, 746 + wobble, 247);
+      this.ink.lineBetween(804 - wobble, 383, 846 - wobble, 425);
+    }
   }
   update(_time, deltaMs) {
     if (!this.playable()) return;
@@ -2029,7 +2736,7 @@ class ArchiveGame extends Phaser.Scene {
       this.stageGame.update.call(this, dt);
       if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
     }
-    this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   finish(success, extra = '') {
     if (!this.playable()) return;
