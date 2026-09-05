@@ -30,5 +30,10 @@ globalThis.MINIGAME_ASSETS = {
   }, e4: { player: null },
   e5: { projectile: null, target: null }, e6: { player: null },
   e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },
-  e10: { player: null },
+  // e10: 정사각 프레임. 이동 4×1, 점프 4×2 (왼쪽부터 행 우선). 셀 해상도는 자동 감지.
+  e10: {
+    glide: 'assets/minigames/e10/skater_glide_4frame_sheet.png',
+    jump: 'assets/minigames/e10/skater_jump_8frame_sheet.png',
+    player: null,
+  },
 };

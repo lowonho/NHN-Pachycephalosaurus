@@ -1,4 +1,4 @@
-param([switch]$E4Only, [switch]$E8Only, [switch]$E9Only)
+param([switch]$E4Only, [switch]$E8Only, [switch]$E9Only, [switch]$E10Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -66,6 +66,28 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  if ($E10Only) {
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e10'); archivePhaserGame.loop.sleep();" | Out-Null
+    $artifactDir = Join-Path $root 'tests/.artifacts'
+    New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+    foreach ($pose in @('glide', 'spin', 'land')) {
+      $step = switch ($pose) {
+        'glide' { "s.directionPress('right'); for(let i=0;i<30;i++) s.update(0,1000/120); s.directionRelease('right');" }
+        'spin' { "s.primaryAction(); for(let i=0;i<23;i++) s.update(0,1000/120);" }
+        'land' { "for(let i=0;i<120&&!s.state.grounded;i++) s.update(0,1000/120);" }
+      }
+      Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); s.pausedByMenu=false; $step s.pausedByMenu=true; archivePhaserGame.loop.wake(); })()" | Out-Null
+      Start-Sleep -Milliseconds 100
+      $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+      [IO.File]::WriteAllBytes((Join-Path $artifactDir "e10-$pose.png"), [Convert]::FromBase64String($shot.data))
+      Evaluate "archivePhaserGame.loop.sleep();" | Out-Null
+    }
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output 'PASS: E10 skater rendering without browser exceptions'
+    return
+  }
   if ($E9Only) {
     Evaluate "(() => { archiveGameBridge.active=false; const s=archivePhaserGame.scene.getScene('archive-game'); s.loadStage('e9'); s.startStage(); s.settings={shake:false,effects:false}; s.pointerAction(166,361); s.stageGame.pointerMove.call(s,150,361); s.stageGame.pointerUp.call(s); archivePhaserGame.loop.wake(); })()" | Out-Null
     Start-Sleep -Milliseconds 1200
@@ -135,6 +157,8 @@ try {
   Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-course-driver.js'))) | Out-Null
   $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-browser-check.js')))
   Write-Output ($checks | ConvertTo-Json -Depth 20)
+  $skaterChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
+  Write-Output ($skaterChecks | ConvertTo-Json -Depth 20)
   $slingshotChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e5-slingshot-check.js')))
   Write-Output ($slingshotChecks | ConvertTo-Json -Depth 20)
   $playability = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-clearability.js')))
