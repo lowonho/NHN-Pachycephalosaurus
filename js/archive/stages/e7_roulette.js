@@ -1,7 +1,7 @@
 import { MINI } from './minigame-kit.js';
 
 export const E7_ROULETTE = {
-  tuning: { minSpeed: 9, maxSpeed: 24, minSpinSeconds: 1.4, extraTurns: 2 },
+  tuning: { minSpeed: 7.5, maxSpeed: 21, minSpinSeconds: 1.2, extraTurns: 1 },
   build() {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });

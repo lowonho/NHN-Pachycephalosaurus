@@ -7,7 +7,7 @@
 | e1 | e1_gravityDash.js | speed, distance, gravity, obstacleGravity |
 | e2 | e2_bounceBall.js | speed, jump, jumpGain, maxJump, gravity |
 | e3 | e3_humanStack.js | speed, speedGain, maxSpeed, targetHeight, hold |
-| e4 | e4_accelerationDash.js | turns (기본 10), speed, gain, maxSpeed, tolerance, minCells/maxCells, grid |
+| e4 | e4_accelerationDash.js | turns (기본 10), speed, gain, maxSpeed, buffer, braid, grid |
 | e5 | e5_slingshot.js | force, decay, minPower, maxPull, targetHP |
 | e6 | e6_gravityFlight.js | speed, distance, gravityLoss, minGravity, liftGain, maxLift, gap |
 | e7 | e7_roulette.js | minSpeed, maxSpeed, minSpinSeconds |
@@ -30,7 +30,7 @@
 - e1은 자동 전진이며 Space는 점프가 아니라 중력 반전입니다. 누를 때마다 플레이어가 바닥 벽과 천장 벽 사이로 떨어져 반대쪽 벽에 붙습니다. 장애물은 두 종류입니다. 분홍색은 벽에 붙어 있다가 반전하면 떨어져 반대쪽 벽으로 이동하며, 중력 반대쪽 벽에 정착하므로 언제나 플레이어의 반대편에 있습니다. 보라색은 처음부터 통로 한가운데 떠 있고 반전에 반응하지 않아, 벽에 붙어 지나가면 안전하지만 그 자리에서는 반전할 수 없다는 표시가 됩니다. 금색 가시를 바닥/천장에 500px 간격으로 번갈아 배치하여 구간마다 반드시 한 번 반전하게 했습니다. 충돌하면 조금 후퇴하고 중력 방향은 유지한 채 끌리는 쪽 벽에서 다시 시작합니다.
 - e2는 A/D 좌우, W/S 공중 수직 보정, Space 착지 후 점프입니다. 키를 길게 눌러도 점프력이 더해지지 않습니다. 플랫폼에 착지하면 체크포인트를 갱신합니다.
 - e3은 Matter 복합 강체로 사람 모양을 쌓습니다. 206 높이를 0.6초 유지하면 성공합니다. 잔해는 실제 받침으로 남습니다.
-- e4는 자동 전진, 코너에서 방향키(WASD) 4방향으로 꺾습니다. 코스 전체가 한 화면에 들어오는 격자 미로이고 코너는 정확히 10개입니다. 실패하면 현재 직선 시작으로 후퇴하며 가속은 유지합니다.
+- e4는 한 화면에 들어오는 랜덤 미로입니다. 방향키(WASD)를 누르면 그 방향으로 계속 달리고, 갈림길에서는 몇 번이든 자유롭게 꺾을 수 있습니다. 미리 누른 방향은 다음 칸 중앙에서 자동으로 반영되고, 반대 방향은 통로 한가운데서도 즉시 반영됩니다. 출구는 "가장 적게 꺾어도 정확히 10번"인 칸에만 놓이므로 잘 꺾으면 10번으로 도착합니다(코스 생성 후 (칸, 방향) 0-1 BFS로 직접 검증). 꺾을 때마다 속도가 붙고, 벽에 막히면 그 자리에 멈춰 시간을 잃습니다.
 - e5는 탄환을 당겼다 놓습니다. 목표물은 6개, 체력이 있으며 궤적 미리보기가 실제 발사 힘을 반영합니다. 탄환 수 제한은 없습니다. 약해져도 끝 목표에 도달하도록 최소 힘을 둡니다.
 - e6의 무충돌 골인은 약 16.47초입니다. 새로 누를 때마다 중력 감소/상승 강화가 누적됩니다. 누르고 있는 동안 상승하며, 충돌하면 후퇴하고 중력은 유지합니다.
 - e7은 금색이 당첨입니다. 드래그의 각속도를 최솟값/최댓값 사이로 제한한 후 실제로 감속합니다. 최종 추가 회전량을 한 바퀴 안에서 균일하게 정하여 영역 비율이 실제 확률이 됩니다. 별도 당첨 결과로 화면을 덮어쓰지 않습니다. 실패마다 1/2, 1/4, 1/6, 1/8…로 좁아집니다.

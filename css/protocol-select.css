@@ -445,6 +445,16 @@
   pointer-events: auto;
 }
 
+/*
+ * 스크린 안 다이얼로그는 설계 px 그대로 두면 모니터 안에서 너무 작게 읽힌다.
+ * 패널·글자·버튼 비율을 그대로 지킨 채 통째로 키운다 — 배율만 여기서 정한다.
+ * 백드롭이 grid + place-items: center라 확대해도 중앙은 그대로다.
+ */
+.screen-overlays .modal,
+.screen-overlays .pause-dialog {
+  transform: scale(var(--screen-dialog-scale, 1.8));
+}
+
 /* 주사선과 반사광은 스크린 안 모든 레이어 위에 얹히되 클릭을 가로채지 않는다. */
 .protocol-scanlines,
 .protocol-glare {

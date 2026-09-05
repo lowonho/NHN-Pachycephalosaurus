@@ -1,12 +1,12 @@
 import { MINI } from './minigame-kit.js';
 
 export const E3_HUMAN_STACK = {
-  tuning: { speed: 245, speedGain: 42, maxSpeed: 920, targetHeight: 206, hold: .6, dropCooldown: .3 },
+  tuning: { speed: 165, speedGain: 42, maxSpeed: 920, targetHeight: 206, hold: .6, dropCooldown: .3 },
   build() {
     MINI.init(this, 0xffc27e);
     const M = Phaser.Physics.Matter.Matter;
     this.stackWorld = M.Engine.create();
-    this.stackWorld.gravity.y = 1.7;
+    this.stackWorld.gravity.y = 1.15;
     this.stackWorld.positionIterations = 8;
     M.Composite.add(this.stackWorld.world, [
       M.Bodies.rectangle(480, 488, 916, 24, { isStatic: true, friction: .9 }),
