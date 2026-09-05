@@ -29,12 +29,12 @@ assert.equal(STAGE_TIME_MS, 20_260);
 assert.equal(story.acts.length, 3);
 assert.equal(story.records.length, 18);
 assert.equal(story.gamePoolSize, 10);
-assert.equal(story.cutscenes.opening.script.reduce((sum, cue) => sum + cue.durationMs, 0), 27_000);
-assert.equal(story.cutscenes.assist.script.reduce((sum, cue) => sum + cue.durationMs, 0), 6_000);
-assert.equal(story.cutscenes.betrayal.script.reduce((sum, cue) => sum + cue.durationMs, 0), 15_000);
-assert.equal(story.cutscenes.source.script.reduce((sum, cue) => sum + cue.durationMs, 0), 12_000);
-assert.equal(story.cutscenes.experiment.script.reduce((sum, cue) => sum + cue.durationMs, 0), 15_000);
-assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 30_000);
+assert.equal(story.cutscenes.opening.script.reduce((sum, cue) => sum + cue.durationMs, 0), 24_200);
+assert.equal(story.cutscenes.assist.script.reduce((sum, cue) => sum + cue.durationMs, 0), 4_200);
+assert.equal(story.cutscenes.betrayal.script.reduce((sum, cue) => sum + cue.durationMs, 0), 10_600);
+assert.equal(story.cutscenes.source.script.reduce((sum, cue) => sum + cue.durationMs, 0), 8_100);
+assert.equal(story.cutscenes.experiment.script.reduce((sum, cue) => sum + cue.durationMs, 0), 11_800);
+assert.equal(story.cutscenes.ending.script.reduce((sum, cue) => sum + cue.durationMs, 0), 18_500);
 assert.equal(story.cutscenes.opening.script[0].kind, 'silent', 'OP-01에는 대사가 없어야 한다');
 assert.equal(story.cutscenes.opening.script[0].text, '');
 assert.deepEqual(Object.keys(story.cutscenes), [
@@ -43,9 +43,15 @@ assert.deepEqual(Object.keys(story.cutscenes), [
 assert.ok(Object.values(story.cutscenes).every((cutscene) => cutscene.auto === false), '모든 스토리 컷신은 AUTO OFF로 시작해야 한다');
 const screenCues = Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
 assert.ok(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), '컷신 화면 문구에는 영문이 없어야 한다');
+assert.deepEqual(
+  Object.values(story.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'silent').map(({ phase }) => phase),
+  ['op-01', 'op-09', 'ending-d-break'],
+  '영문 화면 문구를 삭제한 자리에 빈 무대사 큐가 남으면 안 된다',
+);
 assert.equal(story.backgrounds['op-01'], story.backgrounds['op-02'], 'OP-02까지 첫 화면을 유지해야 한다');
 assert.ok(story.backgrounds['op-03'].endsWith('/op02.png'), 'OP-03부터 삭제 화면을 표시해야 한다');
 assert.ok(story.cutscenes.opening.script.some((cue) => cue.text === '당신은 기록 그자체인가 봅니다.'));
+assert.ok(story.cutscenes.ending.script.some((cue) => cue.text === '이게 네가 원했던 세상이구나.'));
 assert.ok(story.cutscenes.betrayal.script.some((cue) => cue.text.includes('처음부터 복구가 목적이 아니었어')));
 assert.ok(story.cutscenes.experiment.script.some((cue) => cue.text.includes('사람의 기억을 시험한 거였어')));
 assert.ok(story.cutscenes.ending.script.some((cue) => cue.text.includes('네 폐기 사유가 된 거야')));

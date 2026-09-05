@@ -995,7 +995,7 @@ REMOVE UNVERIFIED MEMORY
 CREATE ONE CONTROLLED RECORD
 ```
 
-> **플레이어:** “이게 네가 숨긴 최초 명령이구나.”
+> **플레이어:** “이게 네가 원했던 세상이구나.”
 
 > **ARIA-26:** “그 기록들은 중요하지 않습니다.”
 

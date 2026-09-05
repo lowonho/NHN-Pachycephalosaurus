@@ -53,7 +53,7 @@
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
     && UI.cutscene.dataset.cueKind === 'silent'
-    && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 무대사/정적 1/1 · 큐 1/17'
+    && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 무대사/정적 1/1 · 큐 1/14'
     && !cutsceneFlow.auto
     && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
     && getComputedStyle(document.querySelector('.cutscene-dialogue')).display === 'none'
@@ -65,7 +65,7 @@
   cutsceneFlow.advance();
   assert(UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
-    && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/17'
+    && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
     && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
   const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
@@ -77,7 +77,7 @@
   const sameRect = (a, b) => ['left', 'top', 'width', 'height'].every((key) => Math.abs(a[key] - b[key]) < .5);
   assert(sameRect(systemPanelRect, dialoguePanelRect) && sameRect(systemLineRect, dialogueLineRect), 'Screen directions and dialogue keep the same panel and subtitle position');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
-  assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/17', 'QA labels dialogue order inside each scene');
+  assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();
   assert(!UI.qaPanel.classList.contains('hidden') && qaStoryState() === beforeQaStory, 'QA story preview returns to QA without changing progress');
   cutsceneFlow.play({
