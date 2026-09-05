@@ -2122,7 +2122,7 @@ const E5_SLINGSHOT = {
      포물선과 난이도가 그대로다. tests/e5-slingshot-check.js 의 좌표도 같은 값만큼 따라와야 한다. */
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '' };
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenElapsed: 0, frozenRemaining: 0, finishText: '' };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -2371,13 +2371,20 @@ const E5_SLINGSHOT = {
     // 목표를 채운 순간 시간은 그대로 멈추되, 마지막 한 발이 부순 결과(조각 흩날림 등)를
     // 1초 더 보여준 뒤에 클리어 처리한다 — 즉시 결과창을 띄우면 그 장면을 놓친다.
     if (!left && s.pendingFinish === 0) {
-      s.pendingFinish = 1; s.frozenRemaining = this.remaining;
+      s.pendingFinish = 1; s.frozenElapsed = this.elapsed; s.frozenRemaining = this.remaining;
       s.finishText = s.shots + '발로 두딱쿠 4개 파괴';
     }
     if (s.pendingFinish > 0) {
       this.remaining = s.frozenRemaining;
       s.pendingFinish = Math.max(0, s.pendingFinish - dt);
-      if (s.pendingFinish === 0) this.finish(true, s.finishText);
+      if (s.pendingFinish === 0) {
+        // 공통 루프는 마지막 파괴 장면을 보여 주는 동안에도 elapsed를 증가시킨다.
+        // 성공한 순간의 시간으로 되돌리지 않으면 막판 클리어 기록이 20.26초를 넘어
+        // 기록 저장이 예외를 던지고, 결과창 없이 mode만 done인 상태로 남는다.
+        this.elapsed = s.frozenElapsed;
+        this.remaining = s.frozenRemaining;
+        this.finish(true, s.finishText);
+      }
     }
   },
   /* role 은 매니페스트의 e5 그림 이름이다. 두쫀쿠는 상태별로(proud/tense/launch/split),

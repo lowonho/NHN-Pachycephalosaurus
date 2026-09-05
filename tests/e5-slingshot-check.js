@@ -134,6 +134,19 @@
   }
   assert(downwardRoofHit, 'Late lofted shot still reaches the last roof');
   assert(scene.state.timbers.slice(7).some(o => o.hp < scene.stageGame.tuning.woodHP), 'Low-tension roof hit physically damages the house');
+  // 마지막 0.06초에 목표를 모두 파괴해도 1초 결과 연출 때문에 기록 시간이 제한을
+  // 넘어가서는 안 된다. 그러면 기록 저장 예외 뒤에 결과창 없이 mode만 done으로 남는다.
+  load();
+  let lateClear = null;
+  const onLateClear = event => { lateClear = event.detail; };
+  window.addEventListener('archive-stage-end', onLateClear);
+  scene.elapsed = scene.timeLimit - .06; scene.remaining = .06; scene.accumulator = 0;
+  scene.state.targets.forEach(target => { target.hp = 0; M.Composite.remove(scene.slingWorld.world, target.body); });
+  advance(1.2);
+  window.removeEventListener('archive-stage-end', onLateClear);
+  assert(scene.mode === 'done' && lateClear?.success && lateClear.elapsed <= scene.timeLimit
+    && Math.abs(lateClear.elapsed - scene.state.frozenElapsed) < .00001,
+  'A clear in the final fraction of a second keeps a valid record time and reaches stage end');
   scene.stopGame();
   assert(scene.slingWorld === null, 'Leaving scene disposes physics');
   return { passed: checks.length, checks };
