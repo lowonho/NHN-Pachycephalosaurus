@@ -26,6 +26,18 @@ class MainMenuFlow {
     this.ui.stageSelectBackButton?.addEventListener("click", () => this.closeStageSelect());
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
 
+    /*
+     * 오른쪽 위 ON/OFF — 마스터 뮤트 하나를 설정 화면과 나눠 쓴다.
+     * aria-pressed는 "눌러서 꺼 둔 상태"라 muted와 같은 뜻이다.
+     */
+    this.ui.mainSoundButton?.addEventListener("click", () => {
+      this.soundBus.resume();
+      this.soundBus.setMuted(!this.soundBus.muted);
+      this.syncSound();
+    });
+    this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncSound());
+    this.syncSound();
+
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.open());
 
     // 스테이지가 실제로 열릴 때 메인 화면을 비운다.
@@ -49,6 +61,10 @@ class MainMenuFlow {
 
   close() {
     this.ui.mainMenu?.classList.add("hidden");
+  }
+
+  syncSound() {
+    this.ui.mainSoundButton?.setAttribute("aria-pressed", String(this.soundBus.muted));
   }
 
   /*
