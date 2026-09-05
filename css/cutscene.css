@@ -198,7 +198,11 @@
 /* 본문 패널 */
 .cutscene-panel {
   position: relative;
-  min-height: 196px;
+  /*
+   * 대사 세 줄 기준으로 높이를 못 박는다 — 대사가 길든 짧든 패널이 커지거나 줄지 않는다.
+   * 34px(위 여백) + 126px(대사 세 줄) + 34px(아래 여백) = 194px.
+   */
+  height: 194px;
   padding: 34px 60px 34px 52px;
   border: 2px solid var(--cut-line);
   /* 오른쪽 아래 모서리만 크게 깎는다 — 컨셉 이미지와 같은 비대칭 컷. */
@@ -211,10 +215,11 @@
 .cutscene-panel::before {
   content: "";
   position: absolute;
-  top: 38px;
+  /* 대사 세 줄과 같은 높이로 맞춘다 — 패널을 고정했으니 악센트 바도 같은 자리에 선다. */
+  top: 34px;
   left: 26px;
   width: 4px;
-  height: 62px;
+  height: 126px;
   background: var(--cut-line);
 }
 
@@ -240,10 +245,11 @@
 
 .cutscene-line {
   margin: 0;
-  /* 한 줄짜리 대사에서도 패널이 쪼그라들지 않게 세 줄 자리를 비워 둔다. */
-  min-height: 3.3em;
+  /* 패널 높이가 고정이라 대사도 세 줄 자리에 못 박는다(26px × 1.6 × 3 = 124.8px). */
+  height: 4.8em;
+  overflow: hidden;
   color: var(--cut-text);
-  font: 400 36px/1.65 var(--font-body);
+  font: 400 26px/1.6 var(--font-body);
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
   /* 줄바꿈은 대본이 정한다. 대본의 줄바꿈 문자를 그대로 살린다. */
   white-space: pre-wrap;
@@ -253,8 +259,11 @@
 .cutscene-next {
   position: absolute;
   right: 34px;
-  /* 아래변에 걸터앉는 AUTO/LOG/SKIP 줄(패널 안쪽으로 23px 들어온다) 위로 비켜 둔다. */
-  bottom: 48px;
+  /*
+   * 고정된 세 줄 대사의 세로 한가운데(패널 아래변에서 97px)에 맞춘다.
+   * 아래변에 걸터앉는 AUTO/LOG/SKIP 줄은 패널 안쪽으로 23px까지만 들어오므로 겹치지 않는다.
+   */
+  bottom: 85px;
   color: var(--cut-line);
   font-size: 24px;
   line-height: 1;
