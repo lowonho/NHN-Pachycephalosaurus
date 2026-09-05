@@ -1,0 +1,20 @@
+import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { FileBlob, SpreadsheetFile, Workbook } from '@oai/artifact-tool';
+
+const xlsxPath = new URL('2026_archive_sfx_inventory.xlsx', import.meta.url);
+const csvPath = new URL('2026_archive_sfx_inventory.csv', import.meta.url);
+const workbook = await SpreadsheetFile.importXlsx(await FileBlob.load(fileURLToPath(xlsxPath)));
+const sheetCheck = await workbook.inspect({ kind: 'sheet', include: 'id,name' });
+const summaryCheck = await workbook.inspect({ kind: 'table', range: '우선순위 요약!A5:G8', include: 'values,formulas', tableMaxRows: 10, tableMaxCols: 8 });
+const tailCheck = await workbook.inspect({ kind: 'table', range: '효과음 전체!A80:S84', include: 'values,formulas', tableMaxRows: 8, tableMaxCols: 19 });
+const errors = await workbook.inspect({ kind: 'match', searchTerm: '#REF!|#DIV/0!|#VALUE!|#NAME\\?|#N/A|#NUM!|#NULL!|#SPILL!|#CALC!', options: { useRegex: true, maxResults: 300 }, summary: 'saved workbook formula error scan' });
+const csvText = (await fs.readFile(csvPath, 'utf8')).replace(/^\uFEFF/, '');
+const csvWorkbook = await Workbook.fromCSV(csvText, { sheetName: 'CSV' });
+const csvRows = csvWorkbook.worksheets.getItemAt(0).getUsedRange(true).values.length;
+if (csvRows !== 81) throw new Error(`CSV row count mismatch: ${csvRows}`);
+console.log(sheetCheck.ndjson);
+console.log(summaryCheck.ndjson);
+console.log(tailCheck.ndjson);
+console.log(errors.ndjson);
+console.log(JSON.stringify({ csvRows, expectedCsvRows: 81 }));
