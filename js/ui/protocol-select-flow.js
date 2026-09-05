@@ -12,6 +12,10 @@
  * 예산은 벽시계 기준으로 계속 줄어든다. 화면을 처음 열 때 돌기 시작해서
  * 스테이지를 플레이하는 동안에도 계속 줄고, 일시정지 중에만 멈춘다.
  * 메인 화면으로 나가면(reset) 판이 끝나고 예산과 복구 기록이 처음으로 돌아간다.
+ *
+ * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
+ * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
+ * 바뀌어서, 거기 둔 숫자는 정작 필요한 순간에 사라진다.
  */
 
 const RECOVERY_BUDGET_MS = 146_000; // 2:26 — 재도전을 포함한 전체 예산
@@ -64,7 +68,8 @@ class ProtocolSelectFlow {
     this.stages = PROTOCOLS;
     this.restored = new Set();
     this.remainingMs = RECOVERY_BUDGET_MS;
-    this.tickHandle = 0;
+    this.intervalHandle = 0;
+    this.frameHandle = 0;
     this.lastTickAt = 0;
     this.timedOut = false;
     this.warnHandle = 0;
@@ -84,18 +89,44 @@ class ProtocolSelectFlow {
   open() {
     this.soundBus.resume();
     this.render();
-    // 뒤 화면(메인·플레이)은 보이더라도 만질 수 없어야 한다.
+    // 뒤 화면(메인)은 보이더라도 만질 수 없어야 한다.
     this.ui.mainMenu?.setAttribute("inert", "");
-    this.ui.appShell?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
+    this.showScreen("select");
     this.startTimer();
 
     const firstTile = this.ui.stageSelectGrid?.querySelector("button:not(:disabled)");
     (firstTile ?? this.ui.stageSelectBackButton)?.focus();
   }
 
+  /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
   close() {
+    this.showScreen("select");
     this.ui.stageSelectScreen?.classList.add("hidden");
+  }
+
+  /*
+   * 모니터 스크린 안에서 프로토콜 선택과 플레이가 자리를 바꾼다.
+   * 모니터·방·책상은 두 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
+   */
+  showScreen(mode) {
+    const playing = mode === "play";
+    if (this.ui.protocolScreen) this.ui.protocolScreen.dataset.mode = mode;
+
+    if (this.ui.appShell) {
+      this.ui.appShell.hidden = !playing;
+      if (playing) this.ui.appShell.removeAttribute("inert");
+      else this.ui.appShell.setAttribute("inert", "");
+    }
+
+
+    /*
+     * Phaser는 부팅할 때 부모(#game-container)를 재는데, 그때 모니터가 아직
+     * display:none이라 0×0으로 읽힌다. 스크린이 처음 보이는 이 시점에 다시 재게 한다.
+     * (한 번이면 충분하다 — 부모의 레이아웃 크기는 1440×810로 고정이고,
+     *  창 크기 변화는 조상의 --ui-scale 변환이 흡수한다.)
+     */
+    if (playing) window.archivePhaserGame?.scale?.refresh();
   }
 
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
@@ -131,8 +162,8 @@ class ProtocolSelectFlow {
     }
 
     this.soundBus.resume();
-    this.close();
-    this.ui.appShell?.removeAttribute("inert");
+    // 모니터는 그대로 두고 스크린 안쪽만 플레이로 바꾼다.
+    this.showScreen("play");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
   }
 
@@ -148,23 +179,40 @@ class ProtocolSelectFlow {
 
   /* ── 2:26 예산 ───────────────────────────────────────────────────── */
 
+  /*
+   * 두 박자로 돈다.
+   *
+   *   setInterval  예산의 기준이다. 판정(시간 초과)은 이쪽만 한다.
+   *   rAF          탁상시계의 1/100초를 부드럽게 그리는 용도다.
+   *
+   * rAF만 쓰면 안 된다 — 탭이 뒤로 가거나 화면을 그리지 않는 동안 콜백이 멈춰서
+   * 2:26이 같이 멈춘다. 예산은 게임 규칙이라 창을 내려놔도 계속 흘러야 한다.
+   * 반대로 setInterval만 쓰면 100ms 간격이라 1/100초 자리가 뚝뚝 끊긴다.
+   *
+   * drain()이 벽시계 기준이라 둘이 겹쳐 불려도 두 번 깎이지 않는다.
+   */
   startTimer() {
-    if (this.tickHandle || this.timedOut) return;
+    if (this.intervalHandle || this.timedOut) return;
     if (this.remainingMs <= 0) return;
     if (this.isComplete()) return;
     this.lastTickAt = performance.now();
-    // 1초가 아니라 100ms — 남은 초가 바뀌는 순간을 눈에 띄게 늦추지 않는다.
-    this.tickHandle = window.setInterval(() => this.tick(), 100);
+    this.intervalHandle = window.setInterval(() => this.tick(), 250);
+    this.frameHandle = window.requestAnimationFrame(() => this.frame());
   }
 
   pauseTimer() {
-    if (!this.tickHandle) return;
+    if (!this.intervalHandle && !this.frameHandle) return;
     this.drain();
-    window.clearInterval(this.tickHandle);
-    this.tickHandle = 0;
+    window.clearInterval(this.intervalHandle);
+    window.cancelAnimationFrame(this.frameHandle);
+    this.intervalHandle = 0;
+    this.frameHandle = 0;
   }
 
-  /* 지난 시간만큼 예산을 깎는다. setInterval 간격이 밀려도 벽시계와 어긋나지 않는다. */
+  /*
+   * 지난 시간만큼 예산을 깎는다. 프레임 간격이 밀리거나 탭이 뒤로 가서
+   * 한참 건너뛰어도 벽시계와 어긋나지 않는다.
+   */
   drain() {
     const now = performance.now();
     this.remainingMs = Math.max(0, this.remainingMs - (now - this.lastTickAt));
@@ -175,6 +223,15 @@ class ProtocolSelectFlow {
     this.drain();
     this.renderTimer();
     if (this.remainingMs <= 0) this.onTimeout();
+  }
+
+  /* 그리기 전용. 예산이 바닥났는지는 tick()이 판정한다. */
+  frame() {
+    this.frameHandle = 0;
+    if (!this.intervalHandle) return;
+    this.drain();
+    this.renderTimer();
+    this.frameHandle = window.requestAnimationFrame(() => this.frame());
   }
 
   isComplete() {
@@ -227,14 +284,23 @@ class ProtocolSelectFlow {
     this.renderArchive();
   }
 
+  /*
+   * 남은 시간은 책상 위 탁상시계 한 곳에만 뜬다.
+   * 스크린 안에 또 두면 플레이 중에만 사라져서 오히려 헷갈린다.
+   */
   renderTimer() {
-    const timer = this.ui.protocolTimer;
-    if (!timer) return;
+    if (!this.ui.deskClock) return;
 
-    timer.textContent = ProtocolSelectFlow.formatClock(this.remainingMs);
-    if (this.isComplete()) timer.dataset.state = "done";
-    else if (this.remainingMs <= RECOVERY_URGENT_MS) timer.dataset.state = "urgent";
-    else timer.dataset.state = "idle";
+    const parts = ProtocolSelectFlow.clockParts(this.remainingMs);
+    this.ui.deskClock.dataset.state = this.isComplete()
+      ? "done"
+      : this.remainingMs <= RECOVERY_URGENT_MS
+        ? "urgent"
+        : "idle";
+
+    if (this.ui.deskClockMinutes) this.ui.deskClockMinutes.textContent = parts.minutes;
+    if (this.ui.deskClockSeconds) this.ui.deskClockSeconds.textContent = parts.seconds;
+    if (this.ui.deskClockCentis) this.ui.deskClockCentis.textContent = parts.centis;
   }
 
   renderProgress() {
@@ -346,10 +412,19 @@ class ProtocolSelectFlow {
     return `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
   }
 
-  /* 146000 → "2:26". 올림이라 시작은 2:26, 0:00은 예산이 실제로 바닥났을 때만 나온다. */
-  static formatClock(milliseconds) {
-    const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  /*
+   * 146000 → { minutes: "2", seconds: "26", centis: "00" }.
+   *
+   * 전부 내림이다. 초만 올림하면 시계가 0:01.50인데 초 자리는 0:02가 되어
+   * 같은 판 위의 두 숫자가 서로 안 맞는다.
+   */
+  static clockParts(milliseconds) {
+    const total = Math.max(0, milliseconds);
+    return {
+      minutes: String(Math.floor(total / 60000)),
+      seconds: String(Math.floor(total / 1000) % 60).padStart(2, "0"),
+      centis: String(Math.floor(total / 10) % 100).padStart(2, "0"),
+    };
   }
 }
 

@@ -60,7 +60,7 @@ try {
   await send("Runtime.enable");
   await send("Page.enable");
   await send("Network.enable");
-  await send("Network.setBlockedURLs", { urls: ["*fonts.googleapis.com*", "*fonts.gstatic.com*"] });
+  await send("Network.setBlockedURLs", { urls: ["*fonts.googleapis.com*", "*fonts.gstatic.com*", "*cdn.jsdelivr.net*"] });
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);
@@ -86,10 +86,12 @@ try {
    */
   await evaluate("protocolSelectFlow.pauseTimer()");
   await screen("records");
+  await evaluate("window.addEventListener('archive-stage-end', event => { window.lastStageEnd = event.detail; })");
+  const retry = async () => { await wait(500); assert.equal(await evaluate("testScene.mode"), "playing"); assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true); };
   const start = async (stage) => evaluate(`protocolSelectFlow.startStage(${JSON.stringify(stage)}); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
   const continueToRecords = async () => {
     const saved = await evaluate("window.archiveProgress.summary()");
-    await evaluate("document.querySelector('#secondary-button').click()");
+    await evaluate("if(modalFlow.isOpen()) modalFlow.onSecondary(); else gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT,{})");
     assert.deepEqual(await evaluate(`({
       resultHidden: UI.modal.classList.contains('hidden'),
       recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
@@ -130,13 +132,13 @@ try {
   assert.equal(await evaluate("testScene.children.list.some(child => typeof child.text === 'string' && /MEMORY|발판 끝|^0[1-3]$/.test(child.text))"), false);
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
   await evaluate("Object.assign(testScene.state, { x: 430, y: 565, vy: 180, onGround: false, support: null }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), 'RECORD LOST');
-  assert.ok((await evaluate("UI.modalResult.textContent")).includes('추락'));
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  assert.ok((await evaluate("window.lastStageEnd.extra")).includes('추락'));
   assert.equal(await evaluate("window.archiveProgress.status('gravity')"), 'DAMAGED');
-  await evaluate("document.querySelector('#primary-button').click()");
+  await retry();
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
-  await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click(); document.querySelector('#stage-select-back-button').click()");
+  await evaluate("testScene.finish(false); gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT,{}); document.querySelector('#stage-select-back-button').click()");
   assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   await start('bounce');
@@ -160,8 +162,8 @@ try {
   }
   await start('bounce');
   await evaluate("Object.assign(testScene.state, { x: 575, y: 560, vy: 150 }); testScene.update(0, 25)");
-  assert.equal(await evaluate('UI.modalTitle.textContent'), 'RECORD LOST');
-  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  await retry();
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
   for (const hz of [40,60,120]) {
@@ -193,9 +195,9 @@ try {
   assert.equal(await evaluate('testScene.timePenalty'),1,'A corner impact is one hit');
   await start('friction');
   await evaluate("testScene.remaining=0.5; Object.assign(testScene.state,{x:262,y:250,vx:160,vy:0}); testScene.update(0,25)");
-  assert.equal(await evaluate('UI.modalTitle.textContent'),'RECORD LOST');
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
   assert.equal(await evaluate('testScene.remaining'),0);
-  await evaluate("document.querySelector('#primary-button').click()");
+  await retry();
   assert.equal(await evaluate('testScene.timePenalty'),0);
   assert.equal(await evaluate('testScene.state.stopIndex'),0);
   for (const memory of [false, true]) {
@@ -248,8 +250,8 @@ try {
   }
   await start('stack');
   await evaluate("archiveGame.press('right'); for(let i=0;i<35;i++) testScene.update(0,1000/60); testScene.pointerAction(480, 80); for (let i=0;i<100 && testScene.mode==='playing';i++) testScene.update(0,1000/60)");
-  assert.equal(await evaluate('UI.modalTitle.textContent'), 'RECORD LOST');
-  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  await retry();
   assert.equal(await evaluate('testScene.state.blocks.length'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
   for (const stage of ["maze", "gravity", "bounce", "friction", "stack"]) {
@@ -278,15 +280,15 @@ try {
   await continueToRecords();
   await start("maze");
   await evaluate("testScene.state.ball.x = testScene.fragment.x; testScene.state.ball.y = testScene.fragment.y; testScene.update(0, 16); testScene.remaining = 0.001; testScene.update(0, 16)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), "RECORD LOST");
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
   await continueToRecords();
   await start('maze');
   await evaluate("testScene.remaining = 0.5; Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), 'RECORD LOST');
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
   assert.equal(await evaluate("testScene.remaining"), 0);
   assert.equal(await evaluate("testScene.timePenalty"), 1);
-  assert.ok((await evaluate("UI.modalResult.textContent")).includes('충돌 시간 차감 −1.00초'));
+  assert.equal(await evaluate("window.lastStageEnd.timePenalty"), 1);
   await continueToRecords();
   await screen("restored-records");
   await send("Page.reload");

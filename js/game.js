@@ -3,6 +3,9 @@
  * 게임 규칙은 js/archive/game.mjs가 담당하고, 이 파일은 화면 전환·일시정지·결과만 연결한다.
  */
 
+/* 죽고 나서 시작점으로 되감기까지의 틈. 죽음 연출이 보일 만큼만 짧게 둔다. */
+const RETRY_DELAY_MS = 420;
+
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
     this.events = events;
@@ -14,14 +17,16 @@ class ArchiveGameBridge {
     this.active = false;
     this.warningSent = false;
     this.pendingStageId = null;
+    this.retryHandle = 0;
 
     window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
     window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
     window.addEventListener("archive-stage-end", (event) => this.onStageEnd(event.detail));
     window.addEventListener("archive-wall-hit", () => {
+      // 중앙 정렬이 translateX(-50%)라 확대에도 그것을 함께 적어야 자리가 안 튄다.
       this.ui.stageHudTimer?.animate([
-        { color: "#ff947d", transform: "scale(1.15)" },
-        { color: "#ffe04b", transform: "scale(1)" },
+        { color: "#ff947d", transform: "translateX(-50%) scale(1.15)" },
+        { color: "#ffe04b", transform: "translateX(-50%) scale(1)" },
       ], { duration: 450 });
     });
 
@@ -53,6 +58,7 @@ class ArchiveGameBridge {
 
   start(stageId) {
     if (!stageId) return;
+    this.cancelRetry();
     this.soundBus.startGameAudio();
     if (!this.api) {
       this.pendingStageId = stageId;
@@ -79,6 +85,25 @@ class ArchiveGameBridge {
     if (this.currentStage) this.start(this.currentStage.id);
   }
 
+  /*
+   * 죽은 자리에서 시작점으로 되감는다.
+   *
+   * 다음 틱으로 미루는 이유: archive-stage-end는 Phaser의 update() 한가운데서
+   * 동기로 날아온다. 여기서 곧장 loadStage를 부르면 스테이지 오브젝트를 지운 뒤에도
+   * 남은 update 코드가 그 오브젝트를 계속 만진다. 짧은 틈은 "죽었다"는 연출
+   * (화면 붉은 플래시 · 흔들림 · 실패음)이 보일 자리이기도 하다.
+   */
+  scheduleRetry() {
+    const stageId = this.currentStage?.id;
+    if (!stageId) return;
+    window.clearTimeout(this.retryHandle);
+    this.retryHandle = window.setTimeout(() => {
+      this.retryHandle = 0;
+      // 그 사이 판이 끝났거나(2:26 소진) 화면을 떠났으면 stop()이 예약을 지운다.
+      this.start(stageId);
+    }, RETRY_DELAY_MS);
+  }
+
   pause() {
     if (!this.active || !this.api) return;
     this.api.pause(true);
@@ -95,8 +120,15 @@ class ArchiveGameBridge {
     this.active = false;
     this.warningSent = false;
     this.pendingStageId = null;
+    this.cancelRetry();
     this.api?.stop();
     this.ui.stageHud?.setAttribute("hidden", "");
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.hidden = true;
+  }
+
+  cancelRetry() {
+    window.clearTimeout(this.retryHandle);
+    this.retryHandle = 0;
   }
 
   onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "", wallHits = null, timePenalty = 0 } = {}) {
@@ -131,6 +163,18 @@ class ArchiveGameBridge {
   onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false, timePenalty = 0 } = {}) {
     if (!this.currentStage || !this.active) return;
     this.active = false;
+
+    /*
+     * 죽으면(추락·20.26초 소진) 결과창을 띄우지 않는다 — 그 프로토콜의 시작점으로
+     * 곧장 되감는다. 한 판의 진짜 실패는 프로토콜 하나가 아니라 2:26 예산이
+     * 바닥나는 순간이고(js/ui/protocol-select-flow.js), 그 예산은 되감는 동안에도
+     * 계속 줄고 있다. 그러니 여기서 손을 멈추게 할 이유가 없다.
+     */
+    if (!success) {
+      this.scheduleRetry();
+      return;
+    }
+
     const recovery = window.archiveProgress.record(this.currentStage.id, success, fragmentCollected);
     mainMenuFlow.renderStages();
     const detail = {
@@ -149,7 +193,11 @@ class ArchiveGameBridge {
   updateStageHud(stage) {
     this.ui.stageHud?.removeAttribute("hidden");
     if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `RECORD ${stage.number} · ${stage.title}`;
-    if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = "20.26";
+    // 남은 20.26초는 좌상단 패널 밖(화면 중앙 상단)에 따로 서 있어서 따로 여닫는다.
+    if (this.ui.stageHudTimer) {
+      this.ui.stageHudTimer.hidden = false;
+      this.ui.stageHudTimer.textContent = "20.26";
+    }
     if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${stage.actionLabel} 00`;
     if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = stage.anomaly;
     if (this.ui.stageHudRisk) {
@@ -159,10 +207,8 @@ class ArchiveGameBridge {
   }
 
   syncAudio() {
-    const volume = this.soundBus.muted
-      ? 0
-      : this.soundBus.volumes.master * this.soundBus.volumes.sfx;
-    window.archiveAudio?.setVolume(volume);
+    // channelVolume이 마스터 뮤트와 채널 뮤트를 모두 반영한다.
+    window.archiveAudio?.setVolume(this.soundBus.channelVolume("sfx"));
     window.archiveAudio?.setBgmVolume(this.soundBus.channelVolume("bgm"));
   }
 }

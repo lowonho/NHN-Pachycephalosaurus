@@ -46,41 +46,25 @@ button {
 }
 
 /*
- * HUD 레이어 — 캔버스 위에 겹치는 플레이 화면 UI(상단바·일시정지·피치 패널·명령 카드).
- * 배율 식이 Phaser Scale.FIT과 같아서 레터박스된 캔버스와 정확히 같은 사각형에 놓인다.
+ * ── 플레이 화면은 모니터 스크린 안이다 ──────────────────────────────
+ *
+ * .app-shell은 창 전체가 아니라 프로토콜 선택 화면의 모니터 스크린
+ * (.protocol-screen · 1440×810)을 채운다. 스크린이 16:9라
+ * Phaser(960×540 · Scale.FIT)가 레터박스 없이 정확히 꽉 찬다.
+ *
+ * 바깥 --ui-scale은 그 위 조상(.protocol-frame)이 이미 걸었으므로
+ * 여기서는 스크린 안쪽 배율(--screen-scale)만 쓴다. 둘 다 걸면 두 번 줄어든다.
  */
-.hud-layer {
-  position: absolute;
-  z-index: 10;
-  top: 50%;
-  left: 50%;
-  width: 1920px;
-  height: 1080px;
-  transform: translate(-50%, -50%) scale(var(--ui-scale, 1));
-  transform-origin: center center;
-  pointer-events: none;
-}
-
 .app-shell {
-  position: fixed;
+  position: absolute;
   inset: 0;
   overflow: hidden;
-  width: 100%;
-  height: 100%;
-  height: 100dvh;
   margin: 0;
   padding: 0;
 }
 
-.game-card {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: var(--panel);
-  box-shadow: none;
+.app-shell[hidden] {
+  display: none;
 }
 
 #game-container {
@@ -88,7 +72,42 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: #123c8d;
+  background: #041028;
+}
+
+/*
+ * 개입 디버프가 붙을 때마다 화면이 한 번 흔들린다(js/archive/game.mjs의 kickScreenShake).
+ * 값은 매 프레임 자바스크립트가 --shake-* 로 넣는다 — 여기서는 조립만 한다.
+ *
+ * 흔들리는 건 기록이 재생되는 캔버스뿐이다. HUD(.hud-layer)는 이 밖에 있어 고정된다 —
+ * 스테이지 안내 · 남은 시간 · 일시정지는 흔들리면 읽을 수 없다.
+ *
+ * 떨리는 동안에만 transform을 건다. 가만히 있을 때도 걸어 두면 레이어로 승격돼
+ * 캔버스가 괜히 흐려진다. 삐져나간 만큼은 .app-shell의 overflow가 잘라 낸다.
+ */
+#game-container.is-shaking {
+  transform:
+    translate(var(--shake-x, 0), var(--shake-y, 0))
+    rotate(var(--shake-rotate, 0deg))
+    scale(var(--shake-zoom, 1));
+  will-change: transform;
+}
+
+/*
+ * HUD 레이어 — 캔버스 위에 겹치는 플레이 화면 UI.
+ * 좌표는 다른 UI와 같은 1920×1080 설계 px로 적고, 스크린 크기에 맞게 통째로 줄인다
+ * (1920 × 0.75 = 1440 = 스크린 폭). 그래서 캔버스 위 위치가 픽셀 단위로 맞는다.
+ */
+.hud-layer {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform: scale(var(--screen-scale, 1));
+  transform-origin: top left;
+  pointer-events: none;
 }
 
 #game-container canvas {
@@ -167,11 +186,32 @@ button {
   white-space: nowrap;
 }
 
-.stage-hud-heading output {
-  flex: 0 0 auto;
+/*
+ * 남은 20.26초 — 화면 중앙 상단. .stage-hud(좌상단 패널) 밖에 따로 서 있다.
+ * 플레이 중 눈이 머무는 곳은 화면 한가운데라, 매 순간 확인해야 하는 이 숫자만은
+ * 구석이 아니라 그 시선 바로 위에 둔다. 자리를 옮긴 만큼 크기도 키웠다.
+ */
+.stage-timer {
+  position: absolute;
+  z-index: 12;
+  top: 22px;
+  left: 50%;
+  padding: 8px 34px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(78, 239, 255, 0.55);
+  border-radius: 18px;
+  background: rgba(4, 17, 47, 0.78);
   color: var(--yellow);
-  font: 900 34px/1 var(--font-ui);
+  font: 900 54px/1 var(--font-ui);
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 20px rgba(255, 224, 75, 0.32);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.stage-timer[hidden] {
+  display: none;
 }
 
 .stage-hud-detail {
