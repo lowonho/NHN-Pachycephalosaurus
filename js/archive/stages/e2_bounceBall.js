@@ -46,7 +46,9 @@ export const E2_BOUNCE_BALL = {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
     s.vy = -E2_BOUNCE_BALL.jumpPower.call(this);
-    s.grounded = false; s.jumps++; this.actions++; this.sfx('jump');
+    s.grounded = false; s.jumps++; this.actions++; this.sfx('sfxE2WaxJump');
+    if (s.jumps === 2) this.sfx('sfxE2WaxCrack1');
+    else if (s.jumps === 4) this.sfx('sfxE2WaxCrack2');
     s.burst = 1;
     // 조각은 월드 좌표로 움직여 카메라나 리스폰을 따라 공에 달라붙지 않습니다.
     for (let i = 0; i < 5; i++) {
@@ -67,7 +69,10 @@ export const E2_BOUNCE_BALL = {
         if (p.rebuildLeft === 0) { p.active = true; p.crumbleLeft = null; }
       } else if (p.crumbleLeft !== null) {
         p.crumbleLeft = Math.max(0, p.crumbleLeft - dt);
-        if (p.crumbleLeft === 0) { p.active = false; p.rebuildLeft = t.rebuildTime; }
+        if (p.crumbleLeft === 0) {
+          p.active = false; p.rebuildLeft = t.rebuildTime;
+          this.sfx('sfxE2WaxDrop');
+        }
       }
     }
     const support = this.platforms[s.platformIndex];

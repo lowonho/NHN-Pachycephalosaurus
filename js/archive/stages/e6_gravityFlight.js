@@ -284,7 +284,10 @@ export const E6_GRAVITY_FLIGHT = {
     image.setPosition(180, s.y).setRotation(s.vy / 900)
       .setDisplaySize(height * image.width / image.height, height).setTint(tint);
   },
-  action() { this.state.presses++; this.actions++; this.sfx('jump'); },
+  action() {
+    this.state.presses++; this.actions++;
+    this.sfx(this.state.presses % 2 ? 'sfxE6Lift1' : 'sfxE6Lift2');
+  },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
     const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));

@@ -142,7 +142,7 @@ export const E10_NUMBER_DECODE = {
     s.grounded = false;
     s.jumpAt = this.elapsed;
     this.actions += 1;
-    this.sfx('jump');
+    this.sfx('sfxE10SpinJump');
   },
 
   enterDigit(digit) {
@@ -154,7 +154,7 @@ export const E10_NUMBER_DECODE = {
       s.lastHitCorrect = true;
       s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
       s.feedbackUntil = this.elapsed + 1;
-      this.sfx('action');
+      this.sfx('sfxClick');
       return;
     }
 
@@ -166,11 +166,11 @@ export const E10_NUMBER_DECODE = {
       s.mistakes += 1;
       s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
       s.feedbackUntil = this.elapsed + 1.2;
-      this.bump();
+      this.bump('sfxE10DigitWrong');
       return;
     }
 
-    this.sfx('action');
+    this.sfx('sfxClick');
     this.finish(true, `CODE ${s.target} 해독`);
   },
 

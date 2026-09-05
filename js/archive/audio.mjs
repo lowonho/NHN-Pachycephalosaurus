@@ -11,6 +11,8 @@ class ArchiveAudio {
     this.fadeToken = 0;
     this.sfxTimers = new Set();
     this.lastSfx = new Map();
+    this.sfxPools = new Map();
+    this.pausedSfx = new Set();
     this.bgmUnlockEvents = ["pointerdown", "pointerup", "click", "keydown"];
     this.unlockBgm = () => this.startBgm();
 
@@ -70,6 +72,9 @@ class ArchiveAudio {
 
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, Number(value)));
+    for (const pool of this.sfxPools.values()) for (const element of pool) {
+      element.volume = Math.max(0, Math.min(1, this.volume * (element._archiveGain ?? 1)));
+    }
   }
 
   setBgmVolume(value) {
@@ -81,6 +86,15 @@ class ArchiveAudio {
     const track = this.tracks[this.bgmKey];
     if (track) this.bgm.loop = !this.hasCustomLoop(track);
     this.setBgmVolume(this.bgmVolume);
+    for (const [name, pool] of this.sfxPools) {
+      const file = this.tuning.sfx.files[name];
+      if (!file) continue;
+      for (const element of pool) {
+        element.playbackRate = Math.max(.5, Math.min(2, (Number(file.rate) || 1) * (element._archiveRateScale ?? 1)));
+        element._archiveGain = Math.max(0, Number(file.gain) || 0) * (element._archiveVolumeScale ?? 1);
+        element.volume = Math.max(0, Math.min(1, this.volume * element._archiveGain));
+      }
+    }
   }
 
   selectBgm(key, { restart = false, immediate = false } = {}) {
@@ -227,13 +241,27 @@ class ArchiveAudio {
     oscillator.stop(now + duration);
   }
 
-  play(name) {
-    const preset = this.tuning.sfx.presets[name];
-    if (!preset || this.volume <= 0) return;
+  play(name, options = {}) {
+    const aliases = {
+      click: "sfxClick", warning: "sfxTimerWarning", hit: "sfxPenaltyHit",
+      success: "sfxStageClear", failure: "sfxStageFail",
+    };
+    name = aliases[name] ?? name;
+    if (this.volume <= 0) return null;
+    const file = this.tuning.sfx.files[name];
+    const path = globalThis.ARCHIVE_AUDIO_PATHS?.[name];
     const now = performance.now();
-    const throttleMs = Math.max(0, Number(this.tuning.sfx.throttleMs) || 0);
-    if (now - (this.lastSfx.get(name) || 0) < throttleMs) return;
+    const throttleMs = Math.max(0, Number(file?.throttleMs ?? this.tuning.sfx.throttleMs) || 0);
+    if (now - (this.lastSfx.get(name) || 0) < throttleMs) return null;
     this.lastSfx.set(name, now);
+    if (file && path) return this.playFile(name, path, file, options);
+
+    const fallback = {
+      sfxClick: "click", sfxTimerWarning: "warning", sfxPenaltyHit: "hit",
+      sfxStageClear: "success", sfxStageFail: "failure",
+    }[name] ?? name;
+    const preset = this.tuning.sfx.presets[fallback];
+    if (!preset) return null;
     preset.voices.forEach((voice) => {
       const playVoice = () => this.tone(voice.frequency, voice.duration, voice.type, voice.gain, voice.slide);
       if (!voice.delayMs) playVoice();
@@ -242,10 +270,56 @@ class ArchiveAudio {
         this.sfxTimers.add(timer);
       }
     });
+    return preset;
+  }
+
+  playFile(name, path, file, options) {
+    let pool = this.sfxPools.get(name);
+    if (!pool) { pool = []; this.sfxPools.set(name, pool); }
+    let element = pool.find(candidate => candidate.paused || candidate.ended);
+    const maxVoices = Math.max(1, Number(file.maxVoices) || (options.loop ? 1 : 4));
+    if (!element && pool.length < maxVoices) {
+      element = new Audio(path); element.preload = "auto"; element.dataset.sfxKey = name; pool.push(element); element.load();
+    }
+    if (!element) element = pool.reduce((oldest, candidate) => (candidate._archiveStartedAt ?? 0) < (oldest._archiveStartedAt ?? 0) ? candidate : oldest, pool[0]);
+    element.pause();
+    try { element.currentTime = 0; } catch { /* 메타데이터 로드 뒤 0초부터 시작 */ }
+    element.loop = Boolean(options.loop);
+    element.preservesPitch = false;
+    element._archiveRateScale = Number(options.rate) || 1;
+    element.playbackRate = Math.max(.5, Math.min(2, (Number(file.rate) || 1) * element._archiveRateScale));
+    element._archiveVolumeScale = Math.max(0, Number(options.volume ?? 1) || 0);
+    element._archiveGain = Math.max(0, Number(file.gain) || 0) * element._archiveVolumeScale;
+    element.volume = Math.max(0, Math.min(1, this.volume * element._archiveGain));
+    element._archiveStartedAt = performance.now();
+    element.play().catch(() => {});
+    return element;
+  }
+
+  stopSfx(name) {
+    const pools = name ? [this.sfxPools.get(name) ?? []] : this.sfxPools.values();
+    for (const pool of pools) for (const element of pool) {
+      element.pause();
+      try { element.currentTime = 0; } catch { /* 아직 메타데이터 로드 전 */ }
+    }
+    this.pausedSfx.clear();
+  }
+
+  pauseSfx() {
+    this.pausedSfx.clear();
+    for (const pool of this.sfxPools.values()) for (const element of pool) if (!element.paused) {
+      element.pause(); this.pausedSfx.add(element);
+    }
+  }
+
+  resumeSfx() {
+    for (const element of this.pausedSfx) element.play().catch(() => {});
+    this.pausedSfx.clear();
   }
 
   destroy() {
     this.stopBgm();
+    this.stopSfx();
     this.sfxTimers.forEach((timer) => window.clearTimeout(timer));
     this.sfxTimers.clear();
     this.context?.close?.().catch(() => {});

@@ -63,16 +63,19 @@ class AudioBus {
   pausePlayback() {
     this.scene?.sound?.pauseAll();
     window.archiveAudio?.pauseBgm();
+    window.archiveAudio?.pauseSfx();
   }
 
   resumePlayback() {
     this.resume();
     this.scene?.sound?.resumeAll();
     window.archiveAudio?.resumeBgm();
+    window.archiveAudio?.resumeSfx();
   }
 
   stopPlayback() {
     this.scene?.sound?.stopAll();
+    window.archiveAudio?.stopSfx();
   }
 
   isReady(key) {

@@ -120,6 +120,7 @@ export const E5_SLINGSHOT = {
   pointerDown(x, y) {
     if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 418) > 55) return;
     this.state.drag = { x: 164, y: 418 };
+    this.sfx('sfxE5RubberStretch');
     E5_SLINGSHOT.pointerMove.call(this, x, y);
   },
   pointerMove(x, y) {
@@ -142,11 +143,12 @@ export const E5_SLINGSHOT = {
     shot.body.plugin.shot = shot;
     M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
     M.Composite.add(this.slingWorld.world, shot.body);
-    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('jump');
+    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('sfxE5Release');
   },
   cancelInput() { this.state.drag = null; },
   damage(target, amount, collapse = false) {
     if (target.hp <= 0) return;
+    this.sfx('sfxDubaiStretch');
     target.hp = Math.max(0, target.hp - amount); target.flash = .18;
     if (target.wood) {
       const t = E5_SLINGSHOT.tuning;
@@ -180,15 +182,15 @@ export const E5_SLINGSHOT = {
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
       if (target.wood) {
-        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
+        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; return;
       }
       Phaser.Physics.Matter.Matter.Composite.remove(this.slingWorld.world, target.body);
       const spriteKey = 'target' + s.targets.indexOf(target);
       this.assetSprites.get(spriteKey)?.destroy(); this.assetSprites.delete(spriteKey);
       s.combo++; s.feedback = collapse ? '와르르! 중심이 무너졌다' : s.combo > 1 ? s.combo + '개 연속 파괴!' : '바삭! 두딱쿠 파괴';
-      s.feedbackAge = 1.1; this.sfx('hit');
+      s.feedbackAge = 1.1;
       if (this.settings.shake) this.cameras.main.shake(70, .002);
-    } else { s.feedback = '기우뚱! 모서리를 노려보세요'; s.feedbackAge = .65; this.sfx('hit'); }
+    } else { s.feedback = '기우뚱! 모서리를 노려보세요'; s.feedbackAge = .65; }
   },
   update(dt) {
     const s = this.state, t = E5_SLINGSHOT.tuning;

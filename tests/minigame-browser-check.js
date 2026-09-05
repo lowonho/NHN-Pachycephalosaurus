@@ -233,6 +233,9 @@
   const spikes = () => scene.state.obstacles.filter(o => o.spike),
     blocks = () => scene.state.obstacles.filter(o => !o.spike && !o.float),
     floats = () => scene.state.obstacles.filter(o => o.float);
+  assert(scene.memeLabels.length === 10
+    && [...new Set(scene.hurdles.filter(o => !o.part).map(o => o.meme.name))].join('/') === '자나/립/메에/원이?',
+  'e1: ten paired hazards cycle through four lightweight meme stand-ins');
   // 통로 좌표는 코스에서 읽습니다. 가시가 붙어 있는 두 벽이 곧 천장 아랫면과 바닥 윗면입니다.
   const ceilBottom = Math.min(...scene.hurdles.map(h => h.wall)), floorTop = Math.max(...scene.hurdles.map(h => h.wall)) + 24, floorY = scene.state.y;
   assert(spikes().length === 20 && blocks().length === 5 && floats().length === 4, 'e1: course holds 20 spikes, 5 blocks and 4 floating blocks');

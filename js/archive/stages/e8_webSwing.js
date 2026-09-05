@@ -74,7 +74,7 @@ export const E8_WEB_SWING = {
     s.rope = { anchor: a.index, length,
       theta: Math.atan2(dx, dy), omega: catchSpeed / length, starter: false };
     s.hooks++; s.checkpoint = Math.max(s.checkpoint, a.index);
-    E8_WEB_SWING.pose.call(this); this.sfx('jump');
+    E8_WEB_SWING.pose.call(this); this.sfx('sfxE8WebAttach');
   },
   pointerDown() { this.state.pointerHeld = true; E8_WEB_SWING.action.call(this); },
   pointerUp() {

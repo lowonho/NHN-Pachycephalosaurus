@@ -10,7 +10,7 @@ const COUNTDOWN_STEPS = Object.freeze([
   { text: '3', step: '3', ms: 620, sfx: 'click' },
   { text: '2', step: '2', ms: 620, sfx: 'click' },
   { text: '1', step: '1', ms: 620, sfx: 'click' },
-  { text: '시작!', step: 'go', ms: 420, sfx: 'hit' },
+  { text: '시작!', step: 'go', ms: 420, sfx: 'sfxClick' },
 ]);
 
 class ArchiveGameBridge {
@@ -45,6 +45,10 @@ class ArchiveGameBridge {
       });
       button.addEventListener('pointerup', release); button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
     });
+    document.addEventListener('click', event => {
+      const control = event.target.closest?.('button, a, [role="button"]');
+      if (control && !control.disabled && !control.closest('#audio-lab')) window.archiveAudio?.play('sfxClick');
+    });
   }
   onReady({ scene, stages }) {
     this.api = window.archiveGame; this.stages = stages;
@@ -60,6 +64,7 @@ class ArchiveGameBridge {
     this.ui.appShell.dataset.act = String(run.currentAct);
     this.ui.appShell.dataset.assist = String(Boolean(run.assistProtocolAct1));
     const archiveAudio = window.archiveAudio;
+    archiveAudio?.stopSfx();
     const bgmWasPlaying = Boolean(archiveAudio?.bgmStarted && !archiveAudio?.bgmPaused);
     /* 무음 브리핑 다음에는 이전 곡을 거치지 않고 새 게임 곡부터 사용자 입력으로 해제한다. */
     if (!bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true, immediate: true });

@@ -61,7 +61,8 @@ export const E4_ACCELERATION_DASH = {
     MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, brakeSounded: false,
+      footstepLeft: 0, footstepIndex: 0, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     E4_VILLAGE.build(this, E4);
     E4_TIGER.build(this);
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
@@ -141,6 +142,17 @@ export const E4_ACCELERATION_DASH = {
     s.contacts = contacts;
     s.moving = Math.hypot(s.x - oldX, s.y - oldY) > .01;
     s.braking = s.braking && s.moving;
+    const actualSpeed = Math.hypot(s.vx, s.vy);
+    if (s.moving) {
+      const pace = MINI.clamp((actualSpeed - t.speed) / (t.maxSpeed - t.speed), 0, 1);
+      s.footstepLeft -= dt;
+      if (s.footstepLeft <= 0) {
+        this.sfx(s.footstepIndex++ % 2 ? 'sfxE4Walk2' : 'sfxE4Walk1', { rate: .92 + pace * .3 });
+        s.footstepLeft = .38 - pace * .2;
+      }
+    } else s.footstepLeft = 0;
+    if (s.braking && !s.brakeSounded) { this.sfx('sfxE4Brake'); s.brakeSounded = true; }
+    if (!s.braking) s.brakeSounded = false;
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
@@ -373,6 +385,12 @@ const E4_TIGER = {
     tiger.active = true;
     tiger.gait = scene.elapsed < t.delay + t.walkDuration ? 'walk' : 'run';
     tiger.speed = tiger.gait === 'walk' ? t.walkSpeed : t.runSpeed;
+    if (tiger.soundGait !== tiger.gait) {
+      tiger.sound?.pause();
+      if (tiger.sound) try { tiger.sound.currentTime = 0; } catch { /* 로드 전 전환 */ }
+      const sound = scene.sfx(tiger.gait === 'walk' ? 'sfxE4TigerSlow' : 'sfxE4TigerFast', { loop: true });
+      if (sound) { tiger.soundGait = tiger.gait; tiger.sound = sound; }
+    }
     let budget = tiger.speed * dt;
     const totalBudget = budget;
     const target = E4_TIGER.cell(scene, s.x, s.y);

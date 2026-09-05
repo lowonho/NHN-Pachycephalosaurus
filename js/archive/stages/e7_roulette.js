@@ -6,7 +6,7 @@ export const E7_ROULETTE = {
   tuning: { countryCount: 8, minSpeed: 2.4, maxSpeed: 10, friction: 4, frictionDecay: .78, minFriction: 1.5 },
   build() {
     MINI.init(this, 0xfca8d6);
-    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0, poseAge: 0, result: '' };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0, poseAge: 0, result: '', tickSector: null };
     const opponents = ['멕시코', '남아공', '체코'];
     this.state.target = opponents[Math.floor(MINI.rand(0, opponents.length, this.random))];
     const sheet = this.textures.get('e7:coach');
@@ -57,7 +57,7 @@ export const E7_ROULETTE = {
     if (d.travel < .12 || Math.abs(speed) < t.minSpeed) { s.result = '조금 더 빠르게 슥 돌려주세요'; return; }
     s.speed = speed;
     s.deceleration = E7_ROULETTE.friction.call(this);
-    s.spinning = true; s.poseAge = 0; s.result = ''; this.actions++; this.sfx('click');
+    s.spinning = true; s.poseAge = 0; s.result = ''; s.tickSector = null; this.actions++; this.sfx('sfxE7Start');
   },
   swipeSpeed(d) {
     return MINI.clamp(d.sweep / Math.max(.06, d.age) * Math.exp(-Math.max(0, d.idle - .08) / .12), -E7_ROULETTE.tuning.maxSpeed, E7_ROULETTE.tuning.maxSpeed);
@@ -75,13 +75,18 @@ export const E7_ROULETTE = {
       const movingDt = Math.min(dt, Math.abs(s.speed) / s.deceleration);
       const next = Math.sign(s.speed) * Math.max(0, Math.abs(s.speed) - s.deceleration * dt);
       s.rotation += (s.speed + next) * .5 * movingDt; s.speed = next;
+      const tickSector = Math.floor(s.rotation / (Math.PI * 2 / s.countries.length));
+      if (s.tickSector !== null && tickSector !== s.tickSector) {
+        this.sfx('sfxE7Tick', { rate: MINI.clamp(.82 + Math.abs(s.speed) / E7_ROULETTE.tuning.maxSpeed * .46, .82, 1.28) });
+      }
+      s.tickSector = tickSector;
       if (Math.abs(next) < .001) {
         s.spinning = false;
         const tau = Math.PI * 2, atPointer = ((E7_ROULETTE.POINTER_ANGLE - s.rotation) % tau + tau) % tau;
         if (atPointer < tau / s.countries.length) this.finish(true, `${this.actions}번째 추첨 당첨`);
         else {
           const selected = s.countries[Math.min(s.countries.length - 1, Math.floor(atPointer / tau * s.countries.length))];
-          s.misses++; s.cooldown = 1.1; s.result = selected + '… 축이 더 헐거워졌어요. 다음엔 힘을 조절해보세요'; this.sfx('failure');
+          s.misses++; s.cooldown = 1.1; s.result = selected + '… 축이 더 헐거워졌어요. 다음엔 힘을 조절해보세요'; this.sfx('sfxPenaltyHit');
         }
       }
     }

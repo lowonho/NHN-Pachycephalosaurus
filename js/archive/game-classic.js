@@ -29,6 +29,8 @@ class ArchiveAudio {
     this.fadeToken = 0;
     this.sfxTimers = new Set();
     this.lastSfx = new Map();
+    this.sfxPools = new Map();
+    this.pausedSfx = new Set();
     this.bgmUnlockEvents = ["pointerdown", "pointerup", "click", "keydown"];
     this.unlockBgm = () => this.startBgm();
 
@@ -88,6 +90,9 @@ class ArchiveAudio {
 
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, Number(value)));
+    for (const pool of this.sfxPools.values()) for (const element of pool) {
+      element.volume = Math.max(0, Math.min(1, this.volume * (element._archiveGain ?? 1)));
+    }
   }
 
   setBgmVolume(value) {
@@ -99,6 +104,15 @@ class ArchiveAudio {
     const track = this.tracks[this.bgmKey];
     if (track) this.bgm.loop = !this.hasCustomLoop(track);
     this.setBgmVolume(this.bgmVolume);
+    for (const [name, pool] of this.sfxPools) {
+      const file = this.tuning.sfx.files[name];
+      if (!file) continue;
+      for (const element of pool) {
+        element.playbackRate = Math.max(.5, Math.min(2, (Number(file.rate) || 1) * (element._archiveRateScale ?? 1)));
+        element._archiveGain = Math.max(0, Number(file.gain) || 0) * (element._archiveVolumeScale ?? 1);
+        element.volume = Math.max(0, Math.min(1, this.volume * element._archiveGain));
+      }
+    }
   }
 
   selectBgm(key, { restart = false, immediate = false } = {}) {
@@ -245,13 +259,27 @@ class ArchiveAudio {
     oscillator.stop(now + duration);
   }
 
-  play(name) {
-    const preset = this.tuning.sfx.presets[name];
-    if (!preset || this.volume <= 0) return;
+  play(name, options = {}) {
+    const aliases = {
+      click: "sfxClick", warning: "sfxTimerWarning", hit: "sfxPenaltyHit",
+      success: "sfxStageClear", failure: "sfxStageFail",
+    };
+    name = aliases[name] ?? name;
+    if (this.volume <= 0) return null;
+    const file = this.tuning.sfx.files[name];
+    const path = globalThis.ARCHIVE_AUDIO_PATHS?.[name];
     const now = performance.now();
-    const throttleMs = Math.max(0, Number(this.tuning.sfx.throttleMs) || 0);
-    if (now - (this.lastSfx.get(name) || 0) < throttleMs) return;
+    const throttleMs = Math.max(0, Number(file?.throttleMs ?? this.tuning.sfx.throttleMs) || 0);
+    if (now - (this.lastSfx.get(name) || 0) < throttleMs) return null;
     this.lastSfx.set(name, now);
+    if (file && path) return this.playFile(name, path, file, options);
+
+    const fallback = {
+      sfxClick: "click", sfxTimerWarning: "warning", sfxPenaltyHit: "hit",
+      sfxStageClear: "success", sfxStageFail: "failure",
+    }[name] ?? name;
+    const preset = this.tuning.sfx.presets[fallback];
+    if (!preset) return null;
     preset.voices.forEach((voice) => {
       const playVoice = () => this.tone(voice.frequency, voice.duration, voice.type, voice.gain, voice.slide);
       if (!voice.delayMs) playVoice();
@@ -260,10 +288,56 @@ class ArchiveAudio {
         this.sfxTimers.add(timer);
       }
     });
+    return preset;
+  }
+
+  playFile(name, path, file, options) {
+    let pool = this.sfxPools.get(name);
+    if (!pool) { pool = []; this.sfxPools.set(name, pool); }
+    let element = pool.find(candidate => candidate.paused || candidate.ended);
+    const maxVoices = Math.max(1, Number(file.maxVoices) || (options.loop ? 1 : 4));
+    if (!element && pool.length < maxVoices) {
+      element = new Audio(path); element.preload = "auto"; element.dataset.sfxKey = name; pool.push(element); element.load();
+    }
+    if (!element) element = pool.reduce((oldest, candidate) => (candidate._archiveStartedAt ?? 0) < (oldest._archiveStartedAt ?? 0) ? candidate : oldest, pool[0]);
+    element.pause();
+    try { element.currentTime = 0; } catch { /* 메타데이터 로드 뒤 0초부터 시작 */ }
+    element.loop = Boolean(options.loop);
+    element.preservesPitch = false;
+    element._archiveRateScale = Number(options.rate) || 1;
+    element.playbackRate = Math.max(.5, Math.min(2, (Number(file.rate) || 1) * element._archiveRateScale));
+    element._archiveVolumeScale = Math.max(0, Number(options.volume ?? 1) || 0);
+    element._archiveGain = Math.max(0, Number(file.gain) || 0) * element._archiveVolumeScale;
+    element.volume = Math.max(0, Math.min(1, this.volume * element._archiveGain));
+    element._archiveStartedAt = performance.now();
+    element.play().catch(() => {});
+    return element;
+  }
+
+  stopSfx(name) {
+    const pools = name ? [this.sfxPools.get(name) ?? []] : this.sfxPools.values();
+    for (const pool of pools) for (const element of pool) {
+      element.pause();
+      try { element.currentTime = 0; } catch { /* 아직 메타데이터 로드 전 */ }
+    }
+    this.pausedSfx.clear();
+  }
+
+  pauseSfx() {
+    this.pausedSfx.clear();
+    for (const pool of this.sfxPools.values()) for (const element of pool) if (!element.paused) {
+      element.pause(); this.pausedSfx.add(element);
+    }
+  }
+
+  resumeSfx() {
+    for (const element of this.pausedSfx) element.play().catch(() => {});
+    this.pausedSfx.clear();
   }
 
   destroy() {
     this.stopBgm();
+    this.stopSfx();
     this.sfxTimers.forEach((timer) => window.clearTimeout(timer));
     this.sfxTimers.clear();
     this.context?.close?.().catch(() => {});
@@ -895,6 +969,20 @@ const SPIKE_GAP = SPIKE_ART;
 /* 게이트마다 세우는 두 글자짜리 낱말. 게이트 홀짝으로 번갈아 서므로 바닥에는 '거제',
    천장에는 '야호'가 붙습니다. 값은 manifest.js 의 e1 역할 이름입니다. */
 const SPIKE_WORDS = [['geo', 'je'], ['ya', 'ho']];
+/*
+ * 에셋 제작 전 플레이 감각을 확인하는 밈 난입 대역입니다. 한 명당 가장 큰 무기 하나와
+ * 짧은 명찰만 남겨, 나중에 같은 88x68 안에 투명 PNG 한 장을 넣으면 그대로 교체할 수 있게
+ * 그립니다. 실제 판정은 아래의 가시 두 칸(각 35x24) 그대로라 그림 크기 때문에 어려워지지
+ * 않습니다. 얼굴이 아니라 금관·왕발·집게·불주먹의 실루엣부터 읽히는 것이 목표입니다.
+ */
+const MEME_CAST = [
+  { id: 'jana', name: '자나', weapon: '신라공주', main: 0xffc43d, dark: 0x7d315f },
+  { id: 'lip', name: '립', weapon: '수원왕발', main: 0xffaa7d, dark: 0x167f86 },
+  { id: 'mee', name: '메에', weapon: '그립갑', main: 0xff4e57, dark: 0x2569a8 },
+  { id: 'woni', name: '원이?', weapon: '거제불주먹', main: 0xff8a18, dark: 0x342b38 },
+];
+const MEME_ART_W = 88;
+const MEME_ART_H = 68;
 /* 아직 벽에 붙어 있는 가시는 어두운 짝(<이름>-dim)으로 그립니다. 풀렸는지 아닌지는 이
    게임에서 가장 중요한 신호이므로 예전 삼각형의 갈색과 금색만큼 차이를 둡니다. 밝기를
    스프라이트의 tint 로 낮추지 않고 그림을 두 벌 구워 두는 까닭은, index.html 을 파일로 직접
@@ -969,6 +1057,7 @@ const E1_GRAVITY_DASH = {
     // 스테이지), 평소에는 무작위입니다. 그 파일이 없으면 여기서 그냥 무작위로 뽑습니다.
     const art = globalThis.archiveStageArtSet?.('e1', ART_SETS) ?? ART_SETS[Math.floor(Math.random() * ART_SETS.length)];
     this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, art, obstacles: [] };
+    this.instruction.setText('SPACE · 중력 반전  |  무기를 보고 위·아래로 피하세요');
     // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
@@ -979,7 +1068,16 @@ const E1_GRAVITY_DASH = {
         x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: SPIKE_W, h: SPIKE_H,
         vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
         wall, loose: false, letter: SPIKE_WORDS[gate % 2][i % 2],
+        gate, part: i % 2, meme: MEME_CAST[gate % MEME_CAST.length],
       };
+    });
+    this.memeLabels = Array.from({ length: GATES }, (_, gate) => {
+      const meme = MEME_CAST[gate % MEME_CAST.length];
+      return this.add.text(0, 0, `${meme.name} · ${meme.weapon}`, {
+        fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#f8fbff',
+        backgroundColor: '#081720', padding: { x: 6, y: 3 },
+        stroke: '#081720', strokeThickness: 2,
+      }).setOrigin(.5).setDepth(4).setMask(this.ink.mask).setVisible(false);
     });
     this.state.obstacles.push(...this.hurdles);
     for (let i = 0; i < GATES; i++) {
@@ -1005,7 +1103,7 @@ const E1_GRAVITY_DASH = {
     while (s.release < RELEASE_AT.length && RELEASE_AT[s.release] <= this.actions) {
       E1_GRAVITY_DASH.release.call(this, RELEASE_STEPS[s.release]); s.release++;
     }
-    this.sfx('jump');
+    this.sfx('sfxE1GravityFlip');
   },
   /* 이미 지나온 가시를 풀어 봐야 아무 일도 일어나지 않습니다. 아직 붙어 있고 앞에 남은 가시
      중에서, 통로를 건널 시간이 있는 만큼 앞선 것부터 차례로 풉니다. 그만큼 앞선 가시가 남아
@@ -1121,6 +1219,65 @@ const E1_GRAVITY_DASH = {
       g.lineBetween(x, y + drag, x + length, y);
     }
   },
+  /* 가장자리까지 딱 끊기는 작은 사각형만 써서 픽셀 대역을 그립니다. outline까지 한 함수에
+     묶어 두었으므로 실제 PNG가 들어오면 이 함수와 drawMeme만 걷어내면 됩니다. */
+  pixel(g, x, y, w, h, color, outline = 0x081720, alpha = 1) {
+    g.fillStyle(outline, alpha).fillRect(Math.round(x) - 2, Math.round(y) - 2, Math.round(w) + 4, Math.round(h) + 4);
+    g.fillStyle(color, alpha).fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+  },
+  /* 두 가시 칸의 합친 중심에 무기를 놓고 몸은 오른쪽 뒤로 뺍니다. 먼저 닿는 무기 쪽만
+     실제 판정과 겹치므로, 몸이나 머리의 장식에 스쳤다고 억울하게 충돌하지 않습니다. */
+  drawMeme(o, x, y) {
+    const g = this.ink, meme = o.meme, dim = o.loose ? 1 : .58;
+    const px = (xx, yy, w, h, color, outline) => E1_GRAVITY_DASH.pixel(g, xx, yy, w, h, color, outline, dim);
+    g.save();
+
+    // 공통 몸통: 무기보다 작고 단순한 5색 대역. 오른쪽을 향한 발 두 칸이 달리는 인상을 줍니다.
+    px(x + 19, y - 19, 17, 17, 0xffd3b6);
+    px(x + 18, y - 1, 20, 23, meme.dark);
+    px(x + 20, y + 22, 7, 10, 0xf4f0e8);
+    px(x + 32, y + 22, 7, 10, 0xf4f0e8);
+    g.fillStyle(0x081720, dim).fillRect(Math.round(x + 23), Math.round(y - 14), 3, 3)
+      .fillRect(Math.round(x + 31), Math.round(y - 14), 3, 3);
+
+    if (meme.id === 'jana') {
+      // 커다란 금관: 계단식 솟을 장식이 좌우 76px 실루엣을 만듭니다.
+      px(x - 38, y - 4, 55, 18, meme.main);
+      px(x - 34, y - 18, 8, 14, meme.main);
+      px(x - 17, y - 27, 9, 23, meme.main);
+      px(x + 1, y - 20, 8, 16, meme.main);
+      g.fillStyle(0xfff1a6, dim).fillRect(x - 32, y + 1, 45, 4);
+      g.fillStyle(0xb73168, dim).fillRect(x - 20, y + 7, 7, 7).fillRect(x + 1, y + 7, 7, 7);
+    } else if (meme.id === 'lip') {
+      // 왕발: 넓은 발바닥과 네모난 발가락 네 개. 귀엽게 읽히도록 피부 디테일은 생략합니다.
+      px(x - 39, y - 13, 53, 29, meme.main);
+      px(x - 38, y - 24, 13, 13, meme.main);
+      px(x - 23, y - 29, 13, 17, meme.main);
+      px(x - 8, y - 27, 12, 15, meme.main);
+      px(x + 6, y - 22, 10, 12, meme.main);
+      g.fillStyle(0xffd3b6, dim).fillRect(x - 31, y + 8, 36, 4);
+    } else if (meme.id === 'mee') {
+      // 그립갑: 좌우 집게가 가운데 위험 칸을 물고 있습니다.
+      px(x - 37, y - 8, 42, 16, 0x576273);
+      px(x - 42, y - 25, 14, 17, meme.main);
+      px(x - 42, y + 8, 14, 17, meme.main);
+      px(x - 29, y - 20, 11, 12, meme.main);
+      px(x - 29, y + 8, 11, 12, meme.main);
+      g.fillStyle(0xffd44a, dim).fillRect(x - 11, y - 5, 9, 10);
+      // 안전모 한 칸으로 리트와 매트식 공사 캐릭터 분위기를 암시합니다.
+      px(x + 17, y - 25, 21, 7, 0xffcc2f);
+    } else {
+      // 거제불주먹: 주먹 네 마디와 뒤로 흩날리는 각진 불꽃.
+      px(x - 34, y - 14, 38, 29, 0xf05224);
+      px(x - 33, y - 22, 10, 11, meme.main);
+      px(x - 21, y - 25, 10, 14, meme.main);
+      px(x - 9, y - 23, 10, 12, meme.main);
+      px(x + 2, y - 18, 9, 13, meme.main);
+      g.fillStyle(0xffd43b, dim).fillRect(x - 38, y - 6, 9, 10)
+        .fillRect(x - 48, y - 17, 7, 8).fillRect(x - 51, y + 10, 11, 7);
+    }
+    g.restore();
+  },
   render() {
     const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
     MINI.frame(this);
@@ -1145,18 +1302,13 @@ const E1_GRAVITY_DASH = {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
       if (o.spike) {
-        // 가시는 낱글자 한 자입니다. 판정 사각형 한가운데에 앉히므로 벽에 붙어 있든 떨어지든
-        // 자리가 어긋나지 않고, 글자는 뒤집지 않습니다 — 천장 가시도 바로 서 있어야 읽힙니다.
-        // 아직 붙어 있는 동안에는 색을 죽여 둡니다. 풀려나 밝아지는 것이 이 게임의 신호입니다.
-        const texture = `e1:${o.letter}${o.loose ? '' : SPIKE_ATTACHED}`;
-        const letter = E1_GRAVITY_DASH.sprite.call(this, `o${i}`, texture);
-        if (letter) {
-          letter.setPosition(cx, cy).setDisplaySize(SPIKE_ART, SPIKE_ART);
-        } else {
-          // 그림이 없으면 예전 삼각형으로 답니다. 벽에서 통로 쪽을 향하게 세웁니다.
-          const down = o.loose ? s.sign * o.response < 0 : o.wall === CEIL_BOTTOM;
-          MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, o.loose ? 0xffcf7b : 0xb08341);
-        }
+        // 두 판정 칸을 한 캐릭터로 보이게 하므로 첫 칸에서만 그림과 명찰을 그립니다.
+        if (o.part) continue;
+        const pairX = x + (SPIKE_GAP + SPIKE_W) / 2;
+        E1_GRAVITY_DASH.drawMeme.call(this, o, pairX, cy);
+        const label = this.memeLabels[o.gate];
+        const inward = cy < (CEIL_BOTTOM + FLOOR_TOP) / 2 ? 47 : -47;
+        label.setPosition(pairX, cy + inward).setAlpha(o.loose ? 1 : .7).setVisible(true);
       } else if (o.float) {
         // 보라색은 플레이어의 반대 방향으로 이동합니다.
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, s.x / 55, 0xb98cff);
@@ -1171,6 +1323,11 @@ const E1_GRAVITY_DASH = {
       MINI.line(this, cx, cy + dir * 26, cx, cy + dir * 44, 0xffadb8);
       MINI.line(this, cx - 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
       MINI.line(this, cx + 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
+    }
+    // 화면 밖으로 나간 캐릭터의 DOM 텍스트가 다음 프레임에 남지 않게 정리합니다.
+    for (let gate = 0; gate < GATES; gate++) {
+      const first = this.hurdles[gate * 2], x = first.x - s.x + 180;
+      if (x <= -60 || x >= 1000) this.memeLabels[gate].setVisible(false);
     }
     // 자세는 상태를 그대로 읽습니다. 실패하면 주저앉고, 부딪친 뒤 무적인 동안은 아파하고,
     // 두 벽 어디에도 닿아 있지 않으면 중력에 끌려가는 중이라 점프, 나머지는 달리기입니다.
@@ -1245,7 +1402,9 @@ const E2_BOUNCE_BALL = {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
     s.vy = -E2_BOUNCE_BALL.jumpPower.call(this);
-    s.grounded = false; s.jumps++; this.actions++; this.sfx('jump');
+    s.grounded = false; s.jumps++; this.actions++; this.sfx('sfxE2WaxJump');
+    if (s.jumps === 2) this.sfx('sfxE2WaxCrack1');
+    else if (s.jumps === 4) this.sfx('sfxE2WaxCrack2');
     s.burst = 1;
     // 조각은 월드 좌표로 움직여 카메라나 리스폰을 따라 공에 달라붙지 않습니다.
     for (let i = 0; i < 5; i++) {
@@ -1266,7 +1425,10 @@ const E2_BOUNCE_BALL = {
         if (p.rebuildLeft === 0) { p.active = true; p.crumbleLeft = null; }
       } else if (p.crumbleLeft !== null) {
         p.crumbleLeft = Math.max(0, p.crumbleLeft - dt);
-        if (p.crumbleLeft === 0) { p.active = false; p.rebuildLeft = t.rebuildTime; }
+        if (p.crumbleLeft === 0) {
+          p.active = false; p.rebuildLeft = t.rebuildTime;
+          this.sfx('sfxE2WaxDrop');
+        }
       }
     }
     const support = this.platforms[s.platformIndex];
@@ -1509,9 +1671,7 @@ const E3_HUMAN_STACK = {
         if (impact < 1.2) continue;
         const contact = pair.collision.supports[0];
         if (contact) this.state.impacts.push({ x: contact.x, y: contact.y, age: 0, strength: Math.min(1, impact / 8) });
-        if (this.state.impactCooldown <= 0) {
-          this.sfx('hit'); this.state.impactCooldown = .1;
-        }
+        if (this.state.impactCooldown <= 0) this.state.impactCooldown = .1;
       }
     };
     M.Events.on(this.stackWorld, 'collisionStart', this.stackCollisionHandler);
@@ -1578,7 +1738,7 @@ const E3_HUMAN_STACK = {
     s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
-    this.sfx('action');
+    this.sfx(s.drops === 3 ? 'sfxE3CountThree' : 'sfxE3PersonFall');
   },
   /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
   press(direction) {
@@ -1854,7 +2014,8 @@ const E4_ACCELERATION_DASH = {
     MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, brakeSounded: false,
+      footstepLeft: 0, footstepIndex: 0, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     E4_VILLAGE.build(this, E4);
     E4_TIGER.build(this);
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
@@ -1934,6 +2095,17 @@ const E4_ACCELERATION_DASH = {
     s.contacts = contacts;
     s.moving = Math.hypot(s.x - oldX, s.y - oldY) > .01;
     s.braking = s.braking && s.moving;
+    const actualSpeed = Math.hypot(s.vx, s.vy);
+    if (s.moving) {
+      const pace = MINI.clamp((actualSpeed - t.speed) / (t.maxSpeed - t.speed), 0, 1);
+      s.footstepLeft -= dt;
+      if (s.footstepLeft <= 0) {
+        this.sfx(s.footstepIndex++ % 2 ? 'sfxE4Walk2' : 'sfxE4Walk1', { rate: .92 + pace * .3 });
+        s.footstepLeft = .38 - pace * .2;
+      }
+    } else s.footstepLeft = 0;
+    if (s.braking && !s.brakeSounded) { this.sfx('sfxE4Brake'); s.brakeSounded = true; }
+    if (!s.braking) s.brakeSounded = false;
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
@@ -2166,6 +2338,12 @@ const E4_TIGER = {
     tiger.active = true;
     tiger.gait = scene.elapsed < t.delay + t.walkDuration ? 'walk' : 'run';
     tiger.speed = tiger.gait === 'walk' ? t.walkSpeed : t.runSpeed;
+    if (tiger.soundGait !== tiger.gait) {
+      tiger.sound?.pause();
+      if (tiger.sound) try { tiger.sound.currentTime = 0; } catch { /* 로드 전 전환 */ }
+      const sound = scene.sfx(tiger.gait === 'walk' ? 'sfxE4TigerSlow' : 'sfxE4TigerFast', { loop: true });
+      if (sound) { tiger.soundGait = tiger.gait; tiger.sound = sound; }
+    }
     let budget = tiger.speed * dt;
     const totalBudget = budget;
     const target = E4_TIGER.cell(scene, s.x, s.y);
@@ -2356,6 +2534,7 @@ const E5_SLINGSHOT = {
   pointerDown(x, y) {
     if (this.state.waiting || this.state.cooldown || this.state.drag || Math.hypot(x - 164, y - 418) > 55) return;
     this.state.drag = { x: 164, y: 418 };
+    this.sfx('sfxE5RubberStretch');
     E5_SLINGSHOT.pointerMove.call(this, x, y);
   },
   pointerMove(x, y) {
@@ -2378,11 +2557,12 @@ const E5_SLINGSHOT = {
     shot.body.plugin.shot = shot;
     M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
     M.Composite.add(this.slingWorld.world, shot.body);
-    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('jump');
+    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('sfxE5Release');
   },
   cancelInput() { this.state.drag = null; },
   damage(target, amount, collapse = false) {
     if (target.hp <= 0) return;
+    this.sfx('sfxDubaiStretch');
     target.hp = Math.max(0, target.hp - amount); target.flash = .18;
     if (target.wood) {
       const t = E5_SLINGSHOT.tuning;
@@ -2416,15 +2596,15 @@ const E5_SLINGSHOT = {
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
       if (target.wood) {
-        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
+        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; return;
       }
       Phaser.Physics.Matter.Matter.Composite.remove(this.slingWorld.world, target.body);
       const spriteKey = 'target' + s.targets.indexOf(target);
       this.assetSprites.get(spriteKey)?.destroy(); this.assetSprites.delete(spriteKey);
       s.combo++; s.feedback = collapse ? '와르르! 중심이 무너졌다' : s.combo > 1 ? s.combo + '개 연속 파괴!' : '바삭! 두딱쿠 파괴';
-      s.feedbackAge = 1.1; this.sfx('hit');
+      s.feedbackAge = 1.1;
       if (this.settings.shake) this.cameras.main.shake(70, .002);
-    } else { s.feedback = '기우뚱! 모서리를 노려보세요'; s.feedbackAge = .65; this.sfx('hit'); }
+    } else { s.feedback = '기우뚱! 모서리를 노려보세요'; s.feedbackAge = .65; }
   },
   update(dt) {
     const s = this.state, t = E5_SLINGSHOT.tuning;
@@ -2964,7 +3144,10 @@ const E6_GRAVITY_FLIGHT = {
     image.setPosition(180, s.y).setRotation(s.vy / 900)
       .setDisplaySize(height * image.width / image.height, height).setTint(tint);
   },
-  action() { this.state.presses++; this.actions++; this.sfx('jump'); },
+  action() {
+    this.state.presses++; this.actions++;
+    this.sfx(this.state.presses % 2 ? 'sfxE6Lift1' : 'sfxE6Lift2');
+  },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
     const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));
@@ -3055,7 +3238,7 @@ const E7_ROULETTE = {
   tuning: { countryCount: 8, minSpeed: 2.4, maxSpeed: 10, friction: 4, frictionDecay: .78, minFriction: 1.5 },
   build() {
     MINI.init(this, 0xfca8d6);
-    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0, poseAge: 0, result: '' };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0, poseAge: 0, result: '', tickSector: null };
     const opponents = ['멕시코', '남아공', '체코'];
     this.state.target = opponents[Math.floor(MINI.rand(0, opponents.length, this.random))];
     const sheet = this.textures.get('e7:coach');
@@ -3106,7 +3289,7 @@ const E7_ROULETTE = {
     if (d.travel < .12 || Math.abs(speed) < t.minSpeed) { s.result = '조금 더 빠르게 슥 돌려주세요'; return; }
     s.speed = speed;
     s.deceleration = E7_ROULETTE.friction.call(this);
-    s.spinning = true; s.poseAge = 0; s.result = ''; this.actions++; this.sfx('click');
+    s.spinning = true; s.poseAge = 0; s.result = ''; s.tickSector = null; this.actions++; this.sfx('sfxE7Start');
   },
   swipeSpeed(d) {
     return MINI.clamp(d.sweep / Math.max(.06, d.age) * Math.exp(-Math.max(0, d.idle - .08) / .12), -E7_ROULETTE.tuning.maxSpeed, E7_ROULETTE.tuning.maxSpeed);
@@ -3124,13 +3307,18 @@ const E7_ROULETTE = {
       const movingDt = Math.min(dt, Math.abs(s.speed) / s.deceleration);
       const next = Math.sign(s.speed) * Math.max(0, Math.abs(s.speed) - s.deceleration * dt);
       s.rotation += (s.speed + next) * .5 * movingDt; s.speed = next;
+      const tickSector = Math.floor(s.rotation / (Math.PI * 2 / s.countries.length));
+      if (s.tickSector !== null && tickSector !== s.tickSector) {
+        this.sfx('sfxE7Tick', { rate: MINI.clamp(.82 + Math.abs(s.speed) / E7_ROULETTE.tuning.maxSpeed * .46, .82, 1.28) });
+      }
+      s.tickSector = tickSector;
       if (Math.abs(next) < .001) {
         s.spinning = false;
         const tau = Math.PI * 2, atPointer = ((E7_ROULETTE.POINTER_ANGLE - s.rotation) % tau + tau) % tau;
         if (atPointer < tau / s.countries.length) this.finish(true, `${this.actions}번째 추첨 당첨`);
         else {
           const selected = s.countries[Math.min(s.countries.length - 1, Math.floor(atPointer / tau * s.countries.length))];
-          s.misses++; s.cooldown = 1.1; s.result = selected + '… 축이 더 헐거워졌어요. 다음엔 힘을 조절해보세요'; this.sfx('failure');
+          s.misses++; s.cooldown = 1.1; s.result = selected + '… 축이 더 헐거워졌어요. 다음엔 힘을 조절해보세요'; this.sfx('sfxPenaltyHit');
         }
       }
     }
@@ -3210,6 +3398,7 @@ const E7_ROULETTE = {
   },
 };
 
+
 /* Source: stages/e8_webSwing.js */
 
 const E8_WEB_SWING = {
@@ -3286,7 +3475,7 @@ const E8_WEB_SWING = {
     s.rope = { anchor: a.index, length,
       theta: Math.atan2(dx, dy), omega: catchSpeed / length, starter: false };
     s.hooks++; s.checkpoint = Math.max(s.checkpoint, a.index);
-    E8_WEB_SWING.pose.call(this); this.sfx('jump');
+    E8_WEB_SWING.pose.call(this); this.sfx('sfxE8WebAttach');
   },
   pointerDown() { this.state.pointerHeld = true; E8_WEB_SWING.action.call(this); },
   pointerUp() {
@@ -3616,7 +3805,7 @@ const E10_NUMBER_DECODE = {
     s.grounded = false;
     s.jumpAt = this.elapsed;
     this.actions += 1;
-    this.sfx('jump');
+    this.sfx('sfxE10SpinJump');
   },
 
   enterDigit(digit) {
@@ -3628,7 +3817,7 @@ const E10_NUMBER_DECODE = {
       s.lastHitCorrect = true;
       s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
       s.feedbackUntil = this.elapsed + 1;
-      this.sfx('action');
+      this.sfx('sfxClick');
       return;
     }
 
@@ -3640,11 +3829,11 @@ const E10_NUMBER_DECODE = {
       s.mistakes += 1;
       s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
       s.feedbackUntil = this.elapsed + 1.2;
-      this.bump();
+      this.bump('sfxE10DigitWrong');
       return;
     }
 
-    this.sfx('action');
+    this.sfx('sfxClick');
     this.finish(true, `CODE ${s.target} 해독`);
   },
 
@@ -3984,7 +4173,7 @@ class ArchiveGame extends Phaser.Scene {
     this.mode = 'playing'; this.sfx('click');
   }
   stopGame() {
-    this.clearInput(); this.mode = 'idle'; this.pausedByMenu = false; this.stageGame?.dispose?.call(this);
+    this.clearInput(); audio.stopSfx(); this.mode = 'idle'; this.pausedByMenu = false; this.stageGame?.dispose?.call(this);
     this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
   }
   directionPress(direction) {
@@ -3996,8 +4185,8 @@ class ArchiveGame extends Phaser.Scene {
   primaryAction() { if (this.playable()) this.stageGame.action?.call(this); }
   penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
-  sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
-  bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
+  sfx(name, options) { return audio.play(name === 'jump' ? 'action' : name, options); }
+  bump(sound = 'sfxPenaltyHit') { this.sfx(sound); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
   }
@@ -4045,7 +4234,7 @@ class ArchiveGame extends Phaser.Scene {
   }
   finish(success, extra = '') {
     if (!this.playable()) return;
-    this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
+    this.mode = 'done'; this.clearInput(); audio.stopSfx(); this.sfx(success ? 'sfxStageClear' : 'sfxStageFail');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
     this.sendHud();
     window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));

@@ -91,9 +91,7 @@ export const E3_HUMAN_STACK = {
         if (impact < 1.2) continue;
         const contact = pair.collision.supports[0];
         if (contact) this.state.impacts.push({ x: contact.x, y: contact.y, age: 0, strength: Math.min(1, impact / 8) });
-        if (this.state.impactCooldown <= 0) {
-          this.sfx('hit'); this.state.impactCooldown = .1;
-        }
+        if (this.state.impactCooldown <= 0) this.state.impactCooldown = .1;
       }
     };
     M.Events.on(this.stackWorld, 'collisionStart', this.stackCollisionHandler);
@@ -160,7 +158,7 @@ export const E3_HUMAN_STACK = {
     s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
-    this.sfx('action');
+    this.sfx(s.drops === 3 ? 'sfxE3CountThree' : 'sfxE3PersonFall');
   },
   /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
   press(direction) {

@@ -120,7 +120,7 @@ class ArchiveGame extends Phaser.Scene {
     this.mode = 'playing'; this.sfx('click');
   }
   stopGame() {
-    this.clearInput(); this.mode = 'idle'; this.pausedByMenu = false; this.stageGame?.dispose?.call(this);
+    this.clearInput(); audio.stopSfx(); this.mode = 'idle'; this.pausedByMenu = false; this.stageGame?.dispose?.call(this);
     this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
   }
   directionPress(direction) {
@@ -132,8 +132,8 @@ class ArchiveGame extends Phaser.Scene {
   primaryAction() { if (this.playable()) this.stageGame.action?.call(this); }
   penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
-  sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
-  bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
+  sfx(name, options) { return audio.play(name === 'jump' ? 'action' : name, options); }
+  bump(sound = 'sfxPenaltyHit') { this.sfx(sound); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
   }
@@ -181,7 +181,7 @@ class ArchiveGame extends Phaser.Scene {
   }
   finish(success, extra = '') {
     if (!this.playable()) return;
-    this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
+    this.mode = 'done'; this.clearInput(); audio.stopSfx(); this.sfx(success ? 'sfxStageClear' : 'sfxStageFail');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
     this.sendHud();
     window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));

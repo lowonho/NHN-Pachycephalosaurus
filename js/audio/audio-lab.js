@@ -34,6 +34,14 @@
       <small>성공음처럼 여러 음인 프리셋은 첫 음을 조정합니다.</small>
     </fieldset>
     <fieldset>
+      <legend>파일 SFX</legend>
+      <label class="wide">효과음 <select id="audio-lab-file-sfx"></select></label>
+      <label>파일 게인 <input id="audio-lab-file-gain" type="range" min="0" max="150" step="1"><output id="audio-lab-file-gain-value"></output></label>
+      <label>재생 속도 <input id="audio-lab-file-rate" type="range" min="50" max="150" step="1"><output id="audio-lab-file-rate-value"></output></label>
+      <div class="buttons"><button id="audio-lab-file-play">파일 SFX 듣기</button></div>
+      <small>게임에 연결된 최종 게인과 기본 재생 속도를 바로 조정합니다.</small>
+    </fieldset>
+    <fieldset>
       <legend>후보 파일 A/B</legend>
       <input id="audio-lab-file" type="file" accept="audio/*">
       <audio id="audio-lab-preview" controls></audio>
@@ -47,6 +55,7 @@
   const $ = (selector) => root.querySelector(selector);
   const bgmSelect = $("#audio-lab-bgm");
   const sfxSelect = $("#audio-lab-sfx");
+  const fileSfxSelect = $("#audio-lab-file-sfx");
   const preview = $("#audio-lab-preview");
   let previewUrl = "";
 
@@ -59,6 +68,7 @@
   function fillOptions() {
     bgmSelect.replaceChildren(...Object.entries(tuning().bgm.tracks).map(([key, track]) => new Option(`${key.toUpperCase()} · ${track.label}`, key)));
     sfxSelect.replaceChildren(...Object.entries(tuning().sfx.presets).map(([key, preset]) => new Option(`${key} · ${preset.label}`, key)));
+    fileSfxSelect.replaceChildren(...Object.entries(tuning().sfx.files).map(([key, file]) => new Option(`${key} · ${file.label}`, key)));
     bgmSelect.value = window.archiveAudio?.bgmKey ?? "main";
   }
   function syncBgm() {
@@ -84,10 +94,19 @@
     $("#audio-lab-slide-value").textContent = `${voice.slide > 0 ? "+" : ""}${voice.slide || 0}Hz`;
     $("#audio-lab-wave").value = voice.type;
   }
+  function syncFileSfx() {
+    const file = tuning().sfx.files[fileSfxSelect.value];
+    if (!file) return;
+    $("#audio-lab-file-gain").value = String(Math.round(file.gain * 100));
+    $("#audio-lab-file-gain-value").textContent = `${Math.round(file.gain * 100)}%`;
+    $("#audio-lab-file-rate").value = String(Math.round(file.rate * 100));
+    $("#audio-lab-file-rate-value").textContent = `${Math.round(file.rate * 100)}%`;
+  }
 
-  fillOptions(); syncBgm(); syncSfx();
+  fillOptions(); syncBgm(); syncSfx(); syncFileSfx();
   bgmSelect.addEventListener("change", syncBgm);
   sfxSelect.addEventListener("change", syncSfx);
+  fileSfxSelect.addEventListener("change", syncFileSfx);
 
   $("#audio-lab-gain").addEventListener("input", (event) => {
     tuning().bgm.tracks[bgmSelect.value].gain = Number(event.target.value) / 100;
@@ -122,6 +141,15 @@
   bindVoiceRange("#audio-lab-slide", "#audio-lab-slide-value", "slide", (value) => value, (value) => `${value > 0 ? "+" : ""}${value}Hz`);
   $("#audio-lab-wave").addEventListener("change", (event) => { tuning().sfx.presets[sfxSelect.value].voices[0].type = event.target.value; save(); });
   $("#audio-lab-sfx-play").addEventListener("click", () => window.archiveAudio?.play(sfxSelect.value));
+  $("#audio-lab-file-gain").addEventListener("input", (event) => {
+    tuning().sfx.files[fileSfxSelect.value].gain = Number(event.target.value) / 100;
+    $("#audio-lab-file-gain-value").textContent = `${event.target.value}%`; save();
+  });
+  $("#audio-lab-file-rate").addEventListener("input", (event) => {
+    tuning().sfx.files[fileSfxSelect.value].rate = Number(event.target.value) / 100;
+    $("#audio-lab-file-rate-value").textContent = `${event.target.value}%`; save();
+  });
+  $("#audio-lab-file-play").addEventListener("click", () => window.archiveAudio?.play(fileSfxSelect.value));
 
   $("#audio-lab-file").addEventListener("change", (event) => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -140,7 +168,7 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1000); save("설정 JSON 저장 완료");
   });
   $("#audio-lab-reset").addEventListener("click", () => {
-    globalThis.archiveAudioTuning.reset(); fillOptions(); syncBgm(); syncSfx();
+    globalThis.archiveAudioTuning.reset(); fillOptions(); syncBgm(); syncSfx(); syncFileSfx();
     window.archiveAudio?.refreshTuning(); $("#audio-lab-status").textContent = "기본값 복원 완료";
   });
   $("#audio-lab-close").addEventListener("click", () => root.remove());
