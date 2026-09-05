@@ -51,9 +51,10 @@ export const E5_SLINGSHOT = {
     if (!left) this.finish(true);
   },
   render() {
-    const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
-    MINI.frame(this, `TARGET ${s.targets.filter(o => o.hp <= 0).length} / 6    POWER ${Math.round(power * 100)}%`);
-    MINI.box(this, 25, 471, 910, 9, 0x695e4b);
+    const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning, f = MINI.FIELD;
+    MINI.frame(this);
+    // 땅은 화면 아래 끝까지 이어진다.
+    MINI.box(this, f.x, 471, f.w, f.bottom - 471, 0x695e4b);
     MINI.line(this, 146, 447, 137, 358, 0xa78260, 12); MINI.line(this, 146, 404, 184, 357, 0xa78260, 12);
     MINI.line(this, 137, 360, d.x, d.y, 0xffd99b, 3); MINI.line(this, 184, 357, d.x, d.y, 0xffd99b, 3);
     MINI.actor(this, 'projectile', 'ready', d.x, d.y, 26, 26);

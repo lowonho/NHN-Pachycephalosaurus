@@ -97,11 +97,14 @@
             </button>
 
             <!--
-              미니게임 도감 — 판때기는 03_button_challenge_cyan 에셋을 쓴다.
-              (챌린지 모드는 두지 않으므로 그 자리의 시안 판을 도감이 물려받는다.)
+              기록실(미니게임 도감 + 증언 기록) — 판때기는 03_button_challenge_cyan
+              에셋을 쓴다. (챌린지 모드는 두지 않으므로 그 자리의 시안 판을 물려받는다.)
+
+              도감은 언제나 열리므로 disabled를 두지 않는다 — 엔딩 전에는
+              모달 안의 "증언 기록" 탭만 잠긴다(js/ui/codex-flow.js).
             -->
-            <button class="menu-button menu-button--codex" id="main-codex-button" type="button" disabled>
-              <span>증언 기록</span>
+            <button class="menu-button menu-button--codex" id="main-codex-button" type="button">
+              <span>기록실</span>
             </button>
 
             <button
@@ -721,7 +724,13 @@
     </div>
 
     <!--
-      증언 기록 — 엔딩 이후 실제 진행에서 등록한 18개 기록을 다시 읽는다.
+      기록실 — 탭 두 장을 한 판때기에 담는다.
+
+        · 미니게임 도감 : 10개 미니게임. 언제나 열려 있고, 한 번이라도 플레이한
+                          칸만 목표와 BEST를 보여 준다(js/archive/plays.mjs).
+        · 증언 기록     : 엔딩 이후 실제 진행에서 등록한 18개 기록을 다시 읽는다.
+
+      두 목록은 개수(10 / 18)도 칸 크기도 달라서 격자는 data-view로 갈아 끼운다.
     -->
     <div class="codex-backdrop hidden" id="codex-modal">
       <section
@@ -733,14 +742,50 @@
         tabindex="-1"
       >
         <header class="codex-head">
-          <h2 class="codex-title" id="codex-title">증언 기록</h2>
-          <p class="codex-count" id="codex-count">RECORDS 0 / 18</p>
+          <h2 class="codex-title" id="codex-title">기록실</h2>
+          <p class="codex-count" id="codex-count">PLAYED 0 / 10</p>
         </header>
 
-        <ul class="codex-grid" id="codex-grid"></ul>
+        <div class="codex-tabs" role="tablist" aria-label="기록실 분류">
+          <button
+            class="codex-tab"
+            id="codex-tab-minigames"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="codex-grid"
+            data-codex-tab="minigames"
+          >
+            <span>미니게임 도감</span>
+          </button>
+          <!--
+            엔딩 전에는 disabled로 둔다 — 눌러도 열리지 않는 탭이 아니라
+            "아직 없는 탭"으로 보여야 해서 codex-flow.js가 상태를 맞춘다.
+          -->
+          <button
+            class="codex-tab"
+            id="codex-tab-records"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="codex-grid"
+            data-codex-tab="records"
+            disabled
+          >
+            <span>증언 기록</span>
+          </button>
+        </div>
+
+        <ul
+          class="codex-grid"
+          id="codex-grid"
+          role="tabpanel"
+          data-view="minigames"
+          aria-labelledby="codex-tab-minigames"
+        ></ul>
 
         <footer class="codex-foot">
-          <p class="codex-hint">최종 증언을 마치면 진행 중 등록한 기록을 다시 읽을 수 있습니다.</p>
+          <p class="codex-hint" id="codex-hint">한 번이라도 플레이한 미니게임이 열립니다.</p>
           <button class="codex-close" id="codex-close-button" type="button">
             <span>닫기</span>
           </button>
@@ -845,6 +890,7 @@
     <script src="js/content/scenario-data.js"></script>
     <script src="js/content/minigame-catalog.js"></script>
     <script src="assets/minigames/manifest.js"></script>
+    <script src="assets/minigames/e3/pose-shapes.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
     <script src="js/config/protocols.js"></script>
@@ -858,6 +904,9 @@
 
     <!-- B · DOM 참조 (아트 뷰가 참조하므로 먼저 로드) -->
     <script src="js/ui/dom.js"></script>
+
+    <!-- 화면 전체가 게임이라 드래그를 막는다(css/base.css와 짝). -->
+    <script src="js/ui/page-guard.js"></script>
 
     <!-- A · 비주얼 -->
     <script src="js/art/theme.js"></script>

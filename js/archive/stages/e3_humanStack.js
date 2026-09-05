@@ -1,41 +1,37 @@
 import { MINI } from './minigame-kit.js';
 
+/*
+ * 떨어지는 사람은 assets/images/minigame/stacks/metcha 의 포즈 여덟 장이다.
+ * 표시 크기와 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 그림의 알파에서 구워
+ * assets/minigames/e3/pose-shapes.js 에 넣어 둔다. 조각은 알파가 반 넘게 찬 칸만 덮으므로
+ * 투명한 여백은 서로 지나가고 사람 모형끼리는 겹치지 않는다.
+ *
+ * 구운 파일을 못 찾으면 아래 한 자세로만 돌아간다. 게임이 멈추지는 않지만 그림도 안 나온다.
+ */
+const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
+  poses: [{ id: 'pose7', name: '차렷', width: 59, height: 116, parts: [
+    [0, -41.6, 33.7, 33.5], [0, 21.6, 39.3, 72.8], [-24.6, 2.5, 9.8, 41.4], [24.6, 2.5, 9.8, 41.4],
+  ] }],
+  line: { width: 59, height: 116 },
+};
+
 export const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
-    dropAngles: [90, -35, -90, 25, 145, -65, 180, 50],
+    // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    dropAngles: [90, -35, -90, 25, 145, -65, 180],
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
     restitution: .045, density: .0022, carryMomentum: .075,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
     baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
+    markerX: 900, markerHeight: 76, goalRight: 838,
   },
-  // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
-  // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
-  poses: [
-    { id: 'crouch', name: '버티기', width: 102, height: 96, head: [0, -28, 11], limbs: [
-      [0, -10, 0, 8, 14], [-9, -10, -25, -19, 8], [-25, -19, -39, -7, 7],
-      [9, -10, 25, -19, 8], [25, -19, 39, -7, 7],
-      [-6, 9, -22, 20, 9], [-22, 20, -27, 32, 7],
-      [6, 9, 22, 20, 9], [22, 20, 27, 32, 7],
-      [-32, 34, -21, 34, 7], [21, 34, 32, 34, 7],
-    ] },
-    { id: 'wide', name: '팔 벌리기', width: 120, height: 104, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -29, -11, 8], [-29, -11, -47, -20, 7],
-      [9, -12, 29, -11, 8], [29, -11, 47, -20, 7],
-      [-6, 9, -12, 23, 9], [-12, 23, -19, 39, 7],
-      [6, 9, 12, 23, 9], [12, 23, 19, 39, 7],
-      [-25, 41, -15, 41, 7], [15, 41, 25, 41, 7],
-    ] },
-    { id: 'reach', name: '만세', width: 96, height: 124, head: [0, -30, 11], limbs: [
-      [0, -12, 0, 8, 14], [-9, -12, -25, -29, 8], [-25, -29, -31, -47, 7],
-      [9, -12, 25, -29, 8], [25, -29, 31, -47, 7],
-      [-6, 9, -18, 24, 9], [-18, 24, -24, 40, 7],
-      [6, 9, 18, 24, 9], [18, 24, 24, 40, 7],
-      [-30, 42, -19, 42, 7], [19, 42, 30, 42, 7],
-    ] },
-  ],
+  // 좌표 원점은 그림의 정중앙. [중심x, 중심y, 가로, 세로] 사각형들이 실제 충돌체이고,
+  // 같은 원점의 그림이 그 위에 얹힙니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
+  poses: E3_SHAPES.poses,
   build() {
     MINI.init(this, 0xe4eeec);
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
@@ -63,7 +59,7 @@ export const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '사람이 누운 방향을 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
@@ -92,17 +88,14 @@ export const E3_HUMAN_STACK = {
       friction: t.friction, frictionStatic: t.frictionStatic, restitution: t.restitution,
       density: t.density, slop: .025,
     };
-    const parts = pose.limbs.map(([ax, ay, bx, by, r]) => M.Bodies.rectangle(
-      x + (ax + bx) / 2, y + (ay + by) / 2, Math.hypot(bx - ax, by - ay) + r * 2, r * 2,
-      { ...material, angle: Math.atan2(by - ay, bx - ax), chamfer: { radius: r, quality: 8 } },
-    ));
-    parts.push(M.Bodies.circle(x + pose.head[0], y + pose.head[1], pose.head[2], { ...material, density: t.density * .7 }, 16));
+    // 구워 둔 사각형은 서로 겹치지 않으므로 넓이를 그대로 더해 질량이 됩니다.
+    const parts = pose.parts.map(([cx, cy, w, h]) => M.Bodies.rectangle(x + cx, y + cy, w, h, material));
     const body = M.Body.create({
       parts, ...material, frictionAir: t.frictionAir, label: 'e3:person',
     });
     // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
     body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
-    // 팔다리 모양을 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
+    // 자세를 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
     M.Body.rotate(body, angle, { x, y });
     return body;
   },
@@ -161,7 +154,8 @@ export const E3_HUMAN_STACK = {
     // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
     s.spawnY = Math.min(200, top - t.spawnClearance);
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
-    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 125) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 65);
+    // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
+    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
     const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
@@ -175,34 +169,28 @@ export const E3_HUMAN_STACK = {
     const z = this.state.zoom, floor = E3_HUMAN_STACK.tuning.floorY;
     return { x: 480 + (x - 480) * z, y: floor + (y - floor) * z };
   },
+  /* 키에 묶인 이미지를 만들거나 다시 씁니다. 없는 텍스처면 null을 돌려줍니다. */
+  sprite(key, texture) {
+    if (!this.textures.exists(texture)) { this.assetSprites.get(key)?.setVisible(false); return null; }
+    let sprite = this.assetSprites.get(key);
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
+    return sprite.setTexture(texture).setVisible(true);
+  },
   drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1) {
     const pose = E3_HUMAN_STACK.poses[poseIndex], z = this.state.zoom;
     const p = E3_HUMAN_STACK.project.call(this, x, y), g = this.ink;
-    const specific = `e3:person_${pose.id}`;
-    const texture = this.textures.exists(specific) ? specific : this.textures.exists('e3:person') ? 'e3:person' : null;
-    if (texture) {
-      let sprite = this.assetSprites.get(key);
-      if (!sprite) { sprite = this.add.image(p.x, p.y, texture).setMask(g.mask); this.assetSprites.set(key, sprite); }
-      // person=공통 이미지, person_crouch/wide/reach=자세별 이미지. 원점=이미지 중심.
-      sprite.setTexture(texture).setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha).setVisible(true);
+    // 그림의 원점은 잘라낸 이미지의 정중앙이라 충돌 사각형과 같은 좌표계를 씁니다.
+    const sprite = E3_HUMAN_STACK.sprite.call(this, key, `e3:${pose.id}`);
+    if (sprite) {
+      sprite.setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha);
       return;
     }
-    this.assetSprites.get(key)?.setVisible(false);
-    // 미리보기와 낙하물에 같은 실루엣을 사용합니다.
+    // 그림이 없으면 충돌 조각을 그대로 실루엣으로 씁니다. 미리보기와 낙하물이 같은 모양입니다.
     g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
-    const stroke = (limb, radius, color, opacity, ox = 0, oy = 0) => {
-      const [ax, ay, bx, by] = limb;
-      g.lineStyle(radius * 2, color, opacity).lineBetween(ax + ox, ay + oy, bx + ox, by + oy);
-      g.fillStyle(color, opacity).fillCircle(ax + ox, ay + oy, radius).fillCircle(bx + ox, by + oy, radius);
-    };
-    // 그림자/몸체/얇은 하이라이트만으로 흰색 무표정 마네킹을 표현합니다.
-    for (const limb of pose.limbs) stroke(limb, limb[4] + 1.2, 0x506c7a, alpha);
-    for (const limb of pose.limbs) stroke(limb, limb[4], 0xd8e5e8, alpha);
-    for (const limb of pose.limbs) stroke(limb, Math.max(1.2, limb[4] * .4), 0xfafffa, alpha * .8, -1.1, -1.1);
-    const [hx, hy, hr] = pose.head;
-    g.fillStyle(0x506c7a, alpha).fillCircle(hx, hy, hr + 1.2);
-    g.fillStyle(0xe8f0ee, alpha).fillCircle(hx, hy, hr);
-    g.fillStyle(0xffffff, alpha * .7).fillEllipse(hx - 2.4, hy - 2.7, hr * .9, hr);
+    for (const [cx, cy, w, h] of pose.parts) {
+      g.fillStyle(0x506c7a, alpha).fillRect(cx - w / 2 - 1.2, cy - h / 2 - 1.2, w + 2.4, h + 2.4);
+    }
+    for (const [cx, cy, w, h] of pose.parts) g.fillStyle(0xd8e5e8, alpha).fillRect(cx - w / 2, cy - h / 2, w, h);
     g.restore();
   },
   render() {
@@ -219,10 +207,16 @@ export const E3_HUMAN_STACK = {
       MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
     }
     const goal = project(0, t.baseY - t.targetHeight);
-    for (let x = 115; x < 850; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(902, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
+    this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     this.stackLabels.hint.setVisible(s.drops === 0);
+    // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
+    const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
+    if (marker) {
+      marker.setPosition(t.markerX, goal.y)
+        .setDisplaySize(t.markerHeight * E3_SHAPES.line.width / E3_SHAPES.line.height, t.markerHeight);
+    }
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.
     this.people.forEach((body, i) => {
       const pose = body.plugin.e3, c = Math.cos(body.angle), sn = Math.sin(body.angle);

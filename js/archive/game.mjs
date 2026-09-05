@@ -49,12 +49,18 @@ class ArchiveGame extends Phaser.Scene {
     });
     this.input.on('pointerdown', p => {
       if (!this.playable() || this.pointerId !== null || p.button > 0) return;
-      this.pointerId = p.id; this.pointerAction(p.x, p.y);
+      const point = this.worldPoint(p);
+      this.pointerId = p.id; this.pointerAction(point.x, point.y);
     });
-    this.input.on('pointermove', p => { if (this.playable() && this.pointerId === p.id) this.stageGame.pointerMove?.call(this, p.x, p.y); });
+    this.input.on('pointermove', p => {
+      if (!this.playable() || this.pointerId !== p.id) return;
+      const point = this.worldPoint(p);
+      this.stageGame.pointerMove?.call(this, point.x, point.y);
+    });
     const up = p => {
       if (this.pointerId !== p.id) return;
-      if (this.playable()) this.stageGame.pointerUp?.call(this, p.x, p.y);
+      const point = this.worldPoint(p);
+      if (this.playable()) this.stageGame.pointerUp?.call(this, point.x, point.y);
       this.pointerId = null;
     };
     this.input.on('pointerup', up); this.input.on('pointerupoutside', up);
@@ -74,6 +80,9 @@ class ArchiveGame extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('archive-game-ready', { detail: { scene: this, stages: STAGES } }));
   }
   playable() { return this.mode === 'playing' && !this.pausedByMenu; }
+  /* 필드를 화면에 꽉 채우느라 카메라에 배율이 걸려 있다(stages/minigame-kit.js의 MINI.init).
+     포인터는 캔버스 좌표로 오므로 게임이 쓰는 설계 좌표로 되돌려서 넘긴다. */
+  worldPoint(pointer) { return this.cameras.main.getWorldPoint(pointer.x, pointer.y); }
   held(name) {
     const alias = { left: 'arrowLeft', right: 'arrowRight', up: 'arrowUp', down: 'arrowDown' };
     return this.touch.has(name) || Boolean(this.keys[name]?.isDown || this.keys[alias[name]]?.isDown);

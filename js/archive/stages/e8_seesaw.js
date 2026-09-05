@@ -33,9 +33,10 @@ export const E8_SEESAW = {
   },
   timeout() { return true; },
   render() {
-    const s = this.state, t = E8_SEESAW.tuning, c = Math.cos(s.angle), sn = Math.sin(s.angle);
-    MINI.frame(this, `BALANCE    ${s.count} / ${t.drops}    A ← 바깥쪽 · D → 중심`);
-    MINI.box(this, 22, t.floorY, 916, 10, 0x4a6668);
+    const s = this.state, t = E8_SEESAW.tuning, c = Math.cos(s.angle), sn = Math.sin(s.angle), f = MINI.FIELD;
+    MINI.frame(this);
+    // 바닥은 화면 아래 끝까지 이어진다.
+    MINI.box(this, f.x, t.floorY, f.w, f.bottom - t.floorY, 0x4a6668);
     MINI.spike(this, 448, 471, 64, -121, 0x446e78);
     MINI.line(this, 480 - c * 350, t.pivotY - sn * 350, 480 + c * 350, t.pivotY + sn * 350, 0xa9bcce, 13);
     MINI.line(this, 480, t.pivotY, 480 + c * 350, t.pivotY + sn * 350, s.angle > .2 ? 0xff6584 : 0xffc47e, 13);

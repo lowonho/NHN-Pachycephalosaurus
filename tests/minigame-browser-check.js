@@ -8,7 +8,8 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
-  assert(UI.mainCodexButton.disabled, 'Testimony archive stays locked before the ending');
+  // 기록실 버튼은 도감이 있어 언제나 열린다 — 엔딩 전에 잠기는 것은 증언 기록 탭이다.
+  assert(!UI.mainCodexButton.disabled && UI.codexRecordsTab.disabled, 'Testimony archive stays locked before the ending');
   const menuRect = UI.mainMenu.getBoundingClientRect();
   assert(document.querySelectorAll('.main-menu-actions .menu-button').length === 4
     && menuRect.top >= -1 && menuRect.bottom <= innerHeight + 1, 'Main menu shows four story actions inside the viewport');
@@ -40,24 +41,40 @@
     assert(!scene.touch.size && scene.pointerId === null, `${stage.id}: stop clears input`);
   }
   load('e1');
-  const stuck = () => scene.state.obstacles.filter(o => !o.float), floats = () => scene.state.obstacles.filter(o => o.float);
-  assert(stuck().length && floats().length, 'e1: course mixes wall-attached and floating obstacles');
+  const spikes = () => scene.state.obstacles.filter(o => o.spike),
+    blocks = () => scene.state.obstacles.filter(o => !o.spike && !o.float),
+    floats = () => scene.state.obstacles.filter(o => o.float);
+  // 통로 좌표는 코스에서 읽습니다. 가시가 붙어 있는 두 벽이 곧 천장 아랫면과 바닥 윗면입니다.
+  const ceilBottom = Math.min(...scene.hurdles.map(h => h.wall)), floorTop = Math.max(...scene.hurdles.map(h => h.wall)) + 24, floorY = scene.state.y;
+  assert(spikes().length === 20 && blocks().length === 5 && floats().length === 4, 'e1: course holds 20 spikes, 5 blocks and 4 floating blocks');
   scene.state.immune = 100;
-  advance(2);
-  assert(stuck().every(o => o.y === 467 - o.h) && floats().every(o => o.y === 174), 'e1: spikes and both block types move to their gravity walls');
+  advance(2.8);  // 넓어진 통로를 최고 속도로도 다 건너려면 2초로는 모자랍니다.
+  assert(spikes().every(o => !o.loose && o.y === o.wall), 'e1: spikes stay clamped to their wall before any flip');
+  assert(blocks().every(o => o.y === floorTop - o.h) && floats().every(o => o.y === ceilBottom), 'e1: both block types move to their gravity walls');
   const obstacleStart = scene.state.obstacles.map(o => o.y);
   scene.primaryAction();
   assert(scene.state.sign === -1, 'e1: action flips gravity instead of jumping');
   let maxObstacleSpeed = 0;
   advance(.5, () => { maxObstacleSpeed = Math.max(maxObstacleSpeed, ...scene.state.obstacles.map(o => Math.abs(o.vy))); });
-  assert(Math.abs(scene.state.y - 189) < 1 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
-  assert(scene.state.obstacles.every((o, i) => o.y !== obstacleStart[i]), 'e1: every obstacle including spikes and floating blocks responds to flip');
+  assert(scene.state.y < ceilBottom + 30 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
+  assert(spikes().every(o => !o.loose), 'e1: the first flip is too early to release any spike');
+  assert(scene.state.obstacles.every((o, i) => o.spike && !o.loose ? o.y === obstacleStart[i] : o.y !== obstacleStart[i]), 'e1: released obstacles respond to the flip while attached spikes hold still');
   assert(maxObstacleSpeed > 0 && maxObstacleSpeed <= 190 && maxObstacleSpeed < scene.stageGame.tuning.speed, 'e1: obstacle motion stays slower than player travel');
-  assert(stuck().every(o => o.y > 174), 'e1: player reaches ceiling before following obstacles');
-  advance(1.5); assert(stuck().every(o => o.y === 174) && floats().every(o => o.y === 433), 'e1: following and opposing obstacles settle on different walls');
+  assert(blocks().every(o => o.y > ceilBottom), 'e1: player reaches ceiling before following obstacles');
+  advance(2.5); assert(blocks().every(o => o.y === ceilBottom) && floats().every(o => o.y === floorTop - o.h), 'e1: following and opposing obstacles settle on different walls');
   scene.primaryAction(); advance(.5);
-  assert(Math.abs(scene.state.y - 450) < 1, 'e1: pressing again returns to the floor wall');
-  assert(scene.hurdles.length === 10 && scene.hurdles.every(h => scene.state.obstacles.includes(h)), 'e1: ten spike groups share the moving obstacle simulation');
+  assert(Math.abs(scene.state.y - floorY) < 1, 'e1: pressing again returns to the floor wall');
+  assert(scene.hurdles.length === 20 && scene.hurdles.every(h => scene.state.obstacles.includes(h)), 'e1: twenty spikes share the moving obstacle simulation');
+  // 묶음 간격은 속도에 비례하므로 좌표가 아니라 반전 횟수만 확인합니다.
+  load('e1'); scene.state.immune = 100;
+  const releasedAfter = [];
+  for (let i = 0; i < 25; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
+  assert(releasedAfter[1] === 0 && releasedAfter[2] === 1, 'e1: the first spike only drops on the third flip');
+  assert(releasedAfter[24] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty-five flips');
+  const releaseSteps = releasedAfter.map((n, i) => n - (i ? releasedAfter[i - 1] : 0));
+  const drops = releaseSteps.filter(n => n);
+  assert(drops.length === 12 && releaseSteps.every((n, i) => !n || i % 2 === 0), 'e1: spikes drop on every other flip, not on every one');
+  assert(drops.every((n, i) => !i || n >= drops[i - 1]) && drops.at(-1) === 3, 'e1: each drop releases at least as many spikes as the one before');
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
@@ -86,6 +103,41 @@
   assert(e4Inside, 'e4: free direction mashing never leaves the maze corridors');
   load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
+  // 장애물은 코스에 미리 깔아 두지 않는다 — 사정거리 안으로 들어온 것만, 그것도 화면 오른쪽 바깥에서 태어난다.
+  load('e6');
+  const flight = scene.stageGame.tuning;
+  assert(scene.gates.length <= 4 && scene.gates.every(gate => gate.x <= flight.spawnAhead), 'e6: only obstacles inside the spawn range exist');
+  const bornGates = new Set(scene.gates.map(gate => gate.x));
+  let poppedOnScreen = false, liveGates = scene.gates.length;
+  const memeWords = [];
+  advance(9, frame => {
+    // 앞뒤 장애물의 통과 지점을 이어 그 선을 따라 난다(클리어 검사와 같은 조종).
+    if (frame % 16 === 0) {
+      const ahead = scene.state.x + 70;
+      const index = scene.gates.findIndex(gate => gate.x > ahead);
+      const next = scene.gates[index] ?? { x: flight.distance, y: 318 };
+      const previous = scene.gates[Math.max(0, index - 1)] ?? { x: 0, y: 323 };
+      const along = Math.max(0, Math.min(1, (ahead - previous.x) / (next.x - previous.x || 1)));
+      const desired = previous.y + (next.y - previous.y) * along;
+      const hold = scene.state.vy > Math.max(-190, Math.min(190, (desired - scene.state.y) * 3));
+      if (hold && !scene.touch.has('action')) { scene.touch.add('action'); scene.primaryAction(); }
+      if (!hold) scene.touch.delete('action');
+    }
+    for (const gate of scene.gates) {
+      if (bornGates.has(gate.x)) continue;
+      bornGates.add(gate.x); memeWords.push(gate.word);
+      if (gate.x - scene.state.x < 810) poppedOnScreen = true;
+      // 밈 글자는 벽에 붙어 서고, 남은 통로는 언제나 minGap 이상 열려 있다.
+      const onWall = gate.side === 'top' ? gate.top === 168 : gate.bottom === 468;
+      const gap = gate.side === 'top' ? 468 - gate.bottom : gate.top - 168;
+      if (!onWall || gap < flight.minGap - .5 || gate.halfWidth <= 5) throw Error(`e6: bad meme pillar ${JSON.stringify(gate)}`);
+    }
+    liveGates = Math.max(liveGates, scene.gates.length);
+  });
+  assert(!poppedOnScreen, 'e6: obstacles are born off-screen instead of popping into view');
+  assert(bornGates.size > scene.gates.length && liveGates <= 6, 'e6: passed obstacles are dropped instead of piling up');
+  const memeSentence = scene.stageGame.words;
+  assert(memeWords.length > 0 && memeWords.every((word, index) => word === memeSentence[(index + 2) % memeSentence.length]), 'e6: the meme sentence cycles through its words in order');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
   scene.state.y = 100; advance(.02);
   assert(scene.state.hits === 1 && scene.state.presses === presses, 'e6: collision retains gravity penalty');
@@ -197,7 +249,9 @@
   const completedRun = archiveRun.snapshot();
   assert(completedRun.finished && completedRun.ending === 'shared' && completedRun.totalRecordCount === 18, 'Eighteen clears reach the single shared-memory ending');
   assert(completedRun.archiveViewerUnlocked && completedRun.archiveEntries.length === 18 && !UI.mainCodexButton.disabled, 'Ending unlocks all eighteen testimony entries');
+  // 기록실은 도감 탭으로 뜬다 — 증언 기록은 엔딩에서 풀린 탭으로 넘어가 읽는다.
   codexFlow.open();
+  codexFlow.showTab('records');
   const codexRect = UI.codexDialog.getBoundingClientRect();
   assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
     && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');

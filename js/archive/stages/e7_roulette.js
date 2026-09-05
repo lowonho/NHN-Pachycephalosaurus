@@ -54,8 +54,10 @@ export const E7_ROULETTE = {
     this.risk = Math.min(100, s.misses * 17);
   },
   render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1));
-    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${2 * (s.misses + 1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
+    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1)), f = MINI.FIELD;
+    MINI.frame(this);
+    // 룰렛이 놓인 무대. 화면을 통째로 덮어 원판이 뜬금없이 떠 있지 않게 한다.
+    MINI.box(this, f.x, f.y, f.w, f.h, 0x1a1430, .55);
     MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
     const points = [{ x: 480, y: 321 }];
     for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });

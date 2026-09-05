@@ -40,9 +40,13 @@ export const E2_BOUNCE_BALL = {
     if (s.x >= t.goal && s.grounded) this.finish(true);
   },
   render() {
-    const s = this.state, cam = Math.max(0, s.x - 190);
-    MINI.frame(this, `JUMP +${s.jumps * E2_BOUNCE_BALL.tuning.jumpGain}    CHECKPOINT ${this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1}`);
-    for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
+    const s = this.state, cam = Math.max(0, s.x - 190), f = MINI.FIELD;
+    MINI.frame(this);
+    // 천장 가시는 화면 위 끝까지 이어지는 띠에 매달린다.
+    MINI.box(this, f.x, f.y, f.w, 153 - f.y, 0x33203a);
+    for (let x = f.x; x < f.right; x += 24) MINI.spike(this, x, 153, 24, 35);
+    // 발판 아래는 떨어지면 끝인 낭떠러지다. 화면 아래 끝까지 어둡게 깐다.
+    MINI.box(this, f.x, 535, f.w, f.bottom - 535, 0x02070f, .85);
     for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
     const pop = MINI.spawnScale(this);
     MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30 * pop, 30 * pop, s.x / 60);

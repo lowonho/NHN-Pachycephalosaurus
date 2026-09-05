@@ -1,8 +1,10 @@
 /*
- * A(비주얼) 전용 — 미니게임 도감.
+ * A(비주얼) 전용 — 기록실.
  *
- * 메인 화면 위에 덮이는 한 장이다. 10개 카드를 네 칸씩 펼치고,
- * 아직 해 보지 않은 카드는 딤드로 둔다(js/ui/codex-flow.js의 data-discovered).
+ * 메인 화면 위에 덮이는 한 장이다. 탭 두 장이 같은 격자를 나눠 쓴다.
+ *   · 미니게임 도감 : 10개 카드를 다섯 칸씩 두 줄로 펼친다.
+ *   · 증언 기록     : 18개 카드를 여섯 칸씩 세 줄로 펼친다.
+ * 어느 쪽이든 아직 못 채운 카드는 딤드로 둔다(js/ui/codex-flow.js의 data-discovered).
  *
  * 팔레트·모서리 처리는 프로토콜 선택 화면(css/protocol-select.css)의
  * 시안 HUD 톤을 그대로 따른다 — 남색 유리판 · 시안 네온 · 45° 잘린 모서리.
@@ -90,7 +92,61 @@
   letter-spacing: 0.18em;
 }
 
-/* ── 증언 기록 18개: 6열 × 3행 ────────────────────────────────────── */
+/* ── 탭 두 장(미니게임 도감 · 증언 기록) ──────────────────────────── */
+
+.codex-tabs {
+  display: flex;
+  gap: 10px;
+}
+
+.codex-tab {
+  padding: 10px 30px;
+  border: 1px solid var(--codex-line-soft);
+  clip-path: polygon(
+    12px 0,
+    100% 0,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    0 100%,
+    0 12px
+  );
+  background: rgba(4, 14, 34, 0.55);
+  color: var(--codex-dim);
+  cursor: pointer;
+  font: 900 20px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+  transition: filter 140ms ease, color 140ms ease;
+}
+
+/* 지금 보고 있는 탭 — 카드 격자와 같은 시안 유리로 채워 한 덩어리로 읽히게 둔다. */
+.codex-tab[aria-selected="true"] {
+  border-color: var(--codex-line);
+  background: linear-gradient(160deg, rgba(87, 232, 255, 0.22), rgba(6, 26, 62, 0.24));
+  color: var(--codex-text);
+  text-shadow: 0 0 14px rgba(87, 232, 255, 0.55);
+}
+
+/*
+ * 아직 해금되지 않은 탭 — 카드의 딤드와 같은 이유로 지우지 않고 흐리게만 둔다.
+ * 엔딩 뒤에 열릴 것이 남아 있다는 사실 자체가 이 탭이 하는 말이다.
+ */
+.codex-tab:disabled {
+  border-color: rgba(143, 182, 216, 0.16);
+  color: #55698a;
+  cursor: not-allowed;
+}
+
+.codex-tab:not(:disabled):hover,
+.codex-tab:not(:disabled):focus-visible {
+  filter: brightness(1.18);
+}
+
+.codex-tab:focus-visible {
+  outline: 3px solid var(--codex-line);
+  outline-offset: 3px;
+}
+
+/* ── 카드 격자 ─────────────────────────────────────────────────────── */
 
 .codex-grid {
   display: flex;
@@ -104,6 +160,7 @@
 
 .codex-card {
   display: grid;
+  /* 기본값은 증언 기록 18개 = 6열 × 3행. 도감은 바로 아래에서 5열로 다시 잡는다. */
   flex: 0 0 calc((100% - 70px) / 6);
   /* 내용이 한 줄 늘어도 격자가 흔들리지 않게 높이를 잡아 둔다. */
   align-content: start;
@@ -123,6 +180,18 @@
     linear-gradient(160deg, rgba(87, 232, 255, 0.1), rgba(6, 26, 62, 0.2)),
     var(--codex-glass);
   color: var(--codex-text);
+}
+
+/*
+ * 미니게임 도감 10개 = 5열 × 2행.
+ * 칸이 열 개뿐이라 자리가 남는다 — 목표 한 줄이 낱말 가운데서 끊기지 않게
+ * 폭과 여백을 증언 기록보다 넉넉히 준다(gap 14px × 4 = 56px를 뺀 5등분).
+ */
+.codex-grid[data-view="minigames"] .codex-card {
+  flex-basis: calc((100% - 56px) / 5);
+  gap: 10px;
+  min-height: 182px;
+  padding: 18px 22px 20px;
 }
 
 /*
@@ -179,23 +248,12 @@
   letter-spacing: 0.02em;
 }
 
-.codex-card-line {
-  display: flex;
-  gap: 10px;
+/* 목표 한 줄 — 도감이 칸마다 적는 유일한 설명이다. */
+.codex-card-goal {
   margin: 0;
-  font: 700 15px/1.45 var(--font-ui);
-}
-
-/* 조작 · 목표 · 변수 — 세 줄의 머리표. 폭을 고정해 글이 한 세로줄에서 시작한다. */
-.codex-card-tag {
-  flex: 0 0 38px;
-  color: var(--codex-line);
-  letter-spacing: 0.08em;
-}
-
-.codex-card-text {
   color: var(--codex-dim);
-  /* 조작 안내는 줄바꿈이 들어 있는 문장이 아니라 한 덩어리라 그대로 흘린다. */
+  font: 700 15px/1.45 var(--font-ui);
+  /* 낱말 가운데서 끊기지 않게 둔다 — 짧은 문장이라 줄 끝이 눈에 띈다. */
   word-break: keep-all;
 }
 

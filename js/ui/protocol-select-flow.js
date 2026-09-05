@@ -485,12 +485,12 @@ class ProtocolSelectFlow {
 
     tile.append(icon, code, title, mark);
     tile.title = `${stage.controls}\n${stage.objective}\n${stage.anomaly}`;
-    const best = window.archiveRecords?.best(stage.id);
-    if (best) {
-      const record = document.createElement('small');
-      record.className = 'protocol-best'; record.textContent = `BEST ${best.elapsed.toFixed(2)}s · ${best.actions}회`;
-      tile.append(record);
-    }
+    /*
+     * BEST 기록은 여기 두지 않는다 — 이 화면은 "이번 판에서 무엇이 남았나"만
+     * 말한다. 지난 판 성적은 브리핑(renderBrief의 #protocol-brief-best)과
+     * 미니게임 도감(js/ui/codex-flow.js)이 맡는다.
+     * (기록 자체는 window.archiveRecords에 그대로 남는다.)
+     */
     tile.addEventListener("click", () => this.startStage(stage.id));
     return tile;
   }

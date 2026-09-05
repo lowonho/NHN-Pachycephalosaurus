@@ -15,6 +15,14 @@
   font-display: swap;
 }
 
+/* 밈 글꼴 — 미니게임 안의 밈 글자 장애물(js/archive/stages/e6_gravityFlight.js)이 쓴다. */
+@font-face {
+  font-family: 'YeogiOttaeJalnan';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.2/JalnanOTF00.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
@@ -37,4 +45,5 @@
   --font-display: "NeoDunggeunGothicPro", "Galmuri11", sans-serif;
   --font-body: "Galmuri11", system-ui, sans-serif;
   --font-ui: "Galmuri11", system-ui, sans-serif;
+  --font-meme: "YeogiOttaeJalnan", "NeoDunggeunGothicPro", sans-serif;
 }
