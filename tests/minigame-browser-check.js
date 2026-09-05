@@ -7,6 +7,7 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
+  const waitFor = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
   const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
   const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
@@ -63,13 +64,55 @@
   assert(document.querySelector('#cutscene-skip-top-button') === null
     && document.querySelectorAll('#cutscene [id*="skip"]').length === 1
     && UI.cutsceneSkipButton?.id === 'cutscene-skip-button', 'Cutscenes keep only the lower dialogue-panel skip button');
+
+  cutsceneFlow.close();
+  ARCHIVE_DISABLE_TRANSITIONS = false;
+  cutsceneFlow.play({
+    chapter: 'SCENE TRANSITION TEST',
+    auto: false,
+    forceDisplay: true,
+    script: [
+      { speaker: '김민', text: '첫 장면 대사', phase: 'op-01', kind: 'dialogue' },
+      { speaker: 'ARIA-26', text: '두 번째 장면 대사', phase: 'op-03', kind: 'dialogue' },
+    ],
+  });
+  await waitFor(560);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-01'
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden', 'A newly faded-in scene waits with no dialogue visible');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+  cutsceneFlow.completeTyping();
+  assert(!cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '첫 장면 대사', 'Any key reveals the first dialogue after the scene is visible');
+  cutsceneFlow.advance();
+  assert(cutsceneFlow.sceneTransitioning && UI.sceneFade.classList.contains('is-active'), 'Changing scenes starts a fade to black');
+  await waitFor(560);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === ''
+    && !UI.sceneFade.classList.contains('is-active'), 'The next scene fades in without showing its dialogue');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneLine.textContent === '두 번째 장면 대사', 'The next scene also requires a fresh input before dialogue');
+  cutsceneFlow.finish();
+  await waitFor(560);
+  ARCHIVE_DISABLE_TRANSITIONS = true;
+
   cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '', 'A story cutscene starts on a dialogue-free scene frame');
+  cutsceneFlow.advance();
   for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
+  await Promise.resolve();
   const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
   assert(cutsceneFlow.index === 3
     && UI.cutscene.dataset.phase === 'ending-a-break'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
     && indexedEnding[3].chapterLabel.includes('CS-06A 최종 증거 전송 · 대사 4/5'), 'CS-06A switches to the firewall-breaking artwork on its fourth dialogue');
+  cutsceneFlow.advance();
+  cutsceneFlow.completeTyping();
   const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
   assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
   cutsceneFlow.close();
@@ -86,22 +129,35 @@
     && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   document.querySelector('.qa-story-button[data-story-id="opening"]').click();
+  await Promise.resolve();
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
-    && UI.cutscene.dataset.cueKind === 'narration'
+    && UI.cutscene.dataset.cueKind === 'scene'
     && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 장면 설명 1/1 · 큐 1/14'
     && !cutsceneFlow.auto
     && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden'
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening also starts on a dialogue-free scene frame');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutscene.dataset.cueKind === 'narration'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display !== 'none'
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'visible'
     && UI.cutsceneLine.textContent.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.')
     && UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
-    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the OP-01 scene description and AUTO disabled');
+    && UI.qaPanel.classList.contains('hidden'), 'QA shows the first scene description only after input');
   UI.cutsceneAutoButton.click();
   assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
   UI.cutsceneAutoButton.click();
   assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
   cutsceneFlow.advance();
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput
+    && UI.cutscene.dataset.phase === 'op-02'
+    && UI.cutsceneLine.textContent === '', 'QA pauses again when the scene label changes');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB' }));
   assert(UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
     && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
@@ -118,6 +174,14 @@
     && UI.cutsceneLine.textContent === '이상하다. 릴스가 끊길 리가 없는데.'
     && sameRect(systemPanelRect, dialoguePanelRect)
     && sameRect(systemLineRect, dialogueLineRect), 'OP-02 names Kim Min and keeps screen directions and dialogue at the same position');
+  cutsceneFlow.advance();
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === '', 'QA keeps later scene transitions dialogue-free too');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', code: 'KeyC' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneSpeaker.textContent === 'ARIA-26'
+    && UI.cutsceneLine.textContent.startsWith('디지털 공간에서 삭제된 순간'), 'QA reveals the later scene dialogue after one key');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
   assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();
@@ -128,6 +192,8 @@
     auto: false,
     forceDisplay: true,
   });
+  await Promise.resolve();
+  cutsceneFlow.advance();
   const everyScreenCueFits = screenCues.every(({ text }) => {
     UI.cutsceneLine.textContent = text;
     return UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1;

@@ -81,8 +81,9 @@ check("Phaser 캔버스 생성", initial.canvas === 1, `${initial.canvas}개`);
 
 // "게임 시작" → 컷신 → 프로토콜 브리핑. 컷신은 SKIP으로 건너뛴다.
 await evaluate("document.querySelector('#main-play-button').click()");
+await wait(560);
 await evaluate("document.querySelector('#cutscene-skip-button').click()");
-await wait(80);
+await wait(300);
 /* 고를 목록은 없다 — 컷신이 끝나면 이번 차례의 브리핑이 바로 뜬다. */
 const briefState = await evaluate(`({
   visible: !document.querySelector('#stage-select-screen').classList.contains('hidden'),

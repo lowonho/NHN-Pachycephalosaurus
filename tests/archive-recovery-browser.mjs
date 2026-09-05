@@ -79,7 +79,9 @@ try {
   */
   await evaluate("document.querySelector('#main-play-button').click()");
   await screen("opening");
+  await wait(420);
   await evaluate("document.querySelector('#cutscene-skip-button').click()");
+  await wait(300);
   // 오프닝 뒤 첫 기록 소개가 자동으로 열리며, 이 소개를 끝내야 실제 플레이가 시작된다.
   await screen("stage-intro");
   await evaluate("cutsceneFlow.finish(); gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {})");

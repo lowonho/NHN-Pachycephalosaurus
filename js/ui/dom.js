@@ -35,6 +35,7 @@ const UI = Object.freeze({
   cutscene: document.querySelector("#cutscene"),
   cutsceneBackdrop: document.querySelector("#cutscene-backdrop"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
+  cutsceneDialogue: document.querySelector(".cutscene-dialogue"),
   cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
   cutscenePanel: document.querySelector("#cutscene-panel"),
   cutsceneLine: document.querySelector("#cutscene-line"),
