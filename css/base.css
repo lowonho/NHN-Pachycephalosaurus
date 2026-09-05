@@ -203,7 +203,8 @@ textarea {
   display: none;
 }
 
-.stage-hud-heading {
+.stage-hud-heading,
+.stage-hud-detail {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -245,9 +246,23 @@ textarea {
   display: none;
 }
 
+/* 행동 수 · 상태 문구 — 바로 윗줄(ACT · STAGE · 기록)과 같은 크기로 읽힌다. */
+.stage-hud-detail {
+  margin-top: 12px;
+  color: #c3d1ed;
+  font: 700 20px/1.35 var(--font-ui);
+}
+
+.stage-hud-detail span:last-child {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .stage-hud-risk {
   height: 5px;
-  margin-top: 10px;
+  margin-top: 12px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);

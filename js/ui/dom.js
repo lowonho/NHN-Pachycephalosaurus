@@ -127,6 +127,8 @@ const UI = Object.freeze({
   stageHudLives: document.querySelector("#stage-hud-lives"),
   stageHudActRecords: document.querySelector("#stage-hud-act-records"),
   stageHudMemory: document.querySelector("#stage-hud-memory"),
+  stageHudAction: document.querySelector("#stage-hud-action"),
+  stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
   stageHudPenalty: document.querySelector("#stage-hud-penalty"),
 

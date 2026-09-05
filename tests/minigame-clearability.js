@@ -70,8 +70,10 @@
     advance(1.5);
   }
   advance(2); save('e5');
-  load('e6');
-  advance(20.3, frame => {
+  // e6은 밈 세트가 무작위로 서므로 판이 매번 다르다. 4글자 기둥 쌍이 어느 벽에서 시작하느냐에 따라
+  // 한 판은 20.26초 안에 못 들어올 수 있어, 사람이 그러듯 세 판까지 다시 날아 본다.
+  // 세 판 모두 못 끝내면 그건 운이 아니라 스테이지가 막힌 것이다.
+  const flyE6 = () => advance(20.3, frame => {
     if (frame % 16 !== 0) return; // 사람도 입력 가능한 133ms 간격으로만 조작.
     const s = scene.state, ahead = s.x + 70;
     const index = scene.gates.findIndex(g => g.x > ahead);
@@ -83,7 +85,10 @@
     const hold = s.vy > vy;
     if(hold && !scene.touch.has('action')) { scene.touch.add('action'); scene.primaryAction(); }
     if(!hold) scene.touch.delete('action');
-  }); save('e6');
+  });
+  let clearedE6 = false;
+  for (let attempt = 1; attempt <= 3 && !clearedE6; attempt++) { load('e6'); flyE6(); clearedE6 = Boolean(outcome?.success); }
+  save('e6');
   // A real random roulette round can lose; verify the actual resting wedge judges both outcomes.
   load('e7'); scene.state.rotation = -Math.PI/2 - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');

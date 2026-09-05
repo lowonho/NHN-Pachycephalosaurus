@@ -31,7 +31,19 @@ globalThis.MINIGAME_ASSETS = {
     pose8: 'assets/images/minigame/stacks/metcha/pose8.webp',
     line: 'assets/images/minigame/stacks/metcha/line.webp',
   }, e4: { player: null },
-  e5: { projectile: null, target: null }, e6: { player: null },
+  e5: { projectile: null, target: null },
+  // e6: oiia 고양이 회전 여섯 장. 스페이스를 누르는 동안 spin1→spin6 을 돌리고 놓으면 spin1 에
+  // 멈춘다(e6_gravityFlight.js 의 SPIN_FPS). 여섯 장 모두 같은 사각형으로 잘라 회전축이
+  // 흔들리지 않고, 원본 시트에서 굽는 일은 scripts/bake-oiia-cat.ps1 이 한다.
+  e6: {
+    spin1: 'assets/images/minigame/geomatric%20fly/spin1.webp',
+    spin2: 'assets/images/minigame/geomatric%20fly/spin2.webp',
+    spin3: 'assets/images/minigame/geomatric%20fly/spin3.webp',
+    spin4: 'assets/images/minigame/geomatric%20fly/spin4.webp',
+    spin5: 'assets/images/minigame/geomatric%20fly/spin5.webp',
+    spin6: 'assets/images/minigame/geomatric%20fly/spin6.webp',
+    player: null,
+  },
   e7: { prize: null }, e8: { player: null }, e9: { stone: null },
   e10: { player: null },
 };

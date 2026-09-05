@@ -1161,12 +1161,13 @@ const E3_HUMAN_STACK = {
     railLeft: 260, railRight: 700,
     // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
     // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
-    baseY: 452, baseWidth: 251, floorY: 500, dropHeight: 292, debugPhysics: false,
+    baseY: 452, baseWidth: 276, floorY: 500, dropHeight: 292, debugPhysics: false,
     // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
     // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
     viewSpan: 358,
-    // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
-    markerX: 900, markerHeight: 76, goalRight: 838,
+    // 성공선 오른쪽 끝에 붙여 세워 두는 표지. 화살표가 선을 가리킵니다.
+    // markerGap은 선의 오른쪽 끝에서 표지 중심까지의 거리라, 선이 짧아지면 표지도 따라붙습니다.
+    markerHeight: 76, markerGap: 62,
   },
   // 좌표 원점은 그림의 정중앙. [중심x, 중심y, 가로, 세로] 사각형들이 실제 충돌체이고,
   // 같은 원점의 그림이 그 위에 얹힙니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
@@ -1197,8 +1198,7 @@ const E3_HUMAN_STACK = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
     };
-    // 조작 안내는 띄우지 않는다 — 회전 화살표와 클릭만으로 조작이 드러난다.
-    this.instruction?.setVisible(false);
+    // 조작 안내는 다른 미니게임과 같은 자리(화면 최하단)에 그대로 둔다.
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
         const a = pair.collision.parentA, b = pair.collision.parentB;
@@ -1388,11 +1388,12 @@ const E3_HUMAN_STACK = {
     for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
     // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
     this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
-    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
-    // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
+    // 표지는 성공선 오른쪽 끝에 붙어 따라다닙니다. 가슴의 화살표가 선을 가리키며,
+    // 시야가 줄어 선이 짧아져도 선 끝과의 간격은 그대로라 크기만 변하지 않습니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
     if (marker) {
-      marker.setPosition(t.markerX, goal.y)
+      marker.setPosition(dashTo + t.markerGap, goal.y)
         .setDisplaySize(t.markerHeight * E3_SHAPES.line.width / E3_SHAPES.line.height, t.markerHeight);
     }
     // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.
@@ -1992,7 +1993,7 @@ const E5_SLINGSHOT = {
 
 /*
  * 장애물은 그림이 아니라 글자다. 밈 문장을 한 글자씩 세로로 세워 통로를 막는 기둥으로 쓰고,
- * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.words만
+ * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.sets만
  * 고치면 되고, 기둥 높이·판정 폭은 실제로 그려진 글자 크기에서 뽑으므로 따로 맞출 값이 없다.
  *
  * 장애물은 처음에 모두 만들어 두지 않는다. 쿠키런처럼 캐릭터가 tuning.spawnAhead 안으로
@@ -2000,14 +2001,58 @@ const E5_SLINGSHOT = {
  * scene.gates에는 살아 있는 장애물만 있고, 각 항목의 y는 그 기둥을 비켜 지나가는 지점이다
  * — 충돌 후 되돌아갈 자리이자 조준 목표로 함께 쓴다.
  */
+/* 밈은 낱말이 아니라 세트로 나온다. '여러분 → 저됐어요 → 뭣됐어요'는 한 호흡이라 순서가 붙어 있고,
+   '샤갈!'과 '야르~'는 한 마디씩 서는 세트다. 어느 세트가 올지는 무작위지만, 한 번 나온 세트는
+   나머지가 다 나오기 전에는 다시 뽑히지 않는다(같은 세트가 연달아 서면 길이 단조로워진다). */
 const MEME = {
   family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
-  words: ['여러분', '저 됐어요', 'X됐어요', '샤갈!', '야르~'],
+  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~']],
   color: '#fff3d6', stroke: '#07141d',
 };
+MEME.words = MEME.sets.flat();
 
-/* 위아래 벽 사이의 통로. 판정과 그림이 같은 값을 본다. */
-const TUNNEL = { top: 168, bottom: 468, height: 300 };
+/* 다음 기둥에 세울 글자. 뽑아 둔 세트를 순서대로 흘리고, 다 쓰면 남은 세트 중에서 새로 고른다. */
+function nextMeme(scene) {
+  if (!scene.memeQueue?.length) {
+    if (!scene.memeBag?.length) {
+      scene.memeBag = MEME.sets.map((_, i) => i);
+      for (let i = scene.memeBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [scene.memeBag[i], scene.memeBag[j]] = [scene.memeBag[j], scene.memeBag[i]];
+      }
+    }
+    scene.memeQueue = MEME.sets[scene.memeBag.pop()].slice();
+  }
+  return scene.memeQueue.shift();
+}
+
+/* 위아래 벽 사이의 통로. 판정과 그림이 같은 값을 본다.
+   필드 세로 중심(320.5)을 기준으로 위아래 대칭이고, 남는 68씩이 벽이다 — e1 중력 대쉬와 같은 통로다.
+   고양이 그림 전체가 판정이 된 뒤로 좁은 통로는 너무 빡빡했다. */
+const TUNNEL = { top: 130, bottom: 511, height: 381 };
+/* 부딪힌 뒤 되돌아가 서는 자리가 벽에서 떨어져 있어야 하는 거리. 고양이 반 키(24)보다 넉넉하다. */
+const RESPAWN_MARGIN = 52;
+
+/* 캐릭터는 도는 고양이(oiia)다. 스페이스를 누르고 있는 동안에만 spin1→spin6 을 돌리고,
+   손을 떼면 spin1 에 멈춘다 — 상승 중인지 떨어지는 중인지가 그림 하나로 읽힌다.
+   그림은 assets/images/minigame/geomatric fly 의 여섯 장이고 manifest.js 가 e6:spin1…6 으로
+   물어 온다. 원본 시트에서 굽는 일은 scripts/bake-oiia-cat.ps1 이 한다. */
+const SPIN = {
+  frames: 6,
+  fps: 20,       // 초당 프레임. 여섯 장이라 한 바퀴에 0.3초 — 밈의 속도다.
+  height: 48,    // 표시 높이. 가로는 텍스처 비율에서 뽑고, 판정 상자도 이 크기 그대로다.
+};
+
+/* 판정 상자는 그려지는 고양이 그림 그대로다 — 그림 끝이 벽이나 글자 기둥에 닿는 순간 실패다.
+   예전에는 그림과 상관없는 26×30 사각형이라 고양이가 벽에 절반쯤 파묻혀도 통과했다.
+   여섯 장을 같은 사각형으로 잘라 구웠으므로 어느 프레임이든 크기가 같다(bake-oiia-cat.ps1).
+   그림이 없을 때만 예전 도형 크기(36×28)로 돌아간다. */
+function catBox(scene) {
+  const image = scene.textures.exists('e6:spin1') ? scene.textures.get('e6:spin1').getSourceImage() : null;
+  const height = image ? SPIN.height : 28;
+  const width = image ? SPIN.height * image.width / image.height : 36;
+  return { halfWidth: width / 2, halfHeight: height / 2 };
+}
 
 /* 밈 글꼴은 웹에서 받아 온다. 아직 오기 전에 만든 글자는 대체 글꼴 크기로 재어 두므로,
    도착하면 살아 있는 장애물을 모두 다시 재서 그림과 판정을 맞춘다. */
@@ -2040,7 +2085,7 @@ function fitGate(gate) {
 function syncGates(scene) {
   const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
   while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
-    const index = scene.nextGate.index, word = MEME.words[index % MEME.words.length];
+    const index = scene.nextGate.index, word = nextMeme(scene);
     const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', bornAt: scene.elapsed };
     gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
       fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
@@ -2056,7 +2101,7 @@ function syncGates(scene) {
 }
 
 const E6_GRAVITY_FLIGHT = {
-  words: MEME.words,
+  words: MEME.words, sets: MEME.sets, tunnel: TUNNEL,
   tuning: {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
@@ -2065,25 +2110,53 @@ const E6_GRAVITY_FLIGHT = {
   },
   build() {
     MINI.init(this, 0x7cd9ff);
-    this.state = { x: 0, y: 323, vy: 0, presses: 0, hits: 0, immune: 0 };
+    // spin 은 누르고 있는 동안 쌓이는 프레임 수(정수부가 곧 지금 프레임)다. 손을 떼면 0으로 돌아간다.
+    this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0 };
+    this.catBox = catBox(this);
     this.gates = []; this.nextGate = { x: E6_GRAVITY_FLIGHT.tuning.firstX, index: 0 };
+    this.memeQueue = []; this.memeBag = [];
     loadMemeFont(this); syncGates(this);
   },
   dispose() { for (const gate of this.gates ?? []) gate.label?.destroy(); this.gates = []; },
+  /* 지금 프레임의 고양이를 그린다. 그림이 없으면 예전 도형으로 돌아가므로 에셋이 빠져도 게임은 돈다.
+     표시 크기만 그림에서 뽑고 판정(s.y ± 13)은 그대로다 — 그림을 키워도 부딪히는 범위는 같다. */
+  drawCat(pop) {
+    const s = this.state;
+    const texture = `e6:spin${Math.floor(s.spin) + 1}`;
+    // 소환 연출 앞부분(pop 0)에는 MINI.actor 가 스프라이트를 감춰 준다.
+    if (!(pop > 0) || !this.textures.exists(texture)) {
+      MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
+      return;
+    }
+    let sprite = this.assetSprites.get('player');
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask).setDepth(2); this.assetSprites.set('player', sprite); }
+    const height = SPIN.height * pop;
+    sprite.setTexture(texture).setVisible(true).setPosition(180, s.y).setRotation(s.vy / 900)
+      .setDisplaySize(height * sprite.width / sprite.height, height);
+  },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
     const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));
     const lift = Math.min(t.maxLift, t.lift + s.presses * this.penalty(t.liftGain));
     s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
-    s.vy = MINI.clamp(s.vy + (this.held('action') ? -lift : gravity) * dt, -340, 320);
+    const lifting = this.held('action');
+    // 회전은 프레임 수가 아니라 시간으로 쌓는다 — 화면이 느려져도 도는 속도는 같다.
+    s.spin = lifting ? (s.spin + dt * SPIN.fps) % SPIN.frames : 0;
+    s.vy = MINI.clamp(s.vy + (lifting ? -lift : gravity) * dt, -340, 320);
     s.y += s.vy * dt;
     syncGates(this);
-    const gate = this.gates.find(g => Math.abs(g.x - s.x) < g.halfWidth + 15 && s.y + 13 > g.top && s.y - 13 < g.bottom);
-    if (!s.immune && (gate || s.y < 169 || s.y > 467)) {
-      s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; MINI.summon(this); this.bump();
+    // 그림 상자가 글자 기둥에 겹치거나 위아래 벽에 닿으면 실패다.
+    const box = this.catBox;
+    const gate = this.gates.find(g => Math.abs(g.x - s.x) < g.halfWidth + box.halfWidth
+      && s.y + box.halfHeight > g.top && s.y - box.halfHeight < g.bottom);
+    if (!s.immune && (gate || s.y - box.halfHeight <= TUNNEL.top || s.y + box.halfHeight >= TUNNEL.bottom)) {
+      s.hits++; s.x = Math.max(0, s.x - t.knockback);
+      s.y = gate?.y ?? MINI.clamp(s.y, TUNNEL.top + RESPAWN_MARGIN, TUNNEL.bottom - RESPAWN_MARGIN);
+      s.vy = 0; s.immune = .85; MINI.summon(this); this.bump();
     }
-    s.y = MINI.clamp(s.y, 168, 468);
+    // 그림이 벽을 파고들지 않게 세운다 — 닿는 순간이 곧 실패 판정이라 딱 붙는 데까지만 간다.
+    s.y = MINI.clamp(s.y, TUNNEL.top + box.halfHeight, TUNNEL.bottom - box.halfHeight);
     this.anomaly = `중력 ${gravity} · 상승 ${lift} · 충돌 ${s.hits}회`;
     this.risk = Math.min(100, s.presses * 6);
     if (s.x >= t.distance) this.finish(true);
@@ -2108,10 +2181,10 @@ const E6_GRAVITY_FLIGHT = {
       MINI.box(this, x - gate.halfWidth, Math.min(wall, edge), gate.halfWidth * 2, Math.abs(edge - wall), 0x4c657f, .22 * fade);
     }
     const pop = MINI.spawnScale(this);
-    MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
+    E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
     if (pop && this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
-    MINI.goal(this, t.distance - s.x + 180, 316);
+    MINI.goal(this, t.distance - s.x + 180, (TUNNEL.top + TUNNEL.bottom) / 2);
     MINI.meter(this, s.x / t.distance);
   },
 };

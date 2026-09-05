@@ -26,8 +26,10 @@
     <!--
       메인 화면 — 컨셉 이미지의 UI 배치를 따른다.
         왼쪽 위 브랜드 블록 · 오른쪽 위 사운드 ON/OFF ·
-        가운데에 타이틀 판 → 버튼 3개(게임 시작 · 미니게임 도감 · 설정).
-      컨셉 이미지의 배경 일러스트(도시·캐릭터)는 에셋이 없어 넣지 않는다.
+        왼쪽 아래 캐릭터 · 오른쪽에 타이틀 판 → 버튼 4개
+        (기록 접속 · 이어하기 · 기록실 · 설정).
+      배경 일러스트(아카이브 광장)와 캐릭터는 assets/images/ui/Main/{bg,character}.webp 다 —
+      scripts/bake-main-menu.ps1 이 같은 폴더의 원본 png 에서 구운 것이다.
 
       컨셉 이미지에 없는 글자는 두지 않는다 — 예전 임시 화면의
       MEMORY PRESERVATION SYSTEM · SYSTEM ERROR DETECTED · 소개 문구 ·
@@ -37,6 +39,24 @@
       글자는 그 위에 CSS로 얹는다(에셋에는 글자가 없다).
     -->
     <div class="main-menu" id="main-menu">
+      <!--
+        왼쪽 아래 캐릭터. 설계 화면(.main-menu-frame) 안이 아니라 밖에 두는 이유는
+        허리께가 잘린 그림이라 창 아래쪽에 딱 붙어 있어야 해서다 — 설계 화면 안에 두면
+        창이 16:9보다 세로로 길 때 설계 화면 아래에 남는 띠 위에서 잘린 단면이 그대로 보인다.
+        자리와 크기는 CSS가 --ui-scale로 설계 화면과 똑같이 맞춘다.
+
+        장식이라 aria-hidden이고, 화면 낭독기에는 타이틀 판 하나만 읽힌다.
+      -->
+      <img
+        class="menu-character"
+        src="assets/images/ui/Main/character.webp"
+        alt=""
+        aria-hidden="true"
+        width="1228"
+        height="1244"
+        draggable="false"
+      />
+
       <div class="main-menu-frame">
         <!-- 왼쪽 위 브랜드 — 컷신 화면의 .cutscene-brand와 같은 문구다. -->
         <!--
@@ -351,6 +371,10 @@
                     <span id="stage-hud-stage">STAGE 1/6</span>
                     <span>ACT RECORDS <output id="stage-hud-act-records">0/6</output></span>
                     <span>TOTAL <output id="stage-hud-memory">0/18</output></span>
+                  </div>
+                  <div class="stage-hud-detail">
+                    <span id="stage-hud-action">입력 00</span>
+                    <span id="stage-hud-anomaly">대기</span>
                   </div>
                   <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
                   <p id="stage-hud-penalty" hidden></p>

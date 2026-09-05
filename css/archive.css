@@ -55,8 +55,14 @@
 
 /* 새 미니게임: 플레이 영역 위의 짧은 HUD와 기록 표시. */
 #stage-hud-penalty { display: none; }
-.stage-hud { width: 760px; padding: 14px 18px; }
-/* 아래 한 줄(행동 수 · 상태 문구)이 빠진 만큼 남은 두 줄을 그 크기로 키웠다. */
+/*
+ * 좌상단 패널은 열 개 미니게임이 똑같은 크기로 쓴다 — 적힌 내용만 게임마다 다르다.
+ * 세 줄 모두 한 급씩 키웠으므로 패널도 위아래로 그만큼 늘려 잡고,
+ * 가장 긴 상태 문구(얼음 컬링)까지 한 줄에 들어가도록 가로도 넓혔다.
+ * 800px까지만 넓힌 건 그 오른쪽 끝이 화면 중앙 상단의 남은 시간과 붙기 때문이다.
+ * 그만큼 플레이 화면을 조금 덮지만, 조작을 가리는 자리는 아니다.
+ */
+.stage-hud { width: 800px; padding: 20px 22px 18px; }
 .stage-hud-run {
   position: static;
   flex-wrap: wrap;
@@ -64,7 +70,13 @@
   margin-top: 9px;
   font-size: 20px;
 }
-.stage-hud[data-stage="e4"] .stage-hud-risk { display: none; }
+/*
+ * 행동 수 · 상태 문구는 한 줄에 고정한다. 줄바꿈을 허용하면 문구가 긴 게임만
+ * 패널이 한 줄 더 높아져 게임마다 크기가 달라진다.
+ */
+.stage-hud-detail { justify-content: flex-start; gap: 18px; }
+.stage-hud-detail span:first-child { flex: none; }
+.stage-hud-detail span:last-child { flex: 1 1 auto; min-width: 0; text-align: left; }
 #result-main-button { margin-top: 10px; }
 
 /* 3막은 HUD 안전 영역을 건드리지 않는 낮은 강도의 기록 억제 노이즈만 추가한다. */
