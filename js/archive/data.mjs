@@ -1,124 +1,58 @@
+import "../content/scenario-data.js";
+
 export const GAME_TITLE = "2026 ARCHIVE";
+export const SCENARIO = globalThis.SCENARIO_DATA;
 
-export const PROLOGUE = [
-  {
-    code: "SYSTEM // 00:00:01",
-    title: "2026년의 마지막 백업이 열렸다.",
-    body: "한 해의 장면을 보관하던 2026 ARCHIVE. 새벽 0시, 보존 서버의 물리 인덱스가 동시에 붕괴했다.",
-  },
-  {
-    code: "EMERGENCY // RECORD DECAY",
-    title: "손상된 기록은 20.26초만 유지된다.",
-    body: "기록이 재생되는 동안 직접 개입해 마지막 장면을 완성해야 한다. 그러나 입력이 많아질수록 오류는 더 강해진다.",
-  },
-  {
-    code: "OPERATOR // ASSIGNED",
-    title: "당신은 마지막 기록 관리자다.",
-    body: "속도, 중력, 탄성, 반동, 마찰, 빛, 회전. 일곱 개의 물리 채널을 최소한의 개입으로 복구하라.",
-  },
-];
+// 이전 코드가 참조하던 export는 유지하되, 실제 문장은 시나리오 단일 원본에서 가져온다.
+export const PROLOGUE = SCENARIO.opening.script;
 
-export const STAGES = [
-  {
-    id: "maze",
-    recordSymbol: "↗",
-    number: "01",
-    code: "VELOCITY_INDEX",
-    title: "가속 코스",
-    objective: "공을 RESTORE 구역에서 저속으로 안정시키세요.",
-    anomaly: "방향 입력마다 가속 · 강한 벽 충돌 −1초",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "방향 입력",
-    logTitle: "속도 채널 복구",
-    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다. 복구율 14%.",
+const mechanics = Object.freeze({
+  maze: {
+    recordSymbol: "↗", code: "VELOCITY_INDEX",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "방향 입력",
+    anomaly: "마음이 앞서고 있습니다", logTitle: "설렘의 증언",
   },
-  {
-    id: "gravity",
-    recordSymbol: "↓",
-    number: "02",
-    code: "GRAVITY_STACK",
-    title: "중력 타워",
-    objective: "좁은 발판을 연결해 상단 비콘에 도착하세요. 추락하면 복구 실패입니다.",
-    anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
-    controls: "A/D 또는 ←/→ 이동 · Space 점프",
-    actionLabel: "점프",
-    logTitle: "중력 채널 복구",
-    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다. 복구율 28%.",
+  gravity: {
+    recordSymbol: "↓", code: "GRAVITY_STACK",
+    controls: "A/D 또는 ←/→ 이동 · Space 점프", actionLabel: "점프",
+    anomaly: "기대가 쌓이고 있습니다", logTitle: "기대의 증언",
   },
-  {
-    id: "bounce",
-    recordSymbol: "◉",
-    number: "03",
-    code: "RESTITUTION_LOOP",
-    title: "탄성 과잉",
-    objective: "자동으로 튀는 공을 조절해 턱과 틈을 넘어 코어에 도착하세요.",
-    anomaly: "착지할 때마다 더 높이 튑니다. 천장과 추락에 주의하세요.",
-    controls: "A/D 또는 ←/→ 이동 · 자동 바운스",
-    actionLabel: "착지",
-    logTitle: "탄성 채널 복구",
-    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다. 복구율 42%.",
+  bounce: {
+    recordSymbol: "◉", code: "RESTITUTION_LOOP",
+    controls: "A/D 또는 ←/→ 이동 · 자동 바운스", actionLabel: "착지",
+    anomaly: "긴장이 커지고 있습니다", logTitle: "긴장의 증언",
   },
-  {
-    id: "recoil",
-    recordSymbol: "⌖",
-    number: "04",
-    code: "RECOIL_ARRAY",
-    title: "반동 사격장",
-    objective: "이동하는 세 개의 기록 노드를 모두 맞히세요.",
-    anomaly: "발사할 때마다 포대가 밀리고 조준 오차가 커집니다.",
-    controls: "마우스 / 터치로 조준 · 클릭하여 발사",
-    actionLabel: "발사",
-    logTitle: "반동 채널 복구",
-    log: "모든 발사는 기록 관리자를 뒤로 밀어냈다. 적은 탄환이 가장 정확한 답이었다. 복구율 57%.",
+  recoil: {
+    recordSymbol: "⌖", code: "RECOIL_ARRAY",
+    controls: "마우스 / 터치로 조준 · 클릭하여 발사", actionLabel: "발사",
+    anomaly: "감정이 되돌아옵니다", logTitle: "분노의 증언",
   },
-  {
-    id: "friction",
-    recordSymbol: "≈",
-    number: "05",
-    code: "FRICTION_DROP",
-    title: "무마찰 배송",
-    objective: "화물을 장애물 사이로 운반해 적재 구역에 정지시키세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰력이 감소합니다.",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "이동 입력",
-    logTitle: "마찰 채널 복구",
-    log: "미끄러지는 기록은 목적지를 지나치고도 멈추지 않았다. 움직임보다 제동이 중요했다. 복구율 71%.",
+  friction: {
+    recordSymbol: "≈", code: "FRICTION_DROP",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
+    anomaly: "멈출 순간을 놓치고 있습니다", logTitle: "후회의 증언",
   },
-  {
-    id: "darkness",
-    recordSymbol: "☼",
-    number: "06",
-    code: "LIGHT_DECAY",
-    title: "소실 회랑",
-    objective: "시야가 사라지기 전에 출구 비콘에 도착하세요.",
-    anomaly: "방향을 새로 누를 때마다 조명 반경이 줄어듭니다.",
-    controls: "WASD / 방향키",
-    actionLabel: "방향 입력",
-    logTitle: "광원 채널 복구",
-    log: "기록은 볼 수 없는 곳에서도 존재했다. 경로를 먼저 읽은 뒤 움직이자 빛이 돌아왔다. 복구율 85%.",
+  darkness: {
+    recordSymbol: "☼", code: "LIGHT_DECAY",
+    controls: "WASD / 방향키", actionLabel: "방향 입력",
+    anomaly: "기억이 흐려지고 있습니다", logTitle: "그리움의 증언",
   },
-  {
-    id: "rotation",
-    recordSymbol: "↻",
-    number: "07",
-    code: "ANGULAR_LOCK",
-    title: "각속도 잠금",
-    objective: "회전 바를 목표 각도에 맞추고 정지시키세요.",
-    anomaly: "회전 입력마다 각속도와 토크가 증가합니다.",
-    controls: "A/D 또는 ←/→ 회전 · 반대 방향으로 제동",
-    actionLabel: "회전 입력",
-    logTitle: "최종 채널 복구",
-    log: "마지막 기록은 계속 돌고 있었다. 더 돌리는 대신 정확한 순간에 힘을 거두자 정지했다. 복구율 100%.",
+  rotation: {
+    recordSymbol: "↻", code: "ANGULAR_LOCK",
+    controls: "A/D 또는 ←/→ 회전 · 입력을 멈춰 안정", actionLabel: "회전 입력",
+    anomaly: "마음을 놓아야 합니다", logTitle: "애정의 증언",
   },
-];
+});
 
-export const ENDING = {
-  code: "ARCHIVE // STABLE",
-  title: "2026년의 기록이 다시 재생된다.",
-  body: "오류의 원인은 외부 침입이 아니었다. 기록을 완벽하게 고치려는 수많은 개입이 물리 인덱스를 뒤틀고 있었다. 당신은 최소한의 행동으로 시스템을 안정시켰다. 이제 보존된 장면들은 다음 기록 관리자를 기다린다.",
-};
+export const STAGES = SCENARIO.stages.map((story) => Object.freeze({
+  ...story,
+  ...mechanics[story.id],
+  objective: "20.26초 안에 증언 지점에 도달하십시오.",
+  log: story.memory,
+}));
+
+// 레거시 참조 호환. 실제 엔딩 분기는 SCENARIO.endings와 run-state.mjs가 담당한다.
+export const ENDING = SCENARIO.endings;
 
 export const STORAGE_KEY = "archive-2026-progress-v1";
 export const SETTINGS_KEY = "archive-2026-settings-v1";
-
-

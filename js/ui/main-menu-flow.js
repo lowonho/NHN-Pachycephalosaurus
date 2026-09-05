@@ -10,7 +10,7 @@
  * 컷신이 끝났을 때 다음 화면(프로토콜 선택)만 정해 준다.
  *
  * 메인 화면으로 나가는 것은 곧 판을 접는 것이다 — 프로토콜 선택이 재는
- * 2:26 예산과 복구 기록이 여기서 초기화된다(protocolSelect.reset()).
+ * 2:23.00 예산과 이번 플레이의 증언 기록이 여기서 초기화된다(protocolSelect.reset()).
  */
 
 class MainMenuFlow {
@@ -58,8 +58,15 @@ class MainMenuFlow {
    */
   playIntro() {
     this.soundBus.resume();
+    this.protocolSelect.reset();
     this.ui.mainMenu?.setAttribute("inert", "");
-    this.cutscene.play({ onDone: () => this.protocolSelect.open() });
+    this.cutscene.play({
+      auto: true,
+      onDone: () => {
+        this.protocolSelect.open();
+        this.protocolSelect.startStage("maze");
+      },
+    });
   }
 
   /* 프로토콜 선택의 "뒤로" — 판을 접고 메인 화면으로 돌아온다. */

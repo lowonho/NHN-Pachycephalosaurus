@@ -15,12 +15,6 @@
  * 넘기는 id가 곧 엔진이 여는 스테이지다.
  */
 
-const PROTOCOLS = Object.freeze([
-  Object.freeze({ id: "maze", number: "01", title: "가속 미로" }),
-  Object.freeze({ id: "gravity", number: "02", title: "중력 타워" }),
-  Object.freeze({ id: "bounce", number: "03", title: "탄성 우회" }),
-  Object.freeze({ id: "recoil", number: "04", title: "반동 사격장" }),
-  Object.freeze({ id: "friction", number: "05", title: "무마찰 배송" }),
-  Object.freeze({ id: "darkness", number: "06", title: "소실 회랑" }),
-  Object.freeze({ id: "rotation", number: "07", title: "각속도 잠금" }),
-]);
+const PROTOCOLS = Object.freeze(SCENARIO_DATA.stages.map(({ id, number, title, intro }) => (
+  Object.freeze({ id, number, title, intro })
+)));

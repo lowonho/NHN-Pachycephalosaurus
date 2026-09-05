@@ -29,7 +29,7 @@ const GAME_EVENTS = Object.freeze({
   REQUEST_PAUSE: "request:pause", // {}
   REQUEST_RESUME: "request:resume", // {}
   /*
-   * 스테이지를 접고 프로토콜 선택으로 돌아간다 — 판(2:26)은 그대로 이어진다.
+   * 스테이지를 접고 프로토콜 선택으로 돌아간다 — 판(2:23.00)은 그대로 이어진다.
    * REQUEST_MAIN_MENU와 달리 예산과 복구 기록을 초기화하지 않는다.
    */
   REQUEST_STAGE_SELECT: "request:stage-select", // {}
@@ -38,6 +38,9 @@ const GAME_EVENTS = Object.freeze({
   // 타이머
   TIMER_TICK: "timer:tick", // { remainingMs } — 매 프레임, payload 재사용됨
   TIMER_WARNING: "timer:warning", // {} — 임계 진입 시 1회만
+  TOTAL_TIMER_TICK: "timer:total", // 현재 플레이 중에만 { remainingMs, memoryCount, clearedCount }
+  RUN_RESET: "run:reset", // 새 게임의 누적 시간·기억조각 초기화
+  RUN_END: "run:end", // { ending: "true" | "normal" | "failure" }
 
   // 사운드
   AUDIO_VOLUME_CHANGED: "audio:volume-changed", // { master, bgm, sfx, muted }

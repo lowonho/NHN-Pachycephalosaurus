@@ -1,81 +1,31 @@
-/*
- * 화면에 출력되는 모든 한국어 문구.
- * JS가 주입하는 문자열만 여기에 둔다. index.html의 정적 마크업 문구는 HTML에 남긴다.
- *
- * 옛 스테이지의 음성 안내·명령어 문구는 게임을 새로 정하면서 걷어냈다.
- * 지금 남은 것은 컷신 대본과 결과 화면 문구뿐이다.
- */
-
+/* 화면 코드가 쓰는 짧은 UI 문구. 이야기와 대사는 scenario-data.js 한 곳에서 관리한다. */
 const STRINGS = Object.freeze({
-  /*
-   * 컷신 — "게임 시작"을 누르면 스테이지 선택 앞에 한 번 나온다.
-   *
-   * script가 대본이다. 배열 순서대로 한 줄씩 출력하고, 마지막 줄을 넘기면
-   * 스테이지 선택 화면으로 넘어간다(js/ui/cutscene-flow.js).
-   * 줄을 늘리려면 여기에 { speaker, text } 항목만 더 넣으면 된다.
-   * text 안의 \n은 패널에서 줄바꿈으로 그대로 나온다.
-   *
-   * 지금은 실제 대사가 정해지지 않아 테스트 한 줄만 들어 있다.
-   */
   cutscene: Object.freeze({
-    chapter: "CUTSCENE 01 // SYSTEM ALERT",
+    ...SCENARIO_DATA.opening,
     logTitle: "LOG",
     logEmpty: "아직 지나간 대사가 없습니다.",
-    script: Object.freeze([
-      Object.freeze({ speaker: "아무개", text: "테스트입니다." }),
-    ]),
   }),
-
-  /*
-   * 프로토콜 선택 — JS가 채우는 문구만 여기 있다.
-   * 화면 표제·안내 문구·실패 안내처럼 마크업에 박힌 문구는 index.html에 남긴다.
-   */
   protocol: Object.freeze({
-    loading: "프로토콜 불러오는 중",
-    restored: "복구 완료",
-    engineMissing: "복구 엔진이 아직 준비되지 않았습니다.",
-    progress: (restored, total) => `RESTORED ${restored} / ${total}`,
+    loading: "기억 불러오는 중",
+    restored: "증언 완료",
+    engineMissing: "기억 재생 장치가 아직 준비되지 않았습니다.",
+    progress: (restored, memory, total) => `TESTIMONY ${restored} / ${total} · MEMORY ${memory} / ${total}`,
   }),
-
-  /*
-   * ARCHIVE 복구 현황 — 프로토콜 선택 화면 오른쪽 위와 하단 바에 뜬다.
-   *
-   * 위의 protocol.progress(RESTORED n / 7)와 헷갈리기 쉬운데 성격이 다르다.
-   * 그쪽은 이번 판(2:26) 안에서 복구한 개수라 판이 끝나면 0으로 돌아가고,
-   * 여기는 localStorage에 남는 누적 기록이다(js/archive/progress.mjs).
-   *
-   * ending은 7개를 전부 복구했을 때만 뜬다 — 기억 조각을 얼마나 챙겼는지로 갈린다.
-   */
   archive: Object.freeze({
     rate: (percent) => `ARCHIVE RECOVERY ${percent}%`,
-    detail: (cleared, fragments, total) => `기록 ${cleared}/${total} · 기억 조각 ${fragments}/${total}`,
+    detail: (cleared, fragments, total) => `확인한 기록 ${cleared}/${total} · 보관된 기억 ${fragments}/${total}`,
     ending: Object.freeze({
-      complete: "ALL RECORDS RESTORED · 2026년, 별일이 다 있었네.",
-      normal: "ARCHIVE RESTORED · 남은 기억을 복구할 수 있습니다.",
+      complete: "MULTIPLE WITNESSES · 모든 기억을 다시 볼 수 있습니다.",
+      normal: "PERSONAL RECORD · 아직 확인하지 못한 기억이 있습니다.",
       incomplete: "RECOVERY INCOMPLETE · SOME MEMORIES WERE LOST",
     }),
   }),
-
-  result: Object.freeze({
-    clearStep: "STAGE CLEAR",
-    clearTitle: "20.26초 안에 성공! 🎉",
-    clearCopy: (elapsed) => `${elapsed}초 만에 클리어! 다음에는 더 빠르게 가볼까요?`,
-    clearResult: "CLEAR",
-
-    failStep: "TIME OVER",
-    failTitle: "아깝습니다!",
-    failCopy: "20.26초가 끝났어요. 다시 도전해보세요.",
-    failResult: "다시 하면 감이 올 거예요.",
-  }),
-
+  result: Object.freeze({ failResult: "다시 하면 감이 올 거예요." }),
   buttons: Object.freeze({
-    retryStage: "다시 도전",
-    /*
-     * 결과 화면에서는 메인 화면이 아니라 프로토콜 선택으로 돌아간다.
-     * 2:26 예산이 한 판 전체를 재고 있어서, 메인으로 나가면 그 판이 끝나기 때문이다.
-     * 메인으로 나가는 길은 프로토콜 선택의 "뒤로"가 맡는다.
-     */
-    stageSelect: "프로토콜 선택으로",
+    retryStage: "스테이지 재구성",
+    continueStory: "계속",
+    viewMemory: "기억 기록 보기",
+    stageSelect: "기억 선택으로",
     mainMenu: "메인 화면으로",
   }),
 });

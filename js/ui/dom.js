@@ -63,10 +63,13 @@ const UI = Object.freeze({
   stageHud: document.querySelector("#stage-hud"),
   stageHudTitle: document.querySelector("#stage-hud-title"),
   stageHudTimer: document.querySelector("#stage-hud-timer"),
+  stageHudTotal: document.querySelector("#stage-hud-total"),
+  stageHudMemory: document.querySelector("#stage-hud-memory"),
   stageHudAction: document.querySelector("#stage-hud-action"),
   stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
   stageHudPenalty: document.querySelector("#stage-hud-penalty"),
+  fragmentDiscoveryTip: document.querySelector("#fragment-discovery-tip"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),
@@ -77,6 +80,8 @@ const UI = Object.freeze({
   secondaryButton: document.querySelector("#secondary-button"),
 
   pauseButton: document.querySelector("#pause-button"),
+  touchControls: document.querySelector("#touch-controls"),
+  touchButtons: document.querySelectorAll("#touch-controls button"),
   pauseModal: document.querySelector("#pause-modal"),
   resumeButton: document.querySelector("#resume-button"),
   pauseMainButton: document.querySelector("#pause-main-button"),

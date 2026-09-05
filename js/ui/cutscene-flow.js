@@ -87,17 +87,17 @@ class CutsceneFlow {
    * 컷신 재생. onDone은 끝까지 봤을 때도 SKIP으로 건너뛰었을 때도 한 번만 불린다.
    * (부르는 쪽은 "컷신 다음"만 알면 되고, 어떻게 끝났는지는 알 필요가 없다.)
    */
-  play({ onDone } = {}) {
-    this.script = Array.isArray(this.copy.script) ? this.copy.script : [];
+  play({ onDone, script, chapter, auto } = {}) {
+    this.script = Array.isArray(script) ? script : (Array.isArray(this.copy.script) ? this.copy.script : []);
     this.onDone = typeof onDone === "function" ? onDone : null;
     this.returnFocus = document.activeElement;
     this.index = -1;
 
-    this.setAuto(false);
+    this.setAuto(auto ?? Boolean(this.copy.auto));
     this.closeLog();
     this.renderLog();
 
-    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.copy.chapter;
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = chapter || this.copy.chapter;
     this.ui.cutscene?.classList.remove("hidden");
     // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
     this.ui.cutscene?.focus();
@@ -132,7 +132,8 @@ class CutsceneFlow {
       return;
     }
 
-    const { speaker = "", text = "" } = this.script[this.index] || {};
+    const { speaker = "", text = "", phase = "dialogue" } = this.script[this.index] || {};
+    this.ui.cutscene?.setAttribute("data-phase", phase);
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
     this.startTyping(String(text));
     this.renderLog();
@@ -187,7 +188,11 @@ class CutsceneFlow {
 
   queueAuto() {
     this.clearAuto();
-    const hold = CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR;
+    const cue = this.script[this.index] || {};
+    const typedFor = this.fullText.length * CutsceneFlow.TYPE_INTERVAL;
+    const hold = Number.isFinite(cue.durationMs)
+      ? Math.max(180, cue.durationMs - typedFor)
+      : CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR;
     this.autoTimer = window.setTimeout(() => {
       this.autoTimer = 0;
       // 로그를 열어 둔 채로 대사가 넘어가면 읽던 자리를 잃는다. 닫힐 때까지 미룬다.
@@ -264,6 +269,7 @@ class CutsceneFlow {
     this.closeLog();
     this.setAuto(false);
     this.ui.cutscene?.classList.add("hidden");
+    this.ui.cutscene?.removeAttribute("data-phase");
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     this.returnFocus = null;
   }

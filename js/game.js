@@ -14,10 +14,13 @@ class ArchiveGameBridge {
     this.active = false;
     this.warningSent = false;
     this.pendingStageId = null;
+    this.fragmentTipTimer = 0;
 
     window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
     window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
     window.addEventListener("archive-stage-end", (event) => this.onStageEnd(event.detail));
+    window.addEventListener("archive-play-time", (event) => this.onPlayTime(event.detail));
+    window.addEventListener("archive-fragment-collected", () => this.onFragmentCollected());
     window.addEventListener("archive-wall-hit", () => {
       this.ui.stageHudTimer?.animate([
         { color: "#ff947d", transform: "scale(1.15)" },
@@ -33,6 +36,25 @@ class ArchiveGameBridge {
     this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop());
     this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
+
+    this.ui.touchButtons?.forEach((button) => {
+      const release = (event) => {
+        const direction = button.dataset.direction;
+        if (direction) this.api?.release(direction);
+        try {
+          if (event.pointerId !== undefined && button.hasPointerCapture?.(event.pointerId)) button.releasePointerCapture(event.pointerId);
+        } catch { /* Pointer capture can already be gone after an interrupted touch. */ }
+      };
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        try { button.setPointerCapture?.(event.pointerId); } catch { /* Synthetic/ended pointer fallback. */ }
+        if (button.dataset.action) this.api?.action();
+        else if (button.dataset.direction) this.api?.press(button.dataset.direction);
+      });
+      button.addEventListener("pointerup", release);
+      button.addEventListener("pointercancel", release);
+      button.addEventListener("lostpointercapture", release);
+    });
   }
 
   onReady({ scene, stages } = {}) {
@@ -43,6 +65,7 @@ class ArchiveGameBridge {
     this.syncAudio();
 
     window.archiveAudio?.startBgm();
+    this.emitRunSnapshot(window.archiveRun?.snapshot());
 
     if (this.pendingStageId) {
       const stageId = this.pendingStageId;
@@ -69,7 +92,9 @@ class ArchiveGameBridge {
     this.active = true;
     this.warningSent = false;
     this.ui.appShell?.removeAttribute("inert");
+    this.ui.touchControls?.removeAttribute("hidden");
     this.updateStageHud(stage);
+    this.emitRunSnapshot(window.archiveRun?.beginAttempt(stage.id));
     this.api.loadStage(stage.id);
     this.api.start();
     this.events.emit(GAME_EVENTS.STAGE_START, { stageId: stage.id, stage });
@@ -82,12 +107,14 @@ class ArchiveGameBridge {
   pause() {
     if (!this.active || !this.api) return;
     this.api.pause(true);
+    this.emitRunSnapshot(window.archiveRun?.setPaused(true));
     this.events.emit(GAME_EVENTS.STAGE_PAUSE, { stageId: this.currentStage?.id });
   }
 
   resume() {
     if (!this.active || !this.api) return;
     this.api.pause(false);
+    this.emitRunSnapshot(window.archiveRun?.setPaused(false));
     this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
   }
 
@@ -96,7 +123,42 @@ class ArchiveGameBridge {
     this.warningSent = false;
     this.pendingStageId = null;
     this.api?.stop();
+    this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud?.setAttribute("hidden", "");
+    this.ui.touchControls?.setAttribute("hidden", "");
+  }
+
+  onPlayTime({ deltaMs = 0 } = {}) {
+    if (!this.active) return;
+    const snapshot = window.archiveRun?.consume(deltaMs);
+    this.emitRunSnapshot(snapshot);
+    if (snapshot?.ending !== "failure") return;
+    this.active = false;
+    this.api?.stop();
+    this.ui.stageHud?.setAttribute("hidden", "");
+    this.ui.touchControls?.setAttribute("hidden", "");
+    this.events.emit(GAME_EVENTS.RUN_END, { ending: "failure", snapshot });
+  }
+
+  onFragmentCollected() {
+    this.emitRunSnapshot(window.archiveRun?.markAttemptFragment());
+    const tip = this.ui.fragmentDiscoveryTip;
+    if (!tip) return;
+    let alreadySeen = false;
+    try { alreadySeen = window.localStorage.getItem("archive-2026-fragment-tip-seen") === "1"; } catch { /* Session fallback. */ }
+    if (alreadySeen) return;
+    tip.textContent = SCENARIO_DATA.system.firstFragment;
+    tip.hidden = false;
+    try { window.localStorage.setItem("archive-2026-fragment-tip-seen", "1"); } catch { /* Session fallback. */ }
+    window.clearTimeout(this.fragmentTipTimer);
+    this.fragmentTipTimer = window.setTimeout(() => { tip.hidden = true; }, 4200);
+  }
+
+  emitRunSnapshot(snapshot) {
+    if (!snapshot) return;
+    if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(snapshot.totalRemainingMs);
+    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.memoryCount}/${snapshot.totalStages}`;
+    this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
 
   onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "", wallHits = null, timePenalty = 0 } = {}) {
@@ -131,6 +193,8 @@ class ArchiveGameBridge {
   onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false, timePenalty = 0 } = {}) {
     if (!this.currentStage || !this.active) return;
     this.active = false;
+    const run = window.archiveRun?.completeAttempt(success, fragmentCollected);
+    this.emitRunSnapshot(run);
     const recovery = window.archiveProgress.record(this.currentStage.id, success, fragmentCollected);
     mainMenuFlow.renderStages();
     const detail = {
@@ -142,6 +206,7 @@ class ArchiveGameBridge {
       fragmentCollected,
       recovery,
       timePenalty,
+      run,
     };
     this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
   }
@@ -150,6 +215,9 @@ class ArchiveGameBridge {
     this.ui.stageHud?.removeAttribute("hidden");
     if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `RECORD ${stage.number} · ${stage.title}`;
     if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = "20.26";
+    const run = window.archiveRun?.snapshot();
+    if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(run?.totalRemainingMs ?? SCENARIO_DATA.totalTimeMs);
+    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${run?.memoryCount ?? 0}/${run?.totalStages ?? 7}`;
     if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${stage.actionLabel} 00`;
     if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = stage.anomaly;
     if (this.ui.stageHudRisk) {

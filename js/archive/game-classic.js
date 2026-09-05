@@ -5,130 +5,63 @@
  */
 (function () {
 /* Source: data.mjs */
+
 const GAME_TITLE = "2026 ARCHIVE";
+const SCENARIO = globalThis.SCENARIO_DATA;
 
-const PROLOGUE = [
-  {
-    code: "SYSTEM // 00:00:01",
-    title: "2026년의 마지막 백업이 열렸다.",
-    body: "한 해의 장면을 보관하던 2026 ARCHIVE. 새벽 0시, 보존 서버의 물리 인덱스가 동시에 붕괴했다.",
-  },
-  {
-    code: "EMERGENCY // RECORD DECAY",
-    title: "손상된 기록은 20.26초만 유지된다.",
-    body: "기록이 재생되는 동안 직접 개입해 마지막 장면을 완성해야 한다. 그러나 입력이 많아질수록 오류는 더 강해진다.",
-  },
-  {
-    code: "OPERATOR // ASSIGNED",
-    title: "당신은 마지막 기록 관리자다.",
-    body: "속도, 중력, 탄성, 반동, 마찰, 빛, 회전. 일곱 개의 물리 채널을 최소한의 개입으로 복구하라.",
-  },
-];
+// 이전 코드가 참조하던 export는 유지하되, 실제 문장은 시나리오 단일 원본에서 가져온다.
+const PROLOGUE = SCENARIO.opening.script;
 
-const STAGES = [
-  {
-    id: "maze",
-    recordSymbol: "↗",
-    number: "01",
-    code: "VELOCITY_INDEX",
-    title: "가속 코스",
-    objective: "공을 RESTORE 구역에서 저속으로 안정시키세요.",
-    anomaly: "방향 입력마다 가속 · 강한 벽 충돌 −1초",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "방향 입력",
-    logTitle: "속도 채널 복구",
-    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다. 복구율 14%.",
+const mechanics = Object.freeze({
+  maze: {
+    recordSymbol: "↗", code: "VELOCITY_INDEX",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "방향 입력",
+    anomaly: "마음이 앞서고 있습니다", logTitle: "설렘의 증언",
   },
-  {
-    id: "gravity",
-    recordSymbol: "↓",
-    number: "02",
-    code: "GRAVITY_STACK",
-    title: "중력 타워",
-    objective: "좁은 발판을 연결해 상단 비콘에 도착하세요. 추락하면 복구 실패입니다.",
-    anomaly: "점프할 때마다 중력이 강해져 다음 점프가 낮아집니다.",
-    controls: "A/D 또는 ←/→ 이동 · Space 점프",
-    actionLabel: "점프",
-    logTitle: "중력 채널 복구",
-    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다. 복구율 28%.",
+  gravity: {
+    recordSymbol: "↓", code: "GRAVITY_STACK",
+    controls: "A/D 또는 ←/→ 이동 · Space 점프", actionLabel: "점프",
+    anomaly: "기대가 쌓이고 있습니다", logTitle: "기대의 증언",
   },
-  {
-    id: "bounce",
-    recordSymbol: "◉",
-    number: "03",
-    code: "RESTITUTION_LOOP",
-    title: "탄성 과잉",
-    objective: "자동으로 튀는 공을 조절해 턱과 틈을 넘어 코어에 도착하세요.",
-    anomaly: "착지할 때마다 더 높이 튑니다. 천장과 추락에 주의하세요.",
-    controls: "A/D 또는 ←/→ 이동 · 자동 바운스",
-    actionLabel: "착지",
-    logTitle: "탄성 채널 복구",
-    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다. 복구율 42%.",
+  bounce: {
+    recordSymbol: "◉", code: "RESTITUTION_LOOP",
+    controls: "A/D 또는 ←/→ 이동 · 자동 바운스", actionLabel: "착지",
+    anomaly: "긴장이 커지고 있습니다", logTitle: "긴장의 증언",
   },
-  {
-    id: "recoil",
-    recordSymbol: "⌖",
-    number: "04",
-    code: "RECOIL_ARRAY",
-    title: "반동 사격장",
-    objective: "이동하는 세 개의 기록 노드를 모두 맞히세요.",
-    anomaly: "발사할 때마다 포대가 밀리고 조준 오차가 커집니다.",
-    controls: "마우스 / 터치로 조준 · 클릭하여 발사",
-    actionLabel: "발사",
-    logTitle: "반동 채널 복구",
-    log: "모든 발사는 기록 관리자를 뒤로 밀어냈다. 적은 탄환이 가장 정확한 답이었다. 복구율 57%.",
+  recoil: {
+    recordSymbol: "⌖", code: "RECOIL_ARRAY",
+    controls: "마우스 / 터치로 조준 · 클릭하여 발사", actionLabel: "발사",
+    anomaly: "감정이 되돌아옵니다", logTitle: "분노의 증언",
   },
-  {
-    id: "friction",
-    recordSymbol: "≈",
-    number: "05",
-    code: "FRICTION_DROP",
-    title: "무마찰 배송",
-    objective: "화물을 장애물 사이로 운반해 적재 구역에 정지시키세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰력이 감소합니다.",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "이동 입력",
-    logTitle: "마찰 채널 복구",
-    log: "미끄러지는 기록은 목적지를 지나치고도 멈추지 않았다. 움직임보다 제동이 중요했다. 복구율 71%.",
+  friction: {
+    recordSymbol: "≈", code: "FRICTION_DROP",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
+    anomaly: "멈출 순간을 놓치고 있습니다", logTitle: "후회의 증언",
   },
-  {
-    id: "darkness",
-    recordSymbol: "☼",
-    number: "06",
-    code: "LIGHT_DECAY",
-    title: "소실 회랑",
-    objective: "시야가 사라지기 전에 출구 비콘에 도착하세요.",
-    anomaly: "방향을 새로 누를 때마다 조명 반경이 줄어듭니다.",
-    controls: "WASD / 방향키",
-    actionLabel: "방향 입력",
-    logTitle: "광원 채널 복구",
-    log: "기록은 볼 수 없는 곳에서도 존재했다. 경로를 먼저 읽은 뒤 움직이자 빛이 돌아왔다. 복구율 85%.",
+  darkness: {
+    recordSymbol: "☼", code: "LIGHT_DECAY",
+    controls: "WASD / 방향키", actionLabel: "방향 입력",
+    anomaly: "기억이 흐려지고 있습니다", logTitle: "그리움의 증언",
   },
-  {
-    id: "rotation",
-    recordSymbol: "↻",
-    number: "07",
-    code: "ANGULAR_LOCK",
-    title: "각속도 잠금",
-    objective: "회전 바를 목표 각도에 맞추고 정지시키세요.",
-    anomaly: "회전 입력마다 각속도와 토크가 증가합니다.",
-    controls: "A/D 또는 ←/→ 회전 · 반대 방향으로 제동",
-    actionLabel: "회전 입력",
-    logTitle: "최종 채널 복구",
-    log: "마지막 기록은 계속 돌고 있었다. 더 돌리는 대신 정확한 순간에 힘을 거두자 정지했다. 복구율 100%.",
+  rotation: {
+    recordSymbol: "↻", code: "ANGULAR_LOCK",
+    controls: "A/D 또는 ←/→ 회전 · 입력을 멈춰 안정", actionLabel: "회전 입력",
+    anomaly: "마음을 놓아야 합니다", logTitle: "애정의 증언",
   },
-];
+});
 
-const ENDING = {
-  code: "ARCHIVE // STABLE",
-  title: "2026년의 기록이 다시 재생된다.",
-  body: "오류의 원인은 외부 침입이 아니었다. 기록을 완벽하게 고치려는 수많은 개입이 물리 인덱스를 뒤틀고 있었다. 당신은 최소한의 행동으로 시스템을 안정시켰다. 이제 보존된 장면들은 다음 기록 관리자를 기다린다.",
-};
+const STAGES = SCENARIO.stages.map((story) => Object.freeze({
+  ...story,
+  ...mechanics[story.id],
+  objective: "20.26초 안에 증언 지점에 도달하십시오.",
+  log: story.memory,
+}));
+
+// 레거시 참조 호환. 실제 엔딩 분기는 SCENARIO.endings와 run-state.mjs가 담당한다.
+const ENDING = SCENARIO.endings;
 
 const STORAGE_KEY = "archive-2026-progress-v1";
 const SETTINGS_KEY = "archive-2026-settings-v1";
-
-
 
 
 /* Source: audio.mjs */
@@ -624,6 +557,122 @@ function touchesFragment(fragment, body, previous = body) {
 }
 
 
+/* Source: run-state.mjs */
+const TOTAL_TIME_MS = 143_000;
+
+function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
+  const validIds = new Set(stageIds);
+  let totalRemainingMs = totalTimeMs;
+  let phase = "menu";
+  let paused = false;
+  let currentStageId = null;
+  let attemptFragment = false;
+  const cleared = new Set();
+  const collected = new Set();
+
+  const assertStage = (stageId) => {
+    if (!validIds.has(stageId)) throw new RangeError(`Unknown stage: ${stageId}`);
+  };
+
+  const resolveEnding = () => {
+    if (totalRemainingMs <= 0) return "failure";
+    if (cleared.size < validIds.size) return null;
+    return collected.size === validIds.size ? "true" : "normal";
+  };
+
+  const snapshot = () => Object.freeze({
+    totalTimeMs,
+    totalRemainingMs: Math.max(0, Math.round(totalRemainingMs)),
+    elapsedMs: Math.min(totalTimeMs, Math.round(totalTimeMs - totalRemainingMs)),
+    phase,
+    paused,
+    currentStageId,
+    attemptFragment,
+    clearedCount: cleared.size,
+    memoryCount: collected.size,
+    totalStages: validIds.size,
+    clearedStageIds: Object.freeze([...cleared]),
+    memoryStageIds: Object.freeze([...collected]),
+    ending: resolveEnding(),
+  });
+
+  const reset = () => {
+    totalRemainingMs = totalTimeMs;
+    phase = "menu";
+    paused = false;
+    currentStageId = null;
+    attemptFragment = false;
+    cleared.clear();
+    collected.clear();
+    return snapshot();
+  };
+
+  const beginAttempt = (stageId) => {
+    assertStage(stageId);
+    if (totalRemainingMs <= 0) return snapshot();
+    currentStageId = stageId;
+    attemptFragment = false;
+    paused = false;
+    phase = "playing";
+    return snapshot();
+  };
+
+  const consume = (deltaMs) => {
+    if (phase !== "playing" || paused || totalRemainingMs <= 0) return snapshot();
+    const safeDelta = Math.max(0, Number(deltaMs) || 0);
+    totalRemainingMs = Math.max(0, totalRemainingMs - safeDelta);
+    if (totalRemainingMs === 0) {
+      phase = "ended";
+      paused = false;
+    }
+    return snapshot();
+  };
+
+  const markAttemptFragment = () => {
+    if (phase === "playing") attemptFragment = true;
+    return snapshot();
+  };
+
+  const completeAttempt = (success, fragmentCollected = attemptFragment) => {
+    if (phase === "ended") return snapshot();
+    if (currentStageId && success) {
+      cleared.add(currentStageId);
+      if (fragmentCollected) collected.add(currentStageId);
+    }
+    // 실패한 시도의 조각은 절대 collected에 들어가지 않는다.
+    attemptFragment = false;
+    paused = false;
+    phase = resolveEnding() ? "ended" : "result";
+    return snapshot();
+  };
+
+  const setPaused = (value) => {
+    if (phase === "playing") paused = Boolean(value);
+    return snapshot();
+  };
+
+  const leaveAttempt = () => {
+    if (phase !== "ended") phase = "menu";
+    paused = false;
+    attemptFragment = false;
+    currentStageId = null;
+    return snapshot();
+  };
+
+  return Object.freeze({
+    reset,
+    beginAttempt,
+    consume,
+    markAttemptFragment,
+    completeAttempt,
+    setPaused,
+    leaveAttempt,
+    snapshot,
+    resolveEnding,
+  });
+}
+
+
 /* Source: game.mjs */
 
 const WIDTH = VIEWPORT.width;
@@ -635,6 +684,7 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* Session-only fallback. */ }
 window.archiveProgress = createProgressStore(STAGES.map((stage) => stage.id), progressStorage);
+window.archiveRun = createArchiveRunState(STAGES.map((stage) => stage.id));
 window.addEventListener("archive-sfx", (event) => audio.play(event.detail?.name));
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
@@ -840,6 +890,10 @@ class ArchiveGame extends Phaser.Scene {
   update(_time, deltaMs) {
     this.readKeyboard();
     if (this.mode !== "playing" || this.pausedByMenu) return;
+    // 누적 2:23은 Phaser가 실제 플레이 프레임을 진행할 때만 차감한다.
+    // 스테이지 종료를 넘긴 프레임의 남는 시간까지 누적 시간에서 빼지 않는다.
+    emit("archive-play-time", { deltaMs: Math.min(deltaMs, this.remaining * 1000) });
+    if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
     this.elapsed += Math.min(this.remaining, deltaMs / 1000);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
@@ -856,6 +910,7 @@ class ArchiveGame extends Phaser.Scene {
     };
     updates[this.stageId]?.();
     if (this.mode === "playing") this.checkFragment(this.fragmentBody(), previous);
+    this.updateFragmentFollower();
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -915,6 +970,7 @@ class ArchiveGame extends Phaser.Scene {
 
   buildFragment() {
     this.fragmentTip = null;
+    this.fragmentFollower = null;
     this.fragment = MEMORY_FRAGMENTS[this.stageId];
     this.fragmentCollected = false;
     this.fragmentObject = this.add.rectangle(this.fragment.x, this.fragment.y, 19, 19, 0xffd27c, 0.85)
@@ -944,8 +1000,24 @@ class ArchiveGame extends Phaser.Scene {
     this.fragmentCollected = true;
     this.fragmentObject.setVisible(false);
     this.fragmentRing.setVisible(false);
+    const glow = this.add.circle(0, 0, 13, 0xffd27c, 0.14).setStrokeStyle(2, 0xffd27c, 0.8);
+    const core = this.add.rectangle(0, 0, 10, 10, 0xffe8ae, 0.95).setRotation(Math.PI / 4);
+    this.fragmentFollower = this.add.container(body.x, body.y - 28, [glow, core]).setDepth(12);
     emit("archive-sfx", { name: "hit" });
+    emit("archive-fragment-collected", { stageId: this.stageId });
     this.sendHud();
+  }
+
+  updateFragmentFollower() {
+    if (!this.fragmentCollected || !this.fragmentFollower) return;
+    let body = this.fragmentBody();
+    if (!body && this.stageId === "recoil" && this.state) {
+      body = { x: this.state.turretX, y: this.state.turretY, radius: 14 };
+    }
+    if (!body) return;
+    const angle = this.time.now * 0.0032;
+    this.fragmentFollower.setPosition(body.x + Math.cos(angle) * 24, body.y - 29 + Math.sin(angle) * 9);
+    this.fragmentFollower.setRotation(angle * 0.35);
   }
 
   /* 01 — Velocity maze */
