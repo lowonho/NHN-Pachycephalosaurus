@@ -83,8 +83,8 @@ export const E6_GRAVITY_FLIGHT = {
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    const gravity = Math.max(t.minGravity, t.gravity - s.presses * t.gravityLoss);
-    const lift = Math.min(t.maxLift, t.lift + s.presses * t.liftGain);
+    const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));
+    const lift = Math.min(t.maxLift, t.lift + s.presses * this.penalty(t.liftGain));
     s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
     s.vy = MINI.clamp(s.vy + (this.held('action') ? -lift : gravity) * dt, -340, 320);
     s.y += s.vy * dt;

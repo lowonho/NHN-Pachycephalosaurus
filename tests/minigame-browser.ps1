@@ -70,7 +70,7 @@ try {
   $playability = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-clearability.js')))
   Write-Output ($playability | ConvertTo-Json -Depth 20)
   # Browser keyboard/mouse events, including the existing CSS-scaled monitor.
-  Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); for(let i=0;i<100 && !archiveRun.snapshot().selectedStageIds.includes(id);i++) protocolSelectFlow.reset(); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2');" | Out-Null
+  Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); if(!archiveRun.snapshot().qaMode) archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2');" | Out-Null
   Start-Sleep -Milliseconds 100
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 100
@@ -78,16 +78,27 @@ try {
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   $keyState = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return {actions:s.actions,mode:s.mode,paused:s.pausedByMenu,elapsed:s.elapsed,key:s.keys.action.isDown,focused:document.activeElement?.id}; })()"
   if ($keyState.actions -ne 1) { throw ('Keyboard space/repeat routing failed: ' + ($keyState | ConvertTo-Json -Compress)) }
+  Evaluate "testLaunch('e10')" | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'a'; code = 'KeyA'; windowsVirtualKeyCode = 65 } | Out-Null
+  Start-Sleep -Milliseconds 70
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'a'; code = 'KeyA'; windowsVirtualKeyCode = 65 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'ArrowRight'; code = 'ArrowRight'; windowsVirtualKeyCode = 39 } | Out-Null
+  Start-Sleep -Milliseconds 70
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'ArrowRight'; code = 'ArrowRight'; windowsVirtualKeyCode = 39 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  $decodeKeys = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return {presses:s.state.directionPresses,friction:s.state.friction,actions:s.actions,grounded:s.state.grounded}; })()"
+  if ($decodeKeys.presses -ne 2 -or $decodeKeys.friction -ge 820 -or $decodeKeys.actions -ne 3 -or $decodeKeys.grounded) { throw ('Number decode keyboard routing failed: ' + ($decodeKeys | ConvertTo-Json -Compress)) }
   Evaluate "testLaunch('e5')" | Out-Null
   $rect = Evaluate "(() => { const r=archivePhaserGame.canvas.getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height}; })()"
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; button = 'left'; buttons = 1; clickCount = 1; x = $rect.x + 164 * $rect.w / 960; y = $rect.y + 382 * $rect.h / 540 } | Out-Null
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $rect.x + 70 * $rect.w / 960; y = $rect.y + 430 * $rect.h / 540 } | Out-Null
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $rect.x + 70 * $rect.w / 960; y = $rect.y + 430 * $rect.h / 540 } | Out-Null
   if (!(Evaluate "archivePhaserGame.scene.getScene('archive-game').state.shots === 1")) { throw 'Scaled pointer drag/release routing failed' }
-  Write-Output 'PASS: native keyboard repeat suppression and mouse drag in scaled viewport'
+  Write-Output 'PASS: native keyboard repeat suppression, number decode A/D/arrow/Space and mouse drag in scaled viewport'
   $artifactDir = Join-Path $root 'tests/.artifacts'
   New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
-  foreach ($stageNumber in 1..9) {
+  foreach ($stageNumber in 1..10) {
     Evaluate "testLaunch('e$stageNumber'); archiveGame.pause(true);" | Out-Null
     Start-Sleep -Milliseconds 70
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }

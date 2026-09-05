@@ -10,11 +10,22 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* 세션 저장만 사용 */ }
 window.archiveProgress = createProgressStore(STAGES.map(stage => stage.id), progressStorage);
-window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id));
+window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id), { storage: progressStorage });
 window.archiveRecords = createMinigameRecords(STAGES.map(stage => stage.id), progressStorage);
 /* 미니게임 도감(js/ui/codex-flow.js)이 읽는 "해 본 게임" 기록. */
 window.archivePlays = createMinigamePlayLog(STAGES.map(stage => stage.id), progressStorage);
 window.addEventListener('archive-sfx', event => audio.play(event.detail?.name));
+
+function seededRandom(seed) {
+  let value = Number(seed) >>> 0;
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let mixed = value;
+    mixed = Math.imul(mixed ^ mixed >>> 15, mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ mixed >>> 7, mixed | 61);
+    return ((mixed ^ mixed >>> 14) >>> 0) / 4294967296;
+  };
+}
 
 class ArchiveGame extends Phaser.Scene {
   constructor() {
@@ -88,11 +99,20 @@ class ArchiveGame extends Phaser.Scene {
     this.ink?.clearMask(true); this.fieldMask?.destroy();
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
+    const run = window.archiveRun?.snapshot();
+    this.suppressionMultiplier = run?.active && !run?.qaMode ? run.suppressionMultiplier : 1;
+    this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
+    this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
     this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
     this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
-    this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.build.call(this);
+    this.assistText = this.assistProtocol ? this.add.text(42, 158, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '16px', fontStyle: 'bold', color: '#93fca0',
+      backgroundColor: '#08261f', padding: { x: 10, y: 6 },
+    }).setDepth(30) : null;
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   startStage() {
     if (!this.stageId) return;
@@ -110,11 +130,39 @@ class ArchiveGame extends Phaser.Scene {
   }
   directionRelease(direction) { this.touch.delete(direction); }
   primaryAction() { if (this.playable()) this.stageGame.action?.call(this); }
+  penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
   sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
   bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
+  }
+  renderStoryOverlay() {
+    if (!this.ink) return;
+    const run = window.archiveRun?.snapshot();
+    if (!run?.active || run.qaMode) return;
+    if (this.assistProtocol) {
+      const starting = this.elapsed < 1.5;
+      const pulse = this.elapsed % 5 < .45;
+      const hints = {
+        e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
+        e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
+        e7: '안전 정렬: 금색 영역', e8: '안전 균형: 수평 근처',
+        e9: '안전 속도: 과녁 안 완전 정지', e10: '안전 입력: 목표 순서',
+      };
+      this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
+      if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {
+        this.ink.lineStyle(4, 0x93fca0, .8).lineBetween(60, 190, 135, 190);
+        this.ink.fillStyle(0x93fca0, .8).fillTriangle(135, 176, 160, 190, 135, 204);
+      }
+    }
+    if (run.currentAct === 3) {
+      const wobble = Math.sin(this.elapsed * 3) * 3;
+      this.ink.lineStyle(3, 0xff6584, .48).strokeCircle(725 + wobble, 226, 22);
+      this.ink.lineStyle(2, 0xff6584, .32).strokeCircle(825 - wobble, 404, 28);
+      this.ink.lineBetween(704 + wobble, 205, 746 + wobble, 247);
+      this.ink.lineBetween(804 - wobble, 383, 846 - wobble, 425);
+    }
   }
   update(_time, deltaMs) {
     if (!this.playable()) return;
@@ -129,7 +177,7 @@ class ArchiveGame extends Phaser.Scene {
       this.stageGame.update.call(this, dt);
       if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
     }
-    this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   finish(success, extra = '') {
     if (!this.playable()) return;

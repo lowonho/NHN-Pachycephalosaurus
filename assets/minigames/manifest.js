@@ -30,4 +30,5 @@ globalThis.MINIGAME_ASSETS = {
   }, e4: { player: null },
   e5: { projectile: null, target: null }, e6: { player: null },
   e7: { prize: null }, e8: { player: null, weight: null }, e9: { stone: null },
+  e10: { player: null },
 };

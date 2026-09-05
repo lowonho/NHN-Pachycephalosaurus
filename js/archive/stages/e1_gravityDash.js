@@ -93,7 +93,7 @@ export const E1_GRAVITY_DASH = {
         o.loose = true;
       }
       const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
-      o.vy = MINI.clamp(o.vy + s.sign * o.response * t.obstacleGravity * o.factor * dt, -limit, limit);
+      o.vy = MINI.clamp(o.vy + s.sign * o.response * this.penalty(t.obstacleGravity) * o.factor * dt, -limit, limit);
       o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
       if ((o.y === CEIL_BOTTOM && o.vy < 0) || (o.y === FLOOR_TOP - o.h && o.vy > 0)) o.vy = 0;
     }

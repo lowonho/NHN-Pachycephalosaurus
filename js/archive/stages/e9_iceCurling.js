@@ -7,7 +7,7 @@ export const E9_ICE_CURLING = {
     this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0, hold: 0 };
     this.target = { x: 769, y: 287 };
   },
-  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** this.state.failures); },
+  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
   pointerDown(x, y) {
     const s = this.state;
     if (s.moving || s.cooldown || Math.hypot(x - s.x, y - s.y) > 43) return;

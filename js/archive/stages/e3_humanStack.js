@@ -79,7 +79,7 @@ export const E3_HUMAN_STACK = {
   },
   speed() {
     const t = E3_HUMAN_STACK.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.drops * t.speedGain);
+    return Math.min(t.maxSpeed, t.speed + this.state.drops * this.penalty(t.speedGain));
   },
   createPerson(x, y, poseIndex, angle = 0) {
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;

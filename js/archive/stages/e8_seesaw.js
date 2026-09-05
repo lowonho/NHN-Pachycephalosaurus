@@ -6,7 +6,7 @@ export const E8_SEESAW = {
     MINI.init(this, 0x91ead7);
     this.state = { x: -100, angle: .015, omega: 0, count: 0, weights: [], age: 0 };
     this.dropPlan = Array.from({ length: E8_SEESAW.tuning.drops }, (_, i) => ({
-      time: 1.1 + i * 2.45, x: MINI.rand(105, 280), mass: MINI.rand(.8, 1.4),
+      time: 1.1 + i * 2.45, x: MINI.rand(105, 280, this.random), mass: MINI.rand(.8, 1.4, this.random),
     }));
   },
   press(direction) { if (direction === 'left' || direction === 'right') this.actions++; },
@@ -21,7 +21,7 @@ export const E8_SEESAW = {
       w.vy += 700 * dt; w.y += w.vy * dt;
       if (w.y >= t.pivotY + Math.sin(s.angle) * w.x - 16) { w.landed = true; s.omega += w.mass * .055; this.sfx('hit'); }
     }
-    const rightTorque = 1200 + s.weights.filter(w => w.landed).reduce((sum, w) => sum + w.mass * w.x, 0);
+    const rightTorque = (1200 + s.weights.filter(w => w.landed).reduce((sum, w) => sum + w.mass * w.x, 0)) * this.penalty(1);
     s.omega += ((rightTorque + s.x * t.playerMass) * Math.cos(s.angle) / t.inertia - s.omega * t.damping) * dt;
     s.angle += s.omega * dt;
     // 우리 쪽 끝은 바닥에 닿아도 받쳐집니다. 실패 조건은 반대쪽 끝만입니다.

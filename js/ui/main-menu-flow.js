@@ -2,16 +2,14 @@
  * 기능(B) — 메인 화면.
  *
  * 최초 진입 화면이자 게임의 허브다. 화면 흐름은
- *   메인 화면 → 컷신 → 프로토콜 선택 → 스테이지 → (결과) → 프로토콜 선택
+ *   메인 화면 → 오프닝 → 막별 기록 연결 → 스테이지 → 결과 → 다음 기록
  * 순서다.
  *
  * 설정 화면·컷신·프로토콜 선택은 각각 settings-flow · cutscene-flow ·
  * protocol-select-flow가 통째로 들고 있다. 여기서는 열라는 신호만 보내고,
  * 컷신이 끝났을 때 다음 화면(프로토콜 선택)만 정해 준다.
  *
- * 메인 화면으로 나가는 것은 곧 판을 접는 것이다 — 프로토콜 선택이 재는
- * 선택된 랜덤 5개와 이번 판의 클리어 현황을 초기화한다(protocolSelect.reset()).
- * 게임별 최고 기록은 다음 판에도 남는다.
+ * 메인으로 나가도 막·스테이지·목숨·선정 목록은 저장되며 이어하기로 복귀한다.
  */
 
 class MainMenuFlow {
@@ -28,6 +26,8 @@ class MainMenuFlow {
     this.leaveAsked = false;
 
     this.ui.mainPlayButton?.addEventListener("click", () => this.playIntro());
+    this.ui.mainContinueButton?.addEventListener("click", () => this.continueRun());
+    /* 기록실은 도감 탭이 있어 언제나 열린다 — 증언 기록 탭만 엔딩에서 풀린다. */
     this.ui.mainCodexButton?.addEventListener("click", () => this.codex.toggle());
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
 
@@ -55,6 +55,9 @@ class MainMenuFlow {
     this.syncSound();
 
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.open());
+    this.events.on(GAME_EVENTS.RUN_RESET, () => this.renderAvailability());
+    this.events.on(GAME_EVENTS.STAGE_CLEAR, () => this.renderAvailability());
+    this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.renderAvailability());
 
     // 스테이지가 실제로 열릴 때 메인 화면을 비운다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
@@ -71,10 +74,10 @@ class MainMenuFlow {
     // 도감은 메인 화면 위에만 뜬다 — 돌아올 때 열려 있으면 걷어낸다.
     this.codex.close({ restoreFocus: false });
     this.protocolSelect.close();
-    this.protocolSelect.reset();
     this.ui.mainMenu?.removeAttribute("inert");
     this.ui.mainMenu?.classList.remove("hidden");
     this.ui.appShell?.setAttribute("inert", "");
+    this.renderAvailability();
   }
 
   close() {
@@ -94,12 +97,33 @@ class MainMenuFlow {
     this.soundBus.resume();
     this.protocolSelect.reset();
     this.ui.mainMenu?.setAttribute("inert", "");
+    const opening = SCENARIO_DATA.cutscenes.opening;
     this.cutscene.play({
-      auto: true,
+      chapter: opening.chapter,
+      script: opening.script,
+      auto: opening.auto,
       onDone: () => {
+        window.archiveRun?.markCutsceneSeen(opening.id);
         this.protocolSelect.open();
       },
     });
+  }
+
+  continueRun() {
+    if (!window.archiveRun?.hasSave()) return;
+    this.soundBus.resume();
+    this.close();
+    if (window.archiveRun.snapshot().transition) this.protocolSelect.continueStory();
+    else this.protocolSelect.open();
+  }
+
+  renderAvailability() {
+    const run = window.archiveRun?.snapshot();
+    if (this.ui.mainContinueButton) this.ui.mainContinueButton.disabled = !run?.hasSave;
+    /*
+     * 기록실 버튼은 잠그지 않는다 — 미니게임 도감은 첫 판 전에도 볼 것이 있다.
+     * 엔딩 전에 잠기는 것은 모달 안의 "증언 기록" 탭뿐이다(js/ui/codex-flow.js).
+     */
   }
 
   /*
@@ -144,6 +168,7 @@ class MainMenuFlow {
   setStages(stages) {
     this.protocolSelect.setStages(stages);
     this.codex.setStages(stages);
+    this.renderAvailability();
   }
 
   /*

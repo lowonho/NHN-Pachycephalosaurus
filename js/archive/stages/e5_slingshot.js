@@ -7,7 +7,7 @@ export const E5_SLINGSHOT = {
     this.state = { shots: 0, cooldown: 0, drag: null, balls: [], targets: [] };
     for (let i = 0; i < 6; i++) this.state.targets.push({ x: 650 + (i % 3) * 86, y: 424 - Math.floor(i / 3) * 53, w: 38, h: 46, hp: E5_SLINGSHOT.tuning.targetHP });
   },
-  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
+  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * this.penalty(E5_SLINGSHOT.tuning.decay)); },
   pointerDown(x, y) {
     if (this.state.cooldown || Math.hypot(x - 164, y - 382) > 55) return;
     this.state.drag = { x: 164, y: 382 };

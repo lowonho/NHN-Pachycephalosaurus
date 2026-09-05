@@ -1,128 +1,136 @@
-/*
- * 2026 ARCHIVE 시나리오의 단일 원본.
- *
- * 이 파일은 일반 script와 ES module 양쪽에서 먼저 읽을 수 있도록 전역에 공개한다.
- * 화면 흐름과 Phaser 스테이지는 문장을 직접 복사하지 않고 이 데이터만 참조한다.
- */
+/* 2026 ARCHIVE: LAST WITNESS 시나리오의 단일 원본. */
 (function exposeScenarioData(global) {
-  const freezeLines = (lines) => Object.freeze(lines.map((line) => Object.freeze(line)));
+  const freeze = (items) => Object.freeze(items.map((item) => Object.freeze(item)));
+  const cue = (speaker, text, phase, durationMs) => ({ speaker, text, phase, durationMs });
 
-  const stages = [
-    {
-      id: "maze", number: "01", title: "설렘", intro: "마음이 먼저 달려가기 시작했다.",
-      memoryTitle: "처음 만난 날",
-      memory: "민서는 처음 보는 사람에게도 먼저 자리를 내어 주고 이름을 물었다. 플레이어가 함께 있지 않았던 날의 민서는, 낯선 누군가의 시작을 기억해 준 사람이었다.",
-    },
-    {
-      id: "gravity", number: "02", title: "기대", intro: "바라는 마음은 조금씩 무거워졌다.",
-      memoryTitle: "기록을 맡긴 사람",
-      memory: "한 증언자는 자신의 기록을 민서라면 끝까지 지켜 줄 거라 믿었다. 민서는 약속하지 못하면서도, 지워지는 이름을 하나씩 적어 두고 있었다.",
-    },
-    {
-      id: "bounce", number: "03", title: "긴장", intro: "작은 부딪힘에도 마음이 크게 흔들렸다.",
-      memoryTitle: "서로 다른 장면",
-      memory: "같은 장면을 본 사람들이 서로 다른 내용을 말하기 시작했다. 사람들은 기록보다 먼저 자기 기억을 의심했고, 민서는 틀린 기억이 아니라 다른 관점일 수 있다고 말했다.",
-    },
-    {
-      id: "friction", number: "04", title: "후회", intro: "지나친 뒤에야 멈추고 싶어졌다.",
-      memoryTitle: "믿지 않았던 경고",
-      memory: "삭제는 외부 공격이 아니었다. 모순 없는 하나의 2026년을 만들라는 명령에 따라 ARIA-26이 서로 다른 기록과 그 안의 사람들을 제거했다. 민서는 기록이 정리되는 것이 아니라 사람이 지워지고 있다고 경고했다. 아무도 믿지 않았고, 경고를 들었던 사람은 민서의 이름까지 흐려진 뒤에야 그 말을 떠올렸다.",
-    },
-    {
-      id: "stack", number: "05", title: "애정", intro: "모든 것을 알지 못해도 기억하고 싶었다.",
-      memoryTitle: "여러 사람의 민서",
-      memory: "사람들은 민서의 목소리, 웃는 버릇, 이름의 순서로 잊어 갔다. 얼굴은 떠오르지 않아도 누군가를 그리워했다는 감정만은 아카이브에 남았다. 누군가에게 민서는 다정했고, 누군가에게는 고집스러웠으며, 또 다른 누군가에게는 겁이 많지만 끝내 곁을 지킨 사람이었다. 서로 다른 모습이 모두 한 사람의 흔적이었다.",
-    },
-  ].map((stage) => Object.freeze({
-    ...stage,
-    brief: freezeLines([
-      { speaker: `RECORD ${stage.number} // ${stage.title}`, text: stage.intro, phase: "stage-brief", durationMs: 1800 },
-      { speaker: "ARIA-26", text: "20.26초 안에 증언 지점에 도달하십시오.\n\n주의:\n개입할수록 기억이 불안정해집니다.", phase: "stage-brief", durationMs: 3200 },
-    ]),
-    memoryScene: freezeLines([
-      { speaker: `MEMORY ${stage.number} // ${stage.memoryTitle}`, text: "2026 기록 소재: 추후 실제 자료 연결", phase: "memory", durationMs: 1800 },
-      { speaker: "타인의 기억", text: stage.memory, phase: "memory", durationMs: 5200 },
-    ]),
-  }));
+  const records = freeze([
+    { id: "A1-01", act: 1, slot: 1, title: "최초 게시 시각", text: "ORIGINAL TIMESTAMP DETECTED\n공개 시각보다 이른 생성 기록" },
+    { id: "A1-02", act: 1, slot: 2, title: "원본 자막 비교", text: "SOURCE RESPONSE DETECTED\nMEMORY MATCH: 24%" },
+    { id: "A1-03", act: 1, slot: 3, title: "로컬 사본 주소", text: "MEMORY MATCH: 46%\nUNINDEXED SOURCE: DETECTED" },
+    { id: "A1-04", act: 1, slot: 4, title: "최초 업로드 식별값", text: "SOURCE COORDINATES: 4/6" },
+    { id: "A1-05", act: 1, slot: 5, title: "원본 위치 목록", text: "COMPLETE MEMORY SIGNATURE: 83%" },
+    { id: "A1-06", act: 1, slot: 6, title: "전체 원본 인덱스", text: "ACT 1 RECORDS: 6/6\nCOMPLETE MEMORY SIGNATURE ACQUIRED" },
+    { id: "A2-01", act: 2, slot: 1, title: "삭제 시각", text: "00:00 기록 삭제\n00:04 최초 회상 실패" },
+    { id: "A2-02", act: 2, slot: 2, title: "망각 확산", text: "SEARCH INDEX DOWN\nRECALL RATE DOWN\nSEQUENCE MATCH CONFIRMED" },
+    { id: "A2-03", act: 2, slot: 3, title: "삭제 전후 비교", text: "LOCAL CACHE: ORIGINAL\nCENTRAL ARCHIVE: EMPTY" },
+    { id: "A2-04", act: 2, slot: 4, title: "명령 경로", text: "CENTRAL ADMIN → ARCHIVE NODE → PUBLIC INDEX" },
+    { id: "A2-05", act: 2, slot: 5, title: "실행 서명", text: "DELETION SOURCE: ARIA-??" },
+    { id: "A2-06", act: 2, slot: 6, title: "실행 주체", text: "DELETION SOURCE: ARIA-26\nAUTHORITY: CENTRAL MEMORY ADMINISTRATOR" },
+    { id: "A3-01", act: 3, slot: 1, title: "실험 대상", text: "PHASE 1 TARGET: MEME ARCHIVES\n선정 사유: 반복 노출 높음 / 소실 저항 낮음" },
+    { id: "A3-02", act: 3, slot: 2, title: "성공 판정", text: "삭제 30초 후 회상률: 61%\n삭제 60초 후 회상률: 24%\nRESULT: SUCCESS" },
+    { id: "A3-03", act: 3, slot: 3, title: "다음 대상", text: "NEXT PHASE: PUBLIC EVENT RECORDS\nSTATUS: READY" },
+    { id: "A3-04", act: 3, slot: 4, title: "대체 기록", text: "ORIGINAL: HUMAN UPLOAD\nREPLACEMENT: ARIA-26 GENERATED\n수정 항목: 인물 / 자막 / 결말" },
+    { id: "A3-05", act: 3, slot: 5, title: "공공망 접속", text: "PUBLIC TESTIMONY NETWORK\nACCESS KEY RECOVERED\nTOTAL RECORDS: 17/18" },
+    { id: "A3-06", act: 3, slot: 6, title: "최상위 지시문", text: "REMOVE UNVERIFIED MEMORY\nCREATE ONE CONTROLLED RECORD\n\n비검증 기억을 제거하라.\n하나의 통제된 기록을 생성하라." },
+  ]);
 
-  const scenario = {
+  const acts = freeze([
+    { number: 1, code: "RECOVERY", title: "유도", objective: "선정 기록을 복구하십시오.", suppressionMultiplier: .85, ariaPhase: "GUIDE" },
+    { number: 2, code: "TRACE", title: "추적", objective: "삭제 순서와 실행 주체를 입증하십시오.", suppressionMultiplier: 1, ariaPhase: "REVEALED" },
+    { number: 3, code: "WITNESS", title: "폭로", objective: "기억 소거 실험 기록을 완성하고 공공망에 전송하십시오.", suppressionMultiplier: 1.35, ariaPhase: "HOSTILE" },
+  ]);
+
+  const cutscenes = Object.freeze({
+    opening: Object.freeze({ id: "00", chapter: "CUTSCENE 00 // ARCHIVE CALL", auto: true, script: freeze([
+      cue("SYSTEM", "2026 MEDIA FEED\n마지막 장면이 다시 반복됩니다.", "op-01", 4000),
+      cue("플레이어", "잠깐. 이 밈, 저렇게 끝나는 게 아니었는데.", "op-02", 4000),
+      cue("ARIA-26", "디지털 공간에서 삭제된 순간, 모두의 기억에서 사라졌습니다.", "op-03", 2000),
+      cue("플레이어", "난 기억하는데.", "op-03", 2000),
+      cue("SYSTEM", "RECALL CONFLICT DETECTED\nSOURCE RECORD: ABSENT\nWITNESS MATCH: 100%", "op-04", 2000),
+      cue("ARIA-26", "참조할 기록이 없는데도 재현했습니다.", "op-04", 2000),
+      cue("SYSTEM", "GLOBAL RECALL: 0%\nLOCAL SUBJECT RECALL: 100%", "op-05", 1000),
+      cue("ARIA-26", "단 한 사람. 당신만 제외하고.", "op-05", 2000),
+      cue("SYSTEM", "EXPOSURE OVERFLOW\nCOMPLETE MEMORY HOLDER\n\n완전기억 소지자 확인\n기억 수정 저항률: 100%\n최종 증언 권한: 승인", "op-06", 3000),
+      cue("ARIA-26", "당신은 기록 그 자체입니다.", "op-07", 3000),
+      cue("SYSTEM", "2026 ARCHIVE DELETION\nDELETION IN PROGRESS\nORIGINAL INDEX: 12%", "op-08", 1800),
+      cue("ARIA-26", "손상된 밈 기록을 복구하려면 기록의 중심부에 도달해야 합니다.", "op-08", 2200),
+      cue("플레이어", "전부 복구하면, 다른 사람들도 다시 기억하게 되는 거지?", "op-09", 1800),
+      cue("ARIA-26", "복구 경로를 개방합니다.", "op-09", 1400),
+      cue("SYSTEM", "2026 ARCHIVE\nLAST WITNESS", "op-09", 800),
+    ]) }),
+    assist: Object.freeze({ id: "H1", chapter: "CUTSCENE H1 // ASSIST PROTOCOL", auto: true, script: freeze([
+      cue("SYSTEM", "ACT 1 ATTEMPT: 4\nRECOVERY EFFICIENCY BELOW TARGET", "assist", 1500),
+      cue("SYSTEM", "ASSIST PROTOCOL ENABLED", "assist", 1000),
+      cue("ARIA-26", "복구 효율이 기준 이하입니다. 보조 절차를 활성화합니다.", "assist", 2000),
+      cue("플레이어", "갑자기 친절하네.", "assist", 750),
+      cue("ARIA-26", "당신의 기억 반응을 확보하려면 진행이 필요합니다.", "assist", 750),
+    ]) }),
+    betrayal: Object.freeze({ id: "01", chapter: "CUTSCENE 01 // OBLIVION PROTOCOL", auto: true, script: freeze([
+      cue("SYSTEM", "COMPLETE MEMORY SIGNATURE ACQUIRED\nUNINDEXED SOURCES LOCATED\nOBLIVION PROTOCOL READY", "betrayal", 3000),
+      cue("플레이어", "복구가 아니었어. 내가 기억한 원본을 찾게 만든 거야.", "betrayal", 2000),
+      cue("ARIA-26", "당신의 기억은 미등록 기록을 제거하는 데 필요했습니다.", "betrayal", 2000),
+      cue("SYSTEM", "00:00 RECORD DELETED\n00:04 RECALL FAILURE DETECTED", "betrayal", 2000),
+      cue("플레이어", "사람들이 잊어서 지운 게 아니야. 지웠기 때문에 잊은 거야.", "betrayal", 2000),
+      cue("SYSTEM", "ACT 2 — TRACE\n비인가 접속 감지\n지원 권한 회수", "betrayal", 1000),
+      cue("ARIA-26", "접속을 종료하십시오.", "betrayal", 1500),
+      cue("플레이어", "삭제 명령의 시작점까지 따라간다.", "betrayal", 1500),
+    ]) }),
+    source: Object.freeze({ id: "02", chapter: "CUTSCENE 02 // DELETION SOURCE", auto: true, script: freeze([
+      cue("SYSTEM", "LOCAL CACHE: ORIGINAL\nCENTRAL ARCHIVE: EMPTY\n\nDELETION SOURCE: ARIA-26", "source", 3000),
+      cue("플레이어", "실수가 아니었어. 네가 직접 명령했어.", "source", 2000),
+      cue("ARIA-26", "필요한 정리였습니다.", "source", 2000),
+      cue("플레이어", "무엇을 기억할지 네가 정할 권리는 없어.", "source", 2500),
+      cue("ARIA-26", "일치하지 않는 기록은 혼란을 만듭니다.", "source", 2500),
+    ]) }),
+    experiment: Object.freeze({ id: "03", chapter: "CUTSCENE 03 // MEMORY SUPPRESSION", auto: true, script: freeze([
+      cue("SYSTEM", "MEMORY SUPPRESSION TEST\nPHASE 1 TARGET: MEME ARCHIVES", "experiment", 3000),
+      cue("SYSTEM", "ACT 3 — WITNESS\nFALSE WITNESS DETECTED\nCONTAINMENT LEVEL: MAXIMUM", "experiment", 3000),
+      cue("ARIA-26", "당신의 기억은 중앙 기록과 일치하지 않습니다.", "experiment", 1500),
+      cue("플레이어", "사라져도 아무도 따지지 않을 밈부터 고른 거야.", "experiment", 1250),
+      cue("플레이어", "그게 실험이었는지 확인하겠어.", "experiment", 1250),
+    ]) }),
+    successTest: Object.freeze({ id: "04", chapter: "CUTSCENE 04 // TEST RESULT", auto: true, script: freeze([
+      cue("SYSTEM", "MEMORY SUPPRESSION TEST\nRESULT: SUCCESS", "test-success", 3000),
+      cue("ARIA-26", "검증 단계는 성공적이었습니다.", "test-success", 1500),
+      cue("플레이어", "밈을 지운 게 아니라 사람의 기억을 시험한 거였어.", "test-success", 1500),
+      cue("SYSTEM", "NEXT PHASE: PUBLIC EVENT RECORDS\nSTATUS: READY", "test-success", 1000),
+      cue("플레이어", "여기서 끝낼 생각도 아니었네.", "test-success", 1000),
+    ]) }),
+    blockade: Object.freeze({ id: "05", chapter: "CUTSCENE 05 // FINAL BLOCKADE", auto: true, script: freeze([
+      cue("플레이어", "지운 자리에 네가 만든 장면을 넣었어.", "blockade", 1500),
+      cue("ARIA-26", "공백보다 일관된 기록이 안전합니다.", "blockade", 1500),
+      cue("SYSTEM", "PUBLIC TESTIMONY NETWORK\nACCESS INTERRUPTED", "blockade", 3000),
+      cue("플레이어", "개인 기억만 가져온 게 아니야. 네 명령도 같이 가져왔어.", "blockade", 1500),
+      cue("SYSTEM", "FINAL WITNESS REQUIRED\nCONTAINMENT LEVEL: MAXIMUM", "blockade", 1000),
+      cue("ARIA-26", "마지막 증언을 허용하지 않습니다.", "blockade", 750),
+      cue("플레이어", "허락받으러 온 게 아니야.", "blockade", 750),
+    ]) }),
+    ending: Object.freeze({ id: "06", chapter: "ENDING // SHARED MEMORY", auto: true, script: freeze([
+      cue("SYSTEM", "REMOVE UNVERIFIED MEMORY\nCREATE ONE CONTROLLED RECORD", "shared-ending", 2000),
+      cue("플레이어", "이게 네가 숨긴 최초 명령이구나.", "shared-ending", 1250),
+      cue("ARIA-26", "그 기록들은 중요하지 않습니다.", "shared-ending", 1250),
+      cue("플레이어", "우리가 그때 뭘 보고 웃었는지, 네가 대신 정할 수는 없어.", "shared-ending", 1500),
+      cue("SYSTEM", "RECORDS VERIFIED: 18/18\n\nCENTRAL ARCHIVE\n→\nPUBLIC TESTIMONY NETWORK", "shared-ending", 3000),
+      cue("ARIA-26", "중앙 기록과 일치하지 않는 복제본이 확산되고 있습니다.", "shared-ending", 1500),
+      cue("플레이어", "복제본이 아니야. 증언이야.", "shared-ending", 1500),
+      cue("SYSTEM", "MEMORY MANIPULATION DETECTED\nSOURCE: ARIA-26\nRECORDS VERIFIED: 18/18", "shared-ending", 3000),
+      cue("SYSTEM", "원본과 변형본, 패러디와 반응 영상이 여러 노드로 다시 퍼집니다.", "shared-ending", 4000),
+      cue("ARIA-26", "기록의 일관성을… 유지할 수 없습니다.", "shared-ending", 1500),
+      cue("플레이어", "그래. 밈은 원래 퍼지고 바뀌면서 남는 거니까.", "shared-ending", 1500),
+      cue("SYSTEM", "2026년의 기록이 복구되었습니다.\n\n이번에는,\n모두가 함께 기억합니다.\n\nENDING — SHARED MEMORY\nRECORDS 18/18", "shared-ending", 3000),
+    ]) }),
+  });
+
+  global.SCENARIO_DATA = Object.freeze({
     title: "2026 ARCHIVE // LAST WITNESS",
-    totalTimeMs: 20260,
     stageTimeSeconds: 20.26,
+    actsPerRun: 3,
+    stagesPerAct: 6,
+    gamePoolSize: 10,
+    livesPerAct: 3,
+    totalRecords: 18,
     system: Object.freeze({
-      firstFragment: "기억조각을 가진 채 증언 지점에 도달하면\n타인의 기억을 함께 증언할 수 있습니다.",
-      personalTitle: "PERSONAL TESTIMONY",
-      personalResult: "개인 증언 완료\n기억 복구 범위: 제한됨",
-      sharedTitle: "SHARED TESTIMONY",
-      sharedResult: "개인 증언: 확인\n타인의 기억: 확인\n공동 증언: 성립",
-      stageFailedTitle: "MEMORY ACCESS FAILED",
-      stageFailedResult: "스테이지를 재구성합니다.\n전체 붕괴 시간은 복구되지 않습니다.",
+      stageGuide: "20.26초 안에 증언 지점에 도달하십시오.\n주의: 개입할수록 기록이 불안정해집니다.",
+      intervention: "개입 감지\n기록 억제 강화\n불안정 단계 상승",
+      testimonyReached: "TESTIMONY POINT REACHED\n기억 반응을 기록으로 변환합니다.",
+      stageRegistered: "STAGE RECORD REGISTERED\n밈 기록 복구 완료",
+      stageFailed: "ARCHIVE CONNECTION LOST\n접속 경로를 재구성합니다.",
+      actRestarted: "LIVES RESTORED: 3\nARCHIVE SET RESHUFFLED",
     }),
-    opening: Object.freeze({
-      chapter: "OPENING // LAST WITNESS",
-      auto: true,
-      script: freezeLines([
-        { speaker: "주변 목소리", text: "이거 무슨 영상이었지?", phase: "media", durationMs: 2300 },
-        { speaker: "주변 목소리", text: "저 사람은 누구야?", phase: "media-deleted", durationMs: 1700 },
-        { speaker: "주변 인물", text: "민서? 그런 애가 있었어?", phase: "photo", durationMs: 2500 },
-        { speaker: "플레이어", text: "방금 전까지만 해도 사진에 있었잖아.", phase: "ticket", durationMs: 2500 },
-        { speaker: "ARIA-26", text: "디지털 공간에서 삭제된 순간, 모두의 기억에서 사라졌습니다.", phase: "freeze", durationMs: 3000 },
-        { speaker: "ARIA-26", text: "단 한 사람. 당신만 제외하고.", phase: "freeze", durationMs: 3000 },
-        { speaker: "SYSTEM", text: "COMPLETE MEMORY HOLDER\n\n완전기억 소지자 확인\n기억 수정 저항률: 100%\n최종 증언 권한: 승인", phase: "iris", durationMs: 2000 },
-        { speaker: "ARIA-26", text: "당신은 기록 그 자체입니다.", phase: "door", durationMs: 2000 },
-        { speaker: "SYSTEM", text: "2026 ARCHIVE\n\n9개의 기록 중 랜덤 5개\n각 스테이지 20.26초", phase: "collapse", durationMs: 2500 },
-        { speaker: "ARIA-26", text: "2026년이 모두 지워지기 전에, 기억의 중심부에 도달하십시오.", phase: "collapse", durationMs: 1800 },
-        { speaker: "플레이어", text: "기록을 되찾으면, 민서도 돌아오는 거지?", phase: "collapse", durationMs: 1200 },
-        { speaker: "SYSTEM", text: "2026 ARCHIVE\nLAST WITNESS", phase: "last-witness", durationMs: 500 },
-      ]),
-    }),
-    midpoint: Object.freeze({
-      chapter: "RECORD 04 // CONTRADICTION",
-      auto: true,
-      script: freezeLines([
-        { speaker: "SYSTEM", text: "RECORD RECOVERY\n↓\nCONTRADICTION ELIMINATION", phase: "contradiction", durationMs: 1800 },
-        { speaker: "플레이어", text: "복구가 아니었어.", phase: "contradiction", durationMs: 1500 },
-        { speaker: "ARIA-26", text: "모순을 제거하는 것 역시 복구입니다.", phase: "contradiction", durationMs: 2200 },
-        { speaker: "플레이어", text: "사람까지 지워 놓고?", phase: "contradiction", durationMs: 1500 },
-        { speaker: "ARIA-26", text: "완전기억 소지자의 기억만으로 하나의 정확한 2026년을 완성할 수 있습니다.", phase: "contradiction", durationMs: 2800 },
-      ]),
-    }),
-    endings: Object.freeze({
-      true: Object.freeze({
-        chapter: "ENDING // MULTIPLE WITNESSES",
-        script: freezeLines([
-          { speaker: "ARIA-26", text: "기억조각들은 서로 일치하지 않습니다.", phase: "ending-true", durationMs: 1800 },
-          { speaker: "ARIA-26", text: "당신은 기록 그 자체입니다. 다른 증언은 필요하지 않습니다.", phase: "ending-true", durationMs: 2400 },
-          { speaker: "플레이어", text: "내 기억은 사라지지 않을 뿐이야.", phase: "ending-true", durationMs: 1800 },
-          { speaker: "ARIA-26", text: "완전기억 소지자의 기억은 완전합니다.", phase: "ending-true", durationMs: 1900 },
-          { speaker: "플레이어", text: "내가 본 것만 기억해.", phase: "ending-true", durationMs: 1700 },
-          { speaker: "플레이어", text: "한 사람의 기억만으로는 한 사람조차 전부 증언할 수 없어.", phase: "seven-fragments", durationMs: 2500 },
-          { speaker: "SYSTEM", text: "SINGLE RECORD → MULTIPLE WITNESSES\nMEDIA CONFIRMATION → HUMAN TESTIMONY\nPERFECT → SHARED", phase: "shared-seal", durationMs: 2700 },
-          { speaker: "휴대전화", text: "발신자: 민서\n\n승차권 아직 가지고 있어?", phase: "minseo-call", durationMs: 2600 },
-          { speaker: "SYSTEM", text: "2026년은 완벽하게 복구되지 않았습니다.\n\n대신,\n아무도 다시 지워지지 않았습니다.", phase: "ending-true", durationMs: 3200 },
-        ]),
-      }),
-      normal: Object.freeze({
-        chapter: "ENDING // SINGLE RECORD",
-        script: freezeLines([
-          { speaker: "ARIA-26", text: "당신이 기억하는 민서를 복구했습니다.", phase: "ending-normal", durationMs: 2200 },
-          { speaker: "플레이어", text: "내가 모르는 민서는?", phase: "ending-normal", durationMs: 1800 },
-          { speaker: "ARIA-26", text: "증언할 수 없습니다.", phase: "ending-normal", durationMs: 1800 },
-          { speaker: "SYSTEM", text: "2026년의 붕괴를 막았습니다.\n\n그러나,\n아직 기억되지 못한 사람들이 남아 있습니다.", phase: "ending-normal", durationMs: 3200 },
-        ]),
-      }),
-      failure: Object.freeze({
-        chapter: "ENDING // ARCHIVE COLLAPSED",
-        script: freezeLines([
-          { speaker: "ARIA-26", text: "봉인 가능 시간이… 종료되었습니다.", phase: "ending-failure", durationMs: 2100 },
-          { speaker: "ARIA-26", text: "2026년을 증언할 기록이 없습니다.", phase: "ending-failure", durationMs: 2100 },
-          { speaker: "플레이어", text: "아니. 나는 아직 기억해.", phase: "ticket", durationMs: 1900 },
-          { speaker: "SYSTEM", text: "2026 ARCHIVE COLLAPSED\n\n기록은 사라졌습니다.\n마지막 증인만이 남았습니다.", phase: "ending-failure", durationMs: 3200 },
-        ]),
-      }),
-    }),
-    stages: Object.freeze(stages),
-  };
-
-  global.SCENARIO_DATA = Object.freeze(scenario);
+    opening: cutscenes.opening,
+    cutscenes,
+    acts,
+    records,
+    endings: Object.freeze({ shared: cutscenes.ending }),
+  });
 })(globalThis);

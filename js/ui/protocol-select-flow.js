@@ -51,11 +51,12 @@ const PROTOCOL_GLYPHS = Object.freeze({
 const PROTOCOL_GLYPH_FALLBACK = '<circle cx="12" cy="12" r="7"/><path d="M12 8v5"/>';
 
 class ProtocolSelectFlow {
-  constructor(events, dom, soundBus, strings) {
+  constructor(events, dom, soundBus, strings, cutscene) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.strings = strings;
+    this.cutscene = cutscene;
 
     /* 브리핑 화면의 두 버튼이 할 일. 브리핑을 접을 때 함께 비운다. */
     this.briefStart = null;
@@ -67,14 +68,14 @@ class ProtocolSelectFlow {
      */
     this.catalog = PROTOCOLS;
     this.stages = [];
-    this.restored = new Set();
     this.remainingMs = RECOVERY_BUDGET_MS;
-    this.timedOut = false;
     this.warnHandle = 0;
 
-    this.events.on(GAME_EVENTS.STAGE_CLEAR, ({ stageId } = {}) => this.markRestored(stageId));
+    this.events.on(GAME_EVENTS.STAGE_CLEAR, () => this.render());
+    this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.render());
     this.events.on(GAME_EVENTS.TOTAL_TIMER_TICK, (snapshot = {}) => this.syncRun(snapshot));
     this.events.on(GAME_EVENTS.RUN_RESET, (snapshot = {}) => this.syncRun(snapshot));
+    this.events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.continueStory());
 
     this.ui.protocolBriefStartButton?.addEventListener("click", () => this.confirmBrief());
     this.ui.protocolBriefBackButton?.addEventListener("click", () => this.cancelBrief());
@@ -87,6 +88,7 @@ class ProtocolSelectFlow {
 
   open() {
     this.soundBus.resume();
+    this.refreshStages();
     this.render();
     // 뒤 화면(메인)은 보이더라도 만질 수 없어야 한다.
     this.ui.mainMenu?.setAttribute("inert", "");
@@ -135,13 +137,15 @@ class ProtocolSelectFlow {
 
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
   reset() {
-    const snapshot = window.archiveRun?.reset();
-    if (snapshot) this.stages = snapshot.selectedStageIds.map(id => this.catalog.find(stage => stage.id === id)).filter(Boolean);
-    this.remainingMs = snapshot?.totalRemainingMs ?? RECOVERY_BUDGET_MS;
-    this.timedOut = false;
-    this.restored.clear();
-    this.events.emit(GAME_EVENTS.RUN_RESET, snapshot || { totalRemainingMs: this.remainingMs, memoryCount: 0, clearedCount: 0 });
-    this.render();
+    const snapshot = window.archiveRun?.startNew();
+    this.syncRun(snapshot);
+    this.events.emit(GAME_EVENTS.RUN_RESET, snapshot);
+    return snapshot;
+  }
+
+  refreshStages() {
+    const selected = window.archiveRun?.snapshot().selectedStageIds ?? [];
+    this.stages = selected.map((id) => this.catalog.find((stage) => stage.id === id)).filter(Boolean);
   }
 
   /*
@@ -151,16 +155,13 @@ class ProtocolSelectFlow {
   setStages(stages) {
     if (!Array.isArray(stages) || stages.length === 0) return;
     this.catalog = stages;
-    const selected = window.archiveRun?.snapshot().selectedStageIds ?? [];
-    this.stages = selected.map(id => stages.find(stage => stage.id === id)).filter(Boolean);
+    this.refreshStages();
     this.render();
   }
 
   startStage(stageId) {
-    if (this.timedOut) return;
-
-    // 이번 판에서 클리어한 기록은 브리핑(증언할 기억 상세)조차 열지 않는다.
-    if (this.restored.has(stageId)) return;
+    const run = window.archiveRun?.snapshot();
+    if (!run?.qaMode && stageId !== run?.expectedStageId) return;
 
     /*
      * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
@@ -260,21 +261,23 @@ class ProtocolSelectFlow {
       if (element) element.textContent = text;
     };
 
-    set(this.ui.protocolBriefCode, `// RECORD ${stage.number}`);
+    const run = window.archiveRun?.snapshot();
+    const slot = Math.max(1, run?.currentStageInAct ?? 1);
+    const act = SCENARIO_DATA.acts[(run?.currentAct ?? 1) - 1];
+    const recordId = `A${run?.currentAct ?? 1}-${String(slot).padStart(2, "0")}`;
+    set(this.ui.protocolBriefCode, `// ${recordId}`);
     set(this.ui.protocolBriefTitle, stage.title);
     set(this.ui.protocolBriefId, stage.id.toUpperCase());
-    set(this.ui.protocolBriefNumber, `RECORD ${stage.number}`);
+    set(this.ui.protocolBriefNumber, recordId);
     set(this.ui.protocolBriefSymbol, stage.recordSymbol);
-    set(this.ui.protocolBriefObjective, stage.objective);
+    set(this.ui.protocolBriefObjective, `${stage.objective}\n${act?.objective ?? ""}`);
     set(this.ui.protocolBriefControls, stage.controls);
     set(this.ui.protocolBriefAnomaly, stage.anomaly);
 
-    // 복구 등급 — 타일과 같은 기준이다(판을 넘어 남는 기록).
-    const status = window.archiveProgress?.status(stage.id) ?? RECORD_DAMAGED;
+    const registered = Boolean(run?.stageRecords?.[(run?.currentAct ?? 1) - 1]?.[slot - 1]);
+    const status = registered ? "REGISTERED" : "CONNECT";
     if (this.ui.protocolBriefRecord) {
-      this.ui.protocolBriefRecord.dataset.recovery = status === RECORD_FULL
-        ? "full"
-        : status === RECORD_PARTIAL ? "partial" : "damaged";
+      this.ui.protocolBriefRecord.dataset.recovery = registered ? "full" : "damaged";
     }
     set(this.ui.protocolBriefStamp, status);
 
@@ -291,9 +294,58 @@ class ProtocolSelectFlow {
   }
 
   launchStage(stageId) {
-    if (this.timedOut) return;
     this.showScreen("play");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
+  }
+
+  continueStory() {
+    if (globalThis.ARCHIVE_QA?.active) return;
+    const before = window.archiveRun?.snapshot();
+    const advanced = window.archiveRun?.advance();
+    if (!before || !advanced) return;
+    this.syncRun(advanced.snapshot);
+    const open = () => this.open();
+    const play = (name, done = open) => this.playStoryCutscene(name, done);
+
+    if (advanced.transition === "next-stage") {
+      if (before.currentAct === 3 && before.currentStageInAct === 2) play("successTest");
+      else if (before.currentAct === 3 && before.currentStageInAct === 5) play("blockade");
+      else open();
+      return;
+    }
+    if (advanced.transition === "next-act") {
+      if (before.currentAct === 1) play("betrayal");
+      else play("source", () => play("experiment"));
+      return;
+    }
+    if (advanced.transition === "act-restarted") {
+      if (advanced.snapshot.currentAct === 1 && advanced.snapshot.assistProtocolAct1) play("assist");
+      else open();
+      return;
+    }
+    if (advanced.transition === "ending") {
+      play("ending", () => this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {}));
+      return;
+    }
+    open();
+  }
+
+  playStoryCutscene(name, onDone) {
+    const data = SCENARIO_DATA.cutscenes[name];
+    if (!data || window.archiveRun?.hasSeenCutscene(data.id)) {
+      onDone?.();
+      return;
+    }
+    this.close();
+    this.cutscene.play({
+      chapter: data.chapter,
+      script: data.script,
+      auto: data.auto,
+      onDone: () => {
+        window.archiveRun?.markCutsceneSeen(data.id);
+        onDone?.();
+      },
+    });
   }
 
   /* 하단 바 문구를 잠깐 경고로 바꾼다. 엔진이 도착하면 setStages가 알아서 되돌린다. */
@@ -306,22 +358,11 @@ class ProtocolSelectFlow {
     this.warnHandle = window.setTimeout(() => this.renderProgress(), 2800);
   }
 
-  isComplete() {
-    return this.stages.length > 0 && this.restored.size >= this.stages.length;
-  }
-
-  markRestored(stageId) {
-    if (!stageId || this.timedOut) return;
-    this.restored.add(stageId);
-    this.render();
-  }
-
   syncRun(snapshot = {}) {
-    if (Number.isFinite(snapshot.totalRemainingMs)) this.remainingMs = snapshot.totalRemainingMs;
-    this.timedOut = snapshot.ending === "failure";
-    if (Array.isArray(snapshot.clearedStageIds)) this.restored = new Set(snapshot.clearedStageIds);
-    this.renderTimer();
-    this.renderProgress();
+    if (Number.isFinite(snapshot.stageRemainingMs)) this.remainingMs = snapshot.stageRemainingMs;
+    else if (Number.isFinite(snapshot.totalRemainingMs)) this.remainingMs = snapshot.totalRemainingMs;
+    this.refreshStages();
+    this.render();
   }
 
   /* ── 그리기 ──────────────────────────────────────────────────────── */
@@ -341,11 +382,7 @@ class ProtocolSelectFlow {
     if (!this.ui.deskClock) return;
 
     const parts = ProtocolSelectFlow.clockParts(this.remainingMs);
-    this.ui.deskClock.dataset.state = this.isComplete()
-      ? "done"
-      : this.remainingMs <= RECOVERY_URGENT_MS
-        ? "urgent"
-        : "idle";
+    this.ui.deskClock.dataset.state = this.remainingMs <= RECOVERY_URGENT_MS ? "urgent" : "idle";
 
     if (this.ui.deskClockMinutes) this.ui.deskClockMinutes.textContent = parts.minutes;
     if (this.ui.deskClockSeconds) this.ui.deskClockSeconds.textContent = parts.seconds;
@@ -354,11 +391,16 @@ class ProtocolSelectFlow {
 
   renderProgress() {
     const label = this.ui.protocolProgress;
-    if (!label) return;
+    const run = window.archiveRun?.snapshot();
+    if (!label || !run) return;
     window.clearTimeout(this.warnHandle);
     delete label.dataset.state;
-    const run = window.archiveRun?.snapshot();
-    label.textContent = `RANDOM 5 / 9 · CLEAR ${this.restored.size} / ${this.stages.length || 5} · 각 20.26초`;
+    const lives = `${"◆".repeat(run.lives)}${"◇".repeat(Math.max(0, 3 - run.lives))}`;
+    label.textContent = `ACT ${run.currentAct}/3 · STAGE ${run.currentStageInAct}/6 · LIVES ${lives} · RECORDS ${run.totalRecordCount}/18`;
+    if (this.ui.stageSelectTitle) {
+      const act = SCENARIO_DATA.acts[run.currentAct - 1];
+      this.ui.stageSelectTitle.textContent = `ACT ${run.currentAct} ${act?.code ?? ""} · 6 OF 10 RECORDS CONNECTED`;
+    }
   }
 
   /*
@@ -374,26 +416,21 @@ class ProtocolSelectFlow {
    * 복구율은 메인 화면에도 같은 [data-archive-recovery]로 떠 있어서 함께 갱신된다.
    */
   renderArchive() {
-    const summary = window.archiveProgress?.summary();
-    if (!summary) return;
+    const run = window.archiveRun?.snapshot();
+    if (!run) return;
 
     this.ui.archiveRecoveryRates?.forEach((element) => {
-      element.textContent = this.strings.archive.rate(summary.recoveryRate);
+      element.textContent = `TOTAL RECORDS ${run.totalRecordCount}/18`;
     });
 
     if (this.ui.archiveRecoveryDetail) {
-      this.ui.archiveRecoveryDetail.textContent = this.strings.archive.detail(
-        summary.clearedCount,
-        summary.fragmentCount,
-        summary.totalRecords,
-      );
+      this.ui.archiveRecoveryDetail.textContent = `ACT ${run.currentAct} RECORDS ${run.actRecordCount}/6 · ATTEMPT ${run.actAttemptCount[run.currentAct - 1]}`;
     }
 
-    // 엔딩 등급은 5개를 전부 복구했을 때만 뜬다.
     const ending = this.ui.archiveEndingStatus;
     if (ending) {
-      ending.hidden = !summary.allCleared;
-      ending.textContent = this.strings.archive.ending[summary.ending] ?? "";
+      ending.hidden = !run.assistProtocolAct1;
+      ending.textContent = run.assistProtocolAct1 ? "ASSIST PROTOCOL ENABLED" : "";
     }
   }
 
@@ -401,48 +438,32 @@ class ProtocolSelectFlow {
     const grid = this.ui.stageSelectGrid;
     if (!grid) return;
     grid.replaceChildren();
-
-    if (this.stages.length === 0) {
+    const run = window.archiveRun?.snapshot();
+    if (!run?.active && !run?.qaMode) {
       const loading = document.createElement("div");
       loading.className = "stage-select-card stage-select-card--soon";
-      const title = document.createElement("strong");
-      title.className = "protocol-app-title";
-      title.textContent = this.strings.protocol.loading;
-      loading.append(title);
+      loading.textContent = "기록 접속을 시작해 주세요.";
       grid.append(loading);
       return;
     }
 
-    this.stages.forEach((stage) => {
-      grid.append(this.buildTile(stage));
-    });
+    this.stages.forEach((stage, index) => grid.append(this.buildTile(stage, index, run)));
   }
 
-  buildTile(stage) {
+  buildTile(stage, index, run) {
     const tile = document.createElement("button");
+    const slot = index + 1;
+    const restored = Boolean(run.stageRecords?.[run.currentAct - 1]?.[index]);
+    const current = slot === run.currentStageInAct;
     tile.type = "button";
     // .stage-select-card / data-stage-id는 화면 밖(테스트·스크립트)에서 쓰는 이름이라 유지한다.
     tile.className = "stage-select-card protocol-app";
     tile.dataset.stageId = stage.id;
-
-    /*
-     * 이번 판에서 이미 클리어한 기록은 회색으로 딤드하고 잠근다 —
-     * 같은 판에서 같은 기억을 두 번 증언하지 않는다.
-     * 메인으로 나갔다 새 판을 시작하면(reset) 다시 열린다.
-     */
-    const cleared = this.restored.has(stage.id);
-    if (cleared) {
-      tile.dataset.restored = "true";
-      tile.disabled = true;
-    }
-
-    /*
-     * 이 기록의 ARCHIVE 복구 등급 — 이번 판이 아니라 지금까지 남은 기록이다.
-     * 엔진이 아직 없으면 전부 DAMAGED로 그린다(엔진이 뜨면 setStages가 다시 그린다).
-     */
-    const status = window.archiveProgress?.status(stage.id) ?? RECORD_DAMAGED;
-    const full = status === RECORD_FULL;
-    tile.dataset.recovery = full ? "full" : status === RECORD_PARTIAL ? "partial" : "damaged";
+    tile.dataset.slot = String(slot);
+    tile.dataset.restored = String(restored);
+    tile.dataset.current = String(current);
+    tile.dataset.recovery = restored ? "full" : "damaged";
+    tile.disabled = !run.qaMode && (!current || restored);
 
     const icon = document.createElement("span");
     icon.className = "protocol-app-icon";
@@ -452,7 +473,7 @@ class ProtocolSelectFlow {
     const code = document.createElement("span");
     code.className = "protocol-app-code";
     // ◆ 완전 복구 / ◇ 그 외 — 복구 등급을 글자 하나로 붙인다.
-    code.textContent = `${stage.id.toUpperCase()} · ${full ? "◆" : "◇"}`;
+    code.textContent = `A${run.currentAct}-${String(slot).padStart(2, "0")} · ${restored ? "◆" : current ? "▶" : "◇"}`;
 
     const title = document.createElement("strong");
     title.className = "protocol-app-title";
@@ -460,7 +481,7 @@ class ProtocolSelectFlow {
 
     const mark = document.createElement("span");
     mark.className = "protocol-app-mark";
-    mark.textContent = this.strings.protocol.restored;
+    mark.textContent = restored ? "REGISTERED" : current ? "CONNECT" : "LOCKED";
 
     tile.append(icon, code, title, mark);
     tile.title = `${stage.controls}\n${stage.objective}\n${stage.anomaly}`;
@@ -504,4 +525,4 @@ class ProtocolSelectFlow {
   }
 }
 
-const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS);
+const protocolSelectFlow = new ProtocolSelectFlow(gameEvents, UI, audioBus, STRINGS, cutsceneFlow);

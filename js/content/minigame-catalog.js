@@ -10,6 +10,7 @@
     ['e7', '경품 룰렛', '◴', '룰렛을 마우스로 휙 돌리기', '고정된 화살표에 당첨 칸이 멈추면 성공!', '꽝마다 당첨 영역 1/2 → 1/4 → 1/6…', '추첨'],
     ['e8', '시소 균형', '⚖', 'A/D로 우리 쪽 캐릭터 이동', '반대편 끝이 바닥에 닿지 않도록 20.26초 버티세요.', '랜덤 추 7개 · 중심에서 멀수록 무거운 효과', '이동'],
     ['e9', '얼음 컬링', '≈', '돌을 마우스로 당겼다 놓기', '돌을 과녁 안에 완전히 멈추세요.', '실패할수록 얼음이 미끄러워짐', '슬라이드'],
+    ['e10', '숫자 해독', '⌨', 'A/D 또는 ←/→ 이동 · Space 점프', '낙서로 가려진 네 자리 숫자를 블록의 아랫면을 터치해 입력하세요.', '방향을 새로 입력할수록 마찰과 가속력 감소', '조작'],
   ].map(([id, title, recordSymbol, controls, objective, anomaly, actionLabel], index) => Object.freeze({
     id, number: String(index + 1).padStart(2, '0'), title, recordSymbol, controls, objective, anomaly, actionLabel,
     intro: `${controls}\n${objective}\n${anomaly}`,
