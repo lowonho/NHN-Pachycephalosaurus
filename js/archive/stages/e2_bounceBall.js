@@ -19,7 +19,7 @@ export const E2_BOUNCE_BALL = {
   build() {
     MINI.init(this, 0xb8f77b);
     this.state = { x: 90, y: 429, vy: 0, grounded: true, jumps: 0, deaths: 0, checkpoint: 90,
-      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0 };
+      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0, lastWaxCrackSfx: '' };
     this.ballInk = this.add.graphics().setMask(this.ink.mask).setDepth(3);
     this.add.text(925, 137, '파랑: 승강 발판 · 주황: 밟으면 무너짐', {
       fontFamily: 'Arial', fontSize: '13px', color: '#cbdce4',
@@ -42,13 +42,21 @@ export const E2_BOUNCE_BALL = {
     const t = E2_BOUNCE_BALL.tuning;
     return Math.max(t.minJump, t.jump * (1 - this.penalty(1 - t.jumpDecay)) ** this.state.jumps);
   },
+  playWaxCrack(kind, impactSpeed = 0) {
+    const variants = ['sfxE2WaxCrack1', 'sfxE2WaxCrack2'];
+    let index = Math.random() < .5 ? 0 : 1;
+    if (variants[index] === this.state.lastWaxCrackSfx && Math.random() < .7) index = 1 - index;
+    const key = variants[index];
+    this.state.lastWaxCrackSfx = key;
+    const landing = kind === 'land';
+    const volume = landing ? MINI.clamp(impactSpeed / 620, .7, 1) : .82;
+    this.sfx(key, { rate: (landing ? .96 : 1.04) * MINI.rand(.97, 1.03), volume });
+  },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
     s.vy = -E2_BOUNCE_BALL.jumpPower.call(this);
     s.grounded = false; s.jumps++; this.actions++; this.sfx('sfxE2WaxJump');
-    if (s.jumps === 2) this.sfx('sfxE2WaxCrack1');
-    else if (s.jumps === 4) this.sfx('sfxE2WaxCrack2');
     s.burst = 1;
     // 조각은 월드 좌표로 움직여 카메라나 리스폰을 따라 공에 달라붙지 않습니다.
     for (let i = 0; i < 5; i++) {
@@ -59,6 +67,7 @@ export const E2_BOUNCE_BALL = {
   },
   update(dt) {
     const s = this.state, t = E2_BOUNCE_BALL.tuning, wasGrounded = s.grounded, oldX = s.x;
+    let landedThisFrame = false;
     for (const p of this.platforms) {
       p.previousY = p.y;
       // 출렁임은 그림에만 쓰는 값입니다. 일시정지 중에는 update가 돌지 않아 함께 멈춥니다.
@@ -92,10 +101,16 @@ export const E2_BOUNCE_BALL = {
     for (const p of this.platforms) {
       const previousTop = wasGrounded && p === support ? p.y : p.previousY;
       if (p.active && s.vy >= (p.y - previousTop) / dt && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= previousTop + 1 && s.y + t.radius >= p.y) {
+        const landingSpeed = s.vy;
         s.y = p.y - t.radius; s.vy = 0; s.grounded = true;
         // 밟은 발판 그림을 출렁이게 합니다. 공의 위치·속도는 위에서 이미 정해졌고
         // 이 값은 render만 읽으므로 궤적에는 아무 영향이 없습니다.
-        if (!wasGrounded) { s.squash = 1; if (p.kind !== 'crumble') p.wobble = WOBBLE_TIME; }
+        if (!wasGrounded) {
+          s.squash = 1;
+          if (p.kind !== 'crumble') p.wobble = WOBBLE_TIME;
+          if (!landedThisFrame) E2_BOUNCE_BALL.playWaxCrack.call(this, 'land', landingSpeed);
+          landedThisFrame = true;
+        }
         s.platformIndex = p.index;
         if (p.kind === 'crumble') {
           if (p.crumbleLeft === null) p.crumbleLeft = t.crumbleTime;

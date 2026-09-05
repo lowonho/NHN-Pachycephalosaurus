@@ -142,7 +142,7 @@ export const E10_NUMBER_DECODE = {
     s.grounded = false;
     s.jumpAt = this.elapsed;
     this.actions += 1;
-    this.sfx('sfxE10SpinJump');
+    this.sfx('sfxE10Jump');
   },
 
   enterDigit(digit) {
@@ -154,7 +154,7 @@ export const E10_NUMBER_DECODE = {
       s.lastHitCorrect = true;
       s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
       s.feedbackUntil = this.elapsed + 1;
-      this.sfx('sfxClick');
+      this.sfx('sfxE10TouchNumber');
       return;
     }
 
@@ -166,12 +166,13 @@ export const E10_NUMBER_DECODE = {
       s.mistakes += 1;
       s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
       s.feedbackUntil = this.elapsed + 1.2;
+      this.sfx('sfxE10TouchNumber');
       this.bump('sfxE10DigitWrong');
       return;
     }
 
-    this.sfx('sfxClick');
     this.finish(true, `CODE ${s.target} 해독`);
+    this.sfx('sfxE10TouchNumber');
   },
 
   update(dt) {
@@ -188,7 +189,6 @@ export const E10_NUMBER_DECODE = {
     if (s.x < 34 || s.x > 926) {
       s.x = MINI.clamp(s.x, 34, 926);
       s.vx *= -.24;
-      this.bump();
     }
 
     const previousTop = s.y - PLAYER.height / 2;

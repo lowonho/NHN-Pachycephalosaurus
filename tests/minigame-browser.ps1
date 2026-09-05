@@ -1,4 +1,4 @@
-param([switch]$E1Only, [switch]$E2Only, [switch]$E4Only, [switch]$E8Only, [switch]$E10Only)
+param([switch]$CountdownOnly, [switch]$E1Only, [switch]$E2Only, [switch]$E4Only, [switch]$E8Only, [switch]$E10Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -72,6 +72,15 @@ try {
   # 이 스위트는 판을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다.
   # (카운트다운 자체는 minigame-browser-check.js가 직접 세워 검사한다.)
   Evaluate "ARCHIVE_STORY_SETTINGS.skipCountdown = true" | Out-Null
+  if ($CountdownOnly) {
+    $countdown = Evaluate "(() => { const scene=archivePhaserGame.scene.getScene('archive-game'); ARCHIVE_STORY_SETTINGS.skipCountdown=false; archiveGameBridge.stop(); const stage=MINIGAME_CATALOG.find(item=>item.id==='e1'); archiveGameBridge.currentStage=stage; scene.loadStage('e1'); let sfxEvents=0; const onSfx=()=>sfxEvents++; window.addEventListener('archive-sfx',onSfx); archiveGameBridge.beginCountdown(); const labels=[UI.stageCountdownValue.textContent]; while(archiveGameBridge.nextCountdownStep()) labels.push(UI.stageCountdownValue.textContent); window.removeEventListener('archive-sfx',onSfx); const result={labels:labels.join(' '),sequenceOk:labels.length===4&&labels[0]==='3'&&labels[1]==='2'&&labels[2]==='1'&&UI.stageCountdownValue.dataset.step==='go',sfxEvents,hidden:UI.stageCountdown.hidden,mode:scene.mode}; archiveGameBridge.stop(); ARCHIVE_STORY_SETTINGS.skipCountdown=true; return result; })()"
+    if (!$countdown.sequenceOk -or $countdown.sfxEvents -ne 0 -or !$countdown.hidden -or $countdown.mode -ne 'playing') {
+      throw ('Countdown verification failed: ' + ($countdown | ConvertTo-Json -Compress))
+    }
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output ('PASS: countdown stays visual-only and starts the stage: ' + ($countdown | ConvertTo-Json -Compress))
+    return
+  }
   if ($E1Only) {
     # 달리기 여섯 장이 실제 화면에서 어떻게 도는지 남긴다. 세트마다 한 걸음(RUN_STEP)씩
     # 밀어 여섯 장을 차례로 찍는다. QA 로 세트를 고정해야 두 벌을 각각 볼 수 있다.
@@ -94,10 +103,32 @@ try {
         Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); archiveGame.pause(false); for(let i=0;i<9;i++) s.update(0,1000/120); archiveGame.pause(true); archivePhaserGame.loop.wake(); })()" | Out-Null
         Start-Sleep -Milliseconds 120
       }
+      if ($set.Name -eq 'base') {
+        Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'), h=s.hazards[3]; s.state.x=h.x-s.dash.warningLead+10; h.warned=true; h.warningAge=.15; h.triggered=false; h.progress=0; s.stageGame.render.call(s); })()" | Out-Null
+        $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+        [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e1-warning-jana.png'), [Convert]::FromBase64String($shot.data))
+        # 미나미가 달리는 판: 제나·립과 원이 불꽃을 확인한다.
+        foreach ($meme in @(@{ Index=3; Name='jana' }, @{ Index=5; Name='liv' }, @{ Index=9; Name='woni' })) {
+          Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'), h=s.hazards[$($meme.Index)]; s.state.x=h.x-340; h.warned=true; h.triggered=true; h.progress=1; s.stageGame.render.call(s); })()" | Out-Null
+          $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+          [IO.File]::WriteAllBytes((Join-Path $artifactDir "e1-large-$($meme.Name).png"), [Convert]::FromBase64String($shot.data))
+        }
+      } else {
+        # 원이가 달리는 판에서는 원이 불꽃 대신 거대 야호가 마지막에 나온다.
+        Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'), h=s.hazards[9]; s.state.x=h.x-340; h.warned=true; h.triggered=true; h.progress=1; s.stageGame.render.call(s); })()" | Out-Null
+        $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+        [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e1-large-yaho.png'), [Convert]::FromBase64String($shot.data))
+      }
+    }
+    $e1Structure = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'), basics=s.hazards.filter(h=>h.type==='basic'), specials=s.hazards.filter(h=>h.type!=='basic'); return {hazards:s.hazards.length,basics:basics.length,specials:specials.length,warnings:s.warningMarks.filter(Boolean).length,assets:['jena-meme','jena-crown','liv-meme','liv-foot','yaho-meme'].every(k=>s.textures.exists('e1:'+k))}; })()"
+    if ($e1Structure.hazards -ne 10 -or $e1Structure.basics -ne 7 -or $e1Structure.specials -ne 3 -or $e1Structure.warnings -ne 3 -or !$e1Structure.assets) {
+      throw ('E1 structure verification failed: ' + ($e1Structure | ConvertTo-Json -Compress))
     }
     Evaluate "ARCHIVE_QA.artSet = {}; ARCHIVE_QA.active = false;" | Out-Null
+    $e1Clear = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'), flipped=new Set(); let outcome=null; const end=e=>outcome=e.detail; window.addEventListener('archive-stage-end',end); archivePhaserGame.loop.sleep(); archiveGameBridge.active=false; s.loadStage('e1'); s.startStage(); s.settings={shake:false,effects:false}; for(let i=0;i<Math.ceil(20.3*120)&&s.playable();i++){ const h=s.hazards.find(o=>o.x-s.state.x>-100&&!flipped.has(o.gate)); if(h&&h.x-s.state.x<s.stageGame.tuning.speed*.65){ flipped.add(h.gate); const sign=h.safe==='floor'||h.safe==='center'?1:-1; if(s.state.sign!==sign)s.primaryAction(); } s.update(0,1000/120); } window.removeEventListener('archive-stage-end',end); return {success:outcome?.success??false,deaths:s.state.deaths,x:s.state.x,actions:s.actions}; })()"
+    if (!$e1Clear.success) { throw ('E1 clearability failed: ' + ($e1Clear | ConvertTo-Json -Compress)) }
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
-    Write-Output 'PASS: E1 run cycle rendered for both meme sets'
+    Write-Output ('PASS: E1 assets rendered and three-special course cleared: ' + ($e1Clear | ConvertTo-Json -Compress))
     return
   }
   if ($E10Only) {
@@ -187,12 +218,24 @@ try {
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
     [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-chase.png'), [Convert]::FromBase64String($shot.data))
     Evaluate "(() => { archivePhaserGame.loop.sleep(); archiveGame.pause(false); const s=archivePhaserGame.scene.getScene('archive-game'); for(let i=0;i<120&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
-    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('RETRY') && UI.modalCopy.textContent.includes('\uD638\uB791\uC774')")) { throw 'E4 tiger catch did not open the existing failure UI' }
+    if (!(Evaluate "!UI.e4Outcome.classList.contains('hidden') && UI.e4Outcome.dataset.result==='failure' && UI.e4OutcomeImage.src.endsWith('e4-outcome-fail.png') && UI.e4OutcomeImage.complete && UI.e4OutcomeImage.naturalWidth===1672 && UI.e4OutcomeImage.naturalHeight===941 && !modalFlow.isOpen()")) { throw 'E4 tiger catch did not show the loaded failure cut first' }
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-outcome-failure.png'), [Convert]::FromBase64String($shot.data))
+    Start-Sleep -Milliseconds 2100
+    if (!(Evaluate "UI.e4Outcome.classList.contains('hidden') && modalFlow.isOpen() && UI.modalStep.textContent.includes('RETRY') && UI.modalCopy.textContent.includes('\uD638\uB791\uC774')")) { throw 'E4 failure cut did not hand off to the existing retry UI after two seconds' }
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
     [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-failure.png'), [Convert]::FromBase64String($shot.data))
     Evaluate "(() => { modalFlow.close(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.sleep(); const s=archivePhaserGame.scene.getScene('archive-game'); s.state.x=s.state.goal.x-20; s.state.y=s.state.goal.y; s.directionPress('right'); for(let i=0;i<12&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
-    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('CLEAR')")) { throw 'E4 reaching the king did not open the existing success UI' }
-    Write-Output 'PASS: tiger failure and king arrival open the existing result UI'
+    if (!(Evaluate "!UI.e4Outcome.classList.contains('hidden') && UI.e4Outcome.dataset.result==='success' && UI.e4OutcomeImage.src.endsWith('e4-outcome-success.png') && UI.e4OutcomeImage.complete && UI.e4OutcomeImage.naturalWidth===1672 && UI.e4OutcomeImage.naturalHeight===941 && !modalFlow.isOpen()")) { throw 'E4 reaching the king did not show the loaded success cut first' }
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-outcome-success.png'), [Convert]::FromBase64String($shot.data))
+    Start-Sleep -Milliseconds 2100
+    if (!(Evaluate "UI.e4Outcome.classList.contains('hidden') && modalFlow.isOpen() && UI.modalStep.textContent.includes('CLEAR')")) { throw 'E4 success cut did not hand off to the QA result UI after two seconds' }
+    Evaluate "(() => { archiveGameBridge.stop(); modalFlow.close(); archiveRun.exitQa(); ARCHIVE_QA.active=false; let run; for(let i=0;i<100;i++){ run=archiveRun.startNew(); if(run.expectedStageId==='e4') break; } if(run.expectedStageId!=='e4') throw Error('Could not seed e4 as the first story stage'); mainMenuFlow.close(); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.sleep(); const s=archivePhaserGame.scene.getScene('archive-game'); s.state.x=s.state.goal.x-20; s.state.y=s.state.goal.y; s.directionPress('right'); for(let i=0;i<12&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
+    if (!(Evaluate "!UI.e4Outcome.classList.contains('hidden') && UI.e4Outcome.dataset.result==='success' && !modalFlow.isOpen()")) { throw 'Story E4 clear did not show the success cut before continuing' }
+    Start-Sleep -Milliseconds 2100
+    if (!(Evaluate "UI.e4Outcome.classList.contains('hidden') && !modalFlow.isOpen() && archiveRun.snapshot().currentStageInAct===2 && UI.protocolScreen.dataset.mode==='brief' && archivePhaserGame.scene.getScene('archive-game').mode==='idle'")) { throw 'Story E4 success did not automatically advance after the two-second cut' }
+    Write-Output 'PASS: E4 failure waits for retry choice; QA success returns to QA result; story success advances automatically after both two-second cuts'
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     return
   }

@@ -19,7 +19,7 @@ export const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
-    targetHeight: 216, hold: 3,
+    targetHeight: 216, hold: 2,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
     // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
@@ -67,7 +67,7 @@ export const E3_HUMAN_STACK = {
     // 받아 주는 바닥은 없습니다. 단상을 벗어난 사람은 화면 아래로 그대로 떨어져 사라집니다.
     M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
-      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
+      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0, countdownActive: false, countdownTicks: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
       spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180,
       nextTint: E3_HUMAN_STACK.randomTint(), spinShown: 0,
@@ -158,7 +158,7 @@ export const E3_HUMAN_STACK = {
     s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
-    this.sfx(s.drops === 3 ? 'sfxE3CountThree' : 'sfxE3PersonFall');
+    this.sfx('action');
   },
   /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
   press(direction) {
@@ -180,13 +180,16 @@ export const E3_HUMAN_STACK = {
   cullFallen() {
     const M = Phaser.Physics.Matter.Matter, gone = MINI.FIELD.bottom + 20;
     const before = this.people.length;
+    let fellToBottom = false;
     for (let i = before - 1; i >= 0; i--) {
       const body = this.people[i];
       if (E3_HUMAN_STACK.project.call(this, 0, body.bounds.min.y).y <= gone) continue;
       M.Composite.remove(this.stackWorld.world, body);
       this.people.splice(i, 1); this.stackBodyById.delete(body.id);
       this.stackGrounded.delete(body.id); this.stackStable.delete(body.id);
+      fellToBottom = true;
     }
+    if (fellToBottom) this.sfx('sfxE3PersonFall');
     // 그림은 목록 순서대로 다시 그려지므로, 줄어든 뒤 남는 꼬리 그림만 감춥니다.
     for (let i = this.people.length; i < before; i++) this.assetSprites.get(`person${i}`)?.setVisible(false);
   },
@@ -220,6 +223,26 @@ export const E3_HUMAN_STACK = {
     this.state.stableCount = this.stackStable.size;
     return top(this.stackGrounded);
   },
+  updateCountdown(dt) {
+    const s = this.state, t = E3_HUMAN_STACK.tuning;
+    if (s.height >= t.targetHeight) {
+      if (!s.countdownActive) {
+        s.countdownActive = true;
+        s.countdownTicks = 1;
+        this.sfx('sfxE3SuccessCount');
+      }
+      s.held += dt;
+      while (s.countdownTicks < t.hold && s.held >= s.countdownTicks) {
+        this.sfx('sfxE3SuccessCount');
+        s.countdownTicks++;
+      }
+      return;
+    }
+    if (s.countdownActive) this.stopSfx('sfxE3SuccessCount');
+    s.countdownActive = false;
+    s.countdownTicks = 0;
+    s.held = 0;
+  },
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
     s.x += s.direction * E3_HUMAN_STACK.speed.call(this) * dt;
@@ -241,7 +264,7 @@ export const E3_HUMAN_STACK = {
     const viewTop = Math.min(s.spawnY, top);
     const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - viewTop + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
-    s.held = s.height >= t.targetHeight ? s.held + dt : 0;
+    E3_HUMAN_STACK.updateCountdown.call(this, dt);
     for (const impact of s.impacts) impact.age += dt;
     s.impacts = s.impacts.filter(impact => impact.age < .35).slice(-16);
     this.anomaly = `좌우 속도 ${Math.round(E3_HUMAN_STACK.speed.call(this))} · 받쳐진 사람 ${s.groundedCount}/${s.drops}명`;
@@ -309,7 +332,7 @@ export const E3_HUMAN_STACK = {
     const dashFrom = project(t.railLeft, 0).x, dashTo = project(t.railRight, 0).x;
     for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
     // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
-    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : `목표 높이 · ${t.hold}초 유지`);
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     // 표지는 성공선 오른쪽 끝에 붙어 따라다닙니다. 가슴의 화살표가 선을 가리키며,
     // 시야가 줄어 선이 짧아져도 선 끝과의 간격은 그대로라 크기만 변하지 않습니다.
@@ -361,6 +384,7 @@ export const E3_HUMAN_STACK = {
     MINI.meter(this, s.height / t.targetHeight);
   },
   dispose() {
+    this.stopSfx('sfxE3SuccessCount');
     if (!this.stackWorld) return;
     const M = Phaser.Physics.Matter.Matter;
     M.Events.off(this.stackWorld, 'collisionStart', this.stackCollisionHandler);

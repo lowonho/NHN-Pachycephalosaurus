@@ -137,6 +137,9 @@ const UI = Object.freeze({
   stageCountdownAnomaly: document.querySelector("#stage-countdown-anomaly"),
   stageCountdownAnomalyText: document.querySelector("#stage-countdown-anomaly-text"),
 
+  e4Outcome: document.querySelector("#e4-outcome"),
+  e4OutcomeImage: document.querySelector("#e4-outcome-image"),
+
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),
   modalTitle: document.querySelector("#modal-title"),

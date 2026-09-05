@@ -133,6 +133,7 @@ class ArchiveGame extends Phaser.Scene {
   penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
   sfx(name, options) { return audio.play(name === 'jump' ? 'action' : name, options); }
+  stopSfx(name) { audio.stopSfx(name); }
   bump(sound = 'sfxPenaltyHit') { this.sfx(sound); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));

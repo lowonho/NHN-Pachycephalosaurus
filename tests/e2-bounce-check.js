@@ -13,6 +13,14 @@
 
   load();
   assert(scene.stageGame.tuning.minJump === 300, 'e2: minimum jump power is raised to 300');
+  const random = Math.random;
+  archiveAudio.lastSfx.clear(); Math.random = () => .1; scene.primaryAction();
+  assert(archiveAudio.lastSfx.has('sfxE2WaxJump') && !archiveAudio.lastSfx.has('sfxE2WaxCrack1') && !archiveAudio.lastSfx.has('sfxE2WaxCrack2'),
+    'e2: a real jump plays only the jump sound');
+  Math.random = () => .9; advance(1.3); Math.random = random;
+  assert(scene.state.grounded && archiveAudio.lastSfx.has('sfxE2WaxCrack2') && archiveAudio.lastSfx.has('sfxE2WaxJump'),
+    'e2: a wax-breaking variation starts only after real landing');
+  load();
   scene.state.jumps = 100;
   assert(scene.stageGame.jumpPower.call(scene) === 300, 'e2: jump decay stops at the playable minimum');
 

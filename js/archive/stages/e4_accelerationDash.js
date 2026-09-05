@@ -61,7 +61,7 @@ export const E4_ACCELERATION_DASH = {
     MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, brakeSounded: false,
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false,
       footstepLeft: 0, footstepIndex: 0, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     E4_VILLAGE.build(this, E4);
     E4_TIGER.build(this);
@@ -151,8 +151,6 @@ export const E4_ACCELERATION_DASH = {
         s.footstepLeft = .38 - pace * .2;
       }
     } else s.footstepLeft = 0;
-    if (s.braking && !s.brakeSounded) { this.sfx('sfxE4Brake'); s.brakeSounded = true; }
-    if (!s.braking) s.brakeSounded = false;
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();

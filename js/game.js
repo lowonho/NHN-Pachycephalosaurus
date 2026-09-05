@@ -7,16 +7,21 @@
  * 마지막 "시작!"만 짧게 스쳐 지나가 곧바로 손이 움직이게 한다.
  */
 const COUNTDOWN_STEPS = Object.freeze([
-  { text: '3', step: '3', ms: 620, sfx: 'click' },
-  { text: '2', step: '2', ms: 620, sfx: 'click' },
-  { text: '1', step: '1', ms: 620, sfx: 'click' },
-  { text: '시작!', step: 'go', ms: 420, sfx: 'sfxClick' },
+  { text: '3', step: '3', ms: 620 },
+  { text: '2', step: '2', ms: 620 },
+  { text: '1', step: '1', ms: 620 },
+  { text: '시작!', step: 'go', ms: 420 },
 ]);
+const E4_OUTCOME_MS = 2000;
+const E4_OUTCOME_IMAGES = Object.freeze({
+  failure: 'assets/minigames/e4/e4-outcome-fail.png',
+  success: 'assets/minigames/e4/e4-outcome-success.png',
+});
 
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
     this.events = events; this.ui = dom; this.soundBus = soundBus; this.stages = []; this.api = null;
-    this.active = false; this.countdown = null;
+    this.active = false; this.countdown = null; this.outcomeTimer = 0;
     window.addEventListener('archive-game-ready', event => this.onReady(event.detail));
     window.addEventListener('archive-hud', event => this.onHud(event.detail));
     window.addEventListener('archive-stage-end', event => this.onStageEnd(event.detail));
@@ -59,18 +64,16 @@ class ArchiveGameBridge {
   start(stageId) {
     const stage = this.stages.find(stage => stage.id === stageId);
     if (!stage || !this.api || !window.archiveRun.snapshot().selectedStageIds.includes(stageId)) return;
+    this.clearOutcome();
     this.currentStage = stage; this.active = true; this.warningSent = false;
     const run = window.archiveRun.snapshot();
     this.ui.appShell.dataset.act = String(run.currentAct);
     this.ui.appShell.dataset.assist = String(Boolean(run.assistProtocolAct1));
     const archiveAudio = window.archiveAudio;
     archiveAudio?.stopSfx();
-    const bgmWasPlaying = Boolean(archiveAudio?.bgmStarted && !archiveAudio?.bgmPaused);
-    /* 무음 브리핑 다음에는 이전 곡을 거치지 않고 새 게임 곡부터 사용자 입력으로 해제한다. */
-    if (!bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true, immediate: true });
+    /* 스테이지 진입 시에는 이전 곡을 즉시 끄고 해당 게임 BGM만 재생한다. */
+    archiveAudio?.selectBgm(stageId, { restart: true, immediate: true });
     this.soundBus.startGameAudio();
-    /* 음악이 재생 중이던 QA 직행 등에서는 카운트다운 동안 자연스럽게 갈아탄다. */
-    if (bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true });
     this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
@@ -134,7 +137,6 @@ class ArchiveGameBridge {
     value.textContent = next.text; value.dataset.step = next.step;
     /* 같은 애니메이션을 처음부터 다시 재생시킨다 — 되감으려면 한 번 떼었다 붙여야 한다. */
     value.style.animation = 'none'; void value.offsetWidth; value.style.animation = '';
-    window.dispatchEvent(new CustomEvent('archive-sfx', { detail: { name: next.sfx } }));
     return true;
   }
   /* 세는 것을 끝내고 판을 시작한다. 카운트다운이 없었으면 아무 일도 하지 않는다. */
@@ -162,10 +164,10 @@ class ArchiveGameBridge {
     this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
   }
   stop({ bgm = 'silence' } = {}) {
-    this.active = false; this.cancelCountdown(); this.api?.stop();
+    this.active = false; this.cancelCountdown(); this.clearOutcome(); this.api?.stop();
     const archiveAudio = window.archiveAudio;
     if (bgm === 'main') {
-      archiveAudio?.selectBgm('main');
+      archiveAudio?.selectBgm('main', { immediate: true });
       if (archiveAudio && (archiveAudio.bgmPaused || !archiveAudio.bgmStarted)) archiveAudio.startBgm();
     } else {
       archiveAudio?.silenceBgm();
@@ -216,10 +218,50 @@ class ArchiveGameBridge {
       window.archiveProgress.record(this.currentStage.id, true, true);
       record = window.archiveRecords.record(this.currentStage.id, elapsed, actions);
     }
+    const detail = {
+      success, stageId: this.currentStage.id, stage: this.currentStage,
+      elapsed, actions, extra, run, record,
+    };
+    if (detail.stageId === 'e4') {
+      this.showE4Outcome(detail);
+      return;
+    }
+    this.emitStageEnd(detail);
+  }
+  showE4Outcome(detail) {
+    const splash = this.ui.e4Outcome, image = this.ui.e4OutcomeImage;
+    if (!splash || !image) {
+      this.emitStageEnd(detail);
+      if (detail.success && !detail.run?.qaMode) this.events.emit(GAME_EVENTS.REQUEST_CONTINUE, { automatic: true });
+      return;
+    }
+    this.clearOutcome();
+    const success = detail.success;
+    image.src = E4_OUTCOME_IMAGES[success ? 'success' : 'failure'];
+    image.alt = success ? '왕사남이 호랑이를 향해 활을 겨누는 성공 장면' : '호랑이 앞에서 왕사남이 우는 실패 장면';
+    splash.dataset.result = success ? 'success' : 'failure';
+    splash.classList.remove('hidden');
+    this.ui.appShell?.setAttribute('inert', '');
+    this.outcomeTimer = window.setTimeout(() => {
+      this.outcomeTimer = 0;
+      this.hideOutcome();
+      this.emitStageEnd(detail);
+      if (success && !detail.run?.qaMode) this.events.emit(GAME_EVENTS.REQUEST_CONTINUE, { automatic: true });
+    }, E4_OUTCOME_MS);
+  }
+  emitStageEnd(detail) {
     mainMenuFlow.renderStages();
-    this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, {
-      stageId: this.currentStage.id, stage: this.currentStage, elapsed, actions, extra, run, record,
-    });
+    this.events.emit(detail.success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
+  }
+  hideOutcome() {
+    if (!this.ui.e4Outcome) return;
+    this.ui.e4Outcome.classList.add('hidden');
+    delete this.ui.e4Outcome.dataset.result;
+  }
+  clearOutcome() {
+    window.clearTimeout(this.outcomeTimer);
+    this.outcomeTimer = 0;
+    this.hideOutcome();
   }
   syncAudio() {
     window.archiveAudio?.setVolume(this.soundBus.channelVolume('sfx'));

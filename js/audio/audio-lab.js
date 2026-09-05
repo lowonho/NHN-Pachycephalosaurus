@@ -123,7 +123,7 @@
     tuning().bgm.tracks[bgmSelect.value].loopEnd = event.target.value === "" ? null : Math.max(0, Number(event.target.value)); save();
   });
   $("#audio-lab-play").addEventListener("click", () => {
-    window.archiveAudio?.selectBgm(bgmSelect.value, { restart: true, immediate: false });
+    window.archiveAudio?.selectBgm(bgmSelect.value, { restart: true, immediate: true });
     window.archiveAudio?.startBgm(); save(`${bgmSelect.value.toUpperCase()} 재생 중`);
   });
   $("#audio-lab-pause").addEventListener("click", () => { window.archiveAudio?.pauseBgm(); save("BGM 일시정지"); });

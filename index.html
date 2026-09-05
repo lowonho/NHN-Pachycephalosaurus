@@ -21,6 +21,8 @@
     <link rel="stylesheet" href="css/responsive.css" />
     <link rel="stylesheet" href="css/archive.css" />
     <link rel="stylesheet" href="css/qa.css" />
+    <link rel="preload" as="image" href="assets/minigames/e4/e4-outcome-fail.png" />
+    <link rel="preload" as="image" href="assets/minigames/e4/e4-outcome-success.png" />
   </head>
   <body>
     <!--
@@ -417,6 +419,11 @@
               HUD와 같은 1920×1080 설계 좌표를 쓰고 스크린 배율로만 줄인다.
             -->
             <div class="screen-overlays">
+              <!-- 왕사남 추격 결과 — 성공/실패 직후 2초간 게임 화면을 대신한다. -->
+              <div class="e4-outcome hidden" id="e4-outcome" role="status" aria-live="assertive">
+                <img id="e4-outcome-image" alt="" width="1672" height="941" />
+              </div>
+
               <!-- 결과(복구 성공 · 실패) -->
               <div class="modal-backdrop hidden" id="result-modal">
                 <section class="modal" aria-labelledby="modal-title">

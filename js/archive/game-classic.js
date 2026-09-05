@@ -118,6 +118,10 @@ class ArchiveAudio {
   selectBgm(key, { restart = false, immediate = false } = {}) {
     if (!this.tracks[key]) key = "main";
     if (this.bgmKey === key) {
+      if (immediate) {
+        this.cancelFade();
+        this.stopInactiveBgm(this.bgm);
+      }
       if (restart) this.seekToLoopStart(this.bgm, key);
       if (this.bgmStarted && !this.bgmPaused) this.startBgm();
       return this.bgm;
@@ -133,6 +137,16 @@ class ArchiveAudio {
     this.bgm = next;
     this.bgmKey = key;
 
+    if (immediate) {
+      previous.pause();
+      previous.volume = 0;
+      next.volume = this.effectiveBgmVolume(key);
+      if (this.bgmStarted && !this.bgmPaused) {
+        next.play().catch((error) => this.armBgmUnlock(error));
+      }
+      return next;
+    }
+
     if (!this.bgmStarted || this.bgmPaused) {
       previous.pause();
       previous.volume = 0;
@@ -142,13 +156,21 @@ class ArchiveAudio {
 
     const play = next.play();
     if (play?.then) {
-      play.then(() => this.crossfade(previous, next, immediate ? 0 : this.tuning.bgm.fadeMs)).catch((error) => {
+      play.then(() => {
+        if (this.bgm !== next || this.bgmKey !== key) {
+          next.pause();
+          next.volume = 0;
+          return;
+        }
+        this.crossfade(previous, next, this.tuning.bgm.fadeMs);
+      }).catch((error) => {
+        if (this.bgm !== next || this.bgmKey !== key) return;
         previous.pause();
         previous.volume = 0;
         this.armBgmUnlock(error);
       });
     } else {
-      this.crossfade(previous, next, immediate ? 0 : this.tuning.bgm.fadeMs);
+      this.crossfade(previous, next, this.tuning.bgm.fadeMs);
     }
     return next;
   }
@@ -186,6 +208,14 @@ class ArchiveAudio {
     this.fadeToken += 1;
     if (this.fadeFrame) cancelAnimationFrame(this.fadeFrame);
     this.fadeFrame = 0;
+  }
+
+  stopInactiveBgm(active = this.bgm) {
+    this.bgmSlots.forEach((slot) => {
+      if (slot === active) return;
+      slot.pause();
+      slot.volume = 0;
+    });
   }
 
   armBgmUnlock(error) {
@@ -320,6 +350,8 @@ class ArchiveAudio {
       element.pause();
       try { element.currentTime = 0; } catch { /* 아직 메타데이터 로드 전 */ }
     }
+    if (name) this.lastSfx.delete(name);
+    else this.lastSfx.clear();
     this.pausedSfx.clear();
   }
 
@@ -945,62 +977,42 @@ const FLOOR_TOP = 511;   // 바닥 벽의 윗면
 const CEIL_BOTTOM = 130; // 천장 벽의 아랫면
 const FLOOR_Y = 494;     // 바닥에 붙었을 때 플레이어 중심
 const CEIL_Y = 145;      // 천장에 붙었을 때 플레이어 중심
-const BLOCK = 34;        // 장애물 높이
-const FLOAT_Y = 276;     // 떠 있는 장애물의 시작 높이
-const GATES = 10;
-/* 맵이 흐르는 속도(px/s)입니다. 코스 길이와 장애물 간격을 모두 이 속도에 비례해 잡으므로,
-   속도를 올리면 간격도 그만큼 벌어져 묶음 사이 시간(약 1.37초)과 코스 시간(약 16.3초)은 그대로입니다. */
-const SPEED = 340;
-const PACE = SPEED / 285;                  // 예전 기준 속도 285 대비 배율
-const GATE = Math.round(390 * PACE);       // 장애물 묶음 사이 간격
-const LEAD = Math.round(650 * PACE);       // 출발선에서 첫 묶음까지
-const DISTANCE = Math.round(4650 * PACE);  // 골인 지점
-const SPIKE_W = 35;   // 가시 판정 가로
-const SPIKE_H = 24;   // 가시 판정 세로
-/* 가시 한 개의 표시 크기입니다. 가시 그림(obstacle 폴더의 낱글자 네 장)은 모두 같은 배율로
-   같은 정사각 칸에 앉혀 두었으므로, 한 변 길이 하나로 넷을 다 그립니다. 판정 사각형
-   (SPIKE_W×SPIKE_H)보다 조금 커서 그림이 판정 밖으로 조금 나오지만, 부딪히는 범위는
-   예전 삼각형 그대로입니다 — 그림을 키워도 어려워지지 않습니다. */
-const SPIKE_ART = 46;
-/* 한 묶음에 나란히 붙는 가시 두 개의 간격입니다. 표시 크기와 같은 값이라 두 글자가 딱
-   맞붙어 한 낱말로 읽힙니다. 코스 속도(PACE)를 따라가지 않는 유일한 간격입니다 — 글자
-   크기는 화면에서 고정이라, 속도에 따라 벌어지면 낱말이 갈라집니다. */
-const SPIKE_GAP = SPIKE_ART;
-/* 게이트마다 세우는 두 글자짜리 낱말. 게이트 홀짝으로 번갈아 서므로 바닥에는 '거제',
-   천장에는 '야호'가 붙습니다. 값은 manifest.js 의 e1 역할 이름입니다. */
-const SPIKE_WORDS = [['geo', 'je'], ['ya', 'ho']];
 /*
- * 에셋 제작 전 플레이 감각을 확인하는 밈 난입 대역입니다. 한 명당 가장 큰 무기 하나와
- * 짧은 명찰만 남겨, 나중에 같은 88x68 안에 투명 PNG 한 장을 넣으면 그대로 교체할 수 있게
- * 그립니다. 실제 판정은 아래의 가시 두 칸(각 35x24) 그대로라 그림 크기 때문에 어려워지지
- * 않습니다. 얼굴이 아니라 금관·왕발·집게·불주먹의 실루엣부터 읽히는 것이 목표입니다.
+ * 에셋 제작 전 플레이 감각을 확인하는 대형 밈 세트피스입니다. 화면 뒤에는 멤버를 닮은
+ * 단순 대역이 서고, 앞에서는 금관·왕발·집게·불주먹이 통로 대부분을 덮습니다. 반대편
+ * 벽에는 미나미 한 명이 지나갈 만큼의 틈을 반드시 남깁니다.
  */
 const MEME_CAST = [
-  { id: 'jana', name: '자나', weapon: '신라공주', main: 0xffc43d, dark: 0x7d315f },
-  { id: 'lip', name: '립', weapon: '수원왕발', main: 0xffaa7d, dark: 0x167f86 },
-  { id: 'mee', name: '메에', weapon: '그립갑', main: 0xff4e57, dark: 0x2569a8 },
-  { id: 'woni', name: '원이?', weapon: '거제불주먹', main: 0xff8a18, dark: 0x342b38 },
+  { id: 'jana', name: '제나', weapon: '신라공주 왕관투척', main: 0xffc43d, dark: 0x7d315f },
+  { id: 'woni', name: '원이?', weapon: '입에서 불뿜기', main: 0xff8a18, dark: 0x342b38 },
+  { id: 'liv', name: '리브', weapon: '발가락 따봉', main: 0xffaa7d, dark: 0x167f86 },
+  { id: 'yaho', name: '야호', weapon: '다리 사이 돌파', main: 0xff9cc8, dark: 0x8a4c65 },
 ];
-const MEME_ART_W = 88;
-const MEME_ART_H = 68;
-/* 아직 벽에 붙어 있는 가시는 어두운 짝(<이름>-dim)으로 그립니다. 풀렸는지 아닌지는 이
-   게임에서 가장 중요한 신호이므로 예전 삼각형의 갈색과 금색만큼 차이를 둡니다. 밝기를
-   스프라이트의 tint 로 낮추지 않고 그림을 두 벌 구워 두는 까닭은, index.html 을 파일로 직접
-   열면 Phaser.CANVAS 로 뜨는데(js/archive/game.mjs) 캔버스 렌더러가 tint 를 조용히 무시하기
-   때문입니다 — 그렇게 하면 그 경로에서만 붙은 가시와 풀린 가시가 똑같아 보입니다. */
-const SPIKE_ATTACHED = '-dim';
-const BLOCK_OFF = Math.round(90 * PACE);   // 묶음 안에서 블록이 서는 자리
-const FLOAT_OFF = Math.round(285 * PACE);  // 묶음 안에서 공중 블록이 뜨는 자리
-const SPIKES = GATES * 2;  // 가시 20개 — 게이트마다 두 개씩 나란히
-const MAX_FLIPS = 20;      // risk 게이지가 100%에 닿는 반전 횟수. 이때 가시가 전부 풀립니다.
-const OBSTACLE_MAX_SPEED = 190;  // 장애물이 통로를 건너는 최고 속도
-// 한 번에 풀리는 양은 앞에서 한 개, 뒤로 갈수록 여러 개. 합계는 SPIKES와 같습니다.
-const RELEASE_STEPS = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3];
-// 열두 번의 판정을 1회부터 MAX_FLIPS회까지 고르게 흩뿌립니다. 마지막 판정이 MAX_FLIPS번째입니다.
-const RELEASE_AT = RELEASE_STEPS.map((_, i) => Math.round(MAX_FLIPS * (i + 1) / RELEASE_STEPS.length));
-/* 가시를 풀 때 얼마나 앞쪽을 고르는지. 가시가 통로를 다 건너는 시간 동안 플레이어가 달리는
-   거리입니다. 이보다 가까이서 풀면 플레이어가 지나갈 때까지 다 내려오지 못합니다. */
-const RELEASE_LEAD = Math.round(SPEED * (FLOOR_TOP - CEIL_BOTTOM) / OBSTACLE_MAX_SPEED);
+const CORRIDOR = FLOOR_TOP - CEIL_BOTTOM;
+const HAZARD_W = 112;                        // 작은 가시 대신 한눈에 보이는 넓은 공격
+const BASIC_W = 58;
+const BASIC_H = 92;
+const CROWN_SLANT = 72;                      // 왕관 공격의 실제 판정도 이만큼 비스듬히 꺾임
+const YAHO_SCREEN_X = 50;                    // 거대 야호는 플레이어를 다리 사이에 두고 화면 중앙에 등장
+const YAHO_HOLD = .9;
+const MAX_FLIPS = 14;
+/* ACT가 올라갈수록 속도·반응 시간·통과 틈만 단계적으로 조입니다. 코스 시간은 약 16.3초로 유지합니다. */
+const DIFFICULTIES = [
+  { speed: 300, revealSeconds: 1.05, warningSeconds: .70, gap: 120, emergeTime: .38 },
+  { speed: 340, revealSeconds: .80, warningSeconds: .55, gap: 102, emergeTime: .32 },
+  { speed: 380, revealSeconds: .62, warningSeconds: .42, gap: 86, emergeTime: .26 },
+];
+const makeDifficulty = act => {
+  const picked = DIFFICULTIES[Math.max(0, Math.min(2, act - 1))], pace = picked.speed / 285;
+  return {
+    ...picked,
+    gate: Math.round(390 * pace),
+    lead: Math.round(650 * pace),
+    distance: Math.round(4650 * pace),
+    revealLead: Math.round(picked.speed * picked.revealSeconds),
+    warningLead: Math.round(picked.speed * (picked.revealSeconds + picked.warningSeconds)),
+  };
+};
 
 const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 크기로만 부딪칩니다.
 /* 캐릭터 그림(assets/images/minigame/geomatric dash)의 표시 높이입니다. 가로는 텍스처
@@ -1016,11 +1028,11 @@ const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
    두 세트의 몸 크기가 비슷해 표시 높이(POSE_HEIGHT)는 함께 씁니다. */
 const ART_SETS = ['', 'woni-'];
 /* 달리기 걸음. 여섯 장을 코스 좌표로 넘기므로 속도를 올리면 걸음도 같이 빨라지고,
-   판이 멈추면 걸음도 멈춥니다. RUN_FPS 는 지금 속도(SPEED)에서의 초당 장수라, 여기서
+   판이 멈추면 걸음도 멈춥니다. RUN_FPS 는 1단계 속도에서의 초당 장수라, 여기서
    장당 달리는 거리(RUN_STEP)를 뽑습니다. 초당 열네 장이면 발이 미끄러져 보이지 않습니다. */
 const RUN_FRAMES = 6;
 const RUN_FPS = 14;
-const RUN_STEP = SPEED / RUN_FPS;
+const RUN_STEP = DIFFICULTIES[0].speed / RUN_FPS;
 /* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
    원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
    계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
@@ -1044,9 +1056,7 @@ const TRAIL_LINES = Math.round(7 * WIND_LEVEL);  // 캐릭터 뒤로 끌리는 �
 const TRAIL_SPAN = 150;     // 꼬리가 뒤로 남는 거리
 
 const E1_GRAVITY_DASH = {
-  // 약 16.3초 코스. 캐릭터는 약 0.45초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
-  // (통로가 381로 넓어져 건너는 거리가 261 → 349가 되었습니다. 중력은 그대로 둡니다.)
-  tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
+  tuning: { speed: DIFFICULTIES[0].speed, distance: makeDifficulty(1).distance, gravity: 3200 },
   build() {
     MINI.init(this, 0x67e8f9);
     // leap은 건너뛰는 연출에 남은 시간(초)입니다. 표시 크기에만 쓰이고 판정에는 끼어들지 않습니다.
@@ -1055,64 +1065,104 @@ const E1_GRAVITY_DASH = {
     // 쓰지 않습니다 — 같은 판을 다시 해도 다른 캐릭터가 나옵니다. 뽑는 일은 js/config/qa.js 에
     // 맡깁니다. QA 모드에서 세트를 골라 두었으면 그 세트로 고정되고(개발자에게는 세트마다 다른
     // 스테이지), 평소에는 무작위입니다. 그 파일이 없으면 여기서 그냥 무작위로 뽑습니다.
-    const art = globalThis.archiveStageArtSet?.('e1', ART_SETS) ?? ART_SETS[Math.floor(Math.random() * ART_SETS.length)];
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, leap: 0, art, obstacles: [] };
-    this.instruction.setText('SPACE · 중력 반전  |  무기를 보고 위·아래로 피하세요');
-    // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
-    // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
-    this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
-      // 게이트마다 가시 두 개를 나란히 붙여 둡니다. 반전 리듬은 예전처럼 게이트 간격 그대로입니다.
-      // 두 개가 각각 낱말의 첫 글자와 둘째 글자라, 나란히 붙어야 '거제'·'야호'로 읽힙니다.
-      const gate = Math.floor(i / 2), wall = gate % 2 ? CEIL_BOTTOM : FLOOR_TOP - SPIKE_H;
-      return {
-        x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: SPIKE_W, h: SPIKE_H,
-        vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
-        wall, loose: false, letter: SPIKE_WORDS[gate % 2][i % 2],
-        gate, part: i % 2, meme: MEME_CAST[gate % MEME_CAST.length],
-      };
-    });
-    this.memeLabels = Array.from({ length: GATES }, (_, gate) => {
-      const meme = MEME_CAST[gate % MEME_CAST.length];
-      return this.add.text(0, 0, `${meme.name} · ${meme.weapon}`, {
-        fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#f8fbff',
-        backgroundColor: '#081720', padding: { x: 6, y: 3 },
-        stroke: '#081720', strokeThickness: 2,
-      }).setOrigin(.5).setDepth(4).setMask(this.ink.mask).setVisible(false);
-    });
-    this.state.obstacles.push(...this.hurdles);
-    for (let i = 0; i < GATES; i++) {
-      const gate = LEAD + i * GATE;
-      // 플레이어보다 늦게 벽을 옮깁니다. 너무 일찍 뒤집으면 도착한 벽에서 다시 만납니다.
-      if (i % 2 === 0) this.state.obstacles.push({
-        x: gate + BLOCK_OFF, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
-        factor: .8 + (i % 4) * .15, response: 1, float: false,
-      });
-      // 기존 고정 공중 블록도 반전에 반응합니다. 반대 방향으로 움직이는 느린 장애물입니다.
-      if (i % 2 === 1 && i < GATES - 1) this.state.obstacles.push({
-        x: gate + FLOAT_OFF, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
-      });
-    }
+    const run = globalThis.archiveRun?.snapshot?.(), story = Boolean(run?.active && !run.qaMode);
+    const act = story ? run.currentAct : 1, difficulty = makeDifficulty(act);
+    const art = globalThis.ARCHIVE_QA?.active
+      ? globalThis.archiveStageArtSet?.('e1', ART_SETS) ?? ''
+      : story ? (act % 2 ? '' : 'woni-')
+        : globalThis.archiveStageArtSet?.('e1', ART_SETS) ?? ART_SETS[Math.floor(Math.random() * ART_SETS.length)];
+    // 달리는 캐릭터와 같은 인물은 장애물에서 제외합니다.
+    const rival = art === 'woni-' ? 'yaho' : 'fire';
+    const courseTypes = ['basic', 'basic', 'basic', 'crown', 'basic', 'foot', 'basic', 'basic', 'basic', rival];
+    const memeByType = { crown: MEME_CAST[0], fire: MEME_CAST[1], foot: MEME_CAST[2], yaho: MEME_CAST[3] };
+    this.dash = difficulty;
+    E1_GRAVITY_DASH.tuning.speed = difficulty.speed;
+    E1_GRAVITY_DASH.tuning.distance = difficulty.distance;
+    this.hazards = courseTypes.map((type, gate) => ({
+      type, gate, x: difficulty.lead + gate * difficulty.gate,
+      w: type === 'basic' ? BASIC_W : type === 'crown' ? 156 : type === 'yaho' ? 260 : HAZARD_W,
+      // 첫 장애물은 바닥에 서고, 이후 안전 벽을 계속 번갈아 줍니다.
+      safe: type === 'yaho' ? 'center' : (this.random() < .5 ? 'floor' : 'ceiling'),
+      progress: type === 'basic' ? 1 : 0,
+      warned: false, warningAge: 0,
+      triggered: type === 'basic', age: 0, resolved: false, gap: difficulty.gap,
+      depth: CORRIDOR - difficulty.gap, meme: memeByType[type] ?? null,
+    }));
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, leap: 0, art, act, obstacles: this.hazards };
+    this.instruction.setText(art === 'woni-'
+      ? 'SPACE · 중력 반전  |  느낌표를 확인하세요 · 거대 야호는 다리 사이로!'
+      : 'SPACE · 중력 반전  |  느낌표가 뜬 쪽에서 공격 · 반대편 빈틈으로!');
+    this.warningMarks = this.hazards.map(hazard => hazard.type === 'basic' ? null : this.add.text(0, 0, '!', {
+      fontFamily: 'Arial Black, sans-serif', fontSize: '44px', fontStyle: 'bold', color: '#fff36b',
+      stroke: '#d62727', strokeThickness: 8,
+    }).setOrigin(.5).setDepth(6).setMask(this.ink.mask).setVisible(false));
   },
   action() {
     const s = this.state;
-    // 누를 때마다 중력이 통째로 뒤집힙니다. 플레이어는 반대쪽 벽으로 떨어져 붙고,
-    // 모든 장애물도 각자의 방향과 느린 속도로 반전에 반응합니다.
+    // 누를 때마다 중력이 통째로 뒤집히고 플레이어는 반대쪽 벽으로 떨어져 붙습니다.
+    // 대형 무기는 정해진 벽에서 튀어나오므로 입력에 따라 흔들리지 않습니다.
     // 누르는 순간 건너뛰기 연출을 처음부터 다시 시작합니다. 연달아 눌러도 매번 새로 부풉니다.
     this.actions++; s.sign *= -1; s.vy = s.sign * 40; s.leap = LEAP_TIME;
-    // 풀 차례가 된 판정을 모두 처리합니다.
-    while (s.release < RELEASE_AT.length && RELEASE_AT[s.release] <= this.actions) {
-      E1_GRAVITY_DASH.release.call(this, RELEASE_STEPS[s.release]); s.release++;
-    }
     this.sfx('sfxE1GravityFlip');
   },
-  /* 이미 지나온 가시를 풀어 봐야 아무 일도 일어나지 않습니다. 아직 붙어 있고 앞에 남은 가시
-     중에서, 통로를 건널 시간이 있는 만큼 앞선 것부터 차례로 풉니다. 그만큼 앞선 가시가 남아
-     있지 않은 코스 끝에서는 앞쪽에 남은 가장 가까운 가시로 대신합니다. */
-  release(count) {
-    const s = this.state;
-    const attached = this.hurdles.filter(h => !h.loose && h.x > s.x);
-    const from = Math.max(0, attached.findIndex(h => h.x >= s.x + RELEASE_LEAD));
-    for (const spike of attached.slice(from, from + count)) spike.loose = true;
+  hazardRect(o, screenX = o.x) {
+    if (o.type === 'basic') return o.safe === 'floor'
+      ? { x: screenX, y: CEIL_BOTTOM, w: o.w, h: BASIC_H }
+      : { x: screenX, y: FLOOR_TOP - BASIC_H, w: o.w, h: BASIC_H };
+    const eased = 1 - (1 - MINI.clamp(o.progress, 0, 1)) ** 3;
+    if (o.type === 'yaho') {
+      const h = CORRIDOR * eased;
+      return { x: YAHO_SCREEN_X, y: FLOOR_TOP - h, w: o.w, h };
+    }
+    const h = o.depth * eased;
+    const rect = o.safe === 'floor'
+      ? { x: screenX, y: CEIL_BOTTOM, w: o.w, h }
+      : { x: screenX, y: FLOOR_TOP - h, w: o.w, h };
+    // 왕관만 오른쪽 위/아래 먼 곳에서 목표 벽으로 비스듬히 날아듭니다.
+    if (o.type === 'crown') {
+      rect.x += (1 - eased) * 190;
+      rect.y += (1 - eased) * (o.safe === 'floor' ? -135 : 135);
+    }
+    return rect;
+  },
+  /* 왕관은 하나의 수직 사각형이 아니라, 실제로 비스듬히 이어진 다섯 판정 조각을 씁니다. */
+  hazardRects(o, screenX = o.x) {
+    if (o.resolved) return [];
+    const rect = E1_GRAVITY_DASH.hazardRect(o, screenX);
+    if (o.type === 'yaho') {
+      const scale = rect.h / CORRIDOR;
+      // 작아지는 첫 프레임에는 양발 사이도 함께 좁아지므로, 통로가 플레이어보다 넓어진 뒤에만 판정을 켭니다.
+      if (scale < .62) return [];
+      const cx = screenX + o.w / 2;
+      const scaled = ([x, y, w, h]) => {
+        const partCx = screenX + x + w / 2;
+        const partCy = y + h / 2;
+        return {
+          x: cx + (partCx - cx) * scale - w * scale / 2,
+          y: FLOOR_TOP - (FLOOR_TOP - partCy) * scale - h * scale / 2,
+          w: w * scale,
+          h: h * scale,
+        };
+      };
+      // 상체와 V자로 벌어진 양다리를 나눠 가운데 바닥 통로만 비워 둡니다.
+      return [
+        [40, CEIL_BOTTOM, 180, 190],
+        [62, 300, 64, 95], [30, 385, 70, 126],
+        [134, 300, 64, 95], [160, 385, 70, 126],
+      ].map(scaled);
+    }
+    if (o.type !== 'crown' || rect.h < 2) return [rect];
+    const pieces = 5, pieceH = rect.h / pieces;
+    return Array.from({ length: pieces }, (_, i) => {
+      const fromWall = (i + .5) / pieces;
+      const y = o.safe === 'floor' ? rect.y + i * pieceH : rect.y + rect.h - (i + 1) * pieceH;
+      return {
+        x: rect.x + (1 - fromWall) * CROWN_SLANT,
+        y,
+        w: rect.w - CROWN_SLANT,
+        h: pieceH + 2,
+      };
+    });
   },
   update(dt) {
     const s = this.state, t = E1_GRAVITY_DASH.tuning;
@@ -1125,16 +1175,20 @@ const E1_GRAVITY_DASH = {
       s.deaths++; s.x = Math.max(0, s.x - 340); s.y = s.sign === 1 ? FLOOR_Y : CEIL_Y; s.vy = 0; s.immune = .8;
       MINI.summon(this); this.bump();
     };
-    for (const o of s.obstacles) {
-      // 아직 풀리지 않은 가시는 자기 벽에 그대로 붙어 있습니다.
-      if (o.spike && !o.loose) { o.y = o.wall; o.vy = 0; continue; }
-      const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
-      o.vy = MINI.clamp(o.vy + s.sign * o.response * this.penalty(t.obstacleGravity) * o.factor * dt, -limit, limit);
-      o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
-      if ((o.y === CEIL_BOTTOM && o.vy < 0) || (o.y === FLOOR_TOP - o.h && o.vy > 0)) o.vy = 0;
+    for (const o of this.hazards) {
+      if (o.type !== 'basic' && !o.warned && o.x - s.x <= this.dash.warningLead) o.warned = true;
+      if (o.warned && !o.triggered) o.warningAge += dt;
+      if (!o.triggered && o.x - s.x <= this.dash.revealLead) o.triggered = true;
+      if (o.triggered && !o.resolved) {
+        o.progress = Math.min(1, o.progress + dt / this.dash.emergeTime);
+        o.age += dt;
+        if (o.type === 'yaho') {
+          if (o.age >= YAHO_HOLD) o.resolved = true;
+        }
+      }
     }
-    // 충돌하더라도 그 프레임의 모든 장애물은 끝까지 움직입니다.
-    if (!s.immune && s.obstacles.some(o => MINI.hit(player, { ...o, x: o.x - s.x + 180 }))) crash();
+    if (!s.immune && this.hazards.some(o => E1_GRAVITY_DASH.hazardRects(o, o.x - s.x + 180)
+      .some(rect => MINI.hit(player, rect)))) crash();
     // QA 모드에서는 지금 도는 그림 세트를 HUD 에 적어 둡니다. 겉으로는 같은 스테이지라
     // 플레이어는 알 수 없지만, 검수하는 쪽은 어느 세트를 보고 있는지 알아야 합니다.
     const qaSet = globalThis.ARCHIVE_QA?.active
@@ -1219,64 +1273,182 @@ const E1_GRAVITY_DASH = {
       g.lineBetween(x, y + drag, x + length, y);
     }
   },
-  /* 가장자리까지 딱 끊기는 작은 사각형만 써서 픽셀 대역을 그립니다. outline까지 한 함수에
-     묶어 두었으므로 실제 PNG가 들어오면 이 함수와 drawMeme만 걷어내면 됩니다. */
+  /* 가장자리까지 딱 끊기는 작은 사각형만 써서 픽셀 대역을 그립니다. */
   pixel(g, x, y, w, h, color, outline = 0x081720, alpha = 1) {
     g.fillStyle(outline, alpha).fillRect(Math.round(x) - 2, Math.round(y) - 2, Math.round(w) + 4, Math.round(h) + 4);
     g.fillStyle(color, alpha).fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   },
-  /* 두 가시 칸의 합친 중심에 무기를 놓고 몸은 오른쪽 뒤로 뺍니다. 먼저 닿는 무기 쪽만
-     실제 판정과 겹치므로, 몸이나 머리의 장식에 스쳤다고 억울하게 충돌하지 않습니다. */
-  drawMeme(o, x, y) {
-    const g = this.ink, meme = o.meme, dim = o.loose ? 1 : .58;
-    const px = (xx, yy, w, h, color, outline) => E1_GRAVITY_DASH.pixel(g, xx, yy, w, h, color, outline, dim);
-    g.save();
-
-    // 공통 몸통: 무기보다 작고 단순한 5색 대역. 오른쪽을 향한 발 두 칸이 달리는 인상을 줍니다.
-    px(x + 19, y - 19, 17, 17, 0xffd3b6);
-    px(x + 18, y - 1, 20, 23, meme.dark);
-    px(x + 20, y + 22, 7, 10, 0xf4f0e8);
-    px(x + 32, y + 22, 7, 10, 0xf4f0e8);
-    g.fillStyle(0x081720, dim).fillRect(Math.round(x + 23), Math.round(y - 14), 3, 3)
-      .fillRect(Math.round(x + 31), Math.round(y - 14), 3, 3);
-
+  /* 공격 뒤에 크게 서 있는 멤버 대역. 장식용이므로 충돌 판정은 전혀 없습니다. */
+  drawMemeBackdrop(o, x) {
+    const g = this.ink, meme = o.meme, bob = Math.sin(this.elapsed * 4 + o.gate) * 4;
+    const bx = x + o.w + 48, by = (CEIL_BOTTOM + FLOOR_TOP) / 2 + 18 + bob, alpha = .6;
+    // 머리·몸·팔·다리를 분리한 작은 원근 캐릭터. 직사각 기둥처럼 보이지 않게 실루엣을 꺾습니다.
+    g.fillStyle(meme.dark, alpha).fillCircle(bx, by - 45, 27);
+    g.fillStyle(0xffd3b6, alpha).fillCircle(bx, by - 41, 20);
+    g.lineStyle(11, meme.dark, alpha).lineBetween(bx - 13, by - 3, bx - 34, by + 18)
+      .lineBetween(bx + 13, by - 3, bx + 35, by - 20);
+    g.lineStyle(8, 0xffd3b6, alpha).lineBetween(bx - 34, by + 18, bx - 40, by + 8)
+      .lineBetween(bx + 35, by - 20, bx + 42, by - 29);
+    g.fillStyle(0x081720, alpha).fillRect(bx - 10, by - 47, 4, 4).fillRect(bx + 7, by - 47, 4, 4);
     if (meme.id === 'jana') {
-      // 커다란 금관: 계단식 솟을 장식이 좌우 76px 실루엣을 만듭니다.
-      px(x - 38, y - 4, 55, 18, meme.main);
-      px(x - 34, y - 18, 8, 14, meme.main);
-      px(x - 17, y - 27, 9, 23, meme.main);
-      px(x + 1, y - 20, 8, 16, meme.main);
-      g.fillStyle(0xfff1a6, dim).fillRect(x - 32, y + 1, 45, 4);
-      g.fillStyle(0xb73168, dim).fillRect(x - 20, y + 7, 7, 7).fillRect(x + 1, y + 7, 7, 7);
-    } else if (meme.id === 'lip') {
-      // 왕발: 넓은 발바닥과 네모난 발가락 네 개. 귀엽게 읽히도록 피부 디테일은 생략합니다.
-      px(x - 39, y - 13, 53, 29, meme.main);
-      px(x - 38, y - 24, 13, 13, meme.main);
-      px(x - 23, y - 29, 13, 17, meme.main);
-      px(x - 8, y - 27, 12, 15, meme.main);
-      px(x + 6, y - 22, 10, 12, meme.main);
-      g.fillStyle(0xffd3b6, dim).fillRect(x - 31, y + 8, 36, 4);
-    } else if (meme.id === 'mee') {
-      // 그립갑: 좌우 집게가 가운데 위험 칸을 물고 있습니다.
-      px(x - 37, y - 8, 42, 16, 0x576273);
-      px(x - 42, y - 25, 14, 17, meme.main);
-      px(x - 42, y + 8, 14, 17, meme.main);
-      px(x - 29, y - 20, 11, 12, meme.main);
-      px(x - 29, y + 8, 11, 12, meme.main);
-      g.fillStyle(0xffd44a, dim).fillRect(x - 11, y - 5, 9, 10);
-      // 안전모 한 칸으로 리트와 매트식 공사 캐릭터 분위기를 암시합니다.
-      px(x + 17, y - 25, 21, 7, 0xffcc2f);
+      // 넓은 치마와 흩날리는 머리로 멀리 서 있는 공주 포즈를 만듭니다.
+      g.fillStyle(meme.dark, alpha).fillTriangle(bx - 18, by - 16, bx + 18, by - 16, bx + 36, by + 53)
+        .fillTriangle(bx - 18, by - 16, bx - 36, by + 53, bx + 36, by + 53);
+      g.lineStyle(6, 0xffc43d, alpha).lineBetween(bx - 30, by + 43, bx + 30, by + 43);
+      g.fillStyle(meme.main, alpha).fillRect(bx - 22, by - 72, 44, 9)
+        .fillRect(bx - 15, by - 83, 7, 12).fillRect(bx - 3, by - 89, 7, 18).fillRect(bx + 10, by - 81, 7, 10);
+    } else if (meme.id === 'liv') {
+      g.fillStyle(meme.dark, alpha).fillRoundedRect(bx - 21, by - 18, 42, 48, 8);
+      g.lineStyle(12, 0x167f86, alpha).lineBetween(bx - 10, by + 26, bx - 24, by + 57)
+        .lineBetween(bx + 10, by + 26, bx + 27, by + 50);
+      g.lineStyle(7, 0xf2f4f7, alpha).lineBetween(bx - 31, by + 59, bx - 14, by + 59)
+        .lineBetween(bx + 22, by + 53, bx + 40, by + 53);
     } else {
-      // 거제불주먹: 주먹 네 마디와 뒤로 흩날리는 각진 불꽃.
-      px(x - 34, y - 14, 38, 29, 0xf05224);
-      px(x - 33, y - 22, 10, 11, meme.main);
-      px(x - 21, y - 25, 10, 14, meme.main);
-      px(x - 9, y - 23, 10, 12, meme.main);
-      px(x + 2, y - 18, 9, 13, meme.main);
-      g.fillStyle(0xffd43b, dim).fillRect(x - 38, y - 6, 9, 10)
-        .fillRect(x - 48, y - 17, 7, 8).fillRect(x - 51, y + 10, 11, 7);
+      g.fillStyle(meme.dark, alpha).fillRoundedRect(bx - 23, by - 18, 46, 47, 7);
+      g.lineStyle(12, meme.dark, alpha).lineBetween(bx - 10, by + 26, bx - 27, by + 57)
+        .lineBetween(bx + 10, by + 26, bx + 25, by + 57);
+      g.fillStyle(0xff8a18, alpha).fillCircle(bx + 43, by - 30, 12);
+      g.lineStyle(5, 0xffd43b, alpha).strokeCircle(bx + 43, by - 30, 16);
     }
-    g.restore();
+  },
+  drawBasic(o, rect) {
+    const g = this.ink, dir = o.safe === 'floor' ? 1 : -1;
+    g.fillStyle(0x273d4b).fillRect(rect.x, rect.y, rect.w, rect.h);
+    g.lineStyle(3, 0x7aa2b3).strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
+    // 고정 장애물이라는 뜻의 노랑/검정 안전 띠. 중력 반전에도 움직이지 않습니다.
+    for (let y = rect.y + 11; y < rect.y + rect.h - 8; y += 20) {
+      g.fillStyle((y / 20 | 0) % 2 ? 0xffcc45 : 0x18242c).fillRect(rect.x + 8, y, rect.w - 16, 9);
+    }
+    const tip = dir > 0 ? rect.y + rect.h : rect.y;
+    g.fillStyle(0xffcc45).fillTriangle(rect.x, tip, rect.x + rect.w / 2, tip + dir * 20, rect.x + rect.w, tip);
+  },
+  /* 마지막 거대 야호. 두 다리는 V자로 벌리고 하단 중앙만 비워 실제로 그 사이를 달립니다. */
+  drawYaho(o, rect) {
+    const g = this.ink, scale = rect.h / CORRIDOR, cx = rect.x + o.w / 2;
+    if (scale <= 0) return;
+    const asset = E1_GRAVITY_DASH.sprite.call(this, `meme${o.gate}`, 'e1:yaho-meme');
+    if (asset) {
+      const height = CORRIDOR * scale, width = height * asset.width / asset.height;
+      asset.setPosition(cx, FLOOR_TOP - height / 2).setDisplaySize(width, height)
+        .setDepth(3).setAlpha(Math.min(1, scale * 1.35)).setRotation(0).setFlipX(false).setFlipY(false);
+      return;
+    }
+    const xx = x => cx + (rect.x + x - cx) * scale;
+    const yy = y => FLOOR_TOP - (FLOOR_TOP - y) * scale;
+    const line = (width, color, x1, y1, x2, y2, alpha = 1) => g.lineStyle(width * scale, color, alpha)
+      .lineBetween(xx(x1), yy(y1), xx(x2), yy(y2));
+    // 머리카락과 얼굴, 큰 분홍 모자.
+    g.fillStyle(0x7a4939).fillCircle(xx(130), yy(190), 55 * scale);
+    g.fillStyle(0xffcfb3).fillCircle(xx(130), yy(187), 42 * scale);
+    g.fillStyle(0xff9cc8).fillEllipse(xx(130), yy(143), 112 * scale, 46 * scale);
+    g.fillStyle(0xffc1dd).fillRect(xx(79), yy(146), 102 * scale, 13 * scale);
+    // 웃는 얼굴은 멀리서도 두 점과 입으로 읽히게 단순화합니다.
+    g.lineStyle(4 * scale, 0x4b2f36).lineBetween(xx(110), yy(184), xx(119), yy(181))
+      .lineBetween(xx(141), yy(181), xx(150), yy(184));
+    g.fillStyle(0xe34c71).fillCircle(xx(130), yy(202), 8 * scale);
+    // 상체와 앞으로 겹쳐 휘두른 팔.
+    g.fillStyle(0xff9cc8).fillRoundedRect(xx(79), yy(222), 102 * scale, 99 * scale, 18 * scale);
+    line(30, 0xffd0bd, 92, 239, 153, 273); line(30, 0xffd0bd, 168, 240, 112, 280);
+    line(18, 0xffffff, 91, 255, 153, 289, .85);
+    // 골반에서 바깥으로 굽힌 기마 자세. 신발 사이가 실제 정답 통로입니다.
+    line(48, 0xffa6cf, 113, 315, 76, 405); line(48, 0xffa6cf, 76, 405, 62, 474);
+    line(48, 0xffa6cf, 147, 315, 184, 405); line(48, 0xffa6cf, 184, 405, 198, 474);
+    g.fillStyle(0xffedf6).fillRoundedRect(xx(28), yy(466), 76 * scale, 35 * scale, 10 * scale)
+      .fillRoundedRect(xx(156), yy(466), 76 * scale, 35 * scale, 10 * scale);
+    g.lineStyle(5 * scale, 0xdb6b9f).lineBetween(xx(34), yy(489), xx(101), yy(489))
+      .lineBetween(xx(159), yy(489), xx(226), yy(489));
+  },
+  drawMemeMember(o) {
+    const texture = o.type === 'crown' ? 'e1:jena-meme' : o.type === 'foot' ? 'e1:liv-meme' : null;
+    if (!texture) return;
+    const member = E1_GRAVITY_DASH.sprite.call(this, `member${o.gate}`, texture);
+    if (!member) return;
+    const height = o.type === 'crown' ? 220 : 205;
+    member.setPosition(620, FLOOR_TOP - height / 2 - 2)
+      .setDisplaySize(height * member.width / member.height, height)
+      .setDepth(2).setAlpha(.92).setRotation(0).setFlipX(false).setFlipY(false);
+  },
+  /* 무기 머리는 빈틈과 맞닿고, 긴 팔·다리·불꽃 꼬리는 시작 벽까지 이어집니다. 따라서 보이는
+     큰 실루엣 전체와 실제 직사각 판정이 일치합니다. */
+  drawWeapon(o, x, rect) {
+    if (rect.h < 2) return;
+    const g = this.ink, meme = o.meme;
+    if (meme.id === 'yaho') { E1_GRAVITY_DASH.drawYaho.call(this, o, rect); return; }
+    const dir = o.safe === 'floor' ? 1 : -1;
+    const tip = dir > 0 ? rect.y + rect.h : rect.y;
+    const px = (xx, yy, w, h, color, outline = 0x081720, alpha = 1) => E1_GRAVITY_DASH.pixel(g, xx, yy, w, h, color, outline, alpha);
+    if (meme.id === 'jana') {
+      const wallY = dir > 0 ? rect.y : rect.y + rect.h;
+      const innerY = tip;
+      const sourceL = rect.x + CROWN_SLANT, sourceR = rect.x + rect.w;
+      const innerL = rect.x, innerR = rect.x + rect.w - CROWN_SLANT;
+      g.fillStyle(0xffc43d, .16)
+        .fillTriangle(sourceL, wallY, sourceR, wallY, innerL, innerY)
+        .fillTriangle(sourceR, wallY, innerR, innerY, innerL, innerY);
+      g.lineStyle(4, meme.main, .95)
+        .lineBetween(sourceL, wallY, innerL, innerY)
+        .lineBetween(sourceR, wallY, innerR, innerY);
+      // 참고 이미지처럼 왕관 뒤쪽에 금빛 사선 속도선을 여러 겹 남깁니다.
+      for (let i = 0; i < 4; i++) {
+        const back = 34 + i * 25, inset = 18 + i * 17;
+        g.lineStyle(i % 2 ? 2 : 4, 0xffcf35, .9 - i * .12)
+          .lineBetween(sourceR + back, wallY + dir * inset, innerR + back, innerY - dir * (34 + inset));
+      }
+      const crownAsset = E1_GRAVITY_DASH.sprite.call(this, `meme${o.gate}`, 'e1:jena-crown');
+      if (crownAsset) {
+        const height = 184 * Math.max(.35, o.progress), width = height * crownAsset.width / crownAsset.height;
+        crownAsset.setPosition((innerL + innerR) / 2 + 8, innerY - dir * 62)
+          .setDisplaySize(width, height).setDepth(3).setAlpha(Math.min(1, o.progress * 2.2))
+          .setRotation(dir > 0 ? -.32 : .32).setFlipX(false).setFlipY(dir < 0);
+        return;
+      }
+      const crownX = innerL - 8, crownY = dir > 0 ? innerY - 36 : innerY + 8;
+      px(crownX, crownY + 18, 100, 20, meme.main);
+      px(crownX + 7, crownY + 2, 15, 18, meme.main);
+      px(crownX + 32, crownY - 9, 15, 29, meme.main);
+      px(crownX + 57, crownY - 4, 15, 24, meme.main);
+      px(crownX + 82, crownY + 4, 14, 16, meme.main);
+      g.fillStyle(0xb73168).fillRect(crownX + 24, crownY + 25, 10, 8).fillRect(crownX + 70, crownY + 25, 10, 8);
+      g.lineStyle(3, 0xffdf69, .95).lineBetween(crownX + 14, crownY + 36, crownX + 4, crownY + 65)
+        .lineBetween(crownX + 87, crownY + 36, crownX + 97, crownY + 65);
+      g.fillStyle(0xffc43d).fillCircle(crownX + 4, crownY + 67, 5).fillCircle(crownX + 97, crownY + 67, 5);
+      return;
+    }
+    // 진행 중에도 어디까지가 위험 구역인지 알 수 있는 어두운 몸통과 밝은 가장자리.
+    const headY = dir > 0 ? tip - 48 : tip;
+
+    if (meme.id === 'liv') {
+      const footAsset = E1_GRAVITY_DASH.sprite.call(this, `meme${o.gate}`, 'e1:liv-foot');
+      if (footAsset) {
+        const height = rect.h + 64, width = height * footAsset.width / footAsset.height;
+        footAsset.setPosition(x + o.w / 2, rect.y + rect.h / 2).setDisplaySize(width, height)
+          .setDepth(3).setAlpha(Math.min(1, o.progress * 2.2)).setRotation(0)
+          .setFlipX(false).setFlipY(o.safe === 'ceiling');
+      } else {
+        // 참고 이미지의 청록 바지와 짙은 양말발. 엄지만 손 따봉처럼 수직으로 솟습니다.
+        px(x + 22, rect.y, 58, Math.max(8, rect.h - 38), 0x1c666b);
+        g.fillStyle(0x2d8588).fillRect(x + 29, rect.y, 12, Math.max(8, rect.h - 42));
+        px(x + 7, headY + 16, 98, 32, 0x34394c);
+        px(x + 6, headY - 25, 31, 46, 0x3d4359);
+        px(x + 41, headY + 3, 18, 17, 0x3a4055); px(x + 63, headY + 7, 16, 13, 0x383e52); px(x + 83, headY + 10, 14, 10, 0x363b4e);
+      }
+    } else {
+      const direction = o.safe === 'ceiling' ? 'up' : 'down';
+      const frame = Math.floor(o.age * 12) % 5 + 1;
+      const fireAsset = E1_GRAVITY_DASH.sprite.call(this, `meme${o.gate}`, `e1:woni-fire-${direction}${frame}`);
+      if (fireAsset) {
+        const height = rect.h + 58, width = height * fireAsset.width / fireAsset.height;
+        fireAsset.setPosition(x + o.w / 2, rect.y + rect.h / 2).setDisplaySize(width, height)
+          .setDepth(3).setAlpha(Math.min(1, o.progress * 2.4)).setRotation(0).setFlipX(false).setFlipY(false);
+      } else {
+        px(x + 13, headY + 8, 86, 40, 0xf05224);
+        px(x + 17, headY - 6, 18, 18, meme.main); px(x + 39, headY - 10, 18, 22, meme.main);
+        px(x + 61, headY - 8, 18, 20, meme.main); px(x + 83, headY - 3, 16, 15, meme.main);
+        g.fillStyle(0xffd43b).fillRect(x + 22, headY + 21, 58, 11);
+      }
+    }
+
+    // 안전 벽 쪽 작은 틈을 두 줄 화살표로 강조합니다.
   },
   render() {
     const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
@@ -1298,36 +1470,28 @@ const E1_GRAVITY_DASH = {
     // 바람은 장애물 뒤에 깔립니다. 넘어야 할 것이 바람에 묻히면 안 됩니다.
     E1_GRAVITY_DASH.wind.call(this);
     if (!s.failed) E1_GRAVITY_DASH.trail.call(this);
-    for (let i = 0; i < s.obstacles.length; i++) {
-      const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
-      if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
-      if (o.spike) {
-        // 두 판정 칸을 한 캐릭터로 보이게 하므로 첫 칸에서만 그림과 명찰을 그립니다.
-        if (o.part) continue;
-        const pairX = x + (SPIKE_GAP + SPIKE_W) / 2;
-        E1_GRAVITY_DASH.drawMeme.call(this, o, pairX, cy);
-        const label = this.memeLabels[o.gate];
-        const inward = cy < (CEIL_BOTTOM + FLOOR_TOP) / 2 ? 47 : -47;
-        label.setPosition(pairX, cy + inward).setAlpha(o.loose ? 1 : .7).setVisible(true);
-      } else if (o.float) {
-        // 보라색은 플레이어의 반대 방향으로 이동합니다.
-        MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, s.x / 55, 0xb98cff);
-        this.ink.lineStyle(1, 0xd9c2ff, .45).strokeCircle(cx, cy, o.w * .95);
-      } else {
-        MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, 0, 0xff6584);
+    for (let i = 0; i < this.hazards.length; i++) {
+      const o = this.hazards[i], x = o.x - s.x + 180;
+      MINI.hideActor(this, `meme${o.gate}`);
+      MINI.hideActor(this, `member${o.gate}`);
+      const warning = this.warningMarks[i];
+      warning?.setVisible(false);
+      if (x <= -230 || x >= 1010 || o.resolved) continue;
+      const rect = E1_GRAVITY_DASH.hazardRect(o, x);
+      if (o.type === 'basic') {
+        E1_GRAVITY_DASH.drawBasic.call(this, o, rect);
+        continue;
       }
-      // 붙어 있는 가시는 아직 움직이지 않으므로 방향 표시를 생략합니다.
-      if (o.spike && !o.loose) continue;
-      // 모든 장애물에 중력이 끌어당기는 방향을 표시합니다.
-      const dir = s.sign * o.response;
-      MINI.line(this, cx, cy + dir * 26, cx, cy + dir * 44, 0xffadb8);
-      MINI.line(this, cx - 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
-      MINI.line(this, cx + 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
-    }
-    // 화면 밖으로 나간 캐릭터의 DOM 텍스트가 다음 프레임에 남지 않게 정리합니다.
-    for (let gate = 0; gate < GATES; gate++) {
-      const first = this.hurdles[gate * 2], x = first.x - s.x + 180;
-      if (x <= -60 || x >= 1000) this.memeLabels[gate].setVisible(false);
+      if (o.warned && (o.type === 'crown' || o.type === 'foot')) E1_GRAVITY_DASH.drawMemeMember.call(this, o);
+      if (o.warned && !o.triggered && warning) {
+        const warningY = o.safe === 'floor' ? CEIL_BOTTOM + 43
+          : o.safe === 'ceiling' ? FLOOR_TOP - 43 : (CEIL_BOTTOM + FLOOR_TOP) / 2;
+        const pulse = 1 + Math.sin(o.warningAge * 16) * .13;
+        warning.setPosition(MINI.clamp(x + o.w / 2, f.x + 45, f.right - 45), warningY)
+          .setScale(pulse).setAlpha(.78 + Math.sin(o.warningAge * 16) * .22).setVisible(true);
+      }
+      if (!o.triggered) continue;
+      E1_GRAVITY_DASH.drawWeapon.call(this, o, rect.x, rect);
     }
     // 자세는 상태를 그대로 읽습니다. 실패하면 주저앉고, 부딪친 뒤 무적인 동안은 아파하고,
     // 두 벽 어디에도 닿아 있지 않으면 중력에 끌려가는 중이라 점프, 나머지는 달리기입니다.
@@ -1375,7 +1539,7 @@ const E2_BOUNCE_BALL = {
   build() {
     MINI.init(this, 0xb8f77b);
     this.state = { x: 90, y: 429, vy: 0, grounded: true, jumps: 0, deaths: 0, checkpoint: 90,
-      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0 };
+      roll: 0, squash: 0, burst: 0, shards: [], platformIndex: 0, lastWaxCrackSfx: '' };
     this.ballInk = this.add.graphics().setMask(this.ink.mask).setDepth(3);
     this.add.text(925, 137, '파랑: 승강 발판 · 주황: 밟으면 무너짐', {
       fontFamily: 'Arial', fontSize: '13px', color: '#cbdce4',
@@ -1398,13 +1562,21 @@ const E2_BOUNCE_BALL = {
     const t = E2_BOUNCE_BALL.tuning;
     return Math.max(t.minJump, t.jump * (1 - this.penalty(1 - t.jumpDecay)) ** this.state.jumps);
   },
+  playWaxCrack(kind, impactSpeed = 0) {
+    const variants = ['sfxE2WaxCrack1', 'sfxE2WaxCrack2'];
+    let index = Math.random() < .5 ? 0 : 1;
+    if (variants[index] === this.state.lastWaxCrackSfx && Math.random() < .7) index = 1 - index;
+    const key = variants[index];
+    this.state.lastWaxCrackSfx = key;
+    const landing = kind === 'land';
+    const volume = landing ? MINI.clamp(impactSpeed / 620, .7, 1) : .82;
+    this.sfx(key, { rate: (landing ? .96 : 1.04) * MINI.rand(.97, 1.03), volume });
+  },
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
     s.vy = -E2_BOUNCE_BALL.jumpPower.call(this);
     s.grounded = false; s.jumps++; this.actions++; this.sfx('sfxE2WaxJump');
-    if (s.jumps === 2) this.sfx('sfxE2WaxCrack1');
-    else if (s.jumps === 4) this.sfx('sfxE2WaxCrack2');
     s.burst = 1;
     // 조각은 월드 좌표로 움직여 카메라나 리스폰을 따라 공에 달라붙지 않습니다.
     for (let i = 0; i < 5; i++) {
@@ -1415,6 +1587,7 @@ const E2_BOUNCE_BALL = {
   },
   update(dt) {
     const s = this.state, t = E2_BOUNCE_BALL.tuning, wasGrounded = s.grounded, oldX = s.x;
+    let landedThisFrame = false;
     for (const p of this.platforms) {
       p.previousY = p.y;
       // 출렁임은 그림에만 쓰는 값입니다. 일시정지 중에는 update가 돌지 않아 함께 멈춥니다.
@@ -1448,10 +1621,16 @@ const E2_BOUNCE_BALL = {
     for (const p of this.platforms) {
       const previousTop = wasGrounded && p === support ? p.y : p.previousY;
       if (p.active && s.vy >= (p.y - previousTop) / dt && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= previousTop + 1 && s.y + t.radius >= p.y) {
+        const landingSpeed = s.vy;
         s.y = p.y - t.radius; s.vy = 0; s.grounded = true;
         // 밟은 발판 그림을 출렁이게 합니다. 공의 위치·속도는 위에서 이미 정해졌고
         // 이 값은 render만 읽으므로 궤적에는 아무 영향이 없습니다.
-        if (!wasGrounded) { s.squash = 1; if (p.kind !== 'crumble') p.wobble = WOBBLE_TIME; }
+        if (!wasGrounded) {
+          s.squash = 1;
+          if (p.kind !== 'crumble') p.wobble = WOBBLE_TIME;
+          if (!landedThisFrame) E2_BOUNCE_BALL.playWaxCrack.call(this, 'land', landingSpeed);
+          landedThisFrame = true;
+        }
         s.platformIndex = p.index;
         if (p.kind === 'crumble') {
           if (p.crumbleLeft === null) p.crumbleLeft = t.crumbleTime;
@@ -1599,7 +1778,7 @@ const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
     speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
-    targetHeight: 216, hold: 3,
+    targetHeight: 216, hold: 2,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
     // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
@@ -1647,7 +1826,7 @@ const E3_HUMAN_STACK = {
     // 받아 주는 바닥은 없습니다. 단상을 벗어난 사람은 화면 아래로 그대로 떨어져 사라집니다.
     M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
-      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
+      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0, countdownActive: false, countdownTicks: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
       spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180,
       nextTint: E3_HUMAN_STACK.randomTint(), spinShown: 0,
@@ -1738,7 +1917,7 @@ const E3_HUMAN_STACK = {
     s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
-    this.sfx(s.drops === 3 ? 'sfxE3CountThree' : 'sfxE3PersonFall');
+    this.sfx('action');
   },
   /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
   press(direction) {
@@ -1760,13 +1939,16 @@ const E3_HUMAN_STACK = {
   cullFallen() {
     const M = Phaser.Physics.Matter.Matter, gone = MINI.FIELD.bottom + 20;
     const before = this.people.length;
+    let fellToBottom = false;
     for (let i = before - 1; i >= 0; i--) {
       const body = this.people[i];
       if (E3_HUMAN_STACK.project.call(this, 0, body.bounds.min.y).y <= gone) continue;
       M.Composite.remove(this.stackWorld.world, body);
       this.people.splice(i, 1); this.stackBodyById.delete(body.id);
       this.stackGrounded.delete(body.id); this.stackStable.delete(body.id);
+      fellToBottom = true;
     }
+    if (fellToBottom) this.sfx('sfxE3PersonFall');
     // 그림은 목록 순서대로 다시 그려지므로, 줄어든 뒤 남는 꼬리 그림만 감춥니다.
     for (let i = this.people.length; i < before; i++) this.assetSprites.get(`person${i}`)?.setVisible(false);
   },
@@ -1800,6 +1982,26 @@ const E3_HUMAN_STACK = {
     this.state.stableCount = this.stackStable.size;
     return top(this.stackGrounded);
   },
+  updateCountdown(dt) {
+    const s = this.state, t = E3_HUMAN_STACK.tuning;
+    if (s.height >= t.targetHeight) {
+      if (!s.countdownActive) {
+        s.countdownActive = true;
+        s.countdownTicks = 1;
+        this.sfx('sfxE3SuccessCount');
+      }
+      s.held += dt;
+      while (s.countdownTicks < t.hold && s.held >= s.countdownTicks) {
+        this.sfx('sfxE3SuccessCount');
+        s.countdownTicks++;
+      }
+      return;
+    }
+    if (s.countdownActive) this.stopSfx('sfxE3SuccessCount');
+    s.countdownActive = false;
+    s.countdownTicks = 0;
+    s.held = 0;
+  },
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
     s.x += s.direction * E3_HUMAN_STACK.speed.call(this) * dt;
@@ -1821,7 +2023,7 @@ const E3_HUMAN_STACK = {
     const viewTop = Math.min(s.spawnY, top);
     const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - viewTop + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
-    s.held = s.height >= t.targetHeight ? s.held + dt : 0;
+    E3_HUMAN_STACK.updateCountdown.call(this, dt);
     for (const impact of s.impacts) impact.age += dt;
     s.impacts = s.impacts.filter(impact => impact.age < .35).slice(-16);
     this.anomaly = `좌우 속도 ${Math.round(E3_HUMAN_STACK.speed.call(this))} · 받쳐진 사람 ${s.groundedCount}/${s.drops}명`;
@@ -1889,7 +2091,7 @@ const E3_HUMAN_STACK = {
     const dashFrom = project(t.railLeft, 0).x, dashTo = project(t.railRight, 0).x;
     for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
     // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
-    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : `목표 높이 · ${t.hold}초 유지`);
     this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
     // 표지는 성공선 오른쪽 끝에 붙어 따라다닙니다. 가슴의 화살표가 선을 가리키며,
     // 시야가 줄어 선이 짧아져도 선 끝과의 간격은 그대로라 크기만 변하지 않습니다.
@@ -1941,6 +2143,7 @@ const E3_HUMAN_STACK = {
     MINI.meter(this, s.height / t.targetHeight);
   },
   dispose() {
+    this.stopSfx('sfxE3SuccessCount');
     if (!this.stackWorld) return;
     const M = Phaser.Physics.Matter.Matter;
     M.Events.off(this.stackWorld, 'collisionStart', this.stackCollisionHandler);
@@ -2014,7 +2217,7 @@ const E4_ACCELERATION_DASH = {
     MINI.init(this, 0x90b9b3);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, brakeSounded: false,
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false,
       footstepLeft: 0, footstepIndex: 0, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     E4_VILLAGE.build(this, E4);
     E4_TIGER.build(this);
@@ -2104,8 +2307,6 @@ const E4_ACCELERATION_DASH = {
         s.footstepLeft = .38 - pace * .2;
       }
     } else s.footstepLeft = 0;
-    if (s.braking && !s.brakeSounded) { this.sfx('sfxE4Brake'); s.brakeSounded = true; }
-    if (!s.braking) s.brakeSounded = false;
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
@@ -2433,7 +2634,7 @@ const E5_SLINGSHOT = {
      포물선과 난이도가 그대로다. tests/e5-slingshot-check.js 의 좌표도 같은 값만큼 따라와야 한다. */
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '' };
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '', lastHitSfx: '' };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -2560,9 +2761,22 @@ const E5_SLINGSHOT = {
     s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('sfxE5Release');
   },
   cancelInput() { this.state.drag = null; },
+  playTargetHitSfx(target, amount, collapse = false) {
+    const variants = ['sfxE5Broken1', 'sfxE5Broken2'];
+    let index = Math.random() < .5 ? 0 : 1;
+    // 같은 타격음만 연달아 나오는 확률을 낮춰 연속 명중도 한 덩어리처럼 들리지 않게 한다.
+    if (variants[index] === this.state.lastHitSfx && Math.random() < .7) index = 1 - index;
+    const key = variants[index];
+    this.state.lastHitSfx = key;
+    const force = MINI.clamp(amount / (target.wood ? 40 : 100), 0, 1);
+    this.sfx(key, {
+      rate: (target.wood ? .97 : 1.03) * MINI.rand(.97, 1.03),
+      volume: MINI.clamp(.72 + force * .28 - (collapse ? .06 : 0), .68, 1),
+    });
+  },
   damage(target, amount, collapse = false) {
     if (target.hp <= 0) return;
-    this.sfx('sfxDubaiStretch');
+    E5_SLINGSHOT.playTargetHitSfx.call(this, target, amount, collapse);
     target.hp = Math.max(0, target.hp - amount); target.flash = .18;
     if (target.wood) {
       const t = E5_SLINGSHOT.tuning;
@@ -3805,7 +4019,7 @@ const E10_NUMBER_DECODE = {
     s.grounded = false;
     s.jumpAt = this.elapsed;
     this.actions += 1;
-    this.sfx('sfxE10SpinJump');
+    this.sfx('sfxE10Jump');
   },
 
   enterDigit(digit) {
@@ -3817,7 +4031,7 @@ const E10_NUMBER_DECODE = {
       s.lastHitCorrect = true;
       s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
       s.feedbackUntil = this.elapsed + 1;
-      this.sfx('sfxClick');
+      this.sfx('sfxE10TouchNumber');
       return;
     }
 
@@ -3829,12 +4043,13 @@ const E10_NUMBER_DECODE = {
       s.mistakes += 1;
       s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
       s.feedbackUntil = this.elapsed + 1.2;
+      this.sfx('sfxE10TouchNumber');
       this.bump('sfxE10DigitWrong');
       return;
     }
 
-    this.sfx('sfxClick');
     this.finish(true, `CODE ${s.target} 해독`);
+    this.sfx('sfxE10TouchNumber');
   },
 
   update(dt) {
@@ -3851,7 +4066,6 @@ const E10_NUMBER_DECODE = {
     if (s.x < 34 || s.x > 926) {
       s.x = MINI.clamp(s.x, 34, 926);
       s.vx *= -.24;
-      this.bump();
     }
 
     const previousTop = s.y - PLAYER.height / 2;
@@ -4186,6 +4400,7 @@ class ArchiveGame extends Phaser.Scene {
   penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
   sfx(name, options) { return audio.play(name === 'jump' ? 'action' : name, options); }
+  stopSfx(name) { audio.stopSfx(name); }
   bump(sound = 'sfxPenaltyHit') { this.sfx(sound); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));

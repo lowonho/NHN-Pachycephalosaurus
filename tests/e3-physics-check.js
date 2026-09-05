@@ -29,9 +29,11 @@
     'Off-center contact tips the mannequin off the pedestal');
   assert(scene.people.includes(edge) && !edge.isStatic, 'A tipped mannequin keeps falling as a free body');
   // There is no floor: whoever misses the pedestal drops past the screen and is gone for good.
+  archiveAudio.lastSfx.delete('sfxE3PersonFall');
   step(1.5);
   assert(!scene.people.includes(edge) && !scene.stackBodyById.has(edge.id) && !scene.stackGrounded.has(edge.id),
     'A mannequin that falls below the screen is removed from the world');
+  assert(archiveAudio.lastSfx.has('sfxE3PersonFall'), 'Whistle plays only when a fallen mannequin leaves through the bottom');
   const missed = spawn(edgeX + 70, 240, 1); step(3);
   assert(!scene.people.includes(missed) && scene.people.length === 0 && scene.state.height === 0, 'Nothing piles up beside the pedestal to stack on');
   load();
@@ -44,8 +46,10 @@
   assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed, 'A collapse still counts every drop, so the rail keeps its speed');
   load();
   const dropAngle = scene.state.nextAngle, dropX = scene.state.x, dropY = scene.state.spawnY;
+  archiveAudio.lastSfx.clear();
   scene.primaryAction();
   const dropped = scene.people[0], origin = dropped.plugin.e3.origin;
+  assert(archiveAudio.lastSfx.has('action') && !archiveAudio.lastSfx.has('sfxE3PersonFall'), 'Dropping a mannequin keeps the original action sound');
   assert(Math.abs(dropAngle) === Math.PI / 2 && dropped.angle === dropAngle, 'Sideways preview is dropped at the same angle');
   assert(Math.hypot(dropped.position.x + origin.x * Math.cos(dropAngle) - origin.y * Math.sin(dropAngle) - dropX, dropped.position.y + origin.x * Math.sin(dropAngle) + origin.y * Math.cos(dropAngle) - dropY) < .001, 'Rotated body does not jump away from preview position');
   assert(scene.state.nextAngle !== dropAngle, 'Next person arrives with a different orientation');
@@ -148,12 +152,14 @@
     scene.update(0, 1000 / 120);
   }
   assert(scene.state.held >= 1 && scene.playable(), 'Reaching target for one second does not clear');
+  assert(scene.state.countdownActive && scene.state.countdownTicks === 2 && archiveAudio.lastSfx.has('sfxE3SuccessCount'), 'Crossing the target line plays the new count sound once per second');
   const partialHold = scene.state.held;
   archiveGame.pause(true); scene.update(0, 1500);
-  assert(scene.state.held === partialHold, 'Pause freezes the three-second countdown');
+  assert(scene.state.held === partialHold, 'Pause freezes the two-second countdown');
   archiveGame.pause(false);
   scene.people.forEach(body => M.Body.translate(body, { x: 2200, y: 0 })); step(.1);
   assert(scene.state.held === 0 && scene.state.height === 0 && scene.playable(), 'Loss of supported target height resets countdown');
+  assert(!scene.state.countdownActive && scene.state.countdownTicks === 0 && !archiveAudio.lastSfx.has('sfxE3SuccessCount'), 'Dropping below the target line stops and rewinds the countdown sound');
   // Prepare a real-input tower for the focused visual preview.
   load();
   let last = -10;
@@ -163,6 +169,6 @@
   }
   measurements.clearTime = scene.elapsed;
   measurements.drops = scene.state.drops;
-  assert(scene.mode === 'done' && scene.state.held >= 3 && scene.state.held < 3.02 && scene.state.groundedCount >= 3, 'Rotated people clear only after three continuous seconds at target within 20.26 seconds');
+  assert(scene.mode === 'done' && scene.state.held >= 2 && scene.state.held < 2.02 && scene.state.groundedCount >= 3, 'Rotated people clear after two continuous seconds at target within 20.26 seconds');
   return { passed: checks.length, checks, measurements };
 })()

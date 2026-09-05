@@ -100,6 +100,10 @@ class ArchiveAudio {
   selectBgm(key, { restart = false, immediate = false } = {}) {
     if (!this.tracks[key]) key = "main";
     if (this.bgmKey === key) {
+      if (immediate) {
+        this.cancelFade();
+        this.stopInactiveBgm(this.bgm);
+      }
       if (restart) this.seekToLoopStart(this.bgm, key);
       if (this.bgmStarted && !this.bgmPaused) this.startBgm();
       return this.bgm;
@@ -115,6 +119,16 @@ class ArchiveAudio {
     this.bgm = next;
     this.bgmKey = key;
 
+    if (immediate) {
+      previous.pause();
+      previous.volume = 0;
+      next.volume = this.effectiveBgmVolume(key);
+      if (this.bgmStarted && !this.bgmPaused) {
+        next.play().catch((error) => this.armBgmUnlock(error));
+      }
+      return next;
+    }
+
     if (!this.bgmStarted || this.bgmPaused) {
       previous.pause();
       previous.volume = 0;
@@ -124,13 +138,21 @@ class ArchiveAudio {
 
     const play = next.play();
     if (play?.then) {
-      play.then(() => this.crossfade(previous, next, immediate ? 0 : this.tuning.bgm.fadeMs)).catch((error) => {
+      play.then(() => {
+        if (this.bgm !== next || this.bgmKey !== key) {
+          next.pause();
+          next.volume = 0;
+          return;
+        }
+        this.crossfade(previous, next, this.tuning.bgm.fadeMs);
+      }).catch((error) => {
+        if (this.bgm !== next || this.bgmKey !== key) return;
         previous.pause();
         previous.volume = 0;
         this.armBgmUnlock(error);
       });
     } else {
-      this.crossfade(previous, next, immediate ? 0 : this.tuning.bgm.fadeMs);
+      this.crossfade(previous, next, this.tuning.bgm.fadeMs);
     }
     return next;
   }
@@ -168,6 +190,14 @@ class ArchiveAudio {
     this.fadeToken += 1;
     if (this.fadeFrame) cancelAnimationFrame(this.fadeFrame);
     this.fadeFrame = 0;
+  }
+
+  stopInactiveBgm(active = this.bgm) {
+    this.bgmSlots.forEach((slot) => {
+      if (slot === active) return;
+      slot.pause();
+      slot.volume = 0;
+    });
   }
 
   armBgmUnlock(error) {
@@ -302,6 +332,8 @@ class ArchiveAudio {
       element.pause();
       try { element.currentTime = 0; } catch { /* 아직 메타데이터 로드 전 */ }
     }
+    if (name) this.lastSfx.delete(name);
+    else this.lastSfx.clear();
     this.pausedSfx.clear();
   }
 

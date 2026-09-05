@@ -230,56 +230,57 @@
     assert(!scene.touch.size && scene.pointerId === null, `${stage.id}: stop clears input`);
   }
   load('e1');
-  const spikes = () => scene.state.obstacles.filter(o => o.spike),
-    blocks = () => scene.state.obstacles.filter(o => !o.spike && !o.float),
-    floats = () => scene.state.obstacles.filter(o => o.float);
-  assert(scene.memeLabels.length === 10
-    && [...new Set(scene.hurdles.filter(o => !o.part).map(o => o.meme.name))].join('/') === '자나/립/메에/원이?',
-  'e1: ten paired hazards cycle through four lightweight meme stand-ins');
-  // 통로 좌표는 코스에서 읽습니다. 가시가 붙어 있는 두 벽이 곧 천장 아랫면과 바닥 윗면입니다.
-  const ceilBottom = Math.min(...scene.hurdles.map(h => h.wall)), floorTop = Math.max(...scene.hurdles.map(h => h.wall)) + 24, floorY = scene.state.y;
-  assert(spikes().length === 20 && blocks().length === 5 && floats().length === 4, 'e1: course holds 20 spikes, 5 blocks and 4 floating blocks');
+  const floorY = scene.state.y, hazards = scene.hazards,
+    basics = hazards.filter(o => o.type === 'basic'), specials = hazards.filter(o => o.type !== 'basic');
+  const rivalType = scene.state.art === 'woni-' ? 'yaho' : 'fire';
+  assert(hazards.length === 10 && scene.state.obstacles === hazards && basics.length === 7
+    && specials.map(o => o.type).join('/') === `crown/foot/${rivalType}`
+    && !specials.some(o => scene.state.art === 'woni-' ? o.type === 'fire' : o.type === 'yaho'),
+  'e1: seven fixed basics surround three meme setpieces without duplicating the runner');
+  assert(scene.state.act === 1 && scene.stageGame.tuning.speed === 300 && specials.every(o => o.gap === 120)
+    && Math.abs(scene.dash.revealSeconds - 1.05) < .001 && Math.abs(scene.dash.warningSeconds - .70) < .001,
+  'e1: first story play uses the forgiving speed, warning time and escape gap');
+  assert(basics.every(o => (o.safe === 'floor' || o.safe === 'ceiling')
+    && scene.stageGame.hazardRect(o).h === 92 && o.triggered && o.progress === 1),
+  'e1: all seven tutorial obstacles are fixed to a randomly chosen wall');
+  assert(specials.every(o => o.type === 'yaho' ? o.safe === 'center' : o.safe === 'floor' || o.safe === 'ceiling'),
+  'e1: special attack directions stay valid and unpredictable');
+  specials.forEach(o => { o.progress = 1; });
+  const wallAttacks = specials.filter(o => o.type !== 'yaho'), fullRects = wallAttacks.map(o => scene.stageGame.hazardRect(o));
+  assert(fullRects.every((r, i) => Math.abs(r.h - wallAttacks[i].depth) < .01
+    && Math.abs((wallAttacks[i].safe === 'floor' ? 511 - (r.y + r.h) : r.y - 130) - wallAttacks[i].gap) < .01),
+  'e1: each large meme weapon preserves the current act escape gap');
+  const crownPieces = scene.stageGame.hazardRects(specials[0]);
+  assert(crownPieces.length === 5 && new Set(crownPieces.map(r => Math.round(r.x))).size === 5,
+  'e1: crown artwork and collision both form a diagonal attack rather than a vertical column');
+  const yaho = specials.find(o => o.type === 'yaho');
+  if (yaho) {
+    const yahoPieces = scene.stageGame.hazardRects(yaho);
+    assert(yahoPieces.length === 5 && yahoPieces[4].x - (yahoPieces[2].x + yahoPieces[2].w) >= 55,
+    'e1: giant Yaho uses separate torso and legs with a real floor-level center passage');
+  }
+  specials.forEach(o => { o.progress = 0; o.warned = false; o.warningAge = 0; o.triggered = false; });
   scene.state.immune = 100;
-  advance(2.8);  // 넓어진 통로를 최고 속도로도 다 건너려면 2초로는 모자랍니다.
-  assert(spikes().every(o => !o.loose && o.y === o.wall), 'e1: spikes stay clamped to their wall before any flip');
-  assert(blocks().every(o => o.y === floorTop - o.h) && floats().every(o => o.y === ceilBottom), 'e1: both block types move to their gravity walls');
-  const obstacleStart = scene.state.obstacles.map(o => o.y);
+  scene.state.x = specials[0].x - scene.dash.warningLead - 30;
+  advance(.05);
+  assert(!specials[0].warned && !specials[0].triggered, 'e1: a distant member does not reveal which wall the attack uses');
+  advance(.1);
+  assert(specials[0].warned && !specials[0].triggered && scene.warningMarks[3].visible,
+  'e1: a flashing exclamation mark warns from the attack wall before the weapon appears');
+  advance(.7);
+  assert(specials[0].triggered && specials[0].progress > 0 && specials[0].progress < 1
+    && !specials[1].triggered, 'e1: the warned giant weapon emerges only after the reaction window');
+  advance(.5);
+  assert(specials[0].progress === 1, 'e1: an emerging weapon reaches its full corridor-filling pose');
+  const progressBeforeFlip = hazards.map(o => o.progress);
   scene.primaryAction();
   assert(scene.state.sign === -1, 'e1: action flips gravity instead of jumping');
-  let maxObstacleSpeed = 0;
-  advance(.5, () => { maxObstacleSpeed = Math.max(maxObstacleSpeed, ...scene.state.obstacles.map(o => Math.abs(o.vy))); });
-  assert(scene.state.y < ceilBottom + 30 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
-  assert(spikes().every(o => !o.loose), 'e1: the first flip is too early to release any spike');
-  assert(scene.state.obstacles.every((o, i) => o.spike && !o.loose ? o.y === obstacleStart[i] : o.y !== obstacleStart[i]), 'e1: released obstacles respond to the flip while attached spikes hold still');
-  assert(maxObstacleSpeed > 0 && maxObstacleSpeed <= 190 && maxObstacleSpeed < scene.stageGame.tuning.speed, 'e1: obstacle motion stays slower than player travel');
-  assert(blocks().every(o => o.y > ceilBottom), 'e1: player reaches ceiling before following obstacles');
-  advance(2.5); assert(blocks().every(o => o.y === ceilBottom) && floats().every(o => o.y === floorTop - o.h), 'e1: following and opposing obstacles settle on different walls');
+  advance(.5);
+  assert(scene.state.y < 160 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
+  assert(hazards.every((o, i) => o.progress >= progressBeforeFlip[i]), 'e1: gravity flips do not retract or redirect the giant weapons');
   scene.primaryAction(); advance(.5);
   assert(Math.abs(scene.state.y - floorY) < 1, 'e1: pressing again returns to the floor wall');
-  assert(scene.hurdles.length === 20 && scene.hurdles.every(h => scene.state.obstacles.includes(h)), 'e1: twenty spikes share the moving obstacle simulation');
-  // 묶음 간격은 속도에 비례하므로 좌표가 아니라 반전 횟수만 확인합니다.
-  load('e1'); scene.state.immune = 100;
-  const releasedAfter = [];
-  for (let i = 0; i < 20; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
-  assert(releasedAfter[0] === 0 && releasedAfter[1] === 1, 'e1: the first spike only drops on the second flip');
-  assert(releasedAfter[19] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty flips');
-  const releaseSteps = releasedAfter.map((n, i) => n - (i ? releasedAfter[i - 1] : 0));
-  const drops = releaseSteps.filter(n => n);
-  assert(drops.length === 12, 'e1: the twenty flips carry twelve separate drops');
-  assert(drops.every((n, i) => !i || n >= drops[i - 1]) && drops.at(-1) === 3, 'e1: each drop releases at least as many spikes as the one before');
-  // 코스를 실제로 달리는 동안에도, 이번 반전에 새로 풀린 가시는 모두 플레이어 앞에 있어야 합니다.
-  load('e1'); scene.state.immune = 100;
-  let wastedDrops = 0, aheadDrops = 0;
-  advance(16, frame => {
-    if (frame % 90) return;
-    const before = new Set(scene.hurdles.filter(h => h.loose));
-    scene.primaryAction();
-    const dropped = scene.hurdles.filter(h => h.loose && !before.has(h));
-    wastedDrops += dropped.filter(h => h.x <= scene.state.x).length;
-    aheadDrops += dropped.length;
-  });
-  assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
-  load('e1'); advance(20.3);
+  load('e1'); scene.hazards[0].safe = 'ceiling'; advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
   // 밈 에셋 세트는 판마다 한 벌씩 뽑힙니다. 두 벌 모두 다섯 장이 실려 있어야 하고,
   // 뽑힌 세트는 그리는 텍스처 이름에 그대로 붙습니다.
@@ -289,6 +290,9 @@
   // 판이 서 있으면 그림도 서 있고 같은 자리로 돌아오면 같은 장이 나온다.
   const dashFrames = [1, 2, 3, 4, 5, 6];
   assert(dashSets.every(set => dashFrames.every(frame => scene.textures.exists(`e1:${set}run${frame}`))), 'e1: both sets load all six run frames');
+  assert(['jena-crown', 'jena-meme', 'liv-foot', 'liv-meme', 'yaho-meme'].every(key => scene.textures.exists(`e1:${key}`))
+    && ['up', 'down', 'diagonal'].every(direction => [1, 2, 3, 4, 5].every(frame => scene.textures.exists(`e1:woni-fire-${direction}${frame}`))),
+  'e1: supplied crown, foot, rival and fifteen fire frames load as transparent game assets');
   load('e1');
   const runStep = scene.stageGame.tuning.speed / 14;
   const frameAt = x => { scene.state.x = x; return scene.stageGame.poseTexture.call(scene, 'run'); };
@@ -308,7 +312,9 @@
   assert(spareKeys.every(key => scene.textures.exists(key)), 'e1: the run frames are back after the fallback check');
   const dashPicks = new Set();
   for (let i = 0; i < 60; i++) { load('e1'); dashPicks.add(scene.state.art); }
-  assert(dashPicks.size === 2 && [...dashPicks].every(art => dashSets.includes(art)), 'e1: each play picks one of the two meme asset sets');
+  const storyDash = archiveRun.snapshot().active && !archiveRun.snapshot().qaMode;
+  assert([...dashPicks].every(art => dashSets.includes(art)) && (storyDash ? dashPicks.size === 1 : dashPicks.size === 2),
+  'e1: story fixes the act runner while standalone play can pick either set');
   load('e1'); scene.stageGame.render.call(scene);
   assert(scene.assetSprites.get('player').texture.key === `e1:${scene.state.art}run1`, 'e1: the picked set is what actually gets drawn');
   // 세트가 갈려도 밖에서는 한 스테이지다. 도감은 e1 하나 그대로고, 세트별 타일은 QA 패널에만 선다.
@@ -581,8 +587,10 @@
   assert(scene.targetFrost.length === 4 && scene.frostInk && scene.frostInk.visible, 'e10: four frozen digit covers remain visible with optional effects disabled');
   load('e10');
   const physicalDigit = scene.state.target[0], physicalBlock = scene.digitBlocks.find(block => block.digit === physicalDigit);
+  archiveAudio.stopSfx();
   scene.state.x = physicalBlock.x + physicalBlock.w / 2; scene.state.vx = 0; scene.primaryAction(); advance(.4);
   assert(scene.state.input === physicalDigit, 'e10: jumping into a block underside enters its digit');
+  assert(archiveAudio.lastSfx.has('sfxE10TouchNumber'), 'e10: physical number-block contact plays touch-number SFX');
   const previousAttempt = scene.state;
   scene.state.input = '12'; scene.state.vx = 200; scene.state.friction = 70; scene.state.directionPresses = 99;
   load('e10');

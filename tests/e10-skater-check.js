@@ -23,7 +23,9 @@
   scene.directionPress('right'); advance(.22);
   assert(scene.skater.flipX && scene.state.iceMarks.length > 0, 'e10: right input mirrors the left-facing source and leaves blade marks');
   scene.directionRelease('right');
+  archiveAudio.stopSfx();
   scene.primaryAction(); advance(.03);
+  assert(archiveAudio.lastSfx.has('sfxE10Jump'), 'e10: first physical jump plays jump SFX');
   assert(scene.skater.texture.key === 'e10:jump' && scene.skater.frame.name === 'pose-0', 'e10: physical jump begins with the takeoff pose');
   advance(.14);
   const spinFrame = scene.skater.frame.name;
@@ -39,6 +41,9 @@
   assert(scene.skater.y === 474, 'e10: landing anchors skates to the unchanged ground collision height');
   advance(.3);
   assert(scene.skater.texture.key === 'e10:glide', 'e10: landing animation returns to skating');
+  archiveAudio.stopSfx();
+  scene.primaryAction();
+  assert(archiveAudio.lastSfx.has('sfxE10Jump'), 'e10: every physical jump plays the jump SFX');
   scene.settings.effects = false; advance(.02);
   assert(!scene.state.iceChips.length && !scene.state.iceMarks.length, 'e10: effects setting clears optional ice particles and marks');
   const oldSkater = scene.skater;
@@ -59,6 +64,14 @@
   const pushFrames = new Set();
   for (let i = 0; i < 36; i++) { advance(1 / 120); pushFrames.add(scene.skater.frame.name); }
   assert(pushFrames.size > 1, 'e10: pressing direction again resumes leg animation');
+  archiveAudio.stopSfx();
+  Object.assign(scene.state, { x: 925, vx: 300 }); advance(.05);
+  assert(!archiveAudio.lastSfx.has('sfxPenaltyHit'), 'e10: wall bounce has no error sound when it has no penalty');
+  load(); archiveAudio.stopSfx();
+  const physicalDigit = scene.state.target[0], physicalBlock = scene.digitBlocks.find(block => block.digit === physicalDigit);
+  scene.state.x = physicalBlock.x + physicalBlock.w / 2; scene.primaryAction(); advance(.4);
+  assert(scene.state.input === physicalDigit && archiveAudio.lastSfx.has('sfxE10TouchNumber'),
+    'e10: physical number-block contact plays touch-number SFX');
   scene.loadStage('e1');
   assert(!scene.children.list.some(child => child.texture?.key === 'e10:glide'), 'e10: switching games removes the skater');
   return checks;

@@ -48,6 +48,9 @@ class AudioBus {
     this.muted = false;
     if (this.volumes.master <= 0) this.volumes.master = 0.8;
     if (this.volumes.bgm <= 0) this.volumes.bgm = 0.45;
+    if (this.volumes.sfx <= 0) this.volumes.sfx = 0.9;
+    this.channelMuted.bgm = false;
+    this.channelMuted.sfx = false;
     this.save();
     this.apply();
     this.resume();

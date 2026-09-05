@@ -19,7 +19,7 @@ export const E5_SLINGSHOT = {
      포물선과 난이도가 그대로다. tests/e5-slingshot-check.js 의 좌표도 같은 값만큼 따라와야 한다. */
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '' };
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0, pendingFinish: 0, frozenRemaining: 0, finishText: '', lastHitSfx: '' };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -146,9 +146,22 @@ export const E5_SLINGSHOT = {
     s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('sfxE5Release');
   },
   cancelInput() { this.state.drag = null; },
+  playTargetHitSfx(target, amount, collapse = false) {
+    const variants = ['sfxE5Broken1', 'sfxE5Broken2'];
+    let index = Math.random() < .5 ? 0 : 1;
+    // 같은 타격음만 연달아 나오는 확률을 낮춰 연속 명중도 한 덩어리처럼 들리지 않게 한다.
+    if (variants[index] === this.state.lastHitSfx && Math.random() < .7) index = 1 - index;
+    const key = variants[index];
+    this.state.lastHitSfx = key;
+    const force = MINI.clamp(amount / (target.wood ? 40 : 100), 0, 1);
+    this.sfx(key, {
+      rate: (target.wood ? .97 : 1.03) * MINI.rand(.97, 1.03),
+      volume: MINI.clamp(.72 + force * .28 - (collapse ? .06 : 0), .68, 1),
+    });
+  },
   damage(target, amount, collapse = false) {
     if (target.hp <= 0) return;
-    this.sfx('sfxDubaiStretch');
+    E5_SLINGSHOT.playTargetHitSfx.call(this, target, amount, collapse);
     target.hp = Math.max(0, target.hp - amount); target.flash = .18;
     if (target.wood) {
       const t = E5_SLINGSHOT.tuning;
