@@ -1268,8 +1268,10 @@ const E3_HUMAN_STACK = {
   tuning: {
     speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
-    // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
-    // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
+    // 자세는 여덟 가지를 한 벌로 섞어 순서대로 뽑습니다(drawPose() 참고) — 매번
+    // 순서는 달라지되 여덟 번마다 모든 자세가 한 번씩 나옵니다. 각도는 이 목록을
+    // 순서대로 돌려 받습니다("받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로
+    // 직접 돌립니다).
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
     // 한 번 톡 누르면 spinStep만큼, 꾹 누르고 있으면 초당 spinSpeed만큼 돌아갑니다(도 단위).
     spinStep: 12, spinSpeed: 150,
@@ -1316,11 +1318,12 @@ const E3_HUMAN_STACK = {
     M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
-      bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
+      bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1, poseBag: [],
       spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180,
       nextTint: E3_HUMAN_STACK.randomTint(), spinShown: 0,
       impacts: [], impactCooldown: 0,
     };
+    this.state.nextPose = E3_HUMAN_STACK.drawPose(this.state);
     this.people = [];
     this.stackBodyById = new Map();
     this.stackGrounded = new Set();
@@ -1349,6 +1352,22 @@ const E3_HUMAN_STACK = {
   speed() {
     const t = E3_HUMAN_STACK.tuning;
     return Math.min(t.maxSpeed, t.speed + this.state.drops * this.penalty(t.speedGain));
+  },
+  /*
+   * 다음 자세를 뽑는다. 매번 완전히 독립적으로 뽑으면(순수 Math.random) 같은 자세가
+   * 우연히 여러 번 몰릴 수 있어 특정 판에서만 유독 쌓기 어려워진다 — 여덟 자세를 한
+   * 벌로 섞어 순서대로 다 쓴 뒤에만 새로 섞는다(카드 한 벌 셔플과 같은 방식). 순서는
+   * 매번 달라지되, 여덟 번마다 모든 자세가 정확히 한 번씩만 나오게 보장한다.
+   */
+  drawPose(s) {
+    if (!s.poseBag || s.poseBag.length === 0) {
+      s.poseBag = Array.from({ length: E3_HUMAN_STACK.poses.length }, (_, i) => i);
+      for (let i = s.poseBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [s.poseBag[i], s.poseBag[j]] = [s.poseBag[j], s.poseBag[i]];
+      }
+    }
+    return s.poseBag.pop();
   },
   /*
    * 메챠 카멜레온처럼 사람마다 얼룩덜룩한 색을 입힌다. 주조색 하나에 살짝 어둡거나
@@ -1403,7 +1422,11 @@ const E3_HUMAN_STACK = {
     M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
-    s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    s.drops++; this.actions++;
+    // 다음 자세는 셔플백에서 뽑습니다 — 고정된 순서로 반복되지 않으면서도 여덟 번마다
+    // 모든 자세가 한 번씩 나오도록 보장합니다.
+    s.nextPose = E3_HUMAN_STACK.drawPose(s);
+    s.cooldown = t.dropCooldown;
     // 다음 미리보기도 새 색으로 다시 뽑습니다 — 떨어뜨린 사람과 같은 얼룩무늬가 이어지지 않게.
     s.nextTint = E3_HUMAN_STACK.randomTint();
     // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
@@ -1767,8 +1790,9 @@ const E4_ACCELERATION_DASH = {
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
-    // 출구 도착은 같은 프레임의 추격보다 먼저 판정한다.
-    if (this.remaining > 0 && Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 16) { this.finish(true); return; }
+    // 출구 도착은 같은 프레임의 추격보다 먼저 판정한다. 판정 반경은 16이었으나
+    // 통로 폭(66)에 비해 너무 좁아 근처까지 가고도 골인이 안 되는 느낌을 줘서 넓혔다.
+    if (this.remaining > 0 && Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 28) { this.finish(true); return; }
     E4_TIGER.update(this, dt);
     const tiger = s.tiger, warning = this.elapsed < E4.chase.delay
       ? `호랑이 출발 ${(E4.chase.delay - this.elapsed).toFixed(1)}초`

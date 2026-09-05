@@ -144,8 +144,9 @@ export const E4_ACCELERATION_DASH = {
     E4_VILLAGE.updateMotion(this, dt, s.x - oldX, s.y - oldY);
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
-    // 출구 도착은 같은 프레임의 추격보다 먼저 판정한다.
-    if (this.remaining > 0 && Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 16) { this.finish(true); return; }
+    // 출구 도착은 같은 프레임의 추격보다 먼저 판정한다. 판정 반경은 16이었으나
+    // 통로 폭(66)에 비해 너무 좁아 근처까지 가고도 골인이 안 되는 느낌을 줘서 넓혔다.
+    if (this.remaining > 0 && Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 28) { this.finish(true); return; }
     E4_TIGER.update(this, dt);
     const tiger = s.tiger, warning = this.elapsed < E4.chase.delay
       ? `호랑이 출발 ${(E4.chase.delay - this.elapsed).toFixed(1)}초`
