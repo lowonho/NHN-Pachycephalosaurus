@@ -19,6 +19,8 @@ class ArchiveGame extends Phaser.Scene {
     this.settings = { shake: true, effects: true }; this.touch = new Set(); this.pointerId = null;
   }
   preload() {
+    // index.html을 직접 열었을 때도 로컬 PNG/WebP/SVG 에셋을 읽을 수 있게 합니다.
+    if (window.location.protocol === 'file:') this.load.imageLoadType = 'HTMLImageElement';
     for (const [id, roles] of Object.entries(globalThis.MINIGAME_ASSETS ?? {})) {
       for (const [role, path] of Object.entries(roles)) if (path) this.load.image(`${id}:${role}`, path);
     }
@@ -124,6 +126,8 @@ class ArchiveGame extends Phaser.Scene {
 }
 
 window.archivePhaserGame = new Phaser.Game({
-  type: Phaser.AUTO, width: 960, height: 540, parent: 'game-container', backgroundColor: '#07141d',
+  // file:// 이미지는 WebGL 텍스처 업로드가 차단됩니다. 로컬 실행은 Canvas로 표시합니다.
+  type: window.location.protocol === 'file:' ? Phaser.CANVAS : Phaser.AUTO,
+  width: 960, height: 540, parent: 'game-container', backgroundColor: '#07141d',
   render: { antialias: true }, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ArchiveGame,
 });

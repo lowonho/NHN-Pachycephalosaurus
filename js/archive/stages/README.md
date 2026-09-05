@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | e1 | e1_gravityDash.js | speed, distance, jump, obstacleGravity |
 | e2 | e2_bounceBall.js | speed, jump, jumpGain, maxJump, gravity |
-| e3 | e3_humanStack.js | speed, speedGain, maxSpeed, targetHeight, hold |
+| e3 | e3_humanStack.js | speed, speedGain, targetHeight, hold, friction, carryMomentum, settleSpeed |
 | e4 | e4_accelerationDash.js | turns (기본 10), speed, gain, tolerance, minLength/maxLength |
 | e5 | e5_slingshot.js | force, decay, minPower, maxPull, targetHP |
 | e6 | e6_gravityFlight.js | speed, distance, gravityLoss, minGravity, liftGain, maxLift, gap |
@@ -29,7 +29,7 @@
 
 - e1은 자동 전진/Space 점프. 공중 Space도 장애물 중력을 뒤집습니다. 고정된 금색 가시를 함께 배치하여 한 번 뒤집고 끝까지 달리는 것을 방지했습니다. 충돌하면 조금 후퇴합니다.
 - e2는 A/D 좌우, W/S 공중 수직 보정, Space 착지 후 점프입니다. 키를 길게 눌러도 점프력이 더해지지 않습니다. 플랫폼에 착지하면 체크포인트를 갱신합니다.
-- e3은 Matter 복합 강체로 사람 모양을 쌓습니다. 206 높이를 0.6초 유지하면 성공합니다. 잔해는 실제 받침으로 남습니다.
+- e3은 버티기·팔 벌리기·만세 세 자세의 흰색 마네킹을 쌓습니다. 머리와 몸통·팔다리를 합친 Matter 강체가 실제 접촉 위치, 질량중심, 관성, 마찰에 따라 회전하고 넘어집니다. 바닥/받침대부터 안정적인 접촉이 이어진 탑이 216 높이를 0.7초 유지하면 성공합니다. 잔해는 동적인 받침으로 남고 속도는 유지됩니다. 탑이 높아지면 낙하 위치가 올라가며 시야가 넓어집니다.
 - e4는 자동 전진, 코너에서 W/D 또는 Space/클릭으로 꺾습니다. 길이는 매번 무작위이고 코너는 정확히 10개입니다. 실패하면 현재 직선 시작으로 후퇴하며 가속은 유지합니다.
 - e5는 탄환을 당겼다 놓습니다. 목표물은 6개, 체력이 있으며 궤적 미리보기가 실제 발사 힘을 반영합니다. 탄환 수 제한은 없습니다. 약해져도 끝 목표에 도달하도록 최소 힘을 둡니다.
 - e6의 무충돌 골인은 약 16.47초입니다. 새로 누를 때마다 중력 감소/상승 강화가 누적됩니다. 누르고 있는 동안 상승하며, 충돌하면 후퇴하고 중력은 유지합니다.
@@ -57,6 +57,8 @@ e3: { person: 'assets/minigames/e3/person.webp' }
 
 `player`, `obstacle`, `person`, `target`, `projectile`, `prize`, `weight`, `stone` 역할은 manifest를 참고하세요. 투명 배경에 여백이 적은 이미지를 권장합니다. 이미지가 없거나 로딩되지 않으면 기본 캐릭터 도형을 사용합니다. 이미지 교체는 표시만 바꾸며 물리 판정을 변경하지 않습니다.
 
+e3은 `person_crouch`, `person_wide`, `person_reach`로 자세별 이미지를 적용합니다. e3 이미지의 중심, 여백, 크기는 [e3 에셋 가이드](../../../assets/minigames/e3/README.md)를 따릅니다. 그림의 팔다리 위치를 바꾸면 충돌 형태도 함께 조정하세요. 파일을 직접 여는 환경은 Canvas/HTML 이미지 로더, 웹 서버에서는 Phaser AUTO 렌더러를 사용합니다.
+
 ## 실행과 검증
 
 원본을 수정한 뒤 실행 번들을 갱신합니다. `game-classic.js`는 직접 수정하지 않습니다.
@@ -64,6 +66,7 @@ e3: { person: 'assets/minigames/e3/person.webp' }
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-archive-classic.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/minigame-browser.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/e3-physics-browser.ps1
 ```
 
 `index.html`을 직접 열어 플레이할 수 있습니다. 검증은 설치된 Chrome의 headless 모드에서 실제 Phaser 씬을 사용합니다. 브라우저 경로는 테스트 스크립트의 `$chrome`에서 변경합니다.
@@ -71,3 +74,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/minigame-browser.ps1
 검증 범위: 9개 로딩, 랜덤 5개 중복 방지, 20.26초 종료, 성공 경로, 페널티 유지, 정지/전환 정리, 룰렛 당첨/꽝 판정, 최고 기록, 결과의 3개 버튼, 실제 키보드와 축소된 모니터의 마우스 드래그. 화면 캡처는 `tests/.artifacts/`에 저장됩니다. 자동 입력 성공 경로는 플레이 난이도를 인간 대상으로 검증한 결과를 의미하지 않으며 세부 밸런스는 플레이테스트 후 조정합니다.
 
 기존 `archive-*-check`와 `stage-split-baseline.json`은 이전 5개 게임용 회귀 자료입니다. 새 게임 검증에는 위 `minigame-browser.ps1`을 사용합니다.
+
+e3 전용 검증은 중심 착지/가장자리 전도/팔다리 사이 빈 공간/잔해 위 재쌓기/공중 높이 제외/누적 속도 유지/에셋 회전 중심/로컬 이미지 로딩/씬 정리를 확인합니다. `tests/.artifacts/e3-tower.png`, `e3-topple.png`에서 쌓인 탑과 낙하 충돌로 넘어진 모습을 확인할 수 있습니다.
