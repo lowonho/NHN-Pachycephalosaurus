@@ -19,6 +19,18 @@
 const CODEX_RECORD_DAMAGED = "DAMAGED";
 const CODEX_RECORD_FULL = "FULLY RESTORED";
 
+/*
+ * 아직 열지 않은 칸의 자물쇠. 다른 칸의 기호(⇅ ◉ ▤ …)와 같은 자리에 들어가므로
+ * 색은 currentColor로 물려받고 크기는 1em으로 맞춘다 — css/codex.css가 잡는 값을 따른다.
+ */
+const CODEX_LOCK_ICON = `
+  <svg class="codex-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="10" width="16" height="11" rx="2.5" />
+    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+  </svg>
+`;
+
 class CodexFlow {
   constructor(events, dom, soundBus) {
     this.events = events;
@@ -117,8 +129,9 @@ class CodexFlow {
     const icon = document.createElement("span");
     icon.className = "codex-card-icon";
     icon.setAttribute("aria-hidden", "true");
-    // 해 보지 않은 칸은 기호도 물음표로 둔다 — 실루엣만 남기는 도감의 관례다.
-    icon.textContent = discovered ? stage.recordSymbol : "?";
+    // 해 보지 않은 칸은 기호 대신 자물쇠를 둔다 — 실루엣만 남기는 도감의 관례다.
+    if (discovered) icon.textContent = stage.recordSymbol;
+    else icon.innerHTML = CODEX_LOCK_ICON;
 
     head.append(number, icon);
 

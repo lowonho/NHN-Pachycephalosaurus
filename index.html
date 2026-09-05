@@ -300,6 +300,80 @@
             </div>
 
             <!--
+              브리핑 레이어 — "증언할 기억"을 고른 뒤 그 프로토콜을 설명한다.
+              예전에는 컷신(대사창)이 화면을 통째로 덮었지만, 이제는 모니터
+              스크린 안에서 앱 하나가 더 열리는 모양이다(data-mode="brief").
+              내용은 js/ui/protocol-select-flow.js의 renderBrief가 채운다.
+            -->
+            <section
+              class="protocol-brief"
+              id="protocol-brief"
+              aria-labelledby="protocol-brief-title"
+              hidden
+            >
+              <header class="protocol-brief-top">
+                <p class="protocol-brief-tag">
+                  PROTOCOL BRIEFING
+                  <span class="protocol-brief-code" id="protocol-brief-code">// RECORD 01</span>
+                </p>
+                <span class="protocol-meta-rule" aria-hidden="true"></span>
+                <p class="protocol-brief-system">ARCHIVE SYSTEM v2.0.26</p>
+              </header>
+
+              <div class="protocol-brief-headline">
+                <h2 class="protocol-brief-title" id="protocol-brief-title">기억</h2>
+                <p class="protocol-brief-sub">이 기억을 증언하려면 아래 프로토콜을 따르세요.</p>
+              </div>
+
+              <div class="protocol-brief-body">
+                <!-- 왼쪽 — 기록 카드. 타일에서 본 기호와 등급을 크게 다시 보여 준다. -->
+                <section class="protocol-brief-record" id="protocol-brief-record" data-recovery="damaged">
+                  <p class="protocol-brief-record-head">
+                    <span id="protocol-brief-id">E1</span>
+                    <span id="protocol-brief-number">RECORD 01</span>
+                  </p>
+                  <span class="protocol-brief-symbol" id="protocol-brief-symbol" aria-hidden="true">◇</span>
+                  <p class="protocol-brief-objective" id="protocol-brief-objective"></p>
+                  <p class="protocol-brief-stamp" id="protocol-brief-stamp">DAMAGED</p>
+                </section>
+
+                <!-- 오른쪽 — 계기판. 조작 · 이상현상 · 제한시간 · 최고 기록. -->
+                <div class="protocol-brief-stats">
+                  <section class="protocol-brief-stat protocol-brief-stat--wide">
+                    <p class="protocol-brief-stat-label">CONTROL <span>조작</span></p>
+                    <p class="protocol-brief-stat-value" id="protocol-brief-controls"></p>
+                  </section>
+                  <section class="protocol-brief-stat protocol-brief-stat--wide protocol-brief-stat--alert">
+                    <p class="protocol-brief-stat-label">ANOMALY <span>이상현상</span></p>
+                    <p class="protocol-brief-stat-value" id="protocol-brief-anomaly"></p>
+                  </section>
+                  <section class="protocol-brief-stat">
+                    <p class="protocol-brief-stat-label">TIME LIMIT <span>제한시간</span></p>
+                    <p class="protocol-brief-stat-value protocol-brief-stat-value--num">20.26<small>s</small></p>
+                  </section>
+                  <section class="protocol-brief-stat">
+                    <p class="protocol-brief-stat-label">BEST <span>최고 기록</span></p>
+                    <p class="protocol-brief-stat-value protocol-brief-stat-value--num" id="protocol-brief-best">--.--<small>s</small></p>
+                  </section>
+                </div>
+              </div>
+
+              <footer class="protocol-brief-actions">
+                <p class="protocol-brief-note">Enter · Space로 시작 / Esc로 목록</p>
+                <div class="protocol-brief-buttons">
+                  <button class="protocol-brief-button protocol-brief-button--back" id="protocol-brief-back" type="button">
+                    <span>목록으로</span>
+                    <small>// BACK</small>
+                  </button>
+                  <button class="protocol-brief-button protocol-brief-button--start" id="protocol-brief-start" type="button">
+                    <span>증언 시작</span>
+                    <small>// START PROTOCOL</small>
+                  </button>
+                </div>
+              </footer>
+            </section>
+
+            <!--
               플레이 레이어 — 모니터 스크린이 곧 게임 화면이다.
               스크린은 16:9(1440×810)라 Phaser(960×540 · Scale.FIT)가 레터박스 없이 꽉 찬다.
               HUD는 1920×1080 설계 좌표 그대로 두고 스크린 배율(0.75)로만 줄인다.
@@ -657,7 +731,7 @@
         <ul class="codex-grid" id="codex-grid"></ul>
 
         <footer class="codex-foot">
-          <p class="codex-hint">한 번이라도 플레이한 게임의 정보가 열립니다.</p>
+          <p class="codex-hint">플레이한 게임의 정보가 열립니다.</p>
           <button class="codex-close" id="codex-close-button" type="button">
             <span>닫기</span>
           </button>
@@ -736,7 +810,7 @@
 
         <label class="qa-check">
           <input type="checkbox" id="qa-brief-toggle" />
-          <span>시작 전 브리핑 컷신 보기</span>
+          <span>시작 전 브리핑 화면 보기</span>
         </label>
 
         <div class="qa-grid" id="qa-stage-grid"></div>

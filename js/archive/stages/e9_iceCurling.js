@@ -67,7 +67,7 @@ export const E9_ICE_CURLING = {
     }
     const pop = MINI.spawnScale(this);
     MINI.actor(this, 'stone', 'stone', s.x, s.y, 28 * pop, 28 * pop, 0, 0xffd78f);
-    MINI.line(this, s.x - 7, s.y - 3, s.x + 7, s.y - 3, 0x735743, 5);
+    if (pop) MINI.line(this, s.x - 7 * pop, s.y - 3, s.x + 7 * pop, s.y - 3, 0x735743, 5);
     MINI.spawnFx(this, s.x, s.y, 28);
   },
 };

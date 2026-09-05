@@ -10,13 +10,13 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets'].includes(key) ? undefined : value)) });
-  load('e1'); scene.primaryAction();
+  load('e1');
   advance(20.3, () => {
     const s = scene.state;
-    if (s.y < 449) return;
-    const fixed = scene.hurdles.some(h => h.x - s.x > -15 && h.x - s.x < 85);
-    const moving = s.obstacles.some(o => o.x - s.x > -15 && o.x - s.x < 90 && o.y > 370);
-    if (fixed || moving) scene.primaryAction();
+    // 다음 가시가 붙어 있는 벽과 같은 쪽이면 도달 250px 전에 미리 반전합니다.
+    // 반전에 약 112px이 필요하고, 가시 바로 앞의 떠 있는 장애물을 지난 뒤여야 하므로 이 시점이 유일한 안전 구간입니다.
+    const next = scene.hurdles.find(h => h.x - s.x > -15);
+    if (next && next.x - s.x < 250 && (next.ceiling ? -1 : 1) === s.sign) scene.primaryAction();
   }); save('e1');
   load('e2'); scene.directionPress('right');
   advance(20.3, () => {
@@ -30,9 +30,10 @@
   save('e3');
   load('e4');
   advance(20.3, () => {
-    const s = scene.state; if (s.segment >= 10) return;
+    const s = scene.state, next = s.dirs[s.segment + 1];
+    if (!next || s.retry) return;
     const a = s.points[s.segment], b = s.points[s.segment + 1];
-    if (Math.hypot(b.x-a.x,b.y-a.y) - s.progress < 10) scene.primaryAction();
+    if (Math.hypot(b.x-a.x,b.y-a.y) - s.progress < 10) { scene.touch.clear(); scene.directionPress(next); }
   }); save('e4');
   load('e5');
   const chooseShot = () => {
