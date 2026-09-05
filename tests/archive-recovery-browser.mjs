@@ -76,22 +76,24 @@ try {
   /*
    * 메인 화면 → 컷신 → 프로토콜 선택. "게임 시작"은 이제 컷신을 먼저 띄우므로
    * SKIP으로 건너뛰어야 프로토콜 선택 화면에 닿는다.
-   */
+  */
   await evaluate("document.querySelector('#main-play-button').click()");
+  await screen("opening");
   await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
+  // 오프닝 뒤 첫 기록 소개가 자동으로 열리며, 이 소개를 끝내야 실제 플레이가 시작된다.
+  await screen("stage-intro");
+  await evaluate("cutsceneFlow.finish(); gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {})");
   /*
-   * 2:26 예산은 프로토콜 선택을 연 순간부터 벽시계로 줄어든다. 이 스위트는
-   * 씬을 실시간이 아니라 update()로 한 걸음씩 몰기 때문에, 붙잡아 두지 않으면
-   * 7개를 도는 사이에 예산이 바닥나 복구 실패가 검사 도중에 끼어든다.
+   * 이 스위트는 씬을 실시간이 아니라 update()로 한 걸음씩 몰기 때문에
+   * 회수/복구 검증 단계에서는 run-state만 잠시 멈추고 타이머는 별도 항목에서 검사한다.
    */
-  await evaluate("protocolSelectFlow.pauseTimer()");
   await screen("records");
-  await evaluate("window.addEventListener('archive-stage-end', event => { window.lastStageEnd = event.detail; })");
-  const retry = async () => { await wait(500); assert.equal(await evaluate("testScene.mode"), "playing"); assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true); };
-  const start = async (stage) => evaluate(`protocolSelectFlow.startStage(${JSON.stringify(stage)}); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
+  await evaluate("window.addEventListener('archive-stage-end', event => { window.lastStageEnd=event.detail; })");
+  const retry = async () => { await wait(520); assert.equal(await evaluate("testScene.mode"),"playing"); };
+  const start = async (stage) => evaluate(`protocolSelectFlow.launchStage(${JSON.stringify(stage)}); window.archiveRun.setPaused(true); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
   const continueToRecords = async () => {
     const saved = await evaluate("window.archiveProgress.summary()");
-    await evaluate("if(modalFlow.isOpen()) modalFlow.onSecondary(); else gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT,{})");
+    await evaluate("modalFlow.success ? document.querySelector('#primary-button').click() : document.querySelector('#secondary-button').click(); while (cutsceneFlow.isOpen()) cutsceneFlow.finish()");
     assert.deepEqual(await evaluate(`({
       resultHidden: UI.modal.classList.contains('hidden'),
       recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
@@ -101,28 +103,50 @@ try {
       cardFocused: Boolean(document.activeElement?.dataset.stageId),
     })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
     assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
-    await evaluate("protocolSelectFlow.pauseTimer()");
+  };
+  const returnToRecords = async () => {
+    const saved = await evaluate("window.archiveProgress.summary()");
+    await evaluate("gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {})");
+    assert.deepEqual(await evaluate(`({
+      resultHidden: UI.modal.classList.contains('hidden'),
+      recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
+      gameLocked: UI.appShell.hasAttribute('inert'),
+      hudHidden: UI.stageHud.hidden,
+      stopped: testScene.mode === 'idle',
+      cardFocused: Boolean(document.activeElement?.dataset.stageId),
+    })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
+    assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
   };
   await start("maze");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
   await screen("gameplay");
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
   const before = await evaluate("testScene.remaining");
+  const totalBeforePause = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
   await evaluate("archiveGameBridge.pause(); testScene.update(0, 1000)");
   assert.equal(await evaluate("testScene.remaining"), before);
+  assert.equal(await evaluate("window.archiveRun.snapshot().totalRemainingMs"), totalBeforePause);
   await evaluate("archiveGameBridge.resume(); Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
+  assert.ok(await evaluate("window.archiveRun.snapshot().totalRemainingMs") < totalBeforePause);
   assert.ok(Math.abs(await evaluate("testScene.remaining") - (before - 1.025)) < 0.0001);
   assert.equal(await evaluate("testScene.timePenalty"), 1);
   assert.equal(await evaluate("testScene.state.ball.collisions"), 1);
+  assert.deepEqual(await evaluate(`(() => {
+    const button = document.querySelector('[data-direction=right]');
+    button.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 41, bubbles: true }));
+    const pressed = testScene.state.ball.input;
+    button.dispatchEvent(new PointerEvent('pointerup', { pointerId: 41, bubbles: true }));
+    return { buttons: UI.touchButtons.length, pressed, released: testScene.state.ball.input };
+  })()`), { buttons: 5, pressed: 'right', released: null });
   assert.ok((await evaluate("UI.stageHudPenalty.textContent")).includes('−1.00'));
   await evaluate("for (let i = 0; i < 60; i++) testScene.update(0, 16)");
   assert.equal(await evaluate("testScene.timePenalty"), 1);
   assert.ok(Math.abs(await evaluate("testScene.elapsed") - 0.985) < 0.001);
   await evaluate("testScene.finish(true)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), "PARTIALLY RESTORED");
+  assert.equal(await evaluate("UI.modalTitle.textContent"), "PERSONAL TESTIMONY");
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "PARTIALLY RESTORED");
   await continueToRecords();
-  await evaluate("document.querySelector('[data-stage-id=gravity]').click()");
+  await evaluate("document.querySelector('[data-stage-id=gravity]').click(); cutsceneFlow.finish()");
   assert.equal(await evaluate("testScene.stageId"), "gravity");
   assert.equal(await evaluate("testScene.mode"), "playing");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
@@ -131,14 +155,20 @@ try {
   assert.equal(await evaluate("testScene.state.platforms.length"), 12);
   assert.equal(await evaluate("testScene.children.list.some(child => typeof child.text === 'string' && /MEMORY|발판 끝|^0[1-3]$/.test(child.text))"), false);
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
+  const totalBeforeFall = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
   await evaluate("Object.assign(testScene.state, { x: 430, y: 565, vy: 180, onGround: false, support: null }); testScene.update(0, 25)");
-  assert.equal(await evaluate("window.lastStageEnd.success"), false);
-  assert.ok((await evaluate("window.lastStageEnd.extra")).includes('추락'));
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  assert.equal(await evaluate("testScene.mode"), "done");
   assert.equal(await evaluate("window.archiveProgress.status('gravity')"), 'DAMAGED');
-  await retry();
+  const totalDuringRetry = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
+  await wait(520);
   assert.equal(await evaluate("testScene.stageId"), "gravity");
+  assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
-  await evaluate("testScene.finish(false); gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT,{}); document.querySelector('#stage-select-back-button').click()");
+  assert.equal(await evaluate("testScene.fragmentCollected"), false);
+  assert.equal(await evaluate("window.archiveRun.snapshot().totalRemainingMs"), totalDuringRetry);
+  assert.ok(totalDuringRetry < totalBeforeFall);
+  await evaluate("gameEvents.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {})");
   assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   await start('bounce');
@@ -158,12 +188,13 @@ try {
       }
       return { mode: testScene.mode, fragment: testScene.fragmentCollected, title: UI.modalTitle.textContent };
     })()`);
-    assert.deepEqual(route, { mode: 'done', fragment: memory, title: memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED' });
+    assert.deepEqual(route, { mode: 'done', fragment: memory, title: memory ? 'SHARED TESTIMONY' : 'PERSONAL TESTIMONY' });
   }
   await start('bounce');
   await evaluate("Object.assign(testScene.state, { x: 575, y: 560, vy: 150 }); testScene.update(0, 25)");
-  assert.equal(await evaluate("window.lastStageEnd.success"), false);
-  await retry();
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  await wait(520);
+  assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
   for (const hz of [40,60,120]) {
@@ -225,7 +256,7 @@ try {
       return { title:UI.modalTitle.textContent, fragment:testScene.fragmentCollected, elapsed:testScene.elapsed, penalty:testScene.timePenalty, stops:testScene.state.stopIndex, index, x:testScene.state.x, y:testScene.state.y };
     })()`);
     console.log('FRICTION ROUTE', memory, result);
-    assert.equal(result.title, memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED');
+    assert.equal(result.title, memory ? 'SHARED TESTIMONY' : 'PERSONAL TESTIMONY');
     assert.equal(result.fragment,memory);
     assert.equal(result.stops,2);
   }
@@ -246,7 +277,7 @@ try {
       }
       return { title: UI.modalTitle.textContent, fragment: testScene.fragmentCollected };
     })()`);
-    assert.deepEqual(result, {title: memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED', fragment:memory});
+    assert.deepEqual(result, {title: memory ? 'SHARED TESTIMONY' : 'PERSONAL TESTIMONY', fragment:memory});
   }
   await start('stack');
   await evaluate("archiveGame.press('right'); for(let i=0;i<35;i++) testScene.update(0,1000/60); testScene.pointerAction(480, 80); for (let i=0;i<100 && testScene.mode==='playing';i++) testScene.update(0,1000/60)");
@@ -271,26 +302,42 @@ try {
     assert.equal(await evaluate("testScene.fragmentCollected"), true, `${stage}: physical pickup`);
     assert.ok((await evaluate("document.querySelector('#stage-hud-fragment').textContent")).includes("1/1"));
     await evaluate("testScene.finish(true)");
-    assert.equal(await evaluate("UI.modalTitle.textContent"), "FULLY RESTORED");
+    assert.equal(await evaluate("UI.modalTitle.textContent"), "SHARED TESTIMONY");
     assert.equal(await evaluate(`window.archiveProgress.status(${JSON.stringify(stage)})`), "FULLY RESTORED");
+    if (stage === 'friction') {
+      await evaluate("modalFlow.onPrimary(); cutsceneFlow.finish()");
+      assert.equal(await evaluate('UI.cutsceneChapter.textContent'), 'RECORD 04 // CONTRADICTION');
+      await evaluate("cutsceneFlow.finish()");
+    }
   }
   assert.equal(await evaluate("window.archiveProgress.summary().recoveryRate"), 100);
   assert.equal(await evaluate("window.archiveProgress.summary().ending"), "complete");
   await screen("result");
-  await continueToRecords();
+  await evaluate("document.querySelector('#primary-button').click(); cutsceneFlow.finish()");
+  assert.equal(await evaluate("UI.cutsceneChapter.textContent"), "ENDING // MULTIPLE WITNESSES");
+  await evaluate("cutsceneFlow.finish(); protocolSelectFlow.open()");
   await start("maze");
   await evaluate("testScene.state.ball.x = testScene.fragment.x; testScene.state.ball.y = testScene.fragment.y; testScene.update(0, 16); testScene.remaining = 0.001; testScene.update(0, 16)");
-  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
-  await continueToRecords();
+  await wait(520);
+  assert.equal(await evaluate("testScene.fragmentCollected"), false);
+  await returnToRecords();
   await start('maze');
   await evaluate("testScene.remaining = 0.5; Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
-  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
   assert.equal(await evaluate("testScene.remaining"), 0);
   assert.equal(await evaluate("testScene.timePenalty"), 1);
-  assert.equal(await evaluate("window.lastStageEnd.timePenalty"), 1);
-  await continueToRecords();
+  await wait(520);
+  assert.equal(await evaluate("testScene.timePenalty"), 0);
+  await returnToRecords();
   await screen("restored-records");
+  await start("maze");
+  await evaluate("window.archiveRun.setPaused(false); window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: 143000 } }))");
+  assert.equal(await evaluate("UI.cutsceneChapter.textContent"), "ENDING // ARCHIVE COLLAPSED");
+  assert.equal(await evaluate("testScene.mode"), "idle");
+  assert.equal(await evaluate("window.archiveRun.snapshot().totalRemainingMs"), 0);
+  await evaluate("cutsceneFlow.finish()");
   await send("Page.reload");
   await wait(1200);
   assert.equal(await evaluate("window.archiveProgress.summary().fragmentCount"), 5);

@@ -1,5 +1,5 @@
 /*
- * Downloads/2026-ARCHIVE-GitHub의 7개 스테이지 엔진과 기존 DOM UI를 잇는 어댑터.
+ * Downloads/2026-ARCHIVE-GitHub의 5개 스테이지 엔진과 기존 DOM UI를 잇는 어댑터.
  * 게임 규칙은 js/archive/game.mjs가 담당하고, 이 파일은 화면 전환·일시정지·결과만 연결한다.
  */
 
@@ -17,11 +17,14 @@ class ArchiveGameBridge {
     this.active = false;
     this.warningSent = false;
     this.pendingStageId = null;
+    this.fragmentTipTimer = 0;
     this.retryHandle = 0;
 
     window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
     window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
     window.addEventListener("archive-stage-end", (event) => this.onStageEnd(event.detail));
+    window.addEventListener("archive-play-time", (event) => this.onPlayTime(event.detail));
+    window.addEventListener("archive-fragment-collected", () => this.onFragmentCollected());
     window.addEventListener("archive-wall-hit", () => {
       // 중앙 정렬이 translateX(-50%)라 확대에도 그것을 함께 적어야 자리가 안 튄다.
       this.ui.stageHudTimer?.animate([
@@ -38,6 +41,25 @@ class ArchiveGameBridge {
     this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop());
     this.events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop());
     this.events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
+
+    this.ui.touchButtons?.forEach((button) => {
+      const release = (event) => {
+        const direction = button.dataset.direction;
+        if (direction) this.api?.release(direction);
+        try {
+          if (event.pointerId !== undefined && button.hasPointerCapture?.(event.pointerId)) button.releasePointerCapture(event.pointerId);
+        } catch { /* Pointer capture can already be gone after an interrupted touch. */ }
+      };
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        try { button.setPointerCapture?.(event.pointerId); } catch { /* Synthetic/ended pointer fallback. */ }
+        if (button.dataset.action) this.api?.action();
+        else if (button.dataset.direction) this.api?.press(button.dataset.direction);
+      });
+      button.addEventListener("pointerup", release);
+      button.addEventListener("pointercancel", release);
+      button.addEventListener("lostpointercapture", release);
+    });
   }
 
   onReady({ scene, stages } = {}) {
@@ -48,6 +70,7 @@ class ArchiveGameBridge {
     this.syncAudio();
 
     window.archiveAudio?.startBgm();
+    this.emitRunSnapshot(window.archiveRun?.snapshot());
 
     if (this.pendingStageId) {
       const stageId = this.pendingStageId;
@@ -75,7 +98,9 @@ class ArchiveGameBridge {
     this.active = true;
     this.warningSent = false;
     this.ui.appShell?.removeAttribute("inert");
+    this.ui.touchControls?.removeAttribute("hidden");
     this.updateStageHud(stage);
+    this.emitRunSnapshot(window.archiveRun?.beginAttempt(stage.id));
     this.api.loadStage(stage.id);
     this.api.start();
     this.events.emit(GAME_EVENTS.STAGE_START, { stageId: stage.id, stage });
@@ -99,7 +124,7 @@ class ArchiveGameBridge {
     window.clearTimeout(this.retryHandle);
     this.retryHandle = window.setTimeout(() => {
       this.retryHandle = 0;
-      // 그 사이 판이 끝났거나(2:26 소진) 화면을 떠났으면 stop()이 예약을 지운다.
+      // 그 사이 판이 끝났거나(2:23 소진) 화면을 떠났으면 stop()이 예약을 지운다.
       this.start(stageId);
     }, RETRY_DELAY_MS);
   }
@@ -107,12 +132,14 @@ class ArchiveGameBridge {
   pause() {
     if (!this.active || !this.api) return;
     this.api.pause(true);
+    this.emitRunSnapshot(window.archiveRun?.setPaused(true));
     this.events.emit(GAME_EVENTS.STAGE_PAUSE, { stageId: this.currentStage?.id });
   }
 
   resume() {
     if (!this.active || !this.api) return;
     this.api.pause(false);
+    this.emitRunSnapshot(window.archiveRun?.setPaused(false));
     this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
   }
 
@@ -122,8 +149,45 @@ class ArchiveGameBridge {
     this.pendingStageId = null;
     this.cancelRetry();
     this.api?.stop();
+    this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud?.setAttribute("hidden", "");
+    this.ui.touchControls?.setAttribute("hidden", "");
     if (this.ui.stageHudTimer) this.ui.stageHudTimer.hidden = true;
+  }
+
+  onPlayTime({ deltaMs = 0 } = {}) {
+    if (!this.active) return;
+    const snapshot = window.archiveRun?.consume(deltaMs);
+    this.emitRunSnapshot(snapshot);
+    if (snapshot?.ending !== "failure") return;
+    this.active = false;
+    this.cancelRetry();
+    this.api?.stop();
+    this.ui.stageHud?.setAttribute("hidden", "");
+    this.ui.touchControls?.setAttribute("hidden", "");
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.hidden = true;
+    this.events.emit(GAME_EVENTS.RUN_END, { ending: "failure", snapshot });
+  }
+
+  onFragmentCollected() {
+    this.emitRunSnapshot(window.archiveRun?.markAttemptFragment());
+    const tip = this.ui.fragmentDiscoveryTip;
+    if (!tip) return;
+    let alreadySeen = false;
+    try { alreadySeen = window.localStorage.getItem("archive-2026-fragment-tip-seen") === "1"; } catch { /* Session fallback. */ }
+    if (alreadySeen) return;
+    tip.textContent = SCENARIO_DATA.system.firstFragment;
+    tip.hidden = false;
+    try { window.localStorage.setItem("archive-2026-fragment-tip-seen", "1"); } catch { /* Session fallback. */ }
+    window.clearTimeout(this.fragmentTipTimer);
+    this.fragmentTipTimer = window.setTimeout(() => { tip.hidden = true; }, 4200);
+  }
+
+  emitRunSnapshot(snapshot) {
+    if (!snapshot) return;
+    if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(snapshot.totalRemainingMs);
+    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.memoryCount}/${snapshot.totalStages}`;
+    this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
 
   cancelRetry() {
@@ -163,12 +227,14 @@ class ArchiveGameBridge {
   onStageEnd({ success, elapsed, actions, extra = "", fragmentCollected = false, timePenalty = 0 } = {}) {
     if (!this.currentStage || !this.active) return;
     this.active = false;
+    const run = window.archiveRun?.completeAttempt(success, fragmentCollected);
+    this.emitRunSnapshot(run);
 
     /*
      * 죽으면(추락·20.26초 소진) 결과창을 띄우지 않는다 — 그 프로토콜의 시작점으로
-     * 곧장 되감는다. 한 판의 진짜 실패는 프로토콜 하나가 아니라 2:26 예산이
-     * 바닥나는 순간이고(js/ui/protocol-select-flow.js), 그 예산은 되감는 동안에도
-     * 계속 줄고 있다. 그러니 여기서 손을 멈추게 할 이유가 없다.
+     * 곧장 되감는다. 한 판의 진짜 실패는 프로토콜 하나가 아니라 2:23 예산이
+     * 바닥나는 순간이다. 짧은 재구성 연출 중에는 시간을 멈추고, 다시 실제 플레이가
+     * 시작되는 순간부터 남은 누적시간을 이어서 사용한다.
      */
     if (!success) {
       this.scheduleRetry();
@@ -186,6 +252,7 @@ class ArchiveGameBridge {
       fragmentCollected,
       recovery,
       timePenalty,
+      run,
     };
     this.events.emit(success ? GAME_EVENTS.STAGE_CLEAR : GAME_EVENTS.STAGE_FAIL, detail);
   }
@@ -198,6 +265,9 @@ class ArchiveGameBridge {
       this.ui.stageHudTimer.hidden = false;
       this.ui.stageHudTimer.textContent = "20.26";
     }
+    const run = window.archiveRun?.snapshot();
+    if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(run?.totalRemainingMs ?? SCENARIO_DATA.totalTimeMs);
+    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${run?.memoryCount ?? 0}/${run?.totalStages ?? 5}`;
     if (this.ui.stageHudAction) this.ui.stageHudAction.textContent = `${stage.actionLabel} 00`;
     if (this.ui.stageHudAnomaly) this.ui.stageHudAnomaly.textContent = stage.anomaly;
     if (this.ui.stageHudRisk) {

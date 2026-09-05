@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="2026년의 화제를 20.26초 안에 풀어내는 물리 액션 웹게임"
+      content="사라지는 2026년의 기억을 증언하는 20.26초 웹게임"
     />
     <title>2026 ARCHIVE · 20.26</title>
     <link rel="icon" href="data:," />
@@ -115,6 +115,25 @@
       <div class="cutscene-frame">
         <div class="cutscene-backdrop" aria-hidden="true"></div>
 
+        <!-- 실제 2026년 자료가 준비되기 전까지 쓰는 교체형 스토리 플레이스홀더. -->
+        <div class="cutscene-story-visual" aria-hidden="true">
+          <div class="story-media-wall">
+            <span>2026 MEDIA<br><small>실제 자료 연결 예정</small></span>
+            <span>NEWS ARCHIVE<br><small>실제 자료 연결 예정</small></span>
+            <span>PHOTO LOG<br><small>실제 자료 연결 예정</small></span>
+          </div>
+          <div class="story-photo">
+            <i class="story-person story-person--player"></i>
+            <i class="story-person story-person--minseo"></i>
+            <b>PLAYER + MINSEO // 2026</b>
+          </div>
+          <div class="story-ticket">TICKET<br><strong>SEAT 26A · 26B</strong></div>
+          <div class="story-iris"><i></i><b>IRIS SCAN // 100%</b></div>
+          <div class="story-archive-core"><i></i><b>2026 ARCHIVE DELETION</b></div>
+          <div class="story-fragments">◆ ◆ ◆ ◆ ◆</div>
+          <div class="story-phone">발신자: 민서<br><strong>승차권 아직 가지고 있어?</strong></div>
+        </div>
+
         <div class="cutscene-brand" aria-hidden="true">
           <p class="cutscene-brand-title">2026 ARCHIVE</p>
           <div class="cutscene-brand-rule"></div>
@@ -198,10 +217,10 @@
         · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
           다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
           이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
-        · 안내 문구는 한 줄만 왼쪽에 둔다. 남은 복구 시간(2:26)은 스크린 안이 아니라
+        · 안내 문구는 한 줄만 왼쪽에 둔다. 남은 복구 시간(2:23)은 스크린 안이 아니라
           책상 위 탁상시계에 있다 — 미니게임 플레이 중에도 보여야 하는 숫자라서다.
         · 표제 오른쪽에 ARCHIVE 누적 복구율이, 하단 바에 복구 등급 안내가 붙는다.
-          모두 판을 넘어 남는 기록이라 2:26·RESTORED와는 다른 숫자다.
+          모두 판을 넘어 남는 기록이라 2:23.00·TESTIMONY와는 다른 숫자다.
 
       타일 내용과 ARCHIVE 복구 현황은 js/ui/protocol-select-flow.js가 채운다.
     -->
@@ -230,7 +249,7 @@
               <header class="protocol-header">
                 <p class="protocol-brand">2026 ARCHIVE <span>// PROTOCOL SELECT</span></p>
                 <!--
-                  ARCHIVE 복구 현황 — 2:26 예산과 달리 판을 넘어 남는 기록이다
+                  ARCHIVE 복구 현황 — 2:23.00 예산과 달리 판을 넘어 남는 기록이다
                   (js/archive/progress.mjs가 localStorage에 저장한다).
                   숫자는 js/ui/protocol-select-flow.js가 채운다.
                 -->
@@ -249,17 +268,17 @@
                 스크린 안에 또 두면 플레이 중에만 사라져서 오히려 헷갈린다.
               -->
               <div class="protocol-prompt">
-                <h2 class="protocol-prompt-text" id="stage-select-title">복구할 프로토콜을 선택하세요.</h2>
+                <h2 class="protocol-prompt-text" id="stage-select-title">증언할 기억을 선택하세요.</h2>
               </div>
 
               <div class="stage-select-grid" id="stage-select-grid"></div>
 
               <footer class="protocol-footer">
                 <div class="protocol-footer-status">
-                  <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
-                  <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 5</p>
+                  <!-- 이번 판의 증언/조각 수. 2:23.00이 끝나거나 새 게임이면 0으로 돌아간다. -->
+                  <p class="protocol-progress" id="protocol-progress">TESTIMONY 0 / 5 · MEMORY 0 / 5</p>
                   <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
-                  <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
+                  <p class="protocol-archive-help">증언 지점 도달 → 개인 증언 / 기억조각과 함께 도달 → 공동 증언</p>
                   <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
                 </div>
                 <button class="protocol-back" id="stage-select-back-button" type="button">
@@ -291,6 +310,9 @@
                   <div class="stage-hud-heading">
                     <strong id="stage-hud-title">STAGE</strong>
                   </div>
+                  <div class="stage-hud-run">
+                    <span>MEMORY <output id="stage-hud-memory">0/5</output></span>
+                  </div>
                   <div class="stage-hud-detail">
                     <span id="stage-hud-action">입력 00</span>
                     <span id="stage-hud-anomaly">대기</span>
@@ -298,11 +320,21 @@
                   <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
                   <p id="stage-hud-fragment">◇ MEMORY 0/1</p>
                   <p id="stage-hud-penalty" hidden></p>
+                  <p id="fragment-discovery-tip" hidden></p>
                 </section>
                 <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
                   <span aria-hidden="true">Ⅱ</span>
                   일시정지
                 </button>
+                <div class="touch-controls" id="touch-controls" aria-label="모바일 게임 조작" hidden>
+                  <div class="touch-pad">
+                    <button type="button" data-direction="up" aria-label="위">▲</button>
+                    <button type="button" data-direction="left" aria-label="왼쪽">◀</button>
+                    <button type="button" data-direction="down" aria-label="아래">▼</button>
+                    <button type="button" data-direction="right" aria-label="오른쪽">▶</button>
+                  </div>
+                  <button class="touch-action" type="button" data-action="primary" aria-label="점프 또는 행동">ACTION</button>
+                </div>
               </div>
             </main>
 
@@ -377,7 +409,7 @@
         />
 
         <!--
-          탁상시계 — 복구 프로토콜 전체 제한시간(2:26)이 여기 뜬다.
+          탁상시계 — 복구 프로토콜 전체 제한시간(2:23)이 여기 뜬다.
           모니터 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 보인다.
 
           몸체는 에셋이고 LED 유리판은 비어 있다. 그 위에 숫자만 얹는다
@@ -394,7 +426,7 @@
             <span class="desk-clock-time">
               <span id="desk-clock-minutes">2</span>
               <span class="desk-clock-sep">:</span>
-              <span id="desk-clock-seconds">26</span>
+              <span id="desk-clock-seconds">23</span>
               <span class="desk-clock-centis">
                 <span class="desk-clock-sep">.</span><span id="desk-clock-centis">00</span>
               </span>
@@ -433,7 +465,7 @@
     </div>
 
     <!--
-      복구 실패 — 2:26 안에 프로토콜 5개를 전부 복구하지 못했을 때 뜬다.
+      레거시 복구 실패 레이어. 현재 실패 대본은 컷신 흐름이 담당한다.
       (지침 13절의 실패 연출 문구 RECORD LOST를 그대로 쓴다.)
     -->
     <div
@@ -446,7 +478,7 @@
       <section class="recovery-failed-dialog ui-scaled">
         <p class="recovery-failed-code">RECORD LOST</p>
         <h2 class="recovery-failed-title" id="recovery-failed-title">복구 실패</h2>
-        <p class="recovery-failed-copy">2:26 안에 모든 프로토콜을 복구하지 못했습니다.</p>
+        <p class="recovery-failed-copy">02:23.00 안에 모든 기억을 증언하지 못했습니다.</p>
         <button class="primary-button" id="recovery-failed-button" type="button">메인 화면으로</button>
       </section>
     </div>
@@ -584,6 +616,7 @@
 
     <!-- 공통 계약 (동결) -->
     <script src="js/core/game-events.js"></script>
+    <script src="js/content/scenario-data.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
     <script src="js/config/protocols.js"></script>
@@ -608,9 +641,9 @@
     <script src="js/audio/bgm-player.js"></script>
 
     <!-- B · 기능 -->
-    <script src="js/ui/modal-flow.js"></script>
     <script src="js/ui/settings-flow.js"></script>
     <script src="js/ui/cutscene-flow.js"></script>
+    <script src="js/ui/modal-flow.js"></script>
     <script src="js/ui/desk-hands.js"></script>
     <script src="js/ui/protocol-select-flow.js"></script>
     <script src="js/ui/main-menu-flow.js"></script>

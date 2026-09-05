@@ -14,6 +14,7 @@ $sourceNames = @(
   "friction-stop.mjs",
   "progress.mjs",
   "fragments.mjs",
+  "run-state.mjs",
   "game.mjs"
 )
 

@@ -1,6 +1,7 @@
 import { STAGES } from "./data.mjs";
 import { createProgressStore } from "./progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
+import { createArchiveRunState } from "./run-state.mjs";
 import { GRAVITY_COURSE, createGravityState, applyGravityJump, stepGravity } from "./gravity-core.mjs";
 import { BOUNCE_COURSE, createBounceState, stepBounce } from "./bounce-core.mjs";
 import { STACK_RULES, stackBlockWidth, createStackState, dropStack, stepStack, nextStackBlock } from "./stack-core.mjs";
@@ -19,6 +20,7 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* Session-only fallback. */ }
 window.archiveProgress = createProgressStore(STAGES.map((stage) => stage.id), progressStorage);
+window.archiveRun = createArchiveRunState(STAGES.map((stage) => stage.id));
 window.addEventListener("archive-sfx", (event) => audio.play(event.detail?.name));
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
@@ -323,6 +325,10 @@ class ArchiveGame extends Phaser.Scene {
   update(_time, deltaMs) {
     this.readKeyboard();
     if (this.mode !== "playing" || this.pausedByMenu) return;
+    // 누적 2:23은 Phaser가 실제 플레이 프레임을 진행할 때만 차감한다.
+    // 스테이지 종료를 넘긴 프레임의 남는 시간까지 누적 시간에서 빼지 않는다.
+    emit("archive-play-time", { deltaMs: Math.min(deltaMs, this.remaining * 1000) });
+    if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
     this.elapsed += Math.min(this.remaining, deltaMs / 1000);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
@@ -337,6 +343,7 @@ class ArchiveGame extends Phaser.Scene {
     };
     updates[this.stageId]?.();
     if (this.mode === "playing" && this.stageId !== "stack") this.checkFragment(this.fragmentBody(), previous);
+    this.updateFragmentFollower();
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -399,6 +406,7 @@ class ArchiveGame extends Phaser.Scene {
 
   buildFragment() {
     this.fragmentTip = null;
+    this.fragmentFollower = null;
     this.fragment = MEMORY_FRAGMENTS[this.stageId];
     this.fragmentCollected = false;
     this.fragmentObject = this.add.rectangle(this.fragment.x, this.fragment.y, 19, 19, 0xffd27c, 0.85)
@@ -423,8 +431,24 @@ class ArchiveGame extends Phaser.Scene {
     this.fragmentCollected = true;
     this.fragmentObject.setVisible(false);
     this.fragmentRing.setVisible(false);
+    const glow = this.add.circle(0, 0, 13, 0xffd27c, 0.14).setStrokeStyle(2, 0xffd27c, 0.8);
+    const core = this.add.rectangle(0, 0, 10, 10, 0xffe8ae, 0.95).setRotation(Math.PI / 4);
+    this.fragmentFollower = this.add.container(body.x, body.y - 28, [glow, core]).setDepth(12);
     emit("archive-sfx", { name: "hit" });
+    emit("archive-fragment-collected", { stageId: this.stageId });
     this.sendHud();
+  }
+
+  updateFragmentFollower() {
+    if (!this.fragmentCollected || !this.fragmentFollower) return;
+    let body = this.fragmentBody();
+    if (!body && this.stageId === "recoil" && this.state) {
+      body = { x: this.state.turretX, y: this.state.turretY, radius: 14 };
+    }
+    if (!body) return;
+    const angle = this.time.now * 0.0032;
+    this.fragmentFollower.setPosition(body.x + Math.cos(angle) * 24, body.y - 29 + Math.sin(angle) * 9);
+    this.fragmentFollower.setRotation(angle * 0.35);
   }
 
   /* 01 — Velocity maze */

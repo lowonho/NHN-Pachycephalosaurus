@@ -33,7 +33,7 @@ const UI = Object.freeze({
   protocolProgress: document.querySelector("#protocol-progress"),
 
   /*
-   * 책상 위 탁상시계 — 남은 복구 시간(2:26)을 1/100초까지 띄우는 유일한 표시다.
+   * 책상 위 탁상시계 — 남은 복구 시간(2:23)을 1/100초까지 띄우는 유일한 표시다.
    * 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 보인다.
    */
   /* 책상 위 양손 — 입력에 따라 각각 움직인다(js/ui/desk-hands.js). */
@@ -76,10 +76,13 @@ const UI = Object.freeze({
   stageHud: document.querySelector("#stage-hud"),
   stageHudTitle: document.querySelector("#stage-hud-title"),
   stageHudTimer: document.querySelector("#stage-hud-timer"),
+  stageHudTotal: document.querySelector("#stage-hud-total"),
+  stageHudMemory: document.querySelector("#stage-hud-memory"),
   stageHudAction: document.querySelector("#stage-hud-action"),
   stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
   stageHudPenalty: document.querySelector("#stage-hud-penalty"),
+  fragmentDiscoveryTip: document.querySelector("#fragment-discovery-tip"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),
@@ -90,6 +93,8 @@ const UI = Object.freeze({
   secondaryButton: document.querySelector("#secondary-button"),
 
   pauseButton: document.querySelector("#pause-button"),
+  touchControls: document.querySelector("#touch-controls"),
+  touchButtons: document.querySelectorAll("#touch-controls button"),
   pauseModal: document.querySelector("#pause-modal"),
   resumeButton: document.querySelector("#resume-button"),
   pauseMainButton: document.querySelector("#pause-main-button"),

@@ -67,6 +67,8 @@ try {
   $position = Evaluate "(() => { const r = document.querySelector('#main-play-button').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()"
   Send-Cdp "Input.dispatchMouseEvent" @{ type = "mousePressed"; x = $position.x; y = $position.y; button = "left"; clickCount = 1 } | Out-Null
   Send-Cdp "Input.dispatchMouseEvent" @{ type = "mouseReleased"; x = $position.x; y = $position.y; button = "left"; clickCount = 1 } | Out-Null
+  # 오프닝과 첫 기록 소개를 건너뛴 뒤 실제 스테이지가 시작되는 시점에 저장된 무음 설정을 복구한다.
+  Evaluate "cutsceneFlow.finish(); cutsceneFlow.finish(); true" | Out-Null
   Start-Sleep -Milliseconds 1500
   $playing = Evaluate "({paused:archiveAudio.bgm.paused,time:archiveAudio.bgm.currentTime,volume:archiveAudio.bgm.volume,muted:audioBus.muted,loop:archiveAudio.bgm.loop,error:archiveAudio.bgm.error?.code ?? null})"
   if ($playing.paused -or $playing.time -le 0 -or $playing.volume -le 0 -or $playing.muted -or !$playing.loop -or $playing.error) {

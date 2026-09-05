@@ -5,27 +5,12 @@
  */
 (function () {
 /* Source: data.mjs */
+const SCENARIO = globalThis.SCENARIO_DATA;
 const GAME_TITLE = "2026 ARCHIVE";
 
-const PROLOGUE = [
-  {
-    code: "SYSTEM // 00:00:01",
-    title: "2026년의 마지막 백업이 열렸다.",
-    body: "한 해의 장면을 보관하던 2026 ARCHIVE. 새벽 0시, 보존 서버의 물리 인덱스가 동시에 붕괴했다.",
-  },
-  {
-    code: "EMERGENCY // RECORD DECAY",
-    title: "손상된 기록은 20.26초만 유지된다.",
-    body: "기록이 재생되는 동안 직접 개입해 마지막 장면을 완성해야 한다. 그러나 입력이 많아질수록 오류는 더 강해진다.",
-  },
-  {
-    code: "OPERATOR // ASSIGNED",
-    title: "당신은 마지막 기록 관리자다.",
-    body: "속도, 중력, 탄성, 마찰, 무게중심. 다섯 개의 물리 채널을 최소한의 개입으로 복구하라.",
-  },
-];
+const PROLOGUE = SCENARIO.opening.script;
 
-const STAGES = [
+const GAMEPLAY_STAGES = [
   {
     id: "maze",
     recordSymbol: "↗",
@@ -81,14 +66,12 @@ const STAGES = [
   },
 ];
 
-const ENDING = {
-  code: "ARCHIVE // STABLE",
-  title: "2026년의 기록이 다시 재생된다.",
-  body: "오류의 원인은 외부 침입이 아니었다. 기록을 완벽하게 고치려는 수많은 개입이 물리 인덱스를 뒤틀고 있었다. 당신은 최소한의 행동으로 시스템을 안정시켰다. 이제 보존된 장면들은 다음 기록 관리자를 기다린다.",
-};
+const ENDING = SCENARIO.endings;
 
 const STORAGE_KEY = "archive-2026-progress-v1";
 const SETTINGS_KEY = "archive-2026-settings-v1";
+
+const STAGES = GAMEPLAY_STAGES.map(stage => Object.freeze({ ...SCENARIO.stages.find(story => story.id === stage.id), ...stage }));
 
 
 /* Source: audio.mjs */
@@ -677,6 +660,122 @@ function touchesFragment(fragment, body, previous = body) {
 }
 
 
+/* Source: run-state.mjs */
+const TOTAL_TIME_MS = 143_000;
+
+function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
+  const validIds = new Set(stageIds);
+  let totalRemainingMs = totalTimeMs;
+  let phase = "menu";
+  let paused = false;
+  let currentStageId = null;
+  let attemptFragment = false;
+  const cleared = new Set();
+  const collected = new Set();
+
+  const assertStage = (stageId) => {
+    if (!validIds.has(stageId)) throw new RangeError(`Unknown stage: ${stageId}`);
+  };
+
+  const resolveEnding = () => {
+    if (totalRemainingMs <= 0) return "failure";
+    if (cleared.size < validIds.size) return null;
+    return collected.size === validIds.size ? "true" : "normal";
+  };
+
+  const snapshot = () => Object.freeze({
+    totalTimeMs,
+    totalRemainingMs: Math.max(0, Math.round(totalRemainingMs)),
+    elapsedMs: Math.min(totalTimeMs, Math.round(totalTimeMs - totalRemainingMs)),
+    phase,
+    paused,
+    currentStageId,
+    attemptFragment,
+    clearedCount: cleared.size,
+    memoryCount: collected.size,
+    totalStages: validIds.size,
+    clearedStageIds: Object.freeze([...cleared]),
+    memoryStageIds: Object.freeze([...collected]),
+    ending: resolveEnding(),
+  });
+
+  const reset = () => {
+    totalRemainingMs = totalTimeMs;
+    phase = "menu";
+    paused = false;
+    currentStageId = null;
+    attemptFragment = false;
+    cleared.clear();
+    collected.clear();
+    return snapshot();
+  };
+
+  const beginAttempt = (stageId) => {
+    assertStage(stageId);
+    if (totalRemainingMs <= 0) return snapshot();
+    currentStageId = stageId;
+    attemptFragment = false;
+    paused = false;
+    phase = "playing";
+    return snapshot();
+  };
+
+  const consume = (deltaMs) => {
+    if (phase !== "playing" || paused || totalRemainingMs <= 0) return snapshot();
+    const safeDelta = Math.max(0, Number(deltaMs) || 0);
+    totalRemainingMs = Math.max(0, totalRemainingMs - safeDelta);
+    if (totalRemainingMs === 0) {
+      phase = "ended";
+      paused = false;
+    }
+    return snapshot();
+  };
+
+  const markAttemptFragment = () => {
+    if (phase === "playing") attemptFragment = true;
+    return snapshot();
+  };
+
+  const completeAttempt = (success, fragmentCollected = attemptFragment) => {
+    if (phase === "ended") return snapshot();
+    if (currentStageId && success) {
+      cleared.add(currentStageId);
+      if (fragmentCollected) collected.add(currentStageId);
+    }
+    // 실패한 시도의 조각은 절대 collected에 들어가지 않는다.
+    attemptFragment = false;
+    paused = false;
+    phase = resolveEnding() ? "ended" : "result";
+    return snapshot();
+  };
+
+  const setPaused = (value) => {
+    if (phase === "playing") paused = Boolean(value);
+    return snapshot();
+  };
+
+  const leaveAttempt = () => {
+    if (phase !== "ended") phase = "menu";
+    paused = false;
+    attemptFragment = false;
+    currentStageId = null;
+    return snapshot();
+  };
+
+  return Object.freeze({
+    reset,
+    beginAttempt,
+    consume,
+    markAttemptFragment,
+    completeAttempt,
+    setPaused,
+    leaveAttempt,
+    snapshot,
+    resolveEnding,
+  });
+}
+
+
 /* Source: game.mjs */
 
 const WIDTH = VIEWPORT.width;
@@ -689,6 +788,7 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* Session-only fallback. */ }
 window.archiveProgress = createProgressStore(STAGES.map((stage) => stage.id), progressStorage);
+window.archiveRun = createArchiveRunState(STAGES.map((stage) => stage.id));
 window.addEventListener("archive-sfx", (event) => audio.play(event.detail?.name));
 
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
@@ -993,6 +1093,10 @@ class ArchiveGame extends Phaser.Scene {
   update(_time, deltaMs) {
     this.readKeyboard();
     if (this.mode !== "playing" || this.pausedByMenu) return;
+    // 누적 2:23은 Phaser가 실제 플레이 프레임을 진행할 때만 차감한다.
+    // 스테이지 종료를 넘긴 프레임의 남는 시간까지 누적 시간에서 빼지 않는다.
+    emit("archive-play-time", { deltaMs: Math.min(deltaMs, this.remaining * 1000) });
+    if (this.mode !== "playing" || this.pausedByMenu) return;
     const dt = Math.min(deltaMs / 1000, 0.025);
     this.elapsed += Math.min(this.remaining, deltaMs / 1000);
     this.remaining = Math.max(0, this.remaining - deltaMs / 1000);
@@ -1007,6 +1111,7 @@ class ArchiveGame extends Phaser.Scene {
     };
     updates[this.stageId]?.();
     if (this.mode === "playing" && this.stageId !== "stack") this.checkFragment(this.fragmentBody(), previous);
+    this.updateFragmentFollower();
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -1069,6 +1174,7 @@ class ArchiveGame extends Phaser.Scene {
 
   buildFragment() {
     this.fragmentTip = null;
+    this.fragmentFollower = null;
     this.fragment = MEMORY_FRAGMENTS[this.stageId];
     this.fragmentCollected = false;
     this.fragmentObject = this.add.rectangle(this.fragment.x, this.fragment.y, 19, 19, 0xffd27c, 0.85)
@@ -1093,8 +1199,24 @@ class ArchiveGame extends Phaser.Scene {
     this.fragmentCollected = true;
     this.fragmentObject.setVisible(false);
     this.fragmentRing.setVisible(false);
+    const glow = this.add.circle(0, 0, 13, 0xffd27c, 0.14).setStrokeStyle(2, 0xffd27c, 0.8);
+    const core = this.add.rectangle(0, 0, 10, 10, 0xffe8ae, 0.95).setRotation(Math.PI / 4);
+    this.fragmentFollower = this.add.container(body.x, body.y - 28, [glow, core]).setDepth(12);
     emit("archive-sfx", { name: "hit" });
+    emit("archive-fragment-collected", { stageId: this.stageId });
     this.sendHud();
+  }
+
+  updateFragmentFollower() {
+    if (!this.fragmentCollected || !this.fragmentFollower) return;
+    let body = this.fragmentBody();
+    if (!body && this.stageId === "recoil" && this.state) {
+      body = { x: this.state.turretX, y: this.state.turretY, radius: 14 };
+    }
+    if (!body) return;
+    const angle = this.time.now * 0.0032;
+    this.fragmentFollower.setPosition(body.x + Math.cos(angle) * 24, body.y - 29 + Math.sin(angle) * 9);
+    this.fragmentFollower.setRotation(angle * 0.35);
   }
 
   /* 01 — Velocity maze */
