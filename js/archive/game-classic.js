@@ -214,6 +214,11 @@ class ArchiveAudio {
     this.bgmSlots.forEach((slot) => { slot.pause(); slot.volume = 0; });
   }
 
+  /* 브리핑처럼 의도적으로 음악이 없는 화면. 다음 사용자 입력에서는 새 곡을 바로 시작할 수 있다. */
+  silenceBgm() {
+    this.stopBgm();
+  }
+
   ensureContext() {
     if (!this.context) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;

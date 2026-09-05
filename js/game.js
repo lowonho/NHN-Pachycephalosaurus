@@ -30,11 +30,11 @@ class ArchiveGameBridge {
     });
     events.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => this.start(stageId));
     events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
-    events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.stop());
+    events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.stop({ bgm: 'silence' }));
     events.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pause());
     events.on(GAME_EVENTS.REQUEST_RESUME, () => this.resume());
-    events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop());
-    events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop());
+    events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop({ bgm: 'silence' }));
+    events.on(GAME_EVENTS.REQUEST_MAIN_MENU, () => this.stop({ bgm: 'main' }));
     events.on(GAME_EVENTS.AUDIO_VOLUME_CHANGED, () => this.syncAudio());
     dom.touchButtons?.forEach(button => {
       const release = () => this.api?.release(button.dataset.direction || 'action');
@@ -59,9 +59,13 @@ class ArchiveGameBridge {
     const run = window.archiveRun.snapshot();
     this.ui.appShell.dataset.act = String(run.currentAct);
     this.ui.appShell.dataset.assist = String(Boolean(run.assistProtocolAct1));
+    const archiveAudio = window.archiveAudio;
+    const bgmWasPlaying = Boolean(archiveAudio?.bgmStarted && !archiveAudio?.bgmPaused);
+    /* 무음 브리핑 다음에는 이전 곡을 거치지 않고 새 게임 곡부터 사용자 입력으로 해제한다. */
+    if (!bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true, immediate: true });
     this.soundBus.startGameAudio();
-    /* 카운트다운 동안 크로스페이드가 끝나 조작 시작에는 해당 게임 음악만 또렷하게 남는다. */
-    window.archiveAudio?.selectBgm(stageId, { restart: true });
+    /* 음악이 재생 중이던 QA 직행 등에서는 카운트다운 동안 자연스럽게 갈아탄다. */
+    if (bgmWasPlaying) archiveAudio?.selectBgm(stageId, { restart: true });
     this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
@@ -152,11 +156,15 @@ class ArchiveGameBridge {
     this.api.pause(false); this.emitRunSnapshot(window.archiveRun.setPaused(false));
     this.events.emit(GAME_EVENTS.STAGE_RESUME, { stageId: this.currentStage?.id });
   }
-  stop() {
+  stop({ bgm = 'silence' } = {}) {
     this.active = false; this.cancelCountdown(); this.api?.stop();
     const archiveAudio = window.archiveAudio;
-    archiveAudio?.selectBgm('main');
-    if (archiveAudio && (archiveAudio.bgmPaused || !archiveAudio.bgmStarted)) archiveAudio.startBgm();
+    if (bgm === 'main') {
+      archiveAudio?.selectBgm('main');
+      if (archiveAudio && (archiveAudio.bgmPaused || !archiveAudio.bgmStarted)) archiveAudio.startBgm();
+    } else {
+      archiveAudio?.silenceBgm();
+    }
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud.hidden = true; this.ui.stageHudTimer.hidden = true; this.ui.touchControls.hidden = true;
     if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = true;

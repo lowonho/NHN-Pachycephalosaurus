@@ -227,6 +227,9 @@ class ProtocolSelectFlow {
       ?? this.catalog.find((item) => item.id === stageId);
     if (!stage) return;
 
+    /* 게임 설명은 판정 SFX나 전용 브리핑 음악을 나중에 얹을 수 있도록 BGM을 비워 둔다. */
+    window.archiveAudio?.silenceBgm();
+
     this.briefStart = typeof onStart === "function" ? onStart : () => this.launchStage(stage.id);
     this.briefBack = typeof onBack === "function" ? onBack : null;
 

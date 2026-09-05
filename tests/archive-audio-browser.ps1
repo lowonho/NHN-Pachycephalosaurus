@@ -82,6 +82,8 @@ try {
   if ([Math]::Abs((Evaluate "archiveAudio.bgm.volume") - (Evaluate "archiveAudio.effectiveBgmVolume()")) -gt 0.001) { throw "Track gain or BGM volume not applied" }
   Evaluate "audioBus.setMuted(true); true" | Out-Null
   if ((Evaluate "archiveAudio.bgm.volume") -ne 0) { throw "Mute not applied" }
+  Evaluate "archiveGameBridge.stop({bgm:'silence'}); protocolSelectFlow.open(); true" | Out-Null
+  if (!(Evaluate "protocolSelectFlow.isBriefOpen() && !archiveAudio.bgmStarted && archiveAudio.bgmSlots.every(track=>track.paused && track.volume===0)")) { throw "Game briefing did not fully silence BGM" }
   Evaluate "archiveGameBridge.start('e4'); true" | Out-Null
   Start-Sleep -Milliseconds 800
   if (!(Evaluate "archiveAudio.bgmKey==='e4' && decodeURIComponent(new URL(archiveAudio.bgm.src).pathname).endsWith('/sounds/bgm/e4 bgm_tiger.mp3') && !archiveAudio.bgm.paused && archiveAudio.bgm.volume > 0 && !audioBus.muted")) { throw "E4 start did not restore and route audio" }
@@ -92,9 +94,12 @@ try {
   Evaluate "archiveGameBridge.resume(); true" | Out-Null
   Start-Sleep -Milliseconds 100
   if (!(Evaluate "!archiveAudio.bgm.paused && !archiveAudio.bgmPaused")) { throw "Resume did not restart BGM" }
+  Evaluate "archiveGameBridge.stop({bgm:'main'}); true" | Out-Null
+  Start-Sleep -Milliseconds 100
+  if (!(Evaluate "archiveAudio.bgmKey==='main' && archiveAudio.bgmStarted && !archiveAudio.bgm.paused")) { throw "Main menu did not restore the main theme" }
   $inventory = Evaluate "(async()=>Promise.all(Object.entries(ARCHIVE_AUDIO_TUNING.bgm.tracks).map(([key,track])=>new Promise(resolve=>{const a=new Audio(track.path);a.preload='metadata';a.onloadedmetadata=()=>resolve({key,duration:a.duration,error:null});a.onerror=()=>resolve({key,duration:0,error:a.error?.code??-1});a.load();}))))()"
   if ($inventory.Count -ne 11 -or ($inventory | Where-Object { $_.error -or $_.duration -le 0 })) { throw ("BGM inventory load failed: " + ($inventory | ConvertTo-Json -Compress)) }
-  Write-Output ("PASS: 11 BGM files, Sound Lab, timer SFX fallback, E1/E4 routing, crossfade, blocked autoplay, real click recovery, track gain, mute, restart, pause and resume. " + ($playing | ConvertTo-Json -Compress))
+  Write-Output ("PASS: 11 BGM files, silent game briefing, main-menu restore, Sound Lab, timer SFX fallback, E1/E4 routing, crossfade, blocked autoplay, real click recovery, track gain, mute, restart, pause and resume. " + ($playing | ConvertTo-Json -Compress))
 } finally {
   $socket.Dispose()
   if (!$browser.HasExited) { Stop-Process -Id $browser.Id -ErrorAction SilentlyContinue }
