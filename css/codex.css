@@ -164,6 +164,13 @@
   text-shadow: none;
 }
 
+/* 자물쇠 — 글자가 아니라 그림이라 크기를 기호와 같은 1em으로 직접 맞춘다. */
+.codex-lock {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
 .codex-card-title {
   color: inherit;
   font: 900 28px/1.2 var(--font-ui);
