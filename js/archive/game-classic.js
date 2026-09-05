@@ -389,39 +389,40 @@ const CEIL_BOTTOM = 174; // 천장 벽의 아랫면
 const FLOOR_Y = 450;     // 바닥에 붙었을 때 플레이어 중심
 const CEIL_Y = 189;      // 천장에 붙었을 때 플레이어 중심
 const BLOCK = 34;        // 장애물 높이
-const FLOAT_Y = 286;     // 떠 있는 장애물의 고정 높이(통로 한가운데)
-const GATE = 500;        // 가시 사이 간격
-const GATES = 8;
+const FLOAT_Y = 286;     // 떠 있는 장애물의 시작 높이
+const GATE = 390;        // 장애물 묶음 사이 간격
+const GATES = 10;
 
 const E1_GRAVITY_DASH = {
-  // 난이도: 약 16.3초 코스. 반전은 약 0.39초(112px)가 걸리므로 가시 앞에서 미리 눌러야 합니다.
-  tuning: { speed: 285, distance: 4650, gravity: 3200, obstacleGravity: 900 },
+  // 약 16.3초 코스. 캐릭터는 약 0.39초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
+  tuning: { speed: 285, distance: 4650, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: 190 },
   build() {
     MINI.init(this, 0x67e8f9);
     this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, obstacles: [] };
-    // 가시는 바닥과 천장에 번갈아 놓여 구간마다 반드시 한 번 반전하게 만듭니다.
+    // 가시도 블록과 같은 이동/충돌 경로를 사용합니다. 노란색과 빨간색은 플레이어를
+    // 천천히 따라가고, 보라색은 반대쪽으로 움직여 반전 시점을 고민하게 합니다.
     this.hurdles = Array.from({ length: GATES }, (_, i) => ({
-      x: 700 + i * GATE, y: i % 2 ? CEIL_BOTTOM : FLOOR_TOP - 24, w: 35, h: 24, ceiling: i % 2 === 1,
+      x: 650 + i * GATE, y: i % 2 ? CEIL_BOTTOM : FLOOR_TOP - 24, w: 35, h: 24,
+      vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
     }));
+    this.state.obstacles.push(...this.hurdles);
     for (let i = 0; i < GATES; i++) {
-      const gate = 700 + i * GATE;
-      // 벽에 붙어 있는 장애물. 반전하면 떨어져서 반대쪽 벽으로 이동합니다.
-      // 중력이 아래일 때 천장에, 위일 때 바닥에 붙으므로 언제나 플레이어의 반대쪽 벽에 있습니다.
+      const gate = 650 + i * GATE;
+      // 플레이어보다 늦게 벽을 옮깁니다. 너무 일찍 뒤집으면 도착한 벽에서 다시 만납니다.
       this.state.obstacles.push({
-        x: gate + 55, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
-        factor: .8 + (i % 4) * .3, float: false,
+        x: gate + 90, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
+        factor: .8 + (i % 4) * .15, response: 1, float: false,
       });
-      // 처음부터 통로 한가운데 떠 있는 장애물. 반전에 반응하지 않고 제자리를 지킵니다.
-      // 벽에 붙어 지나가면 안전하지만 반전 중에 닿으면 죽으므로 "여기서는 못 뒤집는다"는 표시가 됩니다.
+      // 기존 고정 공중 블록도 반전에 반응합니다. 반대 방향으로 움직이는 느린 장애물입니다.
       if (i < GATES - 1) this.state.obstacles.push({
-        x: gate + 420, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: 0, float: true,
+        x: gate + 285, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
       });
     }
   },
   action() {
     const s = this.state;
     // 누를 때마다 중력이 통째로 뒤집힙니다. 플레이어는 반대쪽 벽으로 떨어져 붙고,
-    // 벽에 붙어 있던 장애물도 같이 떨어져 서로 자리를 바꿉니다.
+    // 모든 장애물도 각자의 방향과 느린 속도로 반전에 반응합니다.
     this.actions++; s.sign *= -1; s.vy = s.sign * 40;
     this.sfx('jump');
   },
@@ -437,16 +438,13 @@ const E1_GRAVITY_DASH = {
       MINI.summon(this); this.bump();
     };
     for (const o of s.obstacles) {
-      if (!o.float) {
-        const rest = s.sign === 1 ? CEIL_BOTTOM : FLOOR_TOP - o.h;
-        o.vy += -s.sign * t.obstacleGravity * o.factor * dt;
-        o.vy = MINI.clamp(o.vy, -340, 340);
-        o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
-        if (o.y === rest) o.vy = 0;
-      }
-      if (!s.immune && MINI.hit(player, { ...o, x: o.x - s.x + 180 })) { crash(); break; }
+      const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
+      o.vy = MINI.clamp(o.vy + s.sign * o.response * t.obstacleGravity * o.factor * dt, -limit, limit);
+      o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
+      if ((o.y === CEIL_BOTTOM && o.vy < 0) || (o.y === FLOOR_TOP - o.h && o.vy > 0)) o.vy = 0;
     }
-    if (!s.immune && this.hurdles.some(h => MINI.hit(player, { ...h, x: h.x - s.x + 180 }))) crash();
+    // 충돌하더라도 그 프레임의 모든 장애물은 끝까지 움직입니다.
+    if (!s.immune && s.obstacles.some(o => MINI.hit(player, { ...o, x: o.x - s.x + 180 }))) crash();
     this.anomaly = `중력 ${s.sign === 1 ? '↓ 바닥' : '↑ 천장'} · 충돌 ${s.deaths}회`;
     this.risk = Math.min(100, this.actions * 9);
     if (s.x >= t.distance) this.finish(true);
@@ -466,25 +464,24 @@ const E1_GRAVITY_DASH = {
     MINI.box(this, 22, FLOOR_TOP, 916, 6, 0x2c6e85);
     // 지금 끌려가는 쪽 벽면을 강조해 반전 상태를 한눈에 보여 줍니다.
     MINI.box(this, 22, s.sign === 1 ? FLOOR_TOP : 168, 916, 6, this.accent, .95);
-    for (const h of this.hurdles) {
-      const x = h.x - s.x + 180;
-      if (x > -50 && x < 980) MINI.spike(this, x, h.ceiling ? CEIL_BOTTOM : FLOOR_TOP, h.w, h.ceiling ? h.h : -h.h, 0xffcf7b);
-    }
     for (let i = 0; i < s.obstacles.length; i++) {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
-      if (o.float) {
-        // 떠 있는 장애물: 회전하는 보라색 블록과 고정 표시용 링.
+      if (o.spike) {
+        const down = s.sign * o.response < 0;
+        MINI.spike(this, x, down ? o.y : o.y + o.h, o.w, down ? o.h : -o.h, 0xffcf7b);
+      } else if (o.float) {
+        // 보라색은 플레이어의 반대 방향으로 이동합니다.
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, s.x / 55, 0xb98cff);
         this.ink.lineStyle(1, 0xd9c2ff, .45).strokeCircle(cx, cy, o.w * .95);
       } else {
         MINI.actor(this, 'obstacle', `o${i}`, cx, cy, o.w, o.h, 0, 0xff6584);
-        // 낙하 방향 화살표. 중력이 뒤집히면 이 장애물도 반대쪽으로 떨어집니다.
-        const dir = -s.sign;
-        MINI.line(this, cx, cy + dir * 26, cx, cy + dir * 44, 0xffadb8);
-        MINI.line(this, cx - 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
-        MINI.line(this, cx + 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
       }
+      // 모든 장애물에 중력이 끌어당기는 방향을 표시합니다.
+      const dir = s.sign * o.response;
+      MINI.line(this, cx, cy + dir * 26, cx, cy + dir * 44, 0xffadb8);
+      MINI.line(this, cx - 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
+      MINI.line(this, cx + 5, cy + dir * 37, cx, cy + dir * 44, 0xffadb8);
     }
     const pop = MINI.spawnScale(this);
     if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30 * pop, 30 * pop, -s.sign * s.x / 80);
@@ -555,64 +552,260 @@ const E2_BOUNCE_BALL = {
 /* Source: stages/e3_humanStack.js */
 
 const E3_HUMAN_STACK = {
-  tuning: { speed: 165, speedGain: 42, maxSpeed: 920, targetHeight: 206, hold: .6, dropCooldown: .3 },
+  // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
+  tuning: {
+    speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
+    targetHeight: 216, hold: 3,
+    dropAngles: [90, -35, -90, 25, 145, -65, 180, 50],
+    gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
+    restitution: .045, density: .0022, carryMomentum: .075,
+    settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
+    baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+  },
+  // 좌표 원점은 골반 근처. 선분 [x1,y1,x2,y2,반지름]이 실제 캡슐 충돌체와
+  // 기본 마네킹 그림의 공통 원본입니다. 자세는 고정되며 몸 전체는 자유롭게 회전합니다.
+  poses: [
+    { id: 'crouch', name: '버티기', width: 102, height: 96, head: [0, -28, 11], limbs: [
+      [0, -10, 0, 8, 14], [-9, -10, -25, -19, 8], [-25, -19, -39, -7, 7],
+      [9, -10, 25, -19, 8], [25, -19, 39, -7, 7],
+      [-6, 9, -22, 20, 9], [-22, 20, -27, 32, 7],
+      [6, 9, 22, 20, 9], [22, 20, 27, 32, 7],
+      [-32, 34, -21, 34, 7], [21, 34, 32, 34, 7],
+    ] },
+    { id: 'wide', name: '팔 벌리기', width: 120, height: 104, head: [0, -30, 11], limbs: [
+      [0, -12, 0, 8, 14], [-9, -12, -29, -11, 8], [-29, -11, -47, -20, 7],
+      [9, -12, 29, -11, 8], [29, -11, 47, -20, 7],
+      [-6, 9, -12, 23, 9], [-12, 23, -19, 39, 7],
+      [6, 9, 12, 23, 9], [12, 23, 19, 39, 7],
+      [-25, 41, -15, 41, 7], [15, 41, 25, 41, 7],
+    ] },
+    { id: 'reach', name: '만세', width: 96, height: 124, head: [0, -30, 11], limbs: [
+      [0, -12, 0, 8, 14], [-9, -12, -25, -29, 8], [-25, -29, -31, -47, 7],
+      [9, -12, 25, -29, 8], [25, -29, 31, -47, 7],
+      [-6, 9, -18, 24, 9], [-18, 24, -24, 40, 7],
+      [6, 9, 18, 24, 9], [18, 24, 24, 40, 7],
+      [-30, 42, -19, 42, 7], [19, 42, 30, 42, 7],
+    ] },
+  ],
   build() {
-    MINI.init(this, 0xffc27e);
-    const M = Phaser.Physics.Matter.Matter;
-    this.stackWorld = M.Engine.create();
-    this.stackWorld.gravity.y = 1.15;
-    this.stackWorld.positionIterations = 8;
-    M.Composite.add(this.stackWorld.world, [
-      M.Bodies.rectangle(480, 488, 916, 24, { isStatic: true, friction: .9 }),
-      M.Bodies.rectangle(480, 448, 160, 56, { isStatic: true, friction: .9 }),
-    ]);
-    this.state = { x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0 };
+    MINI.init(this, 0xe4eeec);
+    const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
+    this.stackWorld = M.Engine.create({
+      enableSleeping: false, positionIterations: 10, velocityIterations: 10,
+    });
+    this.stackWorld.gravity.y = t.gravity;
+    this.stackGround = M.Bodies.rectangle(480, t.floorY + 14, 2400, 28, {
+      isStatic: true, friction: t.friction, label: 'e3:floor',
+    });
+    this.stackBase = M.Bodies.rectangle(480, (t.baseY + t.floorY) / 2, t.baseWidth, t.floorY - t.baseY, {
+      isStatic: true, friction: t.friction, label: 'e3:pedestal',
+    });
+    // 넓은 바닥이 잔해를 받습니다. 잔해를 지우거나 정적 물체로 고정하지 않습니다.
+    M.Composite.add(this.stackWorld.world, [this.stackGround, this.stackBase]);
+    this.state = {
+      x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
+      bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
+      spawnY: 200, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, impacts: [], impactCooldown: 0,
+    };
     this.people = [];
+    this.stackBodyById = new Map();
+    this.stackGrounded = new Set();
+    this.stackStable = new Set();
+    this.stackLabels = {
+      next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
+      goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
+      hint: this.add.text(480, 166, '사람이 누운 방향을 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
+    };
+    this.stackCollisionHandler = event => {
+      for (const pair of event.pairs) {
+        const a = pair.collision.parentA, b = pair.collision.parentB;
+        if (!this.stackBodyById.has(a.id) && !this.stackBodyById.has(b.id)) continue;
+        const normal = pair.collision.normal;
+        const impact = Math.abs((a.velocity.x - b.velocity.x) * normal.x + (a.velocity.y - b.velocity.y) * normal.y);
+        if (impact < 1.2) continue;
+        const contact = pair.collision.supports[0];
+        if (contact) this.state.impacts.push({ x: contact.x, y: contact.y, age: 0, strength: Math.min(1, impact / 8) });
+        if (this.state.impactCooldown <= 0) {
+          this.sfx('hit'); this.state.impactCooldown = .1;
+        }
+      }
+    };
+    M.Events.on(this.stackWorld, 'collisionStart', this.stackCollisionHandler);
+  },
+  speed() {
+    const t = E3_HUMAN_STACK.tuning;
+    return Math.min(t.maxSpeed, t.speed + this.state.drops * t.speedGain);
+  },
+  createPerson(x, y, poseIndex, angle = 0) {
+    const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
+    const pose = E3_HUMAN_STACK.poses[poseIndex];
+    const material = {
+      friction: t.friction, frictionStatic: t.frictionStatic, restitution: t.restitution,
+      density: t.density, slop: .025,
+    };
+    const parts = pose.limbs.map(([ax, ay, bx, by, r]) => M.Bodies.rectangle(
+      x + (ax + bx) / 2, y + (ay + by) / 2, Math.hypot(bx - ax, by - ay) + r * 2, r * 2,
+      { ...material, angle: Math.atan2(by - ay, bx - ax), chamfer: { radius: r, quality: 8 } },
+    ));
+    parts.push(M.Bodies.circle(x + pose.head[0], y + pose.head[1], pose.head[2], { ...material, density: t.density * .7 }, 16));
+    const body = M.Body.create({
+      parts, ...material, frictionAir: t.frictionAir, label: 'e3:person',
+    });
+    // Matter의 실제 질량중심과 에셋의 기준점 차이를 보존해 회전 시 그림이 어긋나지 않게 합니다.
+    body.plugin.e3 = { poseIndex, origin: { x: x - body.position.x, y: y - body.position.y }, born: this.elapsed };
+    // 팔다리 모양을 바꾸지 않고 사람 전체를 미리보기의 원점 기준으로 돌립니다.
+    M.Body.rotate(body, angle, { x, y });
+    return body;
   },
   action() {
-    const s = this.state;
+    const s = this.state, t = E3_HUMAN_STACK.tuning;
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
-    // 어깨가 넓고 발이 있는 사람 모양 복합 강체. 넘어져도 월드에서 제거하지 않습니다.
-    const x = s.x, y = 192;
-    const body = M.Body.create({ parts: [
-      M.Bodies.rectangle(x, y + 4, 76, 17),
-      M.Bodies.rectangle(x - 17, y + 18, 17, 18), M.Bodies.rectangle(x + 17, y + 18, 17, 18),
-      M.Bodies.circle(x, y - 14, 11),
-    ], friction: .85, frictionStatic: 1.2, restitution: .02 });
+    const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
+    // 운반 중의 좌우 관성을 조금 물려줍니다. 초기 방향 이후 회전은 실제 충돌에 맡깁니다.
+    M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
-    this.people.push(body); s.drops++; this.actions++; s.cooldown = E3_HUMAN_STACK.tuning.dropCooldown;
-    this.sfx('hit');
+    this.people.push(body); this.stackBodyById.set(body.id, body);
+    s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
+    this.sfx('action');
   },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
+  measureTower() {
+    const t = E3_HUMAN_STACK.tuning;
+    const graph = new Map();
+    const connect = (a, b) => { if (!graph.has(a)) graph.set(a, new Set()); graph.get(a).add(b); };
+    for (const pair of this.stackWorld.pairs.list) {
+      if (!pair.isActive) continue;
+      const a = pair.collision.parentA, b = pair.collision.parentB;
+      connect(a.id, b.id); connect(b.id, a.id);
+    }
+    const trace = stableOnly => {
+      const reached = new Set([this.stackGround.id, this.stackBase.id]), queue = [...reached];
+      for (let i = 0; i < queue.length; i++) for (const id of graph.get(queue[i]) ?? []) {
+        if (reached.has(id)) continue;
+        const body = this.stackBodyById.get(id);
+        if (!body) continue;
+        if (stableOnly && (body.speed * 60 > t.settleSpeed || Math.abs(body.angularVelocity) * 60 > t.settleAngularSpeed)) continue;
+        reached.add(id); queue.push(id);
+      }
+      return new Set([...reached].filter(id => this.stackBodyById.has(id)));
+    };
+    this.stackGrounded = trace(false);
+    this.stackStable = trace(true);
+    const top = ids => ids.size ? Math.min(...[...ids].map(id => this.stackBodyById.get(id).bounds.min.y)) : t.baseY;
+    // 흔들려도 바닥부터 받쳐진 탑이면 인정합니다. 목표 아래로 내려오면 3초를 다시 셉니다.
+    this.state.height = Math.max(0, t.baseY - top(this.stackGrounded));
+    this.state.bestHeight = Math.max(this.state.bestHeight, this.state.height);
+    this.state.groundedCount = this.stackGrounded.size;
+    this.state.stableCount = this.stackStable.size;
+    return top(this.stackGrounded);
+  },
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
-    s.x += s.direction * Math.min(t.maxSpeed, t.speed + s.drops * t.speedGain) * dt;
+    s.x += s.direction * E3_HUMAN_STACK.speed.call(this) * dt;
     if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
+    s.impactCooldown = Math.max(0, s.impactCooldown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
-    // 떠 있는 낙하물은 높이로 세지 않습니다. 실제로 받쳐진 느린 강체만 집계합니다.
-    const settled = this.people.filter(b => b.speed < .7 && Math.abs(b.angularVelocity) < .035 && b.position.y > 225);
-    s.height = settled.length ? Math.max(0, 420 - Math.min(...settled.map(b => b.bounds.min.y))) : 0;
+    const top = E3_HUMAN_STACK.measureTower.call(this);
+    // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
+    s.spawnY = Math.min(200, top - t.spawnClearance);
+    // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
+    for (const body of this.people) if (Math.abs(body.position.x - s.x) < 125) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 65);
+    const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
+    s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
-    this.anomaly = `낙하 속도 ${Math.round(Math.min(t.maxSpeed, t.speed + s.drops * t.speedGain))} · 잔해 ${s.drops}명`;
-    this.risk = Math.min(100, s.drops * 7);
-    if (s.held >= t.hold) this.finish(true, `${s.drops}명으로 ${Math.round(s.height)} 높이`);
+    for (const impact of s.impacts) impact.age += dt;
+    s.impacts = s.impacts.filter(impact => impact.age < .35).slice(-16);
+    this.anomaly = `좌우 속도 ${Math.round(E3_HUMAN_STACK.speed.call(this))} · 받쳐진 사람 ${s.groundedCount}/${s.drops}명`;
+    this.risk = MINI.clamp((E3_HUMAN_STACK.speed.call(this) - t.speed) / (t.maxSpeed - t.speed) * 100, 0, 100);
+    if (s.held >= t.hold) this.finish(true, `${s.drops}명 · 높이 ${Math.round(s.height)} · ${t.hold}초 버티기 성공`);
+  },
+  project(x, y) {
+    const z = this.state.zoom, floor = E3_HUMAN_STACK.tuning.floorY;
+    return { x: 480 + (x - 480) * z, y: floor + (y - floor) * z };
+  },
+  drawPerson(poseIndex, key, x, y, angle = 0, alpha = 1) {
+    const pose = E3_HUMAN_STACK.poses[poseIndex], z = this.state.zoom;
+    const p = E3_HUMAN_STACK.project.call(this, x, y), g = this.ink;
+    const specific = `e3:person_${pose.id}`;
+    const texture = this.textures.exists(specific) ? specific : this.textures.exists('e3:person') ? 'e3:person' : null;
+    if (texture) {
+      let sprite = this.assetSprites.get(key);
+      if (!sprite) { sprite = this.add.image(p.x, p.y, texture).setMask(g.mask); this.assetSprites.set(key, sprite); }
+      // person=공통 이미지, person_crouch/wide/reach=자세별 이미지. 원점=이미지 중심.
+      sprite.setTexture(texture).setPosition(p.x, p.y).setDisplaySize(pose.width * z, pose.height * z).setRotation(angle).setAlpha(alpha).setVisible(true);
+      return;
+    }
+    this.assetSprites.get(key)?.setVisible(false);
+    // 미리보기와 낙하물에 같은 실루엣을 사용합니다.
+    g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(angle); g.scaleCanvas(z, z);
+    const stroke = (limb, radius, color, opacity, ox = 0, oy = 0) => {
+      const [ax, ay, bx, by] = limb;
+      g.lineStyle(radius * 2, color, opacity).lineBetween(ax + ox, ay + oy, bx + ox, by + oy);
+      g.fillStyle(color, opacity).fillCircle(ax + ox, ay + oy, radius).fillCircle(bx + ox, by + oy, radius);
+    };
+    // 그림자/몸체/얇은 하이라이트만으로 흰색 무표정 마네킹을 표현합니다.
+    for (const limb of pose.limbs) stroke(limb, limb[4] + 1.2, 0x506c7a, alpha);
+    for (const limb of pose.limbs) stroke(limb, limb[4], 0xd8e5e8, alpha);
+    for (const limb of pose.limbs) stroke(limb, Math.max(1.2, limb[4] * .4), 0xfafffa, alpha * .8, -1.1, -1.1);
+    const [hx, hy, hr] = pose.head;
+    g.fillStyle(0x506c7a, alpha).fillCircle(hx, hy, hr + 1.2);
+    g.fillStyle(0xe8f0ee, alpha).fillCircle(hx, hy, hr);
+    g.fillStyle(0xffffff, alpha * .7).fillEllipse(hx - 2.4, hy - 2.7, hr * .9, hr);
+    g.restore();
   },
   render() {
-    const s = this.state, targetY = 420 - E3_HUMAN_STACK.tuning.targetHeight;
-    MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${E3_HUMAN_STACK.tuning.targetHeight}    HOLD ${s.held.toFixed(1)}s`);
-    MINI.box(this, 22, 477, 916, 12, 0x475667); MINI.box(this, 400, 420, 160, 57, 0x6b7285);
-    MINI.line(this, 220, targetY, 740, targetY, 0xa7ffc6);
-    this.people.forEach((body, i) => MINI.actor(this, 'person', `person${i}`, body.position.x, body.position.y, 78, 50, body.angle, i % 2 ? 0x8baaff : 0xffc27e));
-    MINI.line(this, s.x, 151, s.x, 190, 0x91b4c1, 1);
-    MINI.actor(this, 'person', 'preview', s.x, 182, 78, 50, 0);
-    MINI.meter(this, s.height / E3_HUMAN_STACK.tuning.targetHeight);
+    const s = this.state, t = E3_HUMAN_STACK.tuning, g = this.ink;
+    const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
+    MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
+    const base = project(480 - t.baseWidth / 2, t.baseY);
+    MINI.box(this, 22, t.floorY, 916, 12, 0x263f4d);
+    MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
+    MINI.line(this, base.x, base.y + 1, base.x + t.baseWidth * s.zoom, base.y + 1, 0xd4dad4, 3);
+    for (let height = 0; height <= 400; height += 40) {
+      const p = project(350, t.baseY - height);
+      if (p.y < 180) continue;
+      MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
+    }
+    const goal = project(0, t.baseY - t.targetHeight);
+    for (let x = 115; x < 850; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
+    this.stackLabels.goal.setPosition(902, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
+    this.stackLabels.hint.setVisible(s.drops === 0);
+    // 실제 질량중심으로 회전한 뒤 원래 그림의 기준점을 복구합니다.
+    this.people.forEach((body, i) => {
+      const pose = body.plugin.e3, c = Math.cos(body.angle), sn = Math.sin(body.angle);
+      const x = body.position.x + pose.origin.x * c - pose.origin.y * sn;
+      const y = body.position.y + pose.origin.x * sn + pose.origin.y * c;
+      E3_HUMAN_STACK.drawPerson.call(this, pose.poseIndex, `person${i}`, x, y, body.angle);
+    });
+    for (const impact of s.impacts) {
+      const p = project(impact.x, impact.y), fade = 1 - impact.age / .35;
+      g.lineStyle(1.5, 0xffd99e, fade * .7).strokeEllipse(p.x, p.y, (12 + impact.age * 80) * s.zoom, (4 + impact.age * 25) * s.zoom);
+    }
+    const rail = project(s.x, s.spawnY - 60);
+    MINI.line(this, project(260, 0).x, rail.y, project(700, 0).x, rail.y, 0x5f8190, 2);
+    MINI.circle(this, rail.x, rail.y, 4, 0xffd99e);
+    MINI.line(this, rail.x, rail.y + 4, rail.x, rail.y + 11, 0xffd99e, 2);
+    E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
+    if (t.debugPhysics) for (const body of this.people) {
+      for (const part of body.parts.slice(1)) {
+        g.lineStyle(1, 0xff799b, .85).strokePoints(part.vertices.map(v => project(v.x, v.y)), true);
+      }
+      const p = project(body.position.x, body.position.y);
+      MINI.circle(this, p.x, p.y, 2.5, this.stackStable.has(body.id) ? 0x90ffc0 : 0xff799b);
+    }
+    MINI.meter(this, s.height / t.targetHeight);
   },
   dispose() {
     if (!this.stackWorld) return;
     const M = Phaser.Physics.Matter.Matter;
-    M.Composite.clear(this.stackWorld.world, false); M.Engine.clear(this.stackWorld); this.stackWorld = null;
+    M.Events.off(this.stackWorld, 'collisionStart', this.stackCollisionHandler);
+    M.Composite.clear(this.stackWorld.world, false); M.Engine.clear(this.stackWorld);
+    this.stackWorld = null; this.stackCollisionHandler = null;
+    this.stackBodyById?.clear(); this.stackGrounded?.clear(); this.stackStable?.clear();
   },
 };
 
@@ -1169,6 +1362,8 @@ class ArchiveGame extends Phaser.Scene {
     this.settings = { shake: true, effects: true }; this.touch = new Set(); this.pointerId = null;
   }
   preload() {
+    // index.html을 직접 열었을 때도 로컬 PNG/WebP/SVG 에셋을 읽을 수 있게 합니다.
+    if (window.location.protocol === 'file:') this.load.imageLoadType = 'HTMLImageElement';
     for (const [id, roles] of Object.entries(globalThis.MINIGAME_ASSETS ?? {})) {
       for (const [role, path] of Object.entries(roles)) if (path) this.load.image(`${id}:${role}`, path);
     }
@@ -1276,7 +1471,9 @@ class ArchiveGame extends Phaser.Scene {
 }
 
 window.archivePhaserGame = new Phaser.Game({
-  type: Phaser.AUTO, width: 960, height: 540, parent: 'game-container', backgroundColor: '#07141d',
+  // file:// 이미지는 WebGL 텍스처 업로드가 차단됩니다. 로컬 실행은 Canvas로 표시합니다.
+  type: window.location.protocol === 'file:' ? Phaser.CANVAS : Phaser.AUTO,
+  width: 960, height: 540, parent: 'game-container', backgroundColor: '#07141d',
   render: { antialias: true }, scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }, scene: ArchiveGame,
 });
 
