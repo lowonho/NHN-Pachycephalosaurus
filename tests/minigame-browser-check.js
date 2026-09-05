@@ -254,7 +254,15 @@
     scene.directionPress('right'); scene.primaryAction(); advance(.3); scene.stopGame();
     assert(!scene.touch.size && scene.pointerId === null, `${stage.id}: stop clears input`);
   }
+  scene.stageActOverride = 2;
   load('e1');
+  const dashCourses = [1, 2, 3].map(act => scene.stageGame.courseForAct(act));
+  assert(dashCourses.map(course => course.speed).join(',') === '285,340,395'
+    && dashCourses[1].speed === scene.stageGame.tuning.speed
+    && dashCourses[1].distance === scene.stageGame.tuning.distance
+    && dashCourses.every(course => Math.abs(course.distance / course.speed - dashCourses[1].distance / dashCourses[1].speed) < .01)
+    && scene.stageTuning.act === 2,
+  'e1: act speed and proportional distance use the current course as act two');
   const spikes = () => scene.state.obstacles.filter(o => o.spike),
     blocks = () => scene.state.obstacles.filter(o => !o.spike && !o.float),
     floats = () => scene.state.obstacles.filter(o => o.float);
@@ -273,7 +281,7 @@
   assert(scene.state.y < ceilBottom + 30 && scene.state.vy === 0, 'e1: player sticks to the ceiling wall');
   assert(spikes().every(o => !o.loose), 'e1: the first flip is too early to release any spike');
   assert(scene.state.obstacles.every((o, i) => o.spike && !o.loose ? o.y === obstacleStart[i] : o.y !== obstacleStart[i]), 'e1: released obstacles respond to the flip while attached spikes hold still');
-  assert(maxObstacleSpeed > 0 && maxObstacleSpeed <= 190 && maxObstacleSpeed < scene.stageGame.tuning.speed, 'e1: obstacle motion stays slower than player travel');
+  assert(maxObstacleSpeed > 0 && maxObstacleSpeed <= 190 && maxObstacleSpeed < scene.stageTuning.speed, 'e1: obstacle motion stays slower than player travel');
   assert(blocks().every(o => o.y > ceilBottom), 'e1: player reaches ceiling before following obstacles');
   advance(2.5); assert(blocks().every(o => o.y === ceilBottom) && floats().every(o => o.y === floorTop - o.h), 'e1: following and opposing obstacles settle on different walls');
   scene.primaryAction(); advance(.5);
@@ -302,7 +310,7 @@
   });
   assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
   load('e1'); advance(20.3);
-  assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
+  assert(scene.state.deaths > 0 && scene.state.x < scene.stageTuning.distance, 'e1: no-input play cannot clear');
   // 밈 에셋 세트는 판마다 한 벌씩 뽑힙니다. 두 벌 모두 다섯 장이 실려 있어야 하고,
   // 뽑힌 세트는 그리는 텍스처 이름에 그대로 붙습니다.
   const dashSets = ['', 'woni-'], dashPoses = ['run', 'jump', 'hurt', 'fall', 'goal'];
@@ -312,7 +320,7 @@
   const dashFrames = [1, 2, 3, 4, 5, 6];
   assert(dashSets.every(set => dashFrames.every(frame => scene.textures.exists(`e1:${set}run${frame}`))), 'e1: both sets load all six run frames');
   load('e1');
-  const runStep = scene.stageGame.tuning.speed / 14;
+  const runStep = scene.stageTuning.speed / 14;
   const frameAt = x => { scene.state.x = x; return scene.stageGame.poseTexture.call(scene, 'run'); };
   const cycle = dashFrames.map((_, i) => frameAt(runStep * (i + .5)));
   assert(cycle.join('|') === dashFrames.map(frame => `e1:${scene.state.art}run${frame}`).join('|'), 'e1: one run frame per step of travel, in order');
@@ -352,6 +360,7 @@
   ARCHIVE_QA.artSet = {}; ARCHIVE_QA.active = false;
   load('e1'); advance(.1);
   assert(!scene.anomaly.includes('세트'), 'e1: outside QA the HUD says nothing about the set');
+  delete scene.stageActOverride;
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
   const weakened = scene.stageGame.jumpPower.call(scene), shards = scene.state.shards.length;
   scene.primaryAction();
@@ -512,7 +521,15 @@
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: miss ${miss} reduces friction`);
   }
+  scene.stageActOverride = 3;
   load('e8');
+  const webCourses = [1, 2, 3].map(act => scene.stageGame.courseForAct(act));
+  assert(webCourses.map(course => course.anchorCount).join(',') === '14,18,22'
+    && webCourses[0].distance < webCourses[1].distance && webCourses[1].distance < webCourses[2].distance
+    && webCourses[2].distance === scene.stageGame.tuning.distance
+    && scene.anchors.every((anchor, index) => !index || anchor.x - scene.anchors[index - 1].x === scene.stageGame.tuning.spacing)
+    && scene.goalX === webCourses[2].distance,
+  'e8: act distance grows by anchor count while every connection gap stays unchanged');
   assert(scene.state.rope?.starter && !('grounded' in scene.state) && !scene.roofs, 'e8: starts in an aerial swing without running or landing platforms');
   const startSpeed = scene.state.speed;
   advance(.45);
@@ -573,6 +590,14 @@
   }
   load('e8'); driveE8(5);
   assert(scene.state.visited.length>=5 && scene.state.multiplier===3, 'e8: four new connections reach the 3x boost cap');
+  for (const act of [1, 2]) {
+    scene.stageActOverride = act; load('e8'); driveE8(20.3);
+    const course = scene.stageGame.courseForAct(act);
+    assert(scene.mode === 'done' && scene.elapsed < 20.26 && scene.state.x >= scene.goalX
+      && scene.anchors.length === course.anchorCount && scene.goalX === course.distance,
+    `e8: act ${act} shorter course remains clearable`);
+  }
+  delete scene.stageActOverride;
   load('e5'); scene.pointerAction(164, 418); archiveGame.pause(true);
   assert(scene.state.drag === null, 'Pause cancels drag without firing');
   load('e10');
@@ -687,6 +712,8 @@
   const rebuiltGameReady = rebuiltGameSeen
     ? !protocolSelectFlow.isBriefOpen() && scene.playable() && scene.stageId === rebuiltRun.expectedStageId
     : protocolSelectFlow.isBriefOpen();
+  assert(rebuiltRun.expectedStageId !== exhaustionId,
+    'Act retry does not immediately repeat the stage that exhausted the last memory');
   assert(!modalFlow.isOpen() && rebuiltRun.transition === null && rebuiltGameReady,
     'Current-act retry proceeds only after player confirmation and only briefs an unseen game');
   // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.

@@ -169,4 +169,39 @@ const afterQa = qaRun.exitQa();
 assert.equal(afterQa.qaMode, false);
 assert.deepEqual(afterQa.selectedStageIds, beforeQa.selectedStageIds);
 
+// A stage must never repeat immediately across an act boundary or a full-act retry.
+let adjacencyRandomIndex = 0;
+// The first shuffle ends in e6. Later shuffles would start in e6 without the guard,
+// forcing both the act boundary and the act-two retry to exercise the swap.
+const adjacencyRandom = () => adjacencyRandomIndex++ < 10 ? .9 : .167;
+const adjacencyRun = createArchiveRunState(stageIds, { random: adjacencyRandom });
+let adjacencyState = adjacencyRun.startNew();
+for (let slot = 0; slot < STAGES_PER_ACT; slot += 1) {
+  const previousStageId = adjacencyState.expectedStageId;
+  adjacencyRun.beginAttempt(previousStageId);
+  adjacencyRun.completeAttempt(true);
+  const advanced = adjacencyRun.advance();
+  adjacencyState = advanced.snapshot;
+  if (advanced.transition === 'next-act') {
+    assert.notEqual(adjacencyState.expectedStageId, previousStageId,
+      'the next act must not start with the previous act last stage');
+  }
+}
+
+// Fail on act two's second stage so an act retry cannot put that just-played game first.
+adjacencyRun.beginAttempt(adjacencyState.expectedStageId);
+adjacencyRun.completeAttempt(true);
+adjacencyState = adjacencyRun.advance().snapshot;
+const lastPlayedBeforeActRetry = adjacencyState.expectedStageId;
+for (let life = 0; life < LIVES_PER_ACT; life += 1) {
+  adjacencyRun.beginAttempt(lastPlayedBeforeActRetry);
+  adjacencyState = adjacencyRun.completeAttempt(false);
+}
+assert.equal(adjacencyState.currentAct, 2);
+assert.equal(adjacencyState.currentStageInAct, 1);
+assert.equal(adjacencyState.transition, 'act-restarted');
+assert.notEqual(adjacencyState.expectedStageId, lastPlayedBeforeActRetry,
+  'an act retry must not start with the stage that was just played');
+assert.equal(new Set(adjacencyState.selectedStageIds).size, STAGES_PER_ACT);
+
 console.log('PASS | 3막×6스테이지, 기억·막 재선정, 20.26초, 18개 기록, 저장·지원·단일 엔딩');

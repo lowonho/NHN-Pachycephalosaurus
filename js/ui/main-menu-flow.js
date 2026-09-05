@@ -22,7 +22,18 @@ class MainMenuFlow {
     this.protocolSelect = protocolSelect;
     this.codex = codex;
 
-    this.ui.mainPlayButton?.addEventListener("click", () => this.playIntro());
+    this.ui.mainPlayButton?.addEventListener("click", () => this.requestPlayIntro());
+    this.ui.newRunConfirmButton?.addEventListener("click", () => {
+      this.closeNewRunConfirm();
+      this.playIntro();
+    });
+    this.ui.newRunCancelButton?.addEventListener("click", () => this.closeNewRunConfirm());
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Escape" && this.isNewRunConfirmOpen()) {
+        event.preventDefault();
+        this.closeNewRunConfirm();
+      }
+    });
     this.ui.mainContinueButton?.addEventListener("click", () => this.continueRun());
     /* 기록실은 밈 기록과 미니게임 도감이 있어 언제나 열린다. */
     this.ui.mainCodexButton?.addEventListener("click", () => this.codex.toggle());
@@ -77,6 +88,31 @@ class MainMenuFlow {
 
   syncSound() {
     this.ui.mainSoundButton?.setAttribute("aria-pressed", String(this.soundBus.muted));
+  }
+
+  /*
+   * "기록 접속"을 눌렀을 때의 입구. 지우고 다시 시작할 진행 중인 기록이 있으면
+   * (이어하기가 켜질 조건과 같다) 한 번 되묻고, 없으면 곧장 시작한다.
+   */
+  requestPlayIntro() {
+    if (window.archiveRun?.hasSave()) { this.openNewRunConfirm(); return; }
+    this.playIntro();
+  }
+
+  openNewRunConfirm() {
+    this.newRunConfirmReturnFocus = document.activeElement;
+    this.ui.newRunConfirmModal?.classList.remove("hidden");
+    this.ui.newRunConfirmButton?.focus();
+  }
+
+  closeNewRunConfirm() {
+    this.ui.newRunConfirmModal?.classList.add("hidden");
+    if (this.newRunConfirmReturnFocus?.isConnected) this.newRunConfirmReturnFocus.focus();
+    this.newRunConfirmReturnFocus = null;
+  }
+
+  isNewRunConfirmOpen() {
+    return Boolean(this.ui.newRunConfirmModal && !this.ui.newRunConfirmModal.classList.contains("hidden"));
   }
 
   /*

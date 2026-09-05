@@ -149,7 +149,9 @@
 
 .menu-brand {
   position: absolute;
-  z-index: 3;
+  /* .main-menu-card(z-index 3)의 확장된 글로우(::before)가 모서리를 덮어 클릭을
+     가로채는 걸 막으려고, 늘 눌러야 하는 모서리 UI는 카드보다 한 단 위에 둔다. */
+  z-index: 4;
   top: 44px;
   left: 52px;
   text-align: left;
@@ -212,7 +214,12 @@
 
 .menu-sound {
   position: absolute;
-  z-index: 3;
+  /*
+   * .main-menu-card도 z-index 3이라 DOM 순서상 카드가 나중에 와서 위로 겹친다.
+   * 카드 자체는 이 모서리까지 안 오지만 확장된 글로우(::before, inset -110px 위)가
+   * 여기까지 닿아 클릭을 가로채므로, 버튼은 카드보다 한 단 위에 둬야 실제로 눌린다.
+   */
+  z-index: 4;
   top: 44px;
   right: 52px;
   display: flex;

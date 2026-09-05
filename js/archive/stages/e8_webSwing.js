@@ -1,5 +1,16 @@
 import { MINI } from './minigame-kit.js';
 
+const WEB_SPACING = 660;
+const WEB_ACT_ANCHORS = Object.freeze([14, 18, 22]);
+const webCourseForAct = act => {
+  const normalizedAct = MINI.clamp(Math.round(Number(act) || 1), 1, 3);
+  const anchorCount = WEB_ACT_ANCHORS[normalizedAct - 1];
+  return Object.freeze({
+    act: normalizedAct, anchorCount,
+    distance: 310 + (anchorCount - 1) * WEB_SPACING + 410,
+  });
+};
+
 export const E8_WEB_SWING = {
   tuning: {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
@@ -8,17 +19,24 @@ export const E8_WEB_SWING = {
     // 시작 지점(첫 스폰)에서는 줄이 연결점과 수평(90도)이 되게 해서, 최대 진폭으로
     // 떨어지며 첫 스윙에 충분한 탄력이 붙게 한다.
     startAngle: -Math.PI / 2,
-    spacing: 660, anchorCount: 22, fallY: 710,
+    // 기존 22개/14580px 코스는 3막 기준입니다. 실제 막별 길이는 stageTuning에 둡니다.
+    spacing: WEB_SPACING, ...webCourseForAct(3), fallY: 710,
+  },
+  courseForAct: webCourseForAct,
+  act(scene) {
+    const requested = scene.stageActOverride ?? globalThis.archiveRun?.snapshot()?.currentAct ?? 1;
+    return MINI.clamp(Math.round(Number(requested) || 1), 1, 3);
   },
   build() {
     MINI.init(this, 0xff6687);
-    const t = E8_WEB_SWING.tuning;
+    const course = webCourseForAct(E8_WEB_SWING.act(this));
+    const t = this.stageTuning = { ...E8_WEB_SWING.tuning, ...course };
     const heights = [125, 85, 155, 110, 65, 140];
     this.anchors = Array.from({ length: t.anchorCount }, (_, index) => ({
       x: 310 + index * t.spacing, y: heights[index % heights.length], index,
       kind: ['empire', 'crane', 'building'][index % 3],
     }));
-    this.goalX = this.anchors.at(-1).x + 410;
+    this.goalX = t.distance;
     this.goalY = 320;
     this.state = {
       x: 0, y: 0, vx: 0, vy: 0, multiplier: 1, speed: t.speed,

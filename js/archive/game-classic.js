@@ -218,13 +218,20 @@ const LIVES_PER_ACT = 3;
 const STORY_RECORD_COUNT = ACT_COUNT * STAGES_PER_ACT;
 const RUN_STORAGE_KEY = 'archive-2026-story-run-v3';
 
-function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random) {
+function moveStageAwayFromFirst(selection, previousStageId) {
+  if (!previousStageId || selection[0] !== previousStageId) return selection;
+  const swapIndex = selection.findIndex((id, index) => index > 0 && id !== previousStageId);
+  if (swapIndex > 0) [selection[0], selection[swapIndex]] = [selection[swapIndex], selection[0]];
+  return selection;
+}
+
+function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random, previousStageId = null) {
   const bag = [...new Set(ids)];
   for (let i = bag.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [bag[i], bag[j]] = [bag[j], bag[i]];
   }
-  return bag.slice(0, Math.min(count, bag.length));
+  return moveStageAwayFromFirst(bag.slice(0, Math.min(count, bag.length)), previousStageId);
 }
 
 function makeGrid(value = false) {
@@ -260,6 +267,11 @@ function createArchiveRunState(stageIds, options = {}) {
     remainingMs: stageTimeMs,
     transition: null,
     qaMode: false,
+    // 기록실에서 "난이도 선택 후 바로 플레이"로 들어온 판인지. qaMode를 함께 켜서
+    // setSelection과 같은 격리(임의 스테이지 선택·이야기 진행 건드리지 않음)를 그대로
+    // 물려받되, 이 값이 참일 때만 엔진이 currentAct의 실제 억제 배율을 쓴다
+    // (평범한 QA 패널 검수는 그대로 배율 1로 고정한다).
+    practiceMode: false,
   });
 
   let state = blank();
@@ -289,6 +301,7 @@ function createArchiveRunState(stageIds, options = {}) {
         elapsedMs: 0,
         remainingMs: stageTimeMs,
         qaMode: false,
+        practiceMode: false,
       };
     }
   } catch { /* 손상되거나 사용할 수 없는 저장소는 새 상태로 대체한다. */ }
@@ -317,9 +330,9 @@ function createArchiveRunState(stageIds, options = {}) {
     return (actSeed ^ Math.imul(state.currentStageInAct, 0x9e3779b1) ^ hash) >>> 0;
   };
 
-  const selectAct = (actIndex) => {
+  const selectAct = (actIndex, previousStageId = null) => {
     state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
-    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random);
+    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random, previousStageId);
   };
 
   const snapshot = () => {
@@ -367,6 +380,7 @@ function createArchiveRunState(stageIds, options = {}) {
       transition: state.transition,
       ending: state.finished ? 'shared' : null,
       qaMode: state.qaMode,
+      practiceMode: state.practiceMode,
     };
   };
 
@@ -394,6 +408,7 @@ function createArchiveRunState(stageIds, options = {}) {
       if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
       state.active = true;
       state.qaMode = true;
+      state.practiceMode = false;
       state.currentAct = 1;
       state.currentStageInAct = 1;
       state.selectedGames[0] = next;
@@ -403,10 +418,36 @@ function createArchiveRunState(stageIds, options = {}) {
       state.transition = null;
       return snapshot();
     },
+    /*
+     * 기록실에서 스테이지 하나를 고른 난이도(막)로 바로 연습한다. setSelection과 같은
+     * 격리를 쓰되(qaBackup에 진짜 진행을 담아 두고 exitQa로 되돌린다) 막을 1로
+     * 고정하지 않고 고른 난이도를 그대로 currentAct에 넣는다 — suppressionMultiplier와
+     * e1·e8의 막별 연출이 모두 currentAct를 보므로 이거 하나로 난이도가 실제로 갈린다.
+     * practiceMode만 별도로 켜 두는 이유는, 평범한 QA 패널 검수(setSelection)는 여전히
+     * 배율 1로 고정해야 해서 qaMode 하나만으로는 두 경우를 가를 수 없기 때문이다.
+     */
+    startPractice(stageId, act = 2) {
+      if (!ids.includes(stageId)) throw new RangeError(`Unknown stage: ${stageId}`);
+      const actIndex = Math.min(ACT_COUNT, Math.max(1, Math.round(act) || 1)) - 1;
+      if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
+      state.active = true;
+      state.qaMode = true;
+      state.practiceMode = true;
+      state.currentAct = actIndex + 1;
+      state.currentStageInAct = 1;
+      state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
+      state.selectedGames[actIndex] = [stageId];
+      state.currentStageId = null;
+      state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
+      state.phase = 'menu';
+      state.transition = null;
+      return snapshot();
+    },
     exitQa() {
       if (qaBackup) state = qaBackup;
       qaBackup = null;
       state.qaMode = false;
+      state.practiceMode = false;
       state.paused = false;
       state.phase = 'menu';
       state.currentStageId = null;
@@ -465,13 +506,14 @@ function createArchiveRunState(stageIds, options = {}) {
         if (state.lives > 0) {
           state.transition = 'retry';
         } else {
+          const previousStageId = state.currentStageId || expectedStageId();
           const actIndex = state.currentAct - 1;
           state.actAttemptCount[actIndex] += 1;
           state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
           state.currentStageInAct = 1;
           state.currentStageId = null;
           state.lives = LIVES_PER_ACT;
-          selectAct(actIndex);
+          selectAct(actIndex, previousStageId);
           if (state.currentAct === 1 && state.actAttemptCount[0] >= 4) state.assistProtocolAct1 = true;
           state.transition = 'act-restarted';
         }
@@ -483,10 +525,13 @@ function createArchiveRunState(stageIds, options = {}) {
       const transition = state.transition;
       if (transition === 'next-stage') state.currentStageInAct += 1;
       else if (transition === 'next-act') {
+        const previousStageId = state.currentStageId || expectedStageId();
         state.currentAct += 1;
         state.currentStageInAct = 1;
         state.lives = LIVES_PER_ACT;
-        if (!state.selectedGames[state.currentAct - 1].length) selectAct(state.currentAct - 1);
+        const actIndex = state.currentAct - 1;
+        if (!state.selectedGames[actIndex].length) selectAct(actIndex, previousStageId);
+        else moveStageAwayFromFirst(state.selectedGames[actIndex], previousStageId);
       } else if (transition === 'ending') {
         state.archiveEntries = state.selectedGames.flatMap((selection, actIndex) => selection.map((gameId, slotIndex) => ({
           recordId: `A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`,
@@ -704,13 +749,22 @@ const CEIL_Y = 145;      // 천장에 붙었을 때 플레이어 중심
 const BLOCK = 34;        // 장애물 높이
 const FLOAT_Y = 276;     // 떠 있는 장애물의 시작 높이
 const GATES = 10;
-/* 맵이 흐르는 속도(px/s)입니다. 코스 길이와 장애물 간격을 모두 이 속도에 비례해 잡으므로,
-   속도를 올리면 간격도 그만큼 벌어져 묶음 사이 시간(약 1.37초)과 코스 시간(약 16.3초)은 그대로입니다. */
-const SPEED = 340;
-const PACE = SPEED / 285;                  // 예전 기준 속도 285 대비 배율
-const GATE = Math.round(390 * PACE);       // 장애물 묶음 사이 간격
-const LEAD = Math.round(650 * PACE);       // 출발선에서 첫 묶음까지
-const DISTANCE = Math.round(4650 * PACE);  // 골인 지점
+/* 2막은 기존 속도 340을 그대로 사용합니다. 1막/3막은 같은 폭(+/-55px/s)으로 나누고,
+   코스 길이와 모든 가로 간격을 속도에 비례시켜 막마다 약 16.3초의 기본 완주 시간은
+   유지합니다. 즉 후반 막일수록 화면과 장애물이 더 빠르게 흘러 반응 난도가 올라갑니다. */
+const BASE_SPEED = 285;
+const ACT_SPEEDS = Object.freeze([285, 340, 395]);
+const dashCourseForAct = act => {
+  const normalizedAct = MINI.clamp(Math.round(Number(act) || 1), 1, 3);
+  const speed = ACT_SPEEDS[normalizedAct - 1], pace = speed / BASE_SPEED;
+  return Object.freeze({
+    act: normalizedAct, speed,
+    gate: Math.round(390 * pace), lead: Math.round(650 * pace),
+    distance: Math.round(4650 * pace), blockOff: Math.round(90 * pace),
+    floatOff: Math.round(285 * pace),
+    releaseLead: Math.round(speed * (FLOOR_TOP - CEIL_BOTTOM) / OBSTACLE_MAX_SPEED),
+  });
+};
 const SPIKE_W = 35;   // 가시 판정 가로
 const SPIKE_H = 24;   // 가시 판정 세로
 /* 가시 한 개의 표시 크기입니다. 가시 그림(obstacle 폴더의 낱글자 네 장)은 모두 같은 배율로
@@ -719,7 +773,7 @@ const SPIKE_H = 24;   // 가시 판정 세로
    예전 삼각형 그대로입니다 — 그림을 키워도 어려워지지 않습니다. */
 const SPIKE_ART = 46;
 /* 한 묶음에 나란히 붙는 가시 두 개의 간격입니다. 표시 크기와 같은 값이라 두 글자가 딱
-   맞붙어 한 낱말로 읽힙니다. 코스 속도(PACE)를 따라가지 않는 유일한 간격입니다 — 글자
+   맞붙어 한 낱말로 읽힙니다. 코스 속도 배율을 따라가지 않는 유일한 간격입니다 — 글자
    크기는 화면에서 고정이라, 속도에 따라 벌어지면 낱말이 갈라집니다. */
 const SPIKE_GAP = SPIKE_ART;
 /* 게이트마다 세우는 두 글자짜리 낱말. 게이트 홀짝으로 번갈아 서므로 바닥에는 '거제',
@@ -731,8 +785,6 @@ const SPIKE_WORDS = [['geo', 'je'], ['ya', 'ho']];
    열면 Phaser.CANVAS 로 뜨는데(js/archive/game.mjs) 캔버스 렌더러가 tint 를 조용히 무시하기
    때문입니다 — 그렇게 하면 그 경로에서만 붙은 가시와 풀린 가시가 똑같아 보입니다. */
 const SPIKE_ATTACHED = '-dim';
-const BLOCK_OFF = Math.round(90 * PACE);   // 묶음 안에서 블록이 서는 자리
-const FLOAT_OFF = Math.round(285 * PACE);  // 묶음 안에서 공중 블록이 뜨는 자리
 const SPIKES = GATES * 2;  // 가시 20개 — 게이트마다 두 개씩 나란히
 const MAX_FLIPS = 20;      // risk 게이지가 100%에 닿는 반전 횟수. 이때 가시가 전부 풀립니다.
 const OBSTACLE_MAX_SPEED = 190;  // 장애물이 통로를 건너는 최고 속도
@@ -742,8 +794,6 @@ const RELEASE_STEPS = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3];
 const RELEASE_AT = RELEASE_STEPS.map((_, i) => Math.round(MAX_FLIPS * (i + 1) / RELEASE_STEPS.length));
 /* 가시를 풀 때 얼마나 앞쪽을 고르는지. 가시가 통로를 다 건너는 시간 동안 플레이어가 달리는
    거리입니다. 이보다 가까이서 풀면 플레이어가 지나갈 때까지 다 내려오지 못합니다. */
-const RELEASE_LEAD = Math.round(SPEED * (FLOOR_TOP - CEIL_BOTTOM) / OBSTACLE_MAX_SPEED);
-
 const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 크기로만 부딪칩니다.
 /* 캐릭터 그림(assets/images/minigame/geomatric dash)의 표시 높이입니다. 가로는 텍스처
    비율에서 뽑으므로 여기 없습니다. 원본이 자세마다 다르게 잘려 있어서, 머리 크기가
@@ -758,11 +808,10 @@ const POSE_HEIGHT = { run: 78, jump: 88, hurt: 71, fall: 61 };
    두 세트의 몸 크기가 비슷해 표시 높이(POSE_HEIGHT)는 함께 씁니다. */
 const ART_SETS = ['', 'woni-'];
 /* 달리기 걸음. 여섯 장을 코스 좌표로 넘기므로 속도를 올리면 걸음도 같이 빨라지고,
-   판이 멈추면 걸음도 멈춥니다. RUN_FPS 는 지금 속도(SPEED)에서의 초당 장수라, 여기서
-   장당 달리는 거리(RUN_STEP)를 뽑습니다. 초당 열네 장이면 발이 미끄러져 보이지 않습니다. */
+   판이 멈추면 걸음도 멈춥니다. RUN_FPS 와 이번 막의 속도에서 장당 달리는 거리를
+   계산합니다. 초당 열네 장이면 발이 미끄러져 보이지 않습니다. */
 const RUN_FRAMES = 6;
 const RUN_FPS = 14;
-const RUN_STEP = SPEED / RUN_FPS;
 /* 벽을 건너뛰는 순간의 과장. 반전을 누르면 그림이 확 커졌다가, 반대 벽에 닿을 즈음
    원래 크기보다 살짝 작아졌다 돌아옵니다. 달리는 동안에는 손대지 않습니다 — 제자리에서
    계속 들썩이면 화면이 정신없습니다. 발끝을 기준으로 키우니 발은 벽에 붙어 있고,
@@ -788,9 +837,17 @@ const TRAIL_SPAN = 150;     // 꼬리가 뒤로 남는 거리
 const E1_GRAVITY_DASH = {
   // 약 16.3초 코스. 캐릭터는 약 0.45초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
   // (통로가 381로 넓어져 건너는 거리가 261 → 349가 되었습니다. 중력은 그대로 둡니다.)
-  tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
+  // tuning의 속도/거리는 기존값인 2막 기준이며, 실제 판은 stageTuning에 막별 값을 둡니다.
+  tuning: { ...dashCourseForAct(2), gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
+  courseForAct: dashCourseForAct,
+  act(scene) {
+    const requested = scene.stageActOverride ?? globalThis.archiveRun?.snapshot()?.currentAct ?? 1;
+    return MINI.clamp(Math.round(Number(requested) || 1), 1, 3);
+  },
   build() {
     MINI.init(this, 0x67e8f9);
+    const course = dashCourseForAct(E1_GRAVITY_DASH.act(this));
+    this.stageTuning = { ...E1_GRAVITY_DASH.tuning, ...course };
     // leap은 건너뛰는 연출에 남은 시간(초)입니다. 표시 크기에만 쓰이고 판정에는 끼어들지 않습니다.
     // art 는 이번 판에 쓸 밈 에셋 세트입니다. 판이 시작될 때 한 번만 뽑으므로 도중에 그림이
     // 바뀌지 않고, 판정과 코스에는 전혀 끼어들지 않는 겉모습이라 코스 시드(this.random)를
@@ -806,22 +863,22 @@ const E1_GRAVITY_DASH = {
       // 두 개가 각각 낱말의 첫 글자와 둘째 글자라, 나란히 붙어야 '거제'·'야호'로 읽힙니다.
       const gate = Math.floor(i / 2), wall = gate % 2 ? CEIL_BOTTOM : FLOOR_TOP - SPIKE_H;
       return {
-        x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: SPIKE_W, h: SPIKE_H,
+        x: course.lead + gate * course.gate + (i % 2) * SPIKE_GAP, y: wall, w: SPIKE_W, h: SPIKE_H,
         vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
         wall, loose: false, letter: SPIKE_WORDS[gate % 2][i % 2],
       };
     });
     this.state.obstacles.push(...this.hurdles);
     for (let i = 0; i < GATES; i++) {
-      const gate = LEAD + i * GATE;
+      const gate = course.lead + i * course.gate;
       // 플레이어보다 늦게 벽을 옮깁니다. 너무 일찍 뒤집으면 도착한 벽에서 다시 만납니다.
       if (i % 2 === 0) this.state.obstacles.push({
-        x: gate + BLOCK_OFF, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
+        x: gate + course.blockOff, y: CEIL_BOTTOM, vy: 0, w: i % 3 === 0 ? 44 : 34, h: BLOCK,
         factor: .8 + (i % 4) * .15, response: 1, float: false,
       });
       // 기존 고정 공중 블록도 반전에 반응합니다. 반대 방향으로 움직이는 느린 장애물입니다.
       if (i % 2 === 1 && i < GATES - 1) this.state.obstacles.push({
-        x: gate + FLOAT_OFF, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
+        x: gate + course.floatOff, y: FLOAT_Y, vy: 0, w: BLOCK, h: BLOCK, factor: .7 + (i % 3) * .15, response: -1, float: true,
       });
     }
   },
@@ -843,11 +900,11 @@ const E1_GRAVITY_DASH = {
   release(count) {
     const s = this.state;
     const attached = this.hurdles.filter(h => !h.loose && h.x > s.x);
-    const from = Math.max(0, attached.findIndex(h => h.x >= s.x + RELEASE_LEAD));
+    const from = Math.max(0, attached.findIndex(h => h.x >= s.x + this.stageTuning.releaseLead));
     for (const spike of attached.slice(from, from + count)) spike.loose = true;
   },
   update(dt) {
-    const s = this.state, t = E1_GRAVITY_DASH.tuning;
+    const s = this.state, t = this.stageTuning;
     s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt); s.leap = Math.max(0, s.leap - dt);
     s.vy += s.sign * t.gravity * dt; s.y = MINI.clamp(s.y + s.vy * dt, CEIL_Y, FLOOR_Y);
     if (s.y === CEIL_Y || s.y === FLOOR_Y) s.vy = 0;
@@ -901,7 +958,7 @@ const E1_GRAVITY_DASH = {
      되살아나며 뒤로 밀리면 걸음도 그만큼 되감깁니다. 시트가 없는 세트는 run 한 장으로 답니다. */
   poseTexture(pose) {
     if (pose !== 'run') return `e1:${this.state.art}${pose}`;
-    const frame = Math.floor(Math.max(0, this.state.x) / RUN_STEP) % RUN_FRAMES + 1;
+    const frame = Math.floor(Math.max(0, this.state.x) / (this.stageTuning.speed / RUN_FPS)) % RUN_FRAMES + 1;
     const key = `e1:${this.state.art}run${frame}`;
     return this.textures.exists(key) ? key : `e1:${this.state.art}run`;
   },
@@ -952,7 +1009,7 @@ const E1_GRAVITY_DASH = {
     }
   },
   render() {
-    const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
+    const s = this.state, t = this.stageTuning, f = MINI.FIELD;
     MINI.frame(this);
     // 천장 벽과 바닥 벽. 벽 속은 화면 끝까지 채운다 — 통로 밖은 벽이지 빈 자리가 아니다.
     MINI.box(this, f.x, f.y, f.w, CEIL_BOTTOM - f.y, 0x123a4c);
@@ -3091,6 +3148,17 @@ const E7_ROULETTE = {
 
 /* Source: stages/e8_webSwing.js */
 
+const WEB_SPACING = 660;
+const WEB_ACT_ANCHORS = Object.freeze([14, 18, 22]);
+const webCourseForAct = act => {
+  const normalizedAct = MINI.clamp(Math.round(Number(act) || 1), 1, 3);
+  const anchorCount = WEB_ACT_ANCHORS[normalizedAct - 1];
+  return Object.freeze({
+    act: normalizedAct, anchorCount,
+    distance: 310 + (anchorCount - 1) * WEB_SPACING + 410,
+  });
+};
+
 const E8_WEB_SWING = {
   tuning: {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
@@ -3099,17 +3167,24 @@ const E8_WEB_SWING = {
     // 시작 지점(첫 스폰)에서는 줄이 연결점과 수평(90도)이 되게 해서, 최대 진폭으로
     // 떨어지며 첫 스윙에 충분한 탄력이 붙게 한다.
     startAngle: -Math.PI / 2,
-    spacing: 660, anchorCount: 22, fallY: 710,
+    // 기존 22개/14580px 코스는 3막 기준입니다. 실제 막별 길이는 stageTuning에 둡니다.
+    spacing: WEB_SPACING, ...webCourseForAct(3), fallY: 710,
+  },
+  courseForAct: webCourseForAct,
+  act(scene) {
+    const requested = scene.stageActOverride ?? globalThis.archiveRun?.snapshot()?.currentAct ?? 1;
+    return MINI.clamp(Math.round(Number(requested) || 1), 1, 3);
   },
   build() {
     MINI.init(this, 0xff6687);
-    const t = E8_WEB_SWING.tuning;
+    const course = webCourseForAct(E8_WEB_SWING.act(this));
+    const t = this.stageTuning = { ...E8_WEB_SWING.tuning, ...course };
     const heights = [125, 85, 155, 110, 65, 140];
     this.anchors = Array.from({ length: t.anchorCount }, (_, index) => ({
       x: 310 + index * t.spacing, y: heights[index % heights.length], index,
       kind: ['empire', 'crane', 'building'][index % 3],
     }));
-    this.goalX = this.anchors.at(-1).x + 410;
+    this.goalX = t.distance;
     this.goalY = 320;
     this.state = {
       x: 0, y: 0, vx: 0, vy: 0, multiplier: 1, speed: t.speed,
@@ -3843,7 +3918,9 @@ class ArchiveGame extends Phaser.Scene {
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
     const run = window.archiveRun?.snapshot();
-    this.suppressionMultiplier = run?.active && !run?.qaMode ? run.suppressionMultiplier : 1;
+    // 기록실 연습(practiceMode)은 qaMode를 같이 켜 두지만 고른 막의 실제 억제 배율을
+    // 써야 "난이도 선택"이 의미가 있다. 평범한 QA 패널 검수는 그대로 배율 1로 고정한다.
+    this.suppressionMultiplier = run?.active && (!run?.qaMode || run?.practiceMode) ? run.suppressionMultiplier : 1;
     this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
     this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).

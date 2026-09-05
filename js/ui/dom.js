@@ -14,6 +14,11 @@ const UI = Object.freeze({
   mainCodexButton: document.querySelector("#main-codex-button"),
   mainSoundButton: document.querySelector("#main-sound-button"),
 
+  /* 기록 접속(새로 시작) 확인 — 진행 중인 기록을 지우기 전에 한 번 되묻는다. */
+  newRunConfirmModal: document.querySelector("#new-run-confirm-modal"),
+  newRunConfirmButton: document.querySelector("#new-run-confirm-button"),
+  newRunCancelButton: document.querySelector("#new-run-cancel-button"),
+
   /*
    * QA 모드(js/ui/qa-mode.js) — 검수용 뒷문.
    * #qa-unlock은 메인 화면의 "2026 ARCHIVE" 글자다(빠르게 10번 누르면 열린다).
@@ -98,6 +103,11 @@ const UI = Object.freeze({
   codexTabs: document.querySelectorAll("[data-codex-tab]"),
   codexMemesTab: document.querySelector("#codex-tab-memes"),
   codexCloseButton: document.querySelector("#codex-close-button"),
+
+  /* 기록실 연습 난이도 선택 — js/ui/practice-flow.js가 도감의 열린 칸 클릭을 받아 연다. */
+  practiceDifficultyModal: document.querySelector("#practice-difficulty-modal"),
+  practiceDifficultyButtons: document.querySelectorAll("#practice-difficulty-modal button[data-act]"),
+  practiceDifficultyCancelButton: document.querySelector("#practice-difficulty-cancel"),
 
   settingsBackdrop: document.querySelector("#settings-modal"),
   settingsDialog: document.querySelector("#settings-dialog"),

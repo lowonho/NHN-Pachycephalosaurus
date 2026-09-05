@@ -46,7 +46,7 @@ const CODEX_LOCK_ICON = `
 /* 탭마다 발치에 적는 한 줄 — 이 화면이 지금 무엇을 세고 있는지 말한다. */
 const CODEX_HINTS = {
   memes: "현재 기록된 밈을 한 칸씩 확인할 수 있습니다.",
-  minigames: "한 번이라도 플레이한 미니게임이 열립니다.",
+  minigames: "한 번이라도 플레이한 미니게임이 열립니다. 열린 칸을 누르면 난이도를 골라 바로 연습할 수 있습니다.",
 };
 
 class CodexFlow {
@@ -195,6 +195,12 @@ class CodexFlow {
     card.className = "codex-card";
     card.dataset.stageId = stage.id;
     card.dataset.discovered = String(discovered);
+    /* 열린 칸은 눌러서 바로 연습할 수 있다(js/ui/practice-flow.js가 클릭·Enter/Space를 듣는다). */
+    if (discovered) {
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", `${stage.title} 연습하기`);
+    }
 
     const head = document.createElement("div");
     head.className = "codex-card-head";

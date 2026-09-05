@@ -203,6 +203,22 @@
   filter: saturate(0.25);
 }
 
+/*
+ * 열린 미니게임 칸은 눌러서 바로 연습할 수 있다(js/ui/practice-flow.js).
+ * 밈 기록 칸(.codex-card--meme)은 클릭 기능이 없으므로 여기서 제외한다.
+ */
+.codex-grid[data-view="minigames"] .codex-card[data-discovered="true"] {
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.codex-grid[data-view="minigames"] .codex-card[data-discovered="true"]:hover,
+.codex-grid[data-view="minigames"] .codex-card[data-discovered="true"]:focus-visible {
+  border-color: var(--codex-line);
+  transform: translateY(-2px);
+  outline: none;
+}
+
 .codex-card-head {
   display: flex;
   align-items: center;

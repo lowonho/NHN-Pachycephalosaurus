@@ -6,13 +6,20 @@ export const LIVES_PER_ACT = 3;
 export const STORY_RECORD_COUNT = ACT_COUNT * STAGES_PER_ACT;
 export const RUN_STORAGE_KEY = 'archive-2026-story-run-v3';
 
-export function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random) {
+function moveStageAwayFromFirst(selection, previousStageId) {
+  if (!previousStageId || selection[0] !== previousStageId) return selection;
+  const swapIndex = selection.findIndex((id, index) => index > 0 && id !== previousStageId);
+  if (swapIndex > 0) [selection[0], selection[swapIndex]] = [selection[swapIndex], selection[0]];
+  return selection;
+}
+
+export function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random, previousStageId = null) {
   const bag = [...new Set(ids)];
   for (let i = bag.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [bag[i], bag[j]] = [bag[j], bag[i]];
   }
-  return bag.slice(0, Math.min(count, bag.length));
+  return moveStageAwayFromFirst(bag.slice(0, Math.min(count, bag.length)), previousStageId);
 }
 
 function makeGrid(value = false) {
@@ -48,6 +55,11 @@ export function createArchiveRunState(stageIds, options = {}) {
     remainingMs: stageTimeMs,
     transition: null,
     qaMode: false,
+    // 기록실에서 "난이도 선택 후 바로 플레이"로 들어온 판인지. qaMode를 함께 켜서
+    // setSelection과 같은 격리(임의 스테이지 선택·이야기 진행 건드리지 않음)를 그대로
+    // 물려받되, 이 값이 참일 때만 엔진이 currentAct의 실제 억제 배율을 쓴다
+    // (평범한 QA 패널 검수는 그대로 배율 1로 고정한다).
+    practiceMode: false,
   });
 
   let state = blank();
@@ -77,6 +89,7 @@ export function createArchiveRunState(stageIds, options = {}) {
         elapsedMs: 0,
         remainingMs: stageTimeMs,
         qaMode: false,
+        practiceMode: false,
       };
     }
   } catch { /* 손상되거나 사용할 수 없는 저장소는 새 상태로 대체한다. */ }
@@ -105,9 +118,9 @@ export function createArchiveRunState(stageIds, options = {}) {
     return (actSeed ^ Math.imul(state.currentStageInAct, 0x9e3779b1) ^ hash) >>> 0;
   };
 
-  const selectAct = (actIndex) => {
+  const selectAct = (actIndex, previousStageId = null) => {
     state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
-    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random);
+    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random, previousStageId);
   };
 
   const snapshot = () => {
@@ -155,6 +168,7 @@ export function createArchiveRunState(stageIds, options = {}) {
       transition: state.transition,
       ending: state.finished ? 'shared' : null,
       qaMode: state.qaMode,
+      practiceMode: state.practiceMode,
     };
   };
 
@@ -182,6 +196,7 @@ export function createArchiveRunState(stageIds, options = {}) {
       if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
       state.active = true;
       state.qaMode = true;
+      state.practiceMode = false;
       state.currentAct = 1;
       state.currentStageInAct = 1;
       state.selectedGames[0] = next;
@@ -191,10 +206,36 @@ export function createArchiveRunState(stageIds, options = {}) {
       state.transition = null;
       return snapshot();
     },
+    /*
+     * 기록실에서 스테이지 하나를 고른 난이도(막)로 바로 연습한다. setSelection과 같은
+     * 격리를 쓰되(qaBackup에 진짜 진행을 담아 두고 exitQa로 되돌린다) 막을 1로
+     * 고정하지 않고 고른 난이도를 그대로 currentAct에 넣는다 — suppressionMultiplier와
+     * e1·e8의 막별 연출이 모두 currentAct를 보므로 이거 하나로 난이도가 실제로 갈린다.
+     * practiceMode만 별도로 켜 두는 이유는, 평범한 QA 패널 검수(setSelection)는 여전히
+     * 배율 1로 고정해야 해서 qaMode 하나만으로는 두 경우를 가를 수 없기 때문이다.
+     */
+    startPractice(stageId, act = 2) {
+      if (!ids.includes(stageId)) throw new RangeError(`Unknown stage: ${stageId}`);
+      const actIndex = Math.min(ACT_COUNT, Math.max(1, Math.round(act) || 1)) - 1;
+      if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
+      state.active = true;
+      state.qaMode = true;
+      state.practiceMode = true;
+      state.currentAct = actIndex + 1;
+      state.currentStageInAct = 1;
+      state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
+      state.selectedGames[actIndex] = [stageId];
+      state.currentStageId = null;
+      state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
+      state.phase = 'menu';
+      state.transition = null;
+      return snapshot();
+    },
     exitQa() {
       if (qaBackup) state = qaBackup;
       qaBackup = null;
       state.qaMode = false;
+      state.practiceMode = false;
       state.paused = false;
       state.phase = 'menu';
       state.currentStageId = null;
@@ -253,13 +294,14 @@ export function createArchiveRunState(stageIds, options = {}) {
         if (state.lives > 0) {
           state.transition = 'retry';
         } else {
+          const previousStageId = state.currentStageId || expectedStageId();
           const actIndex = state.currentAct - 1;
           state.actAttemptCount[actIndex] += 1;
           state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
           state.currentStageInAct = 1;
           state.currentStageId = null;
           state.lives = LIVES_PER_ACT;
-          selectAct(actIndex);
+          selectAct(actIndex, previousStageId);
           if (state.currentAct === 1 && state.actAttemptCount[0] >= 4) state.assistProtocolAct1 = true;
           state.transition = 'act-restarted';
         }
@@ -271,10 +313,13 @@ export function createArchiveRunState(stageIds, options = {}) {
       const transition = state.transition;
       if (transition === 'next-stage') state.currentStageInAct += 1;
       else if (transition === 'next-act') {
+        const previousStageId = state.currentStageId || expectedStageId();
         state.currentAct += 1;
         state.currentStageInAct = 1;
         state.lives = LIVES_PER_ACT;
-        if (!state.selectedGames[state.currentAct - 1].length) selectAct(state.currentAct - 1);
+        const actIndex = state.currentAct - 1;
+        if (!state.selectedGames[actIndex].length) selectAct(actIndex, previousStageId);
+        else moveStageAwayFromFirst(state.selectedGames[actIndex], previousStageId);
       } else if (transition === 'ending') {
         state.archiveEntries = state.selectedGames.flatMap((selection, actIndex) => selection.map((gameId, slotIndex) => ({
           recordId: `A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`,

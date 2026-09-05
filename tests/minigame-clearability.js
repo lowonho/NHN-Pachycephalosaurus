@@ -19,7 +19,7 @@
     // 코스 간격은 속도에 따라 달라지므로 반응 거리도 속도에서 뽑습니다.
     // 가시는 묶음마다 두 개씩 붙어 있으므로 묶음 번호로 묶어 한 번만 반전합니다.
     const next = scene.hurdles.find(h => h.x - s.x > -15), gate = next && Math.round((next.x - lead) / gateGap);
-    if (next && next.x - s.x < scene.stageGame.tuning.speed * .386 && !flippedGates.has(gate)) { flippedGates.add(gate); scene.primaryAction(); }
+    if (next && next.x - s.x < scene.stageTuning.speed * .386 && !flippedGates.has(gate)) { flippedGates.add(gate); scene.primaryAction(); }
   }); save('e1');
   load('e2'); driveE2(); save('e2');
   load('e3');

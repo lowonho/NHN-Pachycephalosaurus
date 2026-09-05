@@ -47,13 +47,21 @@ class ModalFlow {
   showResult(success, { stage, elapsed = 0, actions = 0, extra = '', run, record } = {}) {
     this.open();
     this.failureResult = !success;
-    const qa = Boolean(globalThis.ARCHIVE_QA?.active || run?.qaMode);
-    if (qa) {
+    /*
+     * QA 패널 검수와 기록실 연습(practiceMode)은 둘 다 qaMode를 켜 둔 임의 스테이지
+     * 진입이라 화면 흐름(REQUEST_STAGE_SELECT로 돌아감)은 같지만, 연습은 실제
+     * 플레이어가 쓰는 기능이라 "QA" 용어 대신 "연습"으로 부른다.
+     */
+    const qaPanel = Boolean(globalThis.ARCHIVE_QA?.active);
+    const practice = Boolean(!qaPanel && run?.practiceMode);
+    if (qaPanel || practice) {
       this.ui.modalStep.textContent = `${stage.id.toUpperCase()} / ${success ? 'CLEAR' : 'RETRY'}`;
-      this.ui.modalTitle.textContent = success ? 'QA 클리어' : 'QA 재도전';
+      this.ui.modalTitle.textContent = qaPanel
+        ? (success ? 'QA 클리어' : 'QA 재도전')
+        : (success ? '연습 클리어' : '연습 재도전');
       this.ui.modalCopy.textContent = success ? `${stage.title} · ${elapsed.toFixed(2)}초` : (extra || '제한시간 안에 목표를 달성하지 못했습니다.');
       this.ui.modalResult.textContent = `${stage.actionLabel} ${actions}회`;
-      this.ui.primaryButton.textContent = 'QA 패널로';
+      this.ui.primaryButton.textContent = qaPanel ? 'QA 패널로' : '기록실로';
       this.ui.secondaryButton.hidden = false;
       this.ui.secondaryButton.textContent = '다시하기 (R)';
       this.nextEvent = GAME_EVENTS.REQUEST_STAGE_SELECT;

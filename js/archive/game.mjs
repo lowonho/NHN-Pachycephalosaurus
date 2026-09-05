@@ -100,7 +100,9 @@ class ArchiveGame extends Phaser.Scene {
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
     const run = window.archiveRun?.snapshot();
-    this.suppressionMultiplier = run?.active && !run?.qaMode ? run.suppressionMultiplier : 1;
+    // 기록실 연습(practiceMode)은 qaMode를 같이 켜 두지만 고른 막의 실제 억제 배율을
+    // 써야 "난이도 선택"이 의미가 있다. 평범한 QA 패널 검수는 그대로 배율 1로 고정한다.
+    this.suppressionMultiplier = run?.active && (!run?.qaMode || run?.practiceMode) ? run.suppressionMultiplier : 1;
     this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
     this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).

@@ -19,6 +19,15 @@ const BRIEF_NOTE = "Enter · Space로 시작 / Esc로 일시정지";
 /* 전원 연출 길이(ms). css/protocol-select.css의 .protocol-power 애니메이션과 같은 값이다. */
 const POWER_ON_MS = 980;
 
+/*
+ * 이번 판(기록 접속으로 새로 시작한 이후)에 브리핑을 이미 보여준 스테이지 id 목록.
+ * js/archive/plays.mjs의 archivePlays(도감용, 영원히 유지)와는 성격이 다르다 —
+ * 저기는 "만나 본 적 있는가"를 평생 기억해야 하지만, 여기는 "이번 기록 접속부터
+ * 지금까지 브리핑을 봤는가"만 필요해서 새로 시작할 때마다 비워야 한다.
+ * 그래도 "이어하기"로 다시 들어왔을 때는 유지돼야 하므로 세션이 아니라 localStorage에 둔다.
+ */
+const BRIEFED_STAGES_KEY = "archive-2026-briefed-stages-v1";
+
 class ProtocolSelectFlow {
   constructor(events, dom, soundBus, strings, cutscene) {
     this.events = events;
@@ -50,6 +59,12 @@ class ProtocolSelectFlow {
     this.catalog = PROTOCOLS;
     this.stages = [];
     this.warnHandle = 0;
+
+    this.briefedStages = new Set();
+    try {
+      const saved = JSON.parse(localStorage.getItem(BRIEFED_STAGES_KEY) || "[]");
+      if (Array.isArray(saved)) for (const id of saved) this.briefedStages.add(id);
+    } catch { /* 저장이 깨져 있어도 브리핑 자체는 열려야 한다 */ }
 
     this.events.on(GAME_EVENTS.STAGE_CLEAR, () => this.render());
     this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.render());
@@ -112,12 +127,24 @@ class ProtocolSelectFlow {
 
     // 새 막이면 여기서 모니터에 불이 들어온다(같은 막 안 기록 이동에는 켜지 않는다).
     this.powerOnForAct(snapshot);
+    this.markBriefed(stageId);
     this.openBrief(stageId);
   }
 
+  /*
+   * 이번 기록 접속(=이번 판)에서 이 스테이지의 브리핑을 이미 보여줬는지.
+   * "기록 접속"으로 새로 시작하면 reset()이 이 기록을 비우므로, 예전에 다른 판에서
+   * 플레이해 본 게임이라도 새 판에서는 다시 한 번 브리핑을 보게 된다.
+   */
   hasSeenGame(stageId, snapshot = window.archiveRun?.snapshot()) {
     if (snapshot?.qaMode || globalThis.ARCHIVE_QA?.active) return false;
-    return Boolean(window.archivePlays?.has(stageId));
+    return this.briefedStages.has(stageId);
+  }
+
+  markBriefed(stageId) {
+    if (this.briefedStages.has(stageId)) return;
+    this.briefedStages.add(stageId);
+    try { localStorage.setItem(BRIEFED_STAGES_KEY, JSON.stringify([...this.briefedStages])); } catch { /* 이번 판 안에서만 기억해도 된다 */ }
   }
 
   /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
@@ -209,9 +236,15 @@ class ProtocolSelectFlow {
     if (playing) window.archivePhaserGame?.scale?.refresh();
   }
 
-  /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
+  /*
+   * 한 판을 접는다 — "기록 접속"으로 새로 시작할 때 부른다.
+   * 브리핑 기록도 함께 비워서, 예전 판에서 만나 본 게임이라도 이번 새 판에서는
+   * 다시 한 번 브리핑을 보게 한다(도감용 archivePlays는 건드리지 않는다).
+   */
   reset() {
     const snapshot = window.archiveRun?.startNew();
+    this.briefedStages.clear();
+    try { localStorage.removeItem(BRIEFED_STAGES_KEY); } catch { /* 다음 markBriefed가 다시 채운다 */ }
     this.syncRun();
     this.events.emit(GAME_EVENTS.RUN_RESET, snapshot);
     return snapshot;

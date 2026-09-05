@@ -141,6 +141,21 @@
     </div>
 
     <!--
+      기록 접속 확인 — 진행 중인 기록이 있을 때만 뜬다(js/ui/main-menu-flow.js).
+      새로 시작하면 이번 판의 막·기억·기록이 지워지므로 실수로 지우지 않게 한 번 되묻는다.
+      판 규격은 결과·일시정지 다이얼로그와 같은 css/modal.css의 .modal을 그대로 쓴다.
+    -->
+    <div class="modal-backdrop hidden" id="new-run-confirm-modal">
+      <section class="modal" aria-labelledby="new-run-confirm-title" role="dialog" aria-modal="true">
+        <p class="modal-step">기록 접속</p>
+        <h2 id="new-run-confirm-title">새로 시작할까요?</h2>
+        <p>기존에 플레이 하던 기록이 있다면, 저장된 데이터는 삭제됩니다.<br />새로 시작하시겠습니까?</p>
+        <button class="primary-button" id="new-run-confirm-button" type="button">새로 시작</button>
+        <button class="secondary-button" id="new-run-cancel-button" type="button">취소</button>
+      </section>
+    </div>
+
+    <!--
       컷신 — assets/images/concept/cutscene.png의 UI 배치를 따른다.
       "게임 시작"을 누르면 스테이지 선택 앞에 한 번 나오고, 끝나거나 SKIP하면 스테이지 선택으로 넘어간다.
 
@@ -788,6 +803,26 @@
     </div>
 
     <!--
+      기록실 연습 난이도 선택 — 도감에서 열린(플레이해 본) 미니게임 칸을 누르면 뜬다
+      (js/ui/practice-flow.js). 고른 막의 실제 속도·판정 기준으로 그 미니게임 하나만
+      바로 플레이한다. 이야기 진행(막·기억·기록)은 건드리지 않고 끝나면 기록실로 돌아온다.
+      .modal-backdrop이 기록실(z-index 40)보다 위(50)라 그 위에 그대로 겹쳐 뜬다.
+    -->
+    <div class="modal-backdrop hidden" id="practice-difficulty-modal">
+      <section class="modal" aria-labelledby="practice-difficulty-title" role="dialog" aria-modal="true">
+        <p class="modal-step">기록실 연습</p>
+        <h2 id="practice-difficulty-title">난이도를 골라 주세요</h2>
+        <p>고른 막의 속도·판정 기준으로 이 미니게임을 바로 플레이합니다.<br />기록은 그대로 저장되지만 이야기 진행에는 영향을 주지 않습니다.</p>
+        <div class="practice-difficulty-options">
+          <button class="secondary-button" type="button" data-act="1">1막 · 쉬움</button>
+          <button class="secondary-button" type="button" data-act="2">2막 · 보통</button>
+          <button class="secondary-button" type="button" data-act="3">3막 · 어려움</button>
+        </div>
+        <button class="secondary-button" id="practice-difficulty-cancel" type="button">취소</button>
+      </section>
+    </div>
+
+    <!--
       QA 모드 — 검수용 뒷문. 메인 화면 왼쪽 위 "2026 ARCHIVE"를 빠르게 10번 누르면 열린다.
 
       세 가지를 한다.
@@ -947,6 +982,8 @@
     <script src="js/ui/pause-flow.js"></script>
     <!-- QA 모드는 위 화면들을 모두 부르므로 마지막이다(결과 화면의 되돌아갈 곳도 여기서 덮는다). -->
     <script src="js/ui/qa-mode.js"></script>
+    <!-- 기록실 연습 — QA 모드와 같은 이유로 그 바로 뒤. 도감·브리핑을 모두 부른다. -->
+    <script src="js/ui/practice-flow.js"></script>
     <script src="js/game.js"></script>
     <!--
       ES modules are kept as the source/test files, while this generated classic
