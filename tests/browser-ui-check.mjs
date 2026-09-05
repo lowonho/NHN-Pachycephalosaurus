@@ -31,7 +31,10 @@ socket.addEventListener("message", (event) => {
   }
   if (message.method === "Log.entryAdded" && message.params.entry.level === "error") {
     const entry = message.params.entry;
-    browserErrors.push(`${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
+    // 격리된 테스트 환경에서 외부 웹폰트만 막힌 경우는 게임 실행 오류가 아니다.
+    const optionalFontBlocked = entry.text.includes("Failed to load resource")
+      && /(?:cdn\.jsdelivr\.net|projectnoonnu\/noonfonts)/.test(entry.url || "");
+    if (!optionalFontBlocked) browserErrors.push(`${entry.text}${entry.url ? ` (${entry.url})` : ""}`);
   }
   if (message.method === "Runtime.consoleAPICalled" && message.params.type === "error") {
     browserErrors.push(message.params.args.map((argument) => argument.value || argument.description).join(" "));

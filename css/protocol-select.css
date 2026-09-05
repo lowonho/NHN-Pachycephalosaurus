@@ -2,18 +2,41 @@
  * A(비주얼) 전용 — 프로토콜 선택 화면(옛 스테이지 선택).
  * 배치 기준: assets/images/concept/stage select.png
  *   1인칭으로 마주 보는 모니터 한 대. 그 스크린 안에
- *   표제 → 안내 문구 + 남은 시간 → 프로토콜 앱 타일 7개 → 하단 바 순서로 쌓인다.
+ *   표제 → 안내 문구 → 프로토콜 앱 타일 7개 → 하단 바 순서로 쌓인다.
  *
  * 컨셉 이미지와 다른 점.
  *   · 좌우 화살표로 넘기는 캐러셀이 아니다. 7개를 한 화면에 모두 편다.
  *   · 카드의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 그리지 않는다.
- *   · 안내 문구는 한 줄만 왼쪽에 붙이고, 같은 가로 라인 오른쪽에 빨간 2:26 타이머가 온다.
+ *   · 안내 문구는 한 줄만 왼쪽에 붙인다.
+ *   · 남은 복구 시간(2:23)은 스크린 안이 아니라 책상 위 탁상시계에 있다 —
+ *     플레이 중에도 보여야 하는 숫자라 스크린 밖으로 뺐다.
  *
- * 방·책상·모니터 몸체는 전부 CSS 도형이다. 배경 일러스트 에셋을 쓰지 않는다.
+ * 방·책상·소품(머그·포스트잇·메모·시계 몸체)·키보드·양손은 에셋이다
+ * (assets/images/ui/stage select/*). 모니터 몸체와 스크린 안쪽만 CSS로 그린다.
  * 크기는 전부 1920×1080 설계 좌표(px)다 — css/base.css의 "UI 배율 규칙"을 따른다.
  */
 
 .stage-select-screen {
+  /*
+   * ── 모니터 스크린 크기 ────────────────────────────────────────────
+   * 이 숫자 하나가 스크린 · 모니터 몸체 · HUD 배율을 전부 정한다.
+   *
+   * 스크린은 반드시 16:9다. 스크린이 곧 게임 화면이라
+   * 비율이 어긋나면 Phaser(960×540 · Scale.FIT)가 레터박스 띠를 만든다.
+   * 그래서 높이와 배율은 폭에서 계산으로 뽑는다 — 따로 적지 않는다.
+   *
+   * 에셋(책상 · 키보드 · 손)이 아래를 채우게 되면서 예전(1440)보다 줄였다.
+   */
+  --screen-w-num: 1392;
+  --screen-w: calc(var(--screen-w-num) * 1px);
+  --screen-h: calc(var(--screen-w) * 9 / 16);
+  --screen-scale: calc(var(--screen-w-num) / 1920);
+
+  /* 베젤 — 좌우·위 16px, 아래 턱 42px. */
+  --bezel: 16px;
+  --bezel-chin: 42px;
+  --monitor-top: 28px;
+
   /* 프로토콜 선택 전용 팔레트 — 컷신과 같은 시안 홀로그램 톤. */
   --pro-line: #57e8ff;
   --pro-line-soft: rgba(87, 232, 255, 0.26);
@@ -50,46 +73,182 @@
   transform-origin: center center;
 }
 
-/* ── 방 ────────────────────────────────────────────────────────────── */
+/* ── 장면 에셋 ─────────────────────────────────────────────────────── */
 
-.protocol-room {
+/*
+ * assets/images/ui/stage select/* 를 1920×1080 설계 좌표 위에 얹는다.
+ * 배치 기준은 assets/images/concept/stage select.png.
+ *
+ * 층 순서는 z-index로 못 박는다. 마크업 순서만으로는 안 되는데,
+ * 스크린 안쪽 레이어(HUD 10 · 다이얼로그 20 · 주사선 30)가 프레임까지 올라와
+ * 책상·키보드·손 위로 튀어나오기 때문이다. .protocol-monitor에 z-index를 주면
+ * 거기서 쌓임 맥락이 끊겨 스크린 안쪽 숫자가 밖으로 새지 않는다.
+ *
+ * 위치는 전부 에셋의 실제 불투명 영역을 재서 잡은 값이다.
+ *   책상  불투명 시작 = 높이의 67.7%  → 책상 윗변이 y 900에 오도록 맞췄다
+ *   양손  불투명 시작 = 높이의 28.3%  → 손끝이 y 935(키보드 윗줄)에 오도록 맞췄다
+ */
+.scene-layer {
   position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(120% 78% at 50% -12%, rgba(31, 92, 255, 0.3), transparent 62%),
-    radial-gradient(58% 46% at 6% 30%, rgba(87, 232, 255, 0.12), transparent 70%),
-    radial-gradient(58% 46% at 94% 34%, rgba(255, 95, 111, 0.09), transparent 70%),
-    #03071a;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
 }
 
-/* 창밖 도시 실루엣 대신 아주 옅은 격자 하나만 둔다. */
-.protocol-room::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.5;
-  background:
-    repeating-linear-gradient(90deg, rgba(87, 232, 255, 0.05) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(0deg, rgba(87, 232, 255, 0.04) 0 1px, transparent 1px 96px);
+/* 방(배경) — 프레임과 같은 16:9라 잘리는 곳 없이 딱 맞는다. */
+.scene-room {
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  object-fit: cover;
+}
+
+/*
+ * 책상 — 좌우와 아래로 넘겨 잘리게 둔다(1인칭 시점).
+ * 모니터 기둥은 이 판이 가린다. 윗변 = 132 + 1134 × 0.677 ≈ 900.
+ */
+.scene-desk {
+  z-index: 2;
+  top: 132px;
+  left: -48px;
+  width: 2016px;
+}
+
+/* 왼쪽 아래 메모 — 아래로 잘린다. */
+.scene-memo {
+  z-index: 3;
+  top: 920px;
+  left: 40px;
+  width: 330px;
+}
+
+/* 머그컵 — 왼쪽 가장자리로 잘리고 모니터 왼쪽 아래 모서리를 살짝 가린다. */
+.scene-mug {
+  z-index: 4;
+  top: 706px;
+  left: -46px;
+  width: 330px;
+}
+
+/* 포스트잇 — 모니터 오른쪽 베젤에 살짝 걸친다. */
+.scene-postit {
+  z-index: 5;
+  top: 352px;
+  left: 1648px;
+  width: 246px;
+}
+
+/* 키보드 — 아래로 잘린다. 손보다 살짝 넓다. */
+.scene-keyboard {
+  z-index: 7;
+  top: 914px;
+  left: 320px;
+  width: 1280px;
+}
+
+/*
+ * 양손 — 키보드 위에 얹히고 아래로 잘린다. 팔뚝은 화면 밖에서 끝난다.
+ * 좌우를 따로 두는 이유는 입력에 따라 각각 움직여야 해서다(js/ui/desk-hands.js).
+ * 좌표는 합쳐진 원본 한 장을 놓았을 때와 같은 자리다.
+ */
+.scene-hand {
+  z-index: 8;
+  /* 손목이 회전 중심이다. 팔뚝이 빠져나가는 아래쪽 바깥 모서리 근처에 둔다. */
+  transform-origin: 22% 96%;
+  will-change: transform;
+}
+
+.scene-hand--left {
+  top: 935px;
+  left: 350px;
+  width: 522px;
+}
+
+.scene-hand--right {
+  top: 941px;
+  left: 1051px;
+  width: 519px;
+  transform-origin: 78% 96%;
+}
+
+/*
+ * 타자 — 아무 키나 눌려 있는 동안 양손이 함께 돈다.
+ * 손을 떼면 js가 data-typing을 지우고 손은 제자리에 선다.
+ *
+ * 한 주기에 두 번 짚는다. 내려찍기만 하면 제자리 방아처럼 보여서,
+ * 짚을 때마다 좌우로 조금씩 옮겨 가며 다른 키를 누르는 것처럼 만든다.
+ *   25%  바깥쪽으로 짚는다
+ *   75%  안쪽으로 짚는다
+ *
+ * 두 손은 서로 엇갈려야 한다. 주기가 같고 오른손만 1/4주기 앞에서 시작하므로
+ * (음수 delay) 왼손이 짚는 사이사이에 오른손이 짚는다.
+ * 주기를 다르게 주면 두 손이 같이 내려찍는 순간이 생겨 어색해진다.
+ */
+.scene-hand[data-typing] {
+  animation: desk-hand-tap-left 480ms ease-in-out infinite;
+}
+
+.scene-hand--right[data-typing] {
+  animation: desk-hand-tap-right 480ms ease-in-out infinite -120ms;
+}
+
+@keyframes desk-hand-tap-left {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  25% {
+    transform: translate(-7px, 6px) rotate(1deg);
+  }
+
+  50% {
+    transform: translate(0, 1px) rotate(0deg);
+  }
+
+  75% {
+    transform: translate(6px, 6px) rotate(-0.7deg);
+  }
+}
+
+/* 오른손은 좌우를 뒤집는다 — 바깥쪽이 반대라서다. */
+@keyframes desk-hand-tap-right {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  25% {
+    transform: translate(7px, 6px) rotate(-1deg);
+  }
+
+  50% {
+    transform: translate(0, 1px) rotate(0deg);
+  }
+
+  75% {
+    transform: translate(-6px, 6px) rotate(0.7deg);
+  }
 }
 
 /* ── 모니터 ────────────────────────────────────────────────────────── */
 
 /*
  * 베젤. 아래쪽만 두껍게(턱) 잡아 2026 마크가 앉을 자리를 만든다.
+ * 크기는 --screen-w 하나에서 나온다(파일 위쪽 참고) — 여기서 px을 새로 적지 않는다.
  *
- * 안쪽 스크린 = (1472 - 32) × (868 - 16 - 42) = 1440 × 810 — 정확히 16:9다.
- * 이 비율은 임의로 바꾸지 않는다. 스크린이 곧 게임 화면이라서,
- * 16:9가 아니면 Phaser(960×540 · Scale.FIT)가 레터박스 띠를 만든다.
- * 크기를 바꿀 때는 --screen-scale(= 스크린 폭 / 1920)도 같이 맞춘다.
+ * z-index가 필요한 이유는 .scene-layer 주석에 적어 두었다.
  */
 .protocol-monitor {
   position: absolute;
-  top: 44px;
-  left: 224px;
-  width: 1472px;
-  height: 868px;
-  padding: 16px 16px 42px;
+  z-index: 1;
+  top: var(--monitor-top);
+  left: calc((1920px - var(--screen-w) - var(--bezel) * 2) / 2);
+  width: calc(var(--screen-w) + var(--bezel) * 2);
+  height: calc(var(--screen-h) + var(--bezel) + var(--bezel-chin));
+  padding: var(--bezel) var(--bezel) var(--bezel-chin);
   border-radius: 18px;
   background: linear-gradient(180deg, #1b2331, #0d1119 42%, #090c13);
   box-shadow:
@@ -113,50 +272,103 @@
   text-indent: 0.36em;
 }
 
-.protocol-stand-neck {
+/*
+ * 모니터 기둥. 모니터 밑변에서 책상 윗변(y 900)까지만 보이고
+ * 나머지는 책상 에셋이 가린다 — 그래서 받침은 그리지 않는다.
+ */
+.protocol-stand {
   position: absolute;
-  top: 912px;
+  z-index: 1;
+  top: calc(var(--monitor-top) + var(--screen-h) + var(--bezel) + var(--bezel-chin));
   left: 50%;
-  width: 196px;
-  height: 60px;
+  width: 190px;
+  height: 90px;
   transform: translateX(-50%);
   background: linear-gradient(90deg, #0a0d14, #1b2331 42%, #0a0d14);
 }
 
-.protocol-stand-base {
+/* ── 탁상시계 ──────────────────────────────────────────────────────── */
+
+/*
+ * 컨셉 이미지의 책상 위 시계. 복구 프로토콜 전체 제한시간(2:23)을 1/100초까지 띄운다.
+ *
+ * 모니터 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 계속 보인다.
+ * 남은 복구 시간을 보여 주는 곳은 여기 하나뿐이다(스크린 안에는 두지 않는다).
+ *
+ * 몸체는 에셋이고 유리판은 비어 있다. 숫자만 그 위에 얹는다.
+ */
+.desk-clock {
   position: absolute;
-  top: 966px;
-  left: 50%;
-  width: 460px;
-  height: 26px;
-  border-radius: 6px;
-  transform: translateX(-50%);
-  /* 밑변이 넓은 사다리꼴 — 위에서 내려다보는 각도를 흉내 낸다. */
-  clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%);
-  background: linear-gradient(180deg, #232c3c, #0c1018);
+  z-index: 6;
+  top: 894px;
+  left: 1596px;
+  width: 304px;
 }
 
-/* ── 책상 ──────────────────────────────────────────────────────────── */
-
-.protocol-desk {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 88px;
-  border-top: 1px solid rgba(87, 232, 255, 0.16);
-  background: linear-gradient(180deg, #0a1327 0%, #050a17 70%, #03060f 100%);
+.desk-clock-body {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
 }
 
-/* 스크린 빛이 책상 위로 쏟아지는 자리. */
-.protocol-desk::before {
-  content: "";
+/*
+ * LED 유리판 자리 — 06_front_blank_clock_2k.png(1854×678)에서 잰 값이다.
+ *   left 5.39% · top 25.96% · width 75.84% · height 55.16%
+ * 몸체 폭에 대한 %라서 시계 크기를 바꿔도 숫자가 유리판 밖으로 나가지 않는다.
+ */
+.desk-clock-face {
   position: absolute;
-  top: -46px;
-  right: 240px;
-  left: 240px;
-  height: 92px;
-  background: radial-gradient(60% 100% at 50% 100%, rgba(87, 232, 255, 0.16), transparent 72%);
+  top: 25.96%;
+  left: 5.39%;
+  display: grid;
+  width: 75.84%;
+  height: 55.16%;
+  margin: 0;
+  place-items: center;
+}
+
+/* baseline 정렬이라 작은 1/100초 자리가 초 숫자의 밑줄에 맞는다. */
+.desk-clock-time {
+  display: flex;
+  align-items: baseline;
+  color: var(--pro-alarm);
+  font: 900 44px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 16px rgba(255, 59, 82, 0.85);
+}
+
+.desk-clock-sep {
+  opacity: 0.72;
+}
+
+/* 1/100초는 한 단계 작게 — 분·초를 먼저 읽게 한다. */
+.desk-clock-centis {
+  font-size: 28px;
+  opacity: 0.9;
+}
+
+/* 30초 아래로 떨어지면 깜빡인다. */
+.desk-clock[data-state="urgent"] .desk-clock-time {
+  animation: desk-clock-pulse 820ms ease-in-out infinite;
+}
+
+@keyframes desk-clock-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.42;
+  }
+}
+
+/* 7개를 전부 복구하면 시계를 세우고 경보색을 푼다. */
+.desk-clock[data-state="done"] .desk-clock-time {
+  color: #ffd9de;
+  text-shadow: 0 0 16px rgba(255, 217, 222, 0.8);
 }
 
 /* ── 스크린 ────────────────────────────────────────────────────────── */
@@ -165,13 +377,14 @@
  * 스크린 한 장(1440×810). 프로토콜 선택(.protocol-desktop)과
  * 플레이(.app-shell)가 이 안에서 자리를 바꾼다 — data-mode가 정한다.
  *
- * --screen-scale = 1440 / 1920. 스크린 안에 얹히는 1920×1080 설계 레이어
- * (지금은 .hud-layer 하나)를 이 배율로 줄인다. 바깥 --ui-scale은 .protocol-frame이
- * 이미 걸었으므로 여기서 또 곱하지 않는다.
+ * 스크린 안에 얹히는 1920×1080 설계 레이어(.hud-layer · .screen-overlays)는
+ * --screen-scale로 줄인다. 그 값은 파일 위쪽 .stage-select-screen에서 --screen-w로부터
+ * 계산되므로 여기서 다시 적지 않는다 — 적어 두면 스크린 폭을 바꿔도 따라오지 않아
+ * HUD만 스크린 밖으로 삐져나간다.
+ *
+ * 바깥 --ui-scale은 .protocol-frame이 이미 걸었으므로 여기서 또 곱하지 않는다.
  */
 .protocol-screen {
-  --screen-scale: 0.75;
-
   position: relative;
   width: 100%;
   height: 100%;
@@ -190,7 +403,7 @@
   display: flex;
   flex-direction: column;
   inset: 0;
-  padding: 40px 52px 34px;
+  padding: 36px 46px 30px;
 }
 
 .protocol-screen[data-mode="play"] .protocol-desktop {
@@ -295,7 +508,7 @@
 }
 
 /*
- * ARCHIVE 복구 현황 — 표제 오른쪽. 판마다 0으로 돌아가는 2:26·RESTORED와 달리
+ * ARCHIVE 복구 현황 — 표제 오른쪽. 판마다 0으로 돌아가는 2:23·TESTIMONY와 달리
  * localStorage에 남는 누적 기록이라, 눈금(바코드) 옆에 계기판처럼 붙인다.
  * 채우는 쪽은 js/ui/protocol-select-flow.js의 renderArchive다.
  */
@@ -335,13 +548,10 @@
   opacity: 0.6;
 }
 
-/* ── 안내 문구 + 남은 시간 ─────────────────────────────────────────── */
+/* ── 안내 문구 ─────────────────────────────────────────────────────── */
 
+/* 안내 문구 한 줄. 남은 시간은 책상 위 탁상시계(.desk-clock)에만 있다. */
 .protocol-prompt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
   margin: 24px 0 22px;
 }
 
@@ -357,48 +567,15 @@
   text-shadow: 0 0 26px rgba(87, 232, 255, 0.28);
 }
 
-/*
- * 2:26 — 프로토콜 7개를 전부 복구해야 하는 전체 제한시간이다.
- * 0이 되면 복구 실패(#recovery-failed)로 넘어간다.
- */
-.protocol-timer {
-  flex: none;
-  margin: 0;
-  color: var(--pro-alarm);
-  font: 900 54px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.03em;
-  text-shadow: 0 0 28px rgba(255, 59, 82, 0.55);
-}
-
-/* 30초 아래로 떨어지면 깜빡인다. */
-.protocol-timer[data-state="urgent"] {
-  animation: protocol-timer-pulse 820ms ease-in-out infinite;
-}
-
-/* 7개를 전부 복구하면 시계를 세우고 색을 시안으로 돌린다. */
-.protocol-timer[data-state="done"] {
-  color: var(--pro-line);
-  text-shadow: 0 0 28px rgba(87, 232, 255, 0.5);
-}
-
-@keyframes protocol-timer-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.42;
-  }
-}
-
 /* ── 프로토콜 앱 타일 7개 ──────────────────────────────────────────── */
 
 /*
  * grid가 아니라 flex-wrap이다 — 마지막 줄(3개)이 가운데로 모여야
  * 데스크톱 아이콘 판처럼 보인다. grid는 남는 칸이 한쪽으로 몰린다.
- * (310×4 + 30×3 = 1330 ≤ 안쪽 폭 1336이라 첫 줄에 정확히 4개가 선다.)
+ *
+ * 첫 줄에 4개가 서야 한다 — 296×4 + 26×3 = 1262 ≤ 안쪽 폭 1300.
+ * 스크린 폭(--screen-w)을 줄이면 이 값도 같이 줄여야 한다. 넘치면 3+3+1로 접히면서
+ * 하단 바가 스크린 밖으로 밀려난다.
  */
 .stage-select-grid {
   display: flex;
@@ -406,13 +583,13 @@
   flex-wrap: wrap;
   align-content: center;
   justify-content: center;
-  gap: 30px;
+  gap: 26px;
 }
 
 .stage-select-card {
   display: flex;
-  width: 310px;
-  height: 206px;
+  width: 296px;
+  height: 200px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -455,7 +632,7 @@
 
 /*
  * 복구 완료 표시. 컨셉 이미지의 CLEAR율·LOCKED 배지가 아니라,
- * 2:26 안에 "전부" 복구했는지 세기 위한 최소 표식이다.
+ * 2:23 안에 "전부" 복구했는지 세기 위한 최소 표식이다.
  * 복구 전에도 자리는 잡아 둔다 — 안 그러면 타일 높이가 들썩인다.
  */
 .protocol-app-mark {
@@ -563,7 +740,7 @@
 
 /*
  * 하단 바 왼쪽 묶음 — 성격이 다른 두 숫자를 위아래로 쌓는다.
- *   RESTORED n / 7  이번 판(2:26) 안에서 복구한 개수. 판이 끝나면 0으로 돌아간다.
+ *   TESTIMONY n / 7  이번 판(2:23) 안에서 증언한 개수. 판이 끝나면 0으로 돌아간다.
  *   복구 등급 안내   그 아래 ARCHIVE 기록(누적)의 ◇/◆ 표식을 읽는 법.
  */
 .protocol-footer-status {

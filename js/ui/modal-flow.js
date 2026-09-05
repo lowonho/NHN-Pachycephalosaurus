@@ -1,4 +1,7 @@
-/* 스테이지 결과 → 기억 증언 → 중반 반전/엔딩을 잇는 결과 흐름. */
+/*
+ * 스테이지 성공 결과 → 기억 증언 → 중반 반전/엔딩을 잇는 흐름.
+ * 일반 스테이지 실패는 js/game.js에서 짧은 연출 뒤 자동 재구성한다.
+ */
 class ModalFlow {
   constructor(events, dom, strings, cutscene) {
     this.events = events;

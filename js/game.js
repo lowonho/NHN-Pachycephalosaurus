@@ -3,6 +3,9 @@
  * 게임 규칙은 js/archive/game.mjs가 담당하고, 이 파일은 화면 전환·일시정지·결과만 연결한다.
  */
 
+/* 죽고 나서 시작점으로 되감기까지의 틈. 죽음 연출이 보일 만큼만 짧게 둔다. */
+const RETRY_DELAY_MS = 420;
+
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
     this.events = events;
@@ -15,6 +18,7 @@ class ArchiveGameBridge {
     this.warningSent = false;
     this.pendingStageId = null;
     this.fragmentTipTimer = 0;
+    this.retryHandle = 0;
 
     window.addEventListener("archive-game-ready", (event) => this.onReady(event.detail));
     window.addEventListener("archive-hud", (event) => this.onHud(event.detail));
@@ -22,9 +26,10 @@ class ArchiveGameBridge {
     window.addEventListener("archive-play-time", (event) => this.onPlayTime(event.detail));
     window.addEventListener("archive-fragment-collected", () => this.onFragmentCollected());
     window.addEventListener("archive-wall-hit", () => {
+      // 중앙 정렬이 translateX(-50%)라 확대에도 그것을 함께 적어야 자리가 안 튄다.
       this.ui.stageHudTimer?.animate([
-        { color: "#ff947d", transform: "scale(1.15)" },
-        { color: "#ffe04b", transform: "scale(1)" },
+        { color: "#ff947d", transform: "translateX(-50%) scale(1.15)" },
+        { color: "#ffe04b", transform: "translateX(-50%) scale(1)" },
       ], { duration: 450 });
     });
 
@@ -76,6 +81,7 @@ class ArchiveGameBridge {
 
   start(stageId) {
     if (!stageId) return;
+    this.cancelRetry();
     this.soundBus.startGameAudio();
     if (!this.api) {
       this.pendingStageId = stageId;
@@ -104,6 +110,25 @@ class ArchiveGameBridge {
     if (this.currentStage) this.start(this.currentStage.id);
   }
 
+  /*
+   * 죽은 자리에서 시작점으로 되감는다.
+   *
+   * 다음 틱으로 미루는 이유: archive-stage-end는 Phaser의 update() 한가운데서
+   * 동기로 날아온다. 여기서 곧장 loadStage를 부르면 스테이지 오브젝트를 지운 뒤에도
+   * 남은 update 코드가 그 오브젝트를 계속 만진다. 짧은 틈은 "죽었다"는 연출
+   * (화면 붉은 플래시 · 흔들림 · 실패음)이 보일 자리이기도 하다.
+   */
+  scheduleRetry() {
+    const stageId = this.currentStage?.id;
+    if (!stageId) return;
+    window.clearTimeout(this.retryHandle);
+    this.retryHandle = window.setTimeout(() => {
+      this.retryHandle = 0;
+      // 그 사이 판이 끝났거나(2:23 소진) 화면을 떠났으면 stop()이 예약을 지운다.
+      this.start(stageId);
+    }, RETRY_DELAY_MS);
+  }
+
   pause() {
     if (!this.active || !this.api) return;
     this.api.pause(true);
@@ -122,10 +147,12 @@ class ArchiveGameBridge {
     this.active = false;
     this.warningSent = false;
     this.pendingStageId = null;
+    this.cancelRetry();
     this.api?.stop();
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud?.setAttribute("hidden", "");
     this.ui.touchControls?.setAttribute("hidden", "");
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.hidden = true;
   }
 
   onPlayTime({ deltaMs = 0 } = {}) {
@@ -134,9 +161,11 @@ class ArchiveGameBridge {
     this.emitRunSnapshot(snapshot);
     if (snapshot?.ending !== "failure") return;
     this.active = false;
+    this.cancelRetry();
     this.api?.stop();
     this.ui.stageHud?.setAttribute("hidden", "");
     this.ui.touchControls?.setAttribute("hidden", "");
+    if (this.ui.stageHudTimer) this.ui.stageHudTimer.hidden = true;
     this.events.emit(GAME_EVENTS.RUN_END, { ending: "failure", snapshot });
   }
 
@@ -159,6 +188,11 @@ class ArchiveGameBridge {
     if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(snapshot.totalRemainingMs);
     if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.memoryCount}/${snapshot.totalStages}`;
     this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
+  }
+
+  cancelRetry() {
+    window.clearTimeout(this.retryHandle);
+    this.retryHandle = 0;
   }
 
   onHud({ remaining = 20.26, actions = 0, anomaly = "대기", risk = 0, fragmentCollected = false, fragmentHint = "", wallHits = null, timePenalty = 0 } = {}) {
@@ -195,6 +229,18 @@ class ArchiveGameBridge {
     this.active = false;
     const run = window.archiveRun?.completeAttempt(success, fragmentCollected);
     this.emitRunSnapshot(run);
+
+    /*
+     * 죽으면(추락·20.26초 소진) 결과창을 띄우지 않는다 — 그 프로토콜의 시작점으로
+     * 곧장 되감는다. 한 판의 진짜 실패는 프로토콜 하나가 아니라 2:23 예산이
+     * 바닥나는 순간이다. 짧은 재구성 연출 중에는 시간을 멈추고, 다시 실제 플레이가
+     * 시작되는 순간부터 남은 누적시간을 이어서 사용한다.
+     */
+    if (!success) {
+      this.scheduleRetry();
+      return;
+    }
+
     const recovery = window.archiveProgress.record(this.currentStage.id, success, fragmentCollected);
     mainMenuFlow.renderStages();
     const detail = {
@@ -214,7 +260,11 @@ class ArchiveGameBridge {
   updateStageHud(stage) {
     this.ui.stageHud?.removeAttribute("hidden");
     if (this.ui.stageHudTitle) this.ui.stageHudTitle.textContent = `RECORD ${stage.number} · ${stage.title}`;
-    if (this.ui.stageHudTimer) this.ui.stageHudTimer.textContent = "20.26";
+    // 남은 20.26초는 좌상단 패널 밖(화면 중앙 상단)에 따로 서 있어서 따로 여닫는다.
+    if (this.ui.stageHudTimer) {
+      this.ui.stageHudTimer.hidden = false;
+      this.ui.stageHudTimer.textContent = "20.26";
+    }
     const run = window.archiveRun?.snapshot();
     if (this.ui.stageHudTotal) this.ui.stageHudTotal.textContent = ProtocolSelectFlow.formatClock(run?.totalRemainingMs ?? SCENARIO_DATA.totalTimeMs);
     if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${run?.memoryCount ?? 0}/${run?.totalStages ?? 7}`;

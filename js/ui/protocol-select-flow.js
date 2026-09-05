@@ -8,6 +8,10 @@
  * 각 20.26초 타이머와 별개인 한 판의 누적 제한시간이다. Phaser가 실제 플레이를
  * 진행한 프레임만 game.js가 차감하며, 소개·결과·기억 감상·일시정지에서는 멈춘다.
  * 메인 화면으로 나가면(reset) 이번 판의 시간과 증언 기록이 처음으로 돌아간다.
+ *
+ * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
+ * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
+ * 바뀌어서, 거기 둔 숫자는 정작 필요한 순간에 사라진다.
  */
 
 const RECOVERY_BUDGET_MS = SCENARIO_DATA.totalTimeMs; // 정확히 2:23.00
@@ -103,6 +107,7 @@ class ProtocolSelectFlow {
       if (playing) this.ui.appShell.removeAttribute("inert");
       else this.ui.appShell.setAttribute("inert", "");
     }
+
 
     /*
      * Phaser는 부팅할 때 부모(#game-container)를 재는데, 그때 모니터가 아직
@@ -202,14 +207,23 @@ class ProtocolSelectFlow {
     this.renderArchive();
   }
 
+  /*
+   * 남은 시간은 책상 위 탁상시계 한 곳에만 뜬다.
+   * 스크린 안에 또 두면 플레이 중에만 사라져서 오히려 헷갈린다.
+   */
   renderTimer() {
-    const timer = this.ui.protocolTimer;
-    if (!timer) return;
+    if (!this.ui.deskClock) return;
 
-    timer.textContent = ProtocolSelectFlow.formatClock(this.remainingMs);
-    if (this.isComplete()) timer.dataset.state = "done";
-    else if (this.remainingMs <= RECOVERY_URGENT_MS) timer.dataset.state = "urgent";
-    else timer.dataset.state = "idle";
+    const parts = ProtocolSelectFlow.clockParts(this.remainingMs);
+    this.ui.deskClock.dataset.state = this.isComplete()
+      ? "done"
+      : this.remainingMs <= RECOVERY_URGENT_MS
+        ? "urgent"
+        : "idle";
+
+    if (this.ui.deskClockMinutes) this.ui.deskClockMinutes.textContent = parts.minutes;
+    if (this.ui.deskClockSeconds) this.ui.deskClockSeconds.textContent = parts.seconds;
+    if (this.ui.deskClockCentis) this.ui.deskClockCentis.textContent = parts.centis;
   }
 
   renderProgress() {
@@ -333,6 +347,21 @@ class ProtocolSelectFlow {
     const seconds = Math.floor(safe / 1000) % 60;
     const hundredths = Math.floor((safe % 1000) / 10);
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+  }
+
+  /*
+   * 143000 → { minutes: "2", seconds: "23", centis: "00" }.
+   *
+   * 전부 내림이다. 초만 올림하면 시계가 0:01.50인데 초 자리는 0:02가 되어
+   * 같은 판 위의 두 숫자가 서로 안 맞는다.
+   */
+  static clockParts(milliseconds) {
+    const total = Math.max(0, milliseconds);
+    return {
+      minutes: String(Math.floor(total / 60000)),
+      seconds: String(Math.floor(total / 1000) % 60).padStart(2, "0"),
+      centis: String(Math.floor(total / 10) % 100).padStart(2, "0"),
+    };
   }
 }
 

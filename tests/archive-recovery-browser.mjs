@@ -102,6 +102,19 @@ try {
     })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
     assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
   };
+  const returnToRecords = async () => {
+    const saved = await evaluate("window.archiveProgress.summary()");
+    await evaluate("gameEvents.emit(GAME_EVENTS.REQUEST_STAGE_SELECT, {})");
+    assert.deepEqual(await evaluate(`({
+      resultHidden: UI.modal.classList.contains('hidden'),
+      recordsVisible: !UI.stageSelectScreen.classList.contains('hidden'),
+      gameLocked: UI.appShell.hasAttribute('inert'),
+      hudHidden: UI.stageHud.hidden,
+      stopped: testScene.mode === 'idle',
+      cardFocused: Boolean(document.activeElement?.dataset.stageId),
+    })`), { resultHidden: true, recordsVisible: true, gameLocked: true, hudHidden: true, stopped: true, cardFocused: true });
+    assert.deepEqual(await evaluate("window.archiveProgress.summary()"), saved);
+  };
   await start("maze");
   await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
   await screen("gameplay");
@@ -140,14 +153,20 @@ try {
   assert.equal(await evaluate("testScene.state.platforms.length"), 12);
   assert.equal(await evaluate("testScene.children.list.some(child => typeof child.text === 'string' && /MEMORY|발판 끝|^0[1-3]$/.test(child.text))"), false);
   await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
+  const totalBeforeFall = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
   await evaluate("Object.assign(testScene.state, { x: 430, y: 565, vy: 180, onGround: false, support: null }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), 'MEMORY ACCESS FAILED');
-  assert.ok((await evaluate("UI.modalResult.textContent")).includes('추락'));
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  assert.equal(await evaluate("testScene.mode"), "done");
   assert.equal(await evaluate("window.archiveProgress.status('gravity')"), 'DAMAGED');
-  await evaluate("document.querySelector('#primary-button').click()");
+  const totalDuringRetry = await evaluate("window.archiveRun.snapshot().totalRemainingMs");
+  await wait(520);
   assert.equal(await evaluate("testScene.stageId"), "gravity");
+  assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate("testScene.remaining"), 20.26);
-  await evaluate("testScene.finish(false); document.querySelector('#secondary-button').click(); document.querySelector('#stage-select-back-button').click()");
+  assert.equal(await evaluate("testScene.fragmentCollected"), false);
+  assert.equal(await evaluate("window.archiveRun.snapshot().totalRemainingMs"), totalDuringRetry);
+  assert.ok(totalDuringRetry < totalBeforeFall);
+  await evaluate("gameEvents.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {})");
   assert.equal(await evaluate("UI.mainMenu.classList.contains('hidden')"), false);
   assert.equal(await evaluate("UI.stageSelectScreen.classList.contains('hidden')"), true);
   await start('bounce');
@@ -171,8 +190,9 @@ try {
   }
   await start('bounce');
   await evaluate("Object.assign(testScene.state, { x: 575, y: 560, vy: 150 }); testScene.update(0, 25)");
-  assert.equal(await evaluate('UI.modalTitle.textContent'), 'MEMORY ACCESS FAILED');
-  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
+  await wait(520);
+  assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
   for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
@@ -207,16 +227,19 @@ try {
   await evaluate("cutsceneFlow.finish(); protocolSelectFlow.open()");
   await start("maze");
   await evaluate("testScene.state.ball.x = testScene.fragment.x; testScene.state.ball.y = testScene.fragment.y; testScene.update(0, 16); testScene.remaining = 0.001; testScene.update(0, 16)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), "MEMORY ACCESS FAILED");
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
   assert.equal(await evaluate("window.archiveProgress.status('maze')"), "FULLY RESTORED");
-  await continueToRecords();
+  await wait(520);
+  assert.equal(await evaluate("testScene.fragmentCollected"), false);
+  await returnToRecords();
   await start('maze');
   await evaluate("testScene.remaining = 0.5; Object.assign(testScene.state.ball, { x: 900, y: 420, vx: 190, input: 'right' }); testScene.update(0, 25)");
-  assert.equal(await evaluate("UI.modalTitle.textContent"), 'MEMORY ACCESS FAILED');
+  assert.equal(await evaluate("UI.modal.classList.contains('hidden')"), true);
   assert.equal(await evaluate("testScene.remaining"), 0);
   assert.equal(await evaluate("testScene.timePenalty"), 1);
-  assert.ok((await evaluate("UI.modalResult.textContent")).includes('충돌 시간 차감 −1.00초'));
-  await continueToRecords();
+  await wait(520);
+  assert.equal(await evaluate("testScene.timePenalty"), 0);
+  await returnToRecords();
   await screen("restored-records");
   await start("maze");
   await evaluate("window.archiveRun.setPaused(false); window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: 143000 } }))");
