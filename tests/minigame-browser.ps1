@@ -137,6 +137,25 @@ try {
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $slingPoints[1].x; y = $slingPoints[1].y } | Out-Null
   Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $slingPoints[1].x; y = $slingPoints[1].y } | Out-Null
   if (!(Evaluate "archivePhaserGame.scene.getScene('archive-game').state.shots === 1")) { throw 'Scaled pointer drag/release routing failed' }
+  # e9: a missed stone respawns mid-render. The spawn animation must not stall the loop before the next throw.
+  Evaluate "testLaunch('e9')" | Out-Null
+  Start-Sleep -Milliseconds 200
+  for ($curlThrow = 1; $curlThrow -le 2; $curlThrow++) {
+    $idle = $false
+    for ($wait = 0; $wait -lt 60; $wait++) {
+      $idle = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return !s.moving && !s.cooldown; })()"
+      if ($idle) { break }
+      Start-Sleep -Milliseconds 100
+    }
+    if (!$idle) { throw "e9 stone never came to rest before throw $curlThrow" }
+    $curlPoints = Evaluate "(() => { const g=archivePhaserGame.scene.getScene('archive-game'),c=g.cameras.main,r=archivePhaserGame.canvas.getBoundingClientRect(),p=c.getWorldPoint(0,0),u=c.getWorldPoint(960,0),v=c.getWorldPoint(0,540),ax=u.x-p.x,ay=u.y-p.y,bx=v.x-p.x,by=v.y-p.y,det=ax*by-ay*bx; return [[g.state.x,g.state.y],[g.state.x-60,g.state.y]].map(([x,y])=>({x:r.x+((x-p.x)*by-(y-p.y)*bx)/det*r.width,y:r.y+(ax*(y-p.y)-ay*(x-p.x))/det*r.height})); })()"
+    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; button = 'left'; buttons = 1; clickCount = 1; x = $curlPoints[0].x; y = $curlPoints[0].y } | Out-Null
+    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $curlPoints[1].x; y = $curlPoints[1].y } | Out-Null
+    Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $curlPoints[1].x; y = $curlPoints[1].y } | Out-Null
+    Start-Sleep -Milliseconds 1200
+  }
+  $curlState = Evaluate "(() => { const g=archivePhaserGame.scene.getScene('archive-game'); return {actions:g.actions,failures:g.state.failures,cooldown:g.state.cooldown}; })()"
+  if ($curlState.actions -ne 2 -or $curlState.failures -lt 1) { throw ('e9 respawn stalled the game loop: ' + ($curlState | ConvertTo-Json -Compress)) }
   Write-Output 'PASS: native keyboard repeat suppression, number decode A/D/arrow/Space and mouse drag in scaled viewport'
   $artifactDir = Join-Path $root 'tests/.artifacts'
   New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null

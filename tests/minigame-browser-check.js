@@ -68,13 +68,25 @@
   // 묶음 간격은 속도에 비례하므로 좌표가 아니라 반전 횟수만 확인합니다.
   load('e1'); scene.state.immune = 100;
   const releasedAfter = [];
-  for (let i = 0; i < 25; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
-  assert(releasedAfter[1] === 0 && releasedAfter[2] === 1, 'e1: the first spike only drops on the third flip');
-  assert(releasedAfter[24] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty-five flips');
+  for (let i = 0; i < 20; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
+  assert(releasedAfter[0] === 0 && releasedAfter[1] === 1, 'e1: the first spike only drops on the second flip');
+  assert(releasedAfter[19] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty flips');
   const releaseSteps = releasedAfter.map((n, i) => n - (i ? releasedAfter[i - 1] : 0));
   const drops = releaseSteps.filter(n => n);
-  assert(drops.length === 12 && releaseSteps.every((n, i) => !n || i % 2 === 0), 'e1: spikes drop on every other flip, not on every one');
+  assert(drops.length === 12, 'e1: the twenty flips carry twelve separate drops');
   assert(drops.every((n, i) => !i || n >= drops[i - 1]) && drops.at(-1) === 3, 'e1: each drop releases at least as many spikes as the one before');
+  // 코스를 실제로 달리는 동안에도, 이번 반전에 새로 풀린 가시는 모두 플레이어 앞에 있어야 합니다.
+  load('e1'); scene.state.immune = 100;
+  let wastedDrops = 0, aheadDrops = 0;
+  advance(16, frame => {
+    if (frame % 90) return;
+    const before = new Set(scene.hurdles.filter(h => h.loose));
+    scene.primaryAction();
+    const dropped = scene.hurdles.filter(h => h.loose && !before.has(h));
+    wastedDrops += dropped.filter(h => h.x <= scene.state.x).length;
+    aheadDrops += dropped.length;
+  });
+  assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
@@ -277,6 +289,23 @@
   assert(scene.state.visited.length>=5 && scene.state.multiplier===3, 'e8: four new connections reach the 3x boost cap');
   load('e9'); scene.pointerAction(166, 361); scene.stageGame.pointerMove.call(scene, 150, 361); scene.stageGame.pointerUp.call(scene); advance(1);
   assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
+  advance(.4); scene.pointerAction(166, 361);
+  assert(scene.state.drag !== null, 'e9: a new stone can be thrown after a failed one');
+  scene.stageGame.cancelInput.call(scene);
+  // 과녁 정중앙이 아니어도 점선 고리 안에서 멈추면 그 한 번으로 클리어된다.
+  const curl = offset => {
+    load('e9');
+    const s = scene.state, dx = scene.target.x + offset - s.x, dy = scene.target.y - s.y, distance = Math.hypot(dx, dy);
+    const pull = Math.sqrt(2 * scene.stageGame.friction.call(scene) * distance) / scene.stageGame.tuning.force;
+    scene.pointerAction(s.x, s.y);
+    scene.stageGame.pointerMove.call(scene, s.x - dx / distance * pull, s.y - dy / distance * pull);
+    scene.stageGame.pointerUp.call(scene);
+    advance(20.3);
+  };
+  curl(scene.stageGame.landingRadius() - 7);
+  assert(scene.actions === 1 && scene.state.failures === 0 && scene.remaining > 10, 'e9: one stone resting inside the ring clears the stage');
+  curl(scene.stageGame.landingRadius() + 25);
+  assert(scene.state.failures > 0 && scene.remaining <= .000001, 'e9: a stone resting outside the ring still misses');
   load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);
   assert(scene.state.drag === null, 'Pause cancels drag without firing');
   load('e10');
@@ -346,8 +375,10 @@
   document.querySelector('#primary-button').click();
   assert(archiveRun.snapshot().currentStageInAct === 2, 'Clear continues to the next story record');
   assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Act selection keeps the same six games');
-  assert(document.querySelectorAll('.stage-select-card').length === 6, 'UI displays exactly six games');
-  assert(document.querySelectorAll('.stage-select-card:not(:disabled)').length === 1, 'Only the current story stage is enabled');
+  assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
+  assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
+    'The briefing shows the stage the story expects next');
+  assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
   const retryId = archiveRun.snapshot().expectedStageId;
   protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');

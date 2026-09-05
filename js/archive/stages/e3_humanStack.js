@@ -18,14 +18,25 @@ const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
 export const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
-    speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
+    speed: 153, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
+    // 한 번 톡 누르면 spinStep만큼, 꾹 누르고 있으면 초당 spinSpeed만큼 돌아갑니다(도 단위).
+    spinStep: 12, spinSpeed: 150,
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
-    restitution: .045, density: .0022, carryMomentum: .075,
+    // 낙하 순간 레일 속도의 이만큼을 물려받습니다. 1이면 그대로 — 다만 후반 속도에서는
+    // 레일 끝에서 떨어뜨려도 단상까지 날아오지 못해, 미리 겨냥이 가능한 선까지만 줍니다.
+    restitution: .045, density: .0022, carryMomentum: .4,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
-    baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리입니다(탑이 자라면 그만큼 더 올라갑니다).
+    // 단상과 바닥을 함께 내려 단상이 화면 아래쪽에 앉습니다. 낙하 거리는 그대로 두고,
+    // 떨어뜨리는 자리는 아래 viewSpan(시야 배율)으로 화면 위쪽까지 끌어올립니다.
+    baseY: 452, baseWidth: 207, floorY: 500, dropHeight: 292, debugPhysics: false,
+    // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
+    // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
+    viewSpan: 358,
     // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
     markerX: 900, markerHeight: 76, goalRight: 838,
   },
@@ -50,7 +61,8 @@ export const E3_HUMAN_STACK = {
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
-      spawnY: 200, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, impacts: [], impactCooldown: 0,
+      spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, spinShown: 0,
+      impacts: [], impactCooldown: 0,
     };
     this.people = [];
     this.stackBodyById = new Map();
@@ -59,8 +71,9 @@ export const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
+    // 조작 안내는 띄우지 않는다 — 회전 화살표와 클릭만으로 조작이 드러난다.
+    this.instruction?.setVisible(false);
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
         const a = pair.collision.parentA, b = pair.collision.parentB;
@@ -104,13 +117,30 @@ export const E3_HUMAN_STACK = {
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
     const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
-    // 운반 중의 좌우 관성을 조금 물려줍니다. 초기 방향 이후 회전은 실제 충돌에 맡깁니다.
+    // 레일이 달리던 좌우 속도를 그대로 물려줍니다 — 빠를 때 떨어뜨리면 그만큼 옆으로 흐릅니다.
+    // Matter의 속도 단위는 60Hz 한 프레임의 이동량이라 초당 픽셀을 60으로 나눠 넣습니다.
+    // 초기 방향 이후의 회전은 실제 충돌에 맡깁니다.
     M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
     s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
     this.sfx('action');
+  },
+  /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
+  press(direction) {
+    const t = E3_HUMAN_STACK.tuning, turn = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    if (!turn) return;
+    E3_HUMAN_STACK.spin.call(this, turn * t.spinStep);
+  },
+  spin(degrees) {
+    const s = this.state;
+    s.nextAngle += degrees * Math.PI / 180;
+    // 각도가 한없이 커지지 않도록 -180°~180° 안에 붙잡아 둡니다(표시도 이 값을 씁니다).
+    const turn = Math.PI * 2;
+    s.nextAngle -= Math.round(s.nextAngle / turn) * turn;
+    s.spinShown = .6;
   },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
   measureTower() {
@@ -149,14 +179,18 @@ export const E3_HUMAN_STACK = {
     if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
     s.impactCooldown = Math.max(0, s.impactCooldown - dt);
+    // 좌우를 누르고 있는 동안은 계속 돌아갑니다(터치 버튼도 같은 입력을 씁니다).
+    const turn = this.axis('left', 'right');
+    if (turn) E3_HUMAN_STACK.spin.call(this, turn * t.spinSpeed * dt);
+    s.spinShown = Math.max(0, s.spinShown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
     const top = E3_HUMAN_STACK.measureTower.call(this);
     // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
-    s.spawnY = Math.min(200, top - t.spawnClearance);
+    s.spawnY = Math.min(t.baseY - t.dropHeight, top - t.spawnClearance);
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
     // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
-    const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
+    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
     for (const impact of s.impacts) impact.age += dt;
@@ -198,7 +232,6 @@ export const E3_HUMAN_STACK = {
     const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
     MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
     const base = project(480 - t.baseWidth / 2, t.baseY);
-    MINI.box(this, 22, t.floorY, 916, 12, 0x263f4d);
     MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
     MINI.line(this, base.x, base.y + 1, base.x + t.baseWidth * s.zoom, base.y + 1, 0xd4dad4, 3);
     for (let height = 0; height <= 400; height += 40) {
@@ -209,8 +242,7 @@ export const E3_HUMAN_STACK = {
     const goal = project(0, t.baseY - t.targetHeight);
     for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
     this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
-    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
-    this.stackLabels.hint.setVisible(s.drops === 0);
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
     // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
     if (marker) {
@@ -228,11 +260,28 @@ export const E3_HUMAN_STACK = {
       const p = project(impact.x, impact.y), fade = 1 - impact.age / .35;
       g.lineStyle(1.5, 0xffd99e, fade * .7).strokeEllipse(p.x, p.y, (12 + impact.age * 80) * s.zoom, (4 + impact.age * 25) * s.zoom);
     }
-    const rail = project(s.x, s.spawnY - 60);
-    MINI.line(this, project(260, 0).x, rail.y, project(700, 0).x, rail.y, 0x5f8190, 2);
-    MINI.circle(this, rail.x, rail.y, 4, 0xffd99e);
-    MINI.line(this, rail.x, rail.y + 4, rail.x, rail.y + 11, 0xffd99e, 2);
+    // 대기 위치는 레일 선 없이 사람만 떠 있습니다 — 움직이는 범위는 사람 자체로 보입니다.
     E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
+    // 미리보기 양옆의 곡선 화살표 두 개가 좌우 회전을 가리킵니다. 돌리는 동안 밝아집니다.
+    const ring = project(s.x, s.spawnY), pose = E3_HUMAN_STACK.poses[s.nextPose];
+    const radius = Math.hypot(pose.width, pose.height) / 2 * s.zoom + 6, glow = Math.min(1, .62 + s.spinShown * .63);
+    const head = Math.max(6, 10 * s.zoom);
+    // side -1은 왼쪽(반시계), +1은 오른쪽(시계). 화살촉은 호의 바깥쪽 끝에 붙어 도는 쪽을 가리킵니다.
+    for (const side of [-1, 1]) {
+      const from = side < 0 ? 195 : -15, to = side < 0 ? 252 : -72;
+      const a0 = from * Math.PI / 180, a1 = to * Math.PI / 180;
+      g.lineStyle(3.2, 0xffd07a, glow);
+      g.beginPath(); g.arc(ring.x, ring.y, radius, Math.min(a0, a1), Math.max(a0, a1), false); g.strokePath();
+      // a0(호의 시작) 쪽 접선 방향으로 화살촉을 세웁니다.
+      const dir = Math.sign(a0 - a1);
+      const px = ring.x + Math.cos(a0) * radius, py = ring.y + Math.sin(a0) * radius;
+      const tx = -Math.sin(a0) * dir, ty = Math.cos(a0) * dir;
+      g.fillStyle(0xffd07a, glow).fillTriangle(
+        px + tx * head, py + ty * head,
+        px - tx * head * .25 - ty * head * .55, py - ty * head * .25 + tx * head * .55,
+        px - tx * head * .25 + ty * head * .55, py - ty * head * .25 - tx * head * .55,
+      );
+    }
     if (t.debugPhysics) for (const body of this.people) {
       for (const part of body.parts.slice(1)) {
         g.lineStyle(1, 0xff799b, .85).strokePoints(part.vertices.map(v => project(v.x, v.y)), true);

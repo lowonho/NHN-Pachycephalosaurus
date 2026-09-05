@@ -553,6 +553,12 @@ const MINI = {
     const f = MINI.FIELD;
     // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
     scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
+    // 배경 그림(manifest 의 backdrop 역할)이 있으면 ink 보다 먼저 깔아 필드를 통째로 덮는다.
+    // 필드와 그림이 둘 다 16:9 라 늘려 채워도 잘리거나 찌그러지지 않는다.
+    const backdropKey = `${scene.stageId}:backdrop`;
+    scene.backdrop = scene.textures.exists(backdropKey)
+      ? scene.add.image(f.cx, f.cy, backdropKey).setDisplaySize(f.w, f.h)
+      : null;
     scene.ink = scene.add.graphics();
     scene.fieldMask = scene.make.graphics({ x: 0, y: 0, add: false });
     scene.fieldMask.fillStyle(0xffffff).fillRect(f.x, f.y, f.w, f.h);
@@ -605,9 +611,12 @@ const MINI = {
     g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
     g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
-  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다. */
+  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다.
+     배경 그림이 깔린 게임은 격자 대신 어둠막 한 겹만 얹는다 — 그림 위에 격자를 그으면
+     사진이 뭉개지고, 밝은 배경 위에서는 흰 캐릭터와 HUD 글씨가 묻힌다. */
   frame(scene) {
     const g = scene.ink, f = MINI.FIELD; g.clear();
+    if (scene.backdrop) { g.fillStyle(0x07141d, .42).fillRect(f.x, f.y, f.w, f.h); return; }
     g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
     g.lineStyle(1, scene.accent, 0.13);
     for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
@@ -631,6 +640,9 @@ const MINI = {
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
      표시 크기만 교체하고 물리 판정은 각 게임의 기존 도형을 유지합니다. */
   actor(scene, role, key, x, y, w, h, angle = 0, color = scene.accent) {
+    // 소환 연출 앞부분은 배율이 0이다(MINI.spawnScale). 그릴 것이 없을 뿐 아니라
+    // 반지름이 음수가 되어 캔버스가 예외를 던지고 게임 루프가 멈춰 버린다.
+    if (!(w > 0) || !(h > 0)) { MINI.hideActor(scene, key); return; }
     const texture = `${scene.stageId}:${role}`;
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);
@@ -648,7 +660,7 @@ const MINI = {
       g.lineBetween(w * .15, h * .15, w * .28, h * .43);
     } else if (scene.stageId === 'e2' || role === 'stone' || role === 'projectile') {
       g.fillStyle(color).fillCircle(0, 0, w / 2);
-      g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
+      if (w > 6) g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
       g.fillStyle(0x08212b).fillCircle(-w * .16, -h * .12, 2.5).fillCircle(w * .16, -h * .12, 2.5);
     } else {
       g.fillStyle(color).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(8, h / 3));
@@ -688,11 +700,15 @@ const SPIKE_GAP = Math.round(38 * PACE);   // 한 묶음에 나란히 붙는 가
 const BLOCK_OFF = Math.round(90 * PACE);   // 묶음 안에서 블록이 서는 자리
 const FLOAT_OFF = Math.round(285 * PACE);  // 묶음 안에서 공중 블록이 뜨는 자리
 const SPIKES = GATES * 2;  // 가시 20개 — 게이트마다 두 개씩 나란히
-const MAX_FLIPS = 25;      // risk 게이지가 100%에 닿는 반전 횟수. 이때 가시가 전부 풀립니다.
+const MAX_FLIPS = 20;      // risk 게이지가 100%에 닿는 반전 횟수. 이때 가시가 전부 풀립니다.
+const OBSTACLE_MAX_SPEED = 190;  // 장애물이 통로를 건너는 최고 속도
 // 한 번에 풀리는 양은 앞에서 한 개, 뒤로 갈수록 여러 개. 합계는 SPIKES와 같습니다.
 const RELEASE_STEPS = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3];
-// 판정 간격을 두 반전에 한 번으로 벌려, 마지막 묶음이 MAX_FLIPS번째에 떨어지도록 뒤에서부터 맞춥니다.
-const SPIKE_RELEASE = RELEASE_STEPS.flatMap((n, i) => Array(n).fill(MAX_FLIPS - (RELEASE_STEPS.length - 1 - i) * 2));
+// 열두 번의 판정을 1회부터 MAX_FLIPS회까지 고르게 흩뿌립니다. 마지막 판정이 MAX_FLIPS번째입니다.
+const RELEASE_AT = RELEASE_STEPS.map((_, i) => Math.round(MAX_FLIPS * (i + 1) / RELEASE_STEPS.length));
+/* 가시를 풀 때 얼마나 앞쪽을 고르는지. 가시가 통로를 다 건너는 시간 동안 플레이어가 달리는
+   거리입니다. 이보다 가까이서 풀면 플레이어가 지나갈 때까지 다 내려오지 못합니다. */
+const RELEASE_LEAD = Math.round(SPEED * (FLOOR_TOP - CEIL_BOTTOM) / OBSTACLE_MAX_SPEED);
 
 const HITBOX = 30;  // 판정 정사각형. 그림을 아무리 키워도 이 크기로만 부딪칩니다.
 /* 캐릭터 그림(assets/images/minigame/geomatric dash)의 표시 높이입니다. 가로는 텍스처
@@ -703,14 +719,23 @@ const GOAL_HEIGHT = 189;  // 골지점 표지의 표시 높이. 통로(381)의 �
 const GOAL_HOP = 16;      // 골지점 표지가 제자리에서 튀어오르는 높이.
 const GOAL_HOPS = 1.2;    // 초당 튀는 횟수.
 const SPAWN_FX = 52;      // 되살아날 때의 빛기둥 굵기. 달리기 그림 가로(약 59)에 맞춥니다.
+/* 바람 연출. 프레임마다 새로 뽑지 않고 코스 좌표 s.x에서 위치를 계산하므로, 흐름이
+   깜빡이지 않고 달리는 동안에만 흐르고 멈추면 함께 멈춥니다. */
+// 연출 세기. 줄기 수와 진하기에 함께 곱해지므로 이 값 하나로 바람 전체를 올리고 내립니다.
+const WIND_LEVEL = .7;
+const WIND_LINES = Math.round(22 * WIND_LEVEL);  // 통로를 가로질러 흐르는 바람 줄기 수
+const WIND_SPAN = 1120;     // 줄기가 한 바퀴 도는 가로 거리. 화면(960)보다 넓어야 이어져 보입니다.
+const WIND_FADE = 120;      // 화면 양 끝에서 옅어지는 구간. 줄기가 불쑥 나타나지 않게 합니다.
+const TRAIL_LINES = Math.round(7 * WIND_LEVEL);  // 캐릭터 뒤로 끌리는 바람 꼬리 수
+const TRAIL_SPAN = 150;     // 꼬리가 뒤로 남는 거리
 
 const E1_GRAVITY_DASH = {
   // 약 16.3초 코스. 캐릭터는 약 0.45초에 벽을 옮기고 장애물은 더 늦게 따라옵니다.
   // (통로가 381로 넓어져 건너는 거리가 261 → 349가 되었습니다. 중력은 그대로 둡니다.)
-  tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: 190 },
+  tuning: { speed: SPEED, distance: DISTANCE, gravity: 3200, obstacleGravity: 620, obstacleMaxSpeed: OBSTACLE_MAX_SPEED },
   build() {
     MINI.init(this, 0x67e8f9);
-    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, obstacles: [] };
+    this.state = { x: 0, y: FLOOR_Y, vy: 0, sign: 1, deaths: 0, immune: 0, failed: false, release: 0, obstacles: [] };
     // 가시도 블록과 같은 이동/충돌 경로를 쓰지만 처음에는 모두 벽에 붙어 있습니다.
     // 반전을 거듭할수록 한 번에 더 많은 수가 풀려나고, MAX_FLIPS번째에는 전부 떨어집니다.
     this.hurdles = Array.from({ length: SPIKES }, (_, i) => {
@@ -719,7 +744,7 @@ const E1_GRAVITY_DASH = {
       return {
         x: LEAD + gate * GATE + (i % 2) * SPIKE_GAP, y: wall, w: 35, h: 24,
         vy: 0, factor: .8 + (i % 3) * .15, response: 1, spike: true,
-        wall, loose: false, releaseAt: SPIKE_RELEASE[i],
+        wall, loose: false,
       };
     });
     this.state.obstacles.push(...this.hurdles);
@@ -741,7 +766,20 @@ const E1_GRAVITY_DASH = {
     // 누를 때마다 중력이 통째로 뒤집힙니다. 플레이어는 반대쪽 벽으로 떨어져 붙고,
     // 모든 장애물도 각자의 방향과 느린 속도로 반전에 반응합니다.
     this.actions++; s.sign *= -1; s.vy = s.sign * 40;
+    // 풀 차례가 된 판정을 모두 처리합니다.
+    while (s.release < RELEASE_AT.length && RELEASE_AT[s.release] <= this.actions) {
+      E1_GRAVITY_DASH.release.call(this, RELEASE_STEPS[s.release]); s.release++;
+    }
     this.sfx('jump');
+  },
+  /* 이미 지나온 가시를 풀어 봐야 아무 일도 일어나지 않습니다. 아직 붙어 있고 앞에 남은 가시
+     중에서, 통로를 건널 시간이 있는 만큼 앞선 것부터 차례로 풉니다. 그만큼 앞선 가시가 남아
+     있지 않은 코스 끝에서는 앞쪽에 남은 가장 가까운 가시로 대신합니다. */
+  release(count) {
+    const s = this.state;
+    const attached = this.hurdles.filter(h => !h.loose && h.x > s.x);
+    const from = Math.max(0, attached.findIndex(h => h.x >= s.x + RELEASE_LEAD));
+    for (const spike of attached.slice(from, from + count)) spike.loose = true;
   },
   update(dt) {
     const s = this.state, t = E1_GRAVITY_DASH.tuning;
@@ -755,11 +793,8 @@ const E1_GRAVITY_DASH = {
       MINI.summon(this); this.bump();
     };
     for (const o of s.obstacles) {
-      // 붙어 있는 가시는 정해진 반전 횟수를 넘기기 전까지 자기 벽에 그대로 고정됩니다.
-      if (o.spike && !o.loose) {
-        if (this.actions < o.releaseAt) { o.y = o.wall; o.vy = 0; continue; }
-        o.loose = true;
-      }
+      // 아직 풀리지 않은 가시는 자기 벽에 그대로 붙어 있습니다.
+      if (o.spike && !o.loose) { o.y = o.wall; o.vy = 0; continue; }
       const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
       o.vy = MINI.clamp(o.vy + s.sign * o.response * this.penalty(t.obstacleGravity) * o.factor * dt, -limit, limit);
       o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
@@ -792,23 +827,59 @@ const E1_GRAVITY_DASH = {
     sprite.setPosition(180, feet - s.sign * height / 2).setFlipY(s.sign === -1).setDepth(2)
       .setDisplaySize(height * sprite.width / sprite.height, height);
   },
+  /* 통로를 흘러가는 바람. 줄기마다 다른 속도로 흘러 층이 지고, 모두 캐릭터보다 빨라서
+     제자리에 달리는 캐릭터를 스쳐 지나가는 것처럼 보입니다. */
+  wind() {
+    const s = this.state, g = this.ink, span = FLOOR_TOP - CEIL_BOTTOM;
+    for (let i = 0; i < WIND_LINES; i++) {
+      const rush = 1.4 + (i % 5) * .22;
+      // 황금각(137.5)으로 흩어 놓아 줄기가 줄을 맞추지 않습니다.
+      const x = ((i * 137.5 - s.x * rush) % WIND_SPAN + WIND_SPAN) % WIND_SPAN - 90;
+      const fade = Math.min(1, x / WIND_FADE, (MINI.FIELD.right - x) / WIND_FADE);
+      if (fade <= 0) continue;
+      const thin = i % 3, y = CEIL_BOTTOM + 12 + (i * 61) % (span - 24);
+      g.lineStyle(thin ? 2 : 3, 0x9fe4ff, fade * (thin ? .13 : .22) * WIND_LEVEL);
+      g.lineBetween(x, y, x + 62 + thin * 45, y);
+    }
+  },
+  /* 캐릭터 바로 뒤로 끌리는 꼬리. 벽을 건너는 동안에는 떠나온 벽 쪽으로 휘어
+     휘날리는 것처럼 보입니다. */
+  trail() {
+    const s = this.state, g = this.ink;
+    const airborne = s.y !== CEIL_Y && s.y !== FLOOR_Y;
+    // 판정 사각형이 아니라 그림의 몸통 높이에 맞춰 흩뿌립니다. 발치에만 몰리면 캐릭터에 가립니다.
+    const feet = s.y + s.sign * HITBOX / 2, body = feet - s.sign * POSE_HEIGHT.run / 2;
+    for (let i = 0; i < TRAIL_LINES; i++) {
+      const flow = (s.x * 2.4 + i * TRAIL_SPAN / TRAIL_LINES) % TRAIL_SPAN, x = 162 - flow;
+      const length = 30 + (i % 3) * 22;
+      if (x + length < MINI.FIELD.x) continue;
+      const y = body + ((i % 5) - 2) * POSE_HEIGHT.run * .16;
+      // 뒤로 갈수록 옅어지고, 건너는 중에는 꼬리 끝이 지나온 벽 쪽으로 처집니다.
+      const drag = airborne ? -s.sign * (TRAIL_SPAN - flow) * .09 : 0;
+      g.lineStyle(2, 0xd8f4ff, (1 - flow / TRAIL_SPAN) * .55 * WIND_LEVEL);
+      g.lineBetween(x, y + drag, x + length, y);
+    }
+  },
   render() {
     const s = this.state, t = E1_GRAVITY_DASH.tuning, f = MINI.FIELD;
     MINI.frame(this);
     // 천장 벽과 바닥 벽. 벽 속은 화면 끝까지 채운다 — 통로 밖은 벽이지 빈 자리가 아니다.
     MINI.box(this, f.x, f.y, f.w, CEIL_BOTTOM - f.y, 0x123a4c);
     MINI.box(this, f.x, FLOOR_TOP, f.w, f.bottom - FLOOR_TOP, 0x123a4c);
-    // 빗금은 진행 방향으로 흘러 속도감을 줍니다.
-    const shift = -(s.x % 40);
-    for (let x = shift - 40; x < 960; x += 40) {
-      MINI.line(this, x, CEIL_BOTTOM - 16, x + 12, CEIL_BOTTOM - 2, 0x1d5670, 3);
-      MINI.line(this, x, FLOOR_TOP + 2, x + 12, FLOOR_TOP + 16, 0x1d5670, 3);
+    // 벽에 스치는 바람결. 빗금 대신 진행 방향으로 길게 누워 흘러갑니다.
+    const shift = -(s.x * 1.15 % 240);
+    for (let x = shift - 240; x < 960; x += 240) {
+      MINI.line(this, x, CEIL_BOTTOM - 13, x + 96, CEIL_BOTTOM - 13, 0x1d5670, 3);
+      MINI.line(this, x + 120, FLOOR_TOP + 13, x + 216, FLOOR_TOP + 13, 0x1d5670, 3);
     }
     // 벽면 띠는 통로 안쪽으로 두께 6을 차지합니다. 통로 높이를 바꿔도 따라오도록 좌표에서 뽑습니다.
     MINI.box(this, f.x, CEIL_BOTTOM - 6, f.w, 6, 0x2c6e85);
     MINI.box(this, f.x, FLOOR_TOP, f.w, 6, 0x2c6e85);
     // 지금 끌려가는 쪽 벽면을 강조해 반전 상태를 한눈에 보여 줍니다.
     MINI.box(this, f.x, s.sign === 1 ? FLOOR_TOP : CEIL_BOTTOM - 6, f.w, 6, this.accent, .95);
+    // 바람은 장애물 뒤에 깔립니다. 넘어야 할 것이 바람에 묻히면 안 됩니다.
+    E1_GRAVITY_DASH.wind.call(this);
+    if (!s.failed) E1_GRAVITY_DASH.trail.call(this);
     for (let i = 0; i < s.obstacles.length; i++) {
       const o = s.obstacles[i], x = o.x - s.x + 180, cx = x + o.w / 2, cy = o.y + o.h / 2;
       if (x <= -60 || x >= 1000) { MINI.hideActor(this, `o${i}`); continue; }
@@ -1044,14 +1115,25 @@ const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
 const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
-    speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
+    speed: 153, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
+    // 한 번 톡 누르면 spinStep만큼, 꾹 누르고 있으면 초당 spinSpeed만큼 돌아갑니다(도 단위).
+    spinStep: 12, spinSpeed: 150,
     gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
-    restitution: .045, density: .0022, carryMomentum: .075,
+    // 낙하 순간 레일 속도의 이만큼을 물려받습니다. 1이면 그대로 — 다만 후반 속도에서는
+    // 레일 끝에서 떨어뜨려도 단상까지 날아오지 못해, 미리 겨냥이 가능한 선까지만 줍니다.
+    restitution: .045, density: .0022, carryMomentum: .4,
     settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
-    baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // dropHeight는 단상 윗면에서 사람이 대기하는 높이까지의 거리입니다(탑이 자라면 그만큼 더 올라갑니다).
+    // 단상과 바닥을 함께 내려 단상이 화면 아래쪽에 앉습니다. 낙하 거리는 그대로 두고,
+    // 떨어뜨리는 자리는 아래 viewSpan(시야 배율)으로 화면 위쪽까지 끌어올립니다.
+    baseY: 452, baseWidth: 207, floorY: 500, dropHeight: 292, debugPhysics: false,
+    // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
+    // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
+    viewSpan: 358,
     // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
     markerX: 900, markerHeight: 76, goalRight: 838,
   },
@@ -1076,7 +1158,8 @@ const E3_HUMAN_STACK = {
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
-      spawnY: 200, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, impacts: [], impactCooldown: 0,
+      spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, spinShown: 0,
+      impacts: [], impactCooldown: 0,
     };
     this.people = [];
     this.stackBodyById = new Map();
@@ -1085,8 +1168,9 @@ const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
+    // 조작 안내는 띄우지 않는다 — 회전 화살표와 클릭만으로 조작이 드러난다.
+    this.instruction?.setVisible(false);
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
         const a = pair.collision.parentA, b = pair.collision.parentB;
@@ -1130,13 +1214,30 @@ const E3_HUMAN_STACK = {
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
     const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
-    // 운반 중의 좌우 관성을 조금 물려줍니다. 초기 방향 이후 회전은 실제 충돌에 맡깁니다.
+    // 레일이 달리던 좌우 속도를 그대로 물려줍니다 — 빠를 때 떨어뜨리면 그만큼 옆으로 흐릅니다.
+    // Matter의 속도 단위는 60Hz 한 프레임의 이동량이라 초당 픽셀을 60으로 나눠 넣습니다.
+    // 초기 방향 이후의 회전은 실제 충돌에 맡깁니다.
     M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
     s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
     this.sfx('action');
+  },
+  /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
+  press(direction) {
+    const t = E3_HUMAN_STACK.tuning, turn = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    if (!turn) return;
+    E3_HUMAN_STACK.spin.call(this, turn * t.spinStep);
+  },
+  spin(degrees) {
+    const s = this.state;
+    s.nextAngle += degrees * Math.PI / 180;
+    // 각도가 한없이 커지지 않도록 -180°~180° 안에 붙잡아 둡니다(표시도 이 값을 씁니다).
+    const turn = Math.PI * 2;
+    s.nextAngle -= Math.round(s.nextAngle / turn) * turn;
+    s.spinShown = .6;
   },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
   measureTower() {
@@ -1175,14 +1276,18 @@ const E3_HUMAN_STACK = {
     if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
     s.impactCooldown = Math.max(0, s.impactCooldown - dt);
+    // 좌우를 누르고 있는 동안은 계속 돌아갑니다(터치 버튼도 같은 입력을 씁니다).
+    const turn = this.axis('left', 'right');
+    if (turn) E3_HUMAN_STACK.spin.call(this, turn * t.spinSpeed * dt);
+    s.spinShown = Math.max(0, s.spinShown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
     const top = E3_HUMAN_STACK.measureTower.call(this);
     // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
-    s.spawnY = Math.min(200, top - t.spawnClearance);
+    s.spawnY = Math.min(t.baseY - t.dropHeight, top - t.spawnClearance);
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
     // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
-    const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
+    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
     for (const impact of s.impacts) impact.age += dt;
@@ -1224,7 +1329,6 @@ const E3_HUMAN_STACK = {
     const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
     MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
     const base = project(480 - t.baseWidth / 2, t.baseY);
-    MINI.box(this, 22, t.floorY, 916, 12, 0x263f4d);
     MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
     MINI.line(this, base.x, base.y + 1, base.x + t.baseWidth * s.zoom, base.y + 1, 0xd4dad4, 3);
     for (let height = 0; height <= 400; height += 40) {
@@ -1235,8 +1339,7 @@ const E3_HUMAN_STACK = {
     const goal = project(0, t.baseY - t.targetHeight);
     for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
     this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
-    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
-    this.stackLabels.hint.setVisible(s.drops === 0);
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
     // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
     if (marker) {
@@ -1254,11 +1357,28 @@ const E3_HUMAN_STACK = {
       const p = project(impact.x, impact.y), fade = 1 - impact.age / .35;
       g.lineStyle(1.5, 0xffd99e, fade * .7).strokeEllipse(p.x, p.y, (12 + impact.age * 80) * s.zoom, (4 + impact.age * 25) * s.zoom);
     }
-    const rail = project(s.x, s.spawnY - 60);
-    MINI.line(this, project(260, 0).x, rail.y, project(700, 0).x, rail.y, 0x5f8190, 2);
-    MINI.circle(this, rail.x, rail.y, 4, 0xffd99e);
-    MINI.line(this, rail.x, rail.y + 4, rail.x, rail.y + 11, 0xffd99e, 2);
+    // 대기 위치는 레일 선 없이 사람만 떠 있습니다 — 움직이는 범위는 사람 자체로 보입니다.
     E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
+    // 미리보기 양옆의 곡선 화살표 두 개가 좌우 회전을 가리킵니다. 돌리는 동안 밝아집니다.
+    const ring = project(s.x, s.spawnY), pose = E3_HUMAN_STACK.poses[s.nextPose];
+    const radius = Math.hypot(pose.width, pose.height) / 2 * s.zoom + 6, glow = Math.min(1, .62 + s.spinShown * .63);
+    const head = Math.max(6, 10 * s.zoom);
+    // side -1은 왼쪽(반시계), +1은 오른쪽(시계). 화살촉은 호의 바깥쪽 끝에 붙어 도는 쪽을 가리킵니다.
+    for (const side of [-1, 1]) {
+      const from = side < 0 ? 195 : -15, to = side < 0 ? 252 : -72;
+      const a0 = from * Math.PI / 180, a1 = to * Math.PI / 180;
+      g.lineStyle(3.2, 0xffd07a, glow);
+      g.beginPath(); g.arc(ring.x, ring.y, radius, Math.min(a0, a1), Math.max(a0, a1), false); g.strokePath();
+      // a0(호의 시작) 쪽 접선 방향으로 화살촉을 세웁니다.
+      const dir = Math.sign(a0 - a1);
+      const px = ring.x + Math.cos(a0) * radius, py = ring.y + Math.sin(a0) * radius;
+      const tx = -Math.sin(a0) * dir, ty = Math.cos(a0) * dir;
+      g.fillStyle(0xffd07a, glow).fillTriangle(
+        px + tx * head, py + ty * head,
+        px - tx * head * .25 - ty * head * .55, py - ty * head * .25 + tx * head * .55,
+        px - tx * head * .25 + ty * head * .55, py - ty * head * .25 - tx * head * .55,
+      );
+    }
     if (t.debugPhysics) for (const body of this.people) {
       for (const part of body.parts.slice(1)) {
         g.lineStyle(1, 0xff799b, .85).strokePoints(part.vertices.map(v => project(v.x, v.y)), true);
@@ -1283,7 +1403,9 @@ const E3_HUMAN_STACK = {
 
 const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
-  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 7200, radius: 10, wallPenalty: 1 },
+  // brake는 속도와 무관한 마찰, drag는 속도에 비례하는 저항(1/초)이다. 둘을 더한 값이
+  // 감속도라서, 손을 떼면 처음에는 크게 깎이고 끝에서는 관성으로 미끄러지며 멈춘다.
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 3600, drag: 2.6, radius: 10, wallPenalty: 1 },
   grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
@@ -1378,11 +1500,14 @@ const E4_ACCELERATION_DASH = {
       const velocity = Math.hypot(s.vx, s.vy);
       s.braking = velocity > 0;
       if (velocity > 0) {
-        // 정지하는 마지막 스텝도 정확히 적분한다. 고속일수록 제동 거리가 길어진다.
-        const brakeTime = Math.min(dt, velocity / t.brake);
-        const distance = velocity * brakeTime - .5 * t.brake * brakeTime * brakeTime;
+        // v' = -(brake + drag * v)의 해를 그대로 쓴다. 정지하는 마지막 스텝도 정확히
+        // 적분하므로 프레임 간격이 달라져도 미끄러진 거리는 같다. 고속일수록 길게 밀린다.
+        const hold = t.brake / t.drag;  // 저항이 마찰과 같아지는 속도. 관성이 남는 구간의 기준이다.
+        const stopTime = Math.log(1 + velocity / hold) / t.drag;
+        const step = Math.min(dt, stopTime), decay = Math.exp(-t.drag * step);
+        const distance = (velocity + hold) * (1 - decay) / t.drag - hold * step;
         moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
-        const factor = Math.max(0, velocity - t.brake * dt) / velocity;
+        const factor = step < stopTime ? Math.max(0, (velocity + hold) * decay - hold) / velocity : 0;
         s.vx *= factor; s.vy *= factor;
       }
     }
@@ -2261,9 +2386,12 @@ const E8_WEB_SWING = {
 
 const E9_ICE_CURLING = {
   tuning: { friction: 220, decay: .69, minFriction: 26, force: 5.7, maxPull: 130, targetRadius: 41, stoneRadius: 14 },
+  /* 성공 판정: 돌이 과녁(붉은 하우스)에 걸친 채 멈추면 그 한 번으로 클리어다.
+     돌 반지름만큼 여유를 두므로 가장자리에 살짝 걸쳐도 성공으로 친다. */
+  landingRadius() { const t = E9_ICE_CURLING.tuning; return t.targetRadius + t.stoneRadius; },
   build() {
     MINI.init(this, 0xabe5ff);
-    this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0, hold: 0 };
+    this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0 };
     this.target = { x: 769, y: 287 };
   },
   friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
@@ -2283,16 +2411,16 @@ const E9_ICE_CURLING = {
     s.drag = null;
     if (!d || Math.hypot(d.x - s.x, d.y - s.y) < 5) return;
     s.vx = (s.x - d.x) * E9_ICE_CURLING.tuning.force; s.vy = (s.y - d.y) * E9_ICE_CURLING.tuning.force;
-    s.moving = true; s.hold = 0; this.actions++; this.sfx('jump');
+    s.moving = true; this.actions++; this.sfx('jump');
   },
   cancelInput() { this.state.drag = null; },
   retryStone() {
     const s = this.state;
-    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = s.hold = 0;
+    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = 0;
     MINI.summon(this); this.sfx('failure');
   },
   update(dt) {
-    const s = this.state, t = E9_ICE_CURLING.tuning;
+    const s = this.state;
     s.cooldown = Math.max(0, s.cooldown - dt);
     if (s.moving) {
       const speed = Math.hypot(s.vx, s.vy), next = Math.max(0, speed - E9_ICE_CURLING.friction.call(this) * dt);
@@ -2301,13 +2429,14 @@ const E9_ICE_CURLING = {
         s.vx *= next / speed; s.vy *= next / speed;
       }
       if (s.x < 37 || s.x > 923 || s.y < 167 || s.y > 470) E9_ICE_CURLING.retryStone.call(this);
+      // 멈춘 자리가 과녁이면 재시도 없이 바로 성공. 아니면 새 돌로 다시 던진다.
       else if (next === 0) {
-        if (Math.hypot(s.x - this.target.x, s.y - this.target.y) <= t.targetRadius - t.stoneRadius) {
-          s.hold += dt; if (s.hold >= .2) this.finish(true);
+        if (Math.hypot(s.x - this.target.x, s.y - this.target.y) <= E9_ICE_CURLING.landingRadius()) {
+          this.finish(true, s.failures ? `${s.failures + 1}번째 투구로 과녁 안착` : '첫 투구로 과녁 안착');
         } else E9_ICE_CURLING.retryStone.call(this);
       }
     }
-    this.anomaly = `마찰 ${Math.round(E9_ICE_CURLING.friction.call(this))} · 실패 ${s.failures}회 · ${s.moving ? '미끄러지는 중' : '새 돌 준비'}`;
+    this.anomaly = `마찰 ${Math.round(E9_ICE_CURLING.friction.call(this))} · 실패 ${s.failures}회 · 과녁에 한 번만 멈추면 성공`;
     this.risk = Math.min(100, s.failures * 18);
   },
   render() {
@@ -2321,6 +2450,8 @@ const E9_ICE_CURLING = {
     MINI.circle(this, target.x, target.y, 53, 0xe6faff, .7);
     MINI.circle(this, target.x, target.y, 41, 0xf77891, .85);
     MINI.circle(this, target.x, target.y, 14, 0xf5feff);
+    // 성공으로 인정되는 정지 범위를 그대로 보여 준다 — 이 안에서 멈추면 한 번에 끝난다.
+    E9_ICE_CURLING.landingRing.call(this, target);
     if (s.drag) {
       MINI.line(this, s.drag.x, s.drag.y, s.x, s.y, 0xffdc90, 3);
       MINI.line(this, s.x, s.y, s.x + (s.x - s.drag.x) * 1.4, s.y + (s.y - s.drag.y) * 1.4, 0xffdc90, 2);
@@ -2330,6 +2461,23 @@ const E9_ICE_CURLING = {
     MINI.actor(this, 'stone', 'stone', s.x, s.y, 28 * pop, 28 * pop, 0, 0xffd78f);
     if (pop) MINI.line(this, s.x - 7 * pop, s.y - 3, s.x + 7 * pop, s.y - 3, 0x735743, 5);
     MINI.spawnFx(this, s.x, s.y, 28);
+  },
+  /* 판정 원을 점선 고리로 두른다. 밝은 얼음 위에서도 읽히도록 어두운 테두리를 깔고,
+     돌이 다가올수록 초록이 진해져 "여기서 멈추면 끝"임을 알린다. */
+  landingRing(target) {
+    const s = this.state, radius = E9_ICE_CURLING.landingRadius();
+    const near = Math.max(0, 1 - Math.hypot(s.x - target.x, s.y - target.y) / 260);
+    const g = this.ink;
+    const dashes = [];
+    for (let i = 0; i < 28; i += 2) {
+      const from = i / 28 * Math.PI * 2, to = (i + 1.15) / 28 * Math.PI * 2;
+      dashes.push([target.x + Math.cos(from) * radius, target.y + Math.sin(from) * radius,
+        target.x + Math.cos(to) * radius, target.y + Math.sin(to) * radius]);
+    }
+    g.lineStyle(6, 0x0b3324, .55);
+    for (const [x, y, xx, yy] of dashes) g.lineBetween(x, y, xx, yy);
+    g.lineStyle(3, 0x6dffa8, .7 + near * .3);
+    for (const [x, y, xx, yy] of dashes) g.lineBetween(x, y, xx, yy);
   },
 };
 
@@ -2707,7 +2855,7 @@ class ArchiveGame extends Phaser.Scene {
         e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
         e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
         e7: '안전 정렬: 금색 영역', e8: '안전 연결: 가장 가까운 거미줄 지점',
-        e9: '안전 속도: 과녁 안 완전 정지', e10: '안전 입력: 목표 순서',
+        e9: '안전 속도: 점선 고리 안에서 한 번만 정지', e10: '안전 입력: 목표 순서',
       };
       this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
       if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {

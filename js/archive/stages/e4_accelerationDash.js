@@ -2,7 +2,9 @@ import { MINI } from './minigame-kit.js';
 
 export const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
-  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 7200, radius: 10, wallPenalty: 1 },
+  // brake는 속도와 무관한 마찰, drag는 속도에 비례하는 저항(1/초)이다. 둘을 더한 값이
+  // 감속도라서, 손을 떼면 처음에는 크게 깎이고 끝에서는 관성으로 미끄러지며 멈춘다.
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 3600, drag: 2.6, radius: 10, wallPenalty: 1 },
   grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
@@ -97,11 +99,14 @@ export const E4_ACCELERATION_DASH = {
       const velocity = Math.hypot(s.vx, s.vy);
       s.braking = velocity > 0;
       if (velocity > 0) {
-        // 정지하는 마지막 스텝도 정확히 적분한다. 고속일수록 제동 거리가 길어진다.
-        const brakeTime = Math.min(dt, velocity / t.brake);
-        const distance = velocity * brakeTime - .5 * t.brake * brakeTime * brakeTime;
+        // v' = -(brake + drag * v)의 해를 그대로 쓴다. 정지하는 마지막 스텝도 정확히
+        // 적분하므로 프레임 간격이 달라져도 미끄러진 거리는 같다. 고속일수록 길게 밀린다.
+        const hold = t.brake / t.drag;  // 저항이 마찰과 같아지는 속도. 관성이 남는 구간의 기준이다.
+        const stopTime = Math.log(1 + velocity / hold) / t.drag;
+        const step = Math.min(dt, stopTime), decay = Math.exp(-t.drag * step);
+        const distance = (velocity + hold) * (1 - decay) / t.drag - hold * step;
         moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
-        const factor = Math.max(0, velocity - t.brake * dt) / velocity;
+        const factor = step < stopTime ? Math.max(0, (velocity + hold) * decay - hold) / velocity : 0;
         s.vx *= factor; s.vy *= factor;
       }
     }

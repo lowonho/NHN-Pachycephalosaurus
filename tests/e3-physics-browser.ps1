@@ -73,7 +73,7 @@ try {
   Start-Sleep -Milliseconds 100
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e3-tower.png'), [Convert]::FromBase64String($shot.data))
-  Evaluate "archivePhaserGame.loop.sleep(); e3view.loadStage('e3'); e3view.startStage(); e3view.state.x=558; e3view.primaryAction(); for(let i=0;i<360;i++) e3view.update(0,1000/120); e3view.state.x=570; e3view.primaryAction(); for(let i=0;i<360;i++) e3view.update(0,1000/120); archiveGame.pause(true); UI.stageHudTimer.textContent=e3view.remaining.toFixed(2); UI.stageHudAction.textContent='DROP 2'; archivePhaserGame.loop.wake();" | Out-Null
+  Evaluate "archivePhaserGame.loop.sleep(); e3view.loadStage('e3'); e3view.startStage(); e3view.state.x=592; e3view.primaryAction(); for(let i=0;i<360;i++) e3view.update(0,1000/120); e3view.state.x=604; e3view.primaryAction(); for(let i=0;i<360;i++) e3view.update(0,1000/120); archiveGame.pause(true); UI.stageHudTimer.textContent=e3view.remaining.toFixed(2); UI.stageHudAction.textContent='DROP 2'; archivePhaserGame.loop.wake();" | Out-Null
   Start-Sleep -Milliseconds 100
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e3-topple.png'), [Convert]::FromBase64String($shot.data))

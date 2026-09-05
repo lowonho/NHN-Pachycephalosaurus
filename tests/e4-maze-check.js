@@ -82,7 +82,11 @@
     return scene.state.x - initialX;
   };
   const lowDrift = coast(280), highDrift = coast(1100);
-  assert(lowDrift > 4 && lowDrift < 7 && highDrift > 80 && highDrift < 88, 'e4: high speed brakes over about 84px versus 5px at low speed');
+  assert(lowDrift > 8 && lowDrift < 11 && highDrift > 106 && highDrift < 116, 'e4: high speed slides over about 112px versus 10px at low speed');
+  // 관성이 남는 구간: 등감속이라면 이미 서 있을 시점에도 아직 미끄러지는 중이어야 한다.
+  load('e4'); Object.assign(scene.state, { speed: 1100, vx: 1100, vy: 0 });
+  for (let i = 0; i < 18; i++) e4.update.call(scene, 1 / 120);
+  assert(scene.state.vx > 240 && scene.state.vx < 360 && scene.state.moving, 'e4: releasing at top speed still coasts after 0.15s');
   assert(Math.abs(coast(1100, 1 / 60) - highDrift) < .001, 'e4: brake distance stays consistent across simulation step sizes');
   load('e4'); Object.assign(scene.state, { x: 30, speed: 1100, vx: -1100, vy: 0 });
   advance(.2);
@@ -93,7 +97,7 @@
   const frozenX = scene.state.x;
   archiveGame.pause(true); scene.update(0, 500);
   assert(scene.state.x === frozenX && scene.state.vx === 1100, 'e4: pause freezes braking motion');
-  archiveGame.pause(false); advance(.2);
+  archiveGame.pause(false); advance(.3);
   assert(scene.state.x > frozenX && scene.state.vx === 0, 'e4: resume completes pending braking');
   load('e4'); advance(20.3);
   assert(scene.mode === 'done' && scene.remaining === 0 && Math.abs(scene.elapsed - 20.26) < .001, 'e4: time expires at 20.26 seconds');

@@ -5,9 +5,9 @@
  *   메인 화면 → 오프닝 → 막별 기록 연결 → 스테이지 → 결과 → 다음 기록
  * 순서다.
  *
- * 설정 화면·컷신·프로토콜 선택은 각각 settings-flow · cutscene-flow ·
+ * 설정 화면·컷신·프로토콜 브리핑은 각각 settings-flow · cutscene-flow ·
  * protocol-select-flow가 통째로 들고 있다. 여기서는 열라는 신호만 보내고,
- * 컷신이 끝났을 때 다음 화면(프로토콜 선택)만 정해 준다.
+ * 컷신이 끝났을 때 다음 화면(브리핑)만 정해 준다.
  *
  * 메인으로 나가도 막·스테이지·목숨·선정 목록은 저장되며 이어하기로 복귀한다.
  */
@@ -22,9 +22,6 @@ class MainMenuFlow {
     this.protocolSelect = protocolSelect;
     this.codex = codex;
 
-    // 메인 화면으로 나갈지 되묻는 창이 떠 있는지.
-    this.leaveAsked = false;
-
     this.ui.mainPlayButton?.addEventListener("click", () => this.playIntro());
     this.ui.mainContinueButton?.addEventListener("click", () => this.continueRun());
     /* 기록실은 도감 탭이 있어 언제나 열린다 — 증언 기록 탭만 엔딩에서 풀린다. */
@@ -32,15 +29,9 @@ class MainMenuFlow {
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
 
     /*
-     * "◀ 메인메뉴로" — 바로 나가지 않는다. 판부터 멈추고 한 번 되묻는다.
-     * 나가면 이번 판이 통째로 접히므로(reset) 잘못 누르면 되돌릴 길이 없다.
+     * 판을 떠나는 길은 일시정지 창의 "메인 화면으로" 하나다(js/ui/pause-flow.js).
+     * 되묻지 않는다 — 막·목숨·선정된 게임은 저장돼 이어하기로 그대로 돌아온다.
      */
-    this.ui.stageSelectBackButton?.addEventListener("click", () => this.askLeaveToMain());
-    this.ui.leaveConfirmButton?.addEventListener("click", () => this.confirmLeaveToMain());
-    this.ui.leaveCancelButton?.addEventListener("click", () => this.cancelLeaveToMain());
-    window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.leaveAsked) this.cancelLeaveToMain();
-    });
 
     /*
      * 오른쪽 위 ON/OFF — 마스터 뮤트 하나를 설정 화면과 나눠 쓴다.
@@ -62,7 +53,7 @@ class MainMenuFlow {
     // 스테이지가 실제로 열릴 때 메인 화면을 비운다.
     this.events.on(GAME_EVENTS.REQUEST_START, () => this.close());
 
-    // 결과 화면에서 "프로토콜 선택으로" — 판은 이어 가고 화면만 되돌린다.
+    // 결과 화면에서 브리핑으로 — 판은 이어 가고 화면만 되돌린다.
     this.events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.protocolSelect.open());
 
     this.open();
@@ -89,7 +80,7 @@ class MainMenuFlow {
   }
 
   /*
-   * 게임 시작 → 컷신 → 프로토콜 선택.
+   * 게임 시작 → 컷신 → 프로토콜 브리핑.
    * 컷신을 끝까지 봤든 SKIP했든 onDone 하나로 돌아오므로 다음 화면은 여기서만 정한다.
    * 컷신이 없는 화면(메인 화면 뒤)은 그동안 만질 수 없게 inert로 잠가 둔다.
    */
@@ -126,43 +117,6 @@ class MainMenuFlow {
      */
   }
 
-  /*
-   * 프로토콜 선택의 "◀ 메인메뉴로" — 누르는 즉시 판을 멈추고 되묻는다.
-   *
-   * REQUEST_PAUSE는 진행 중인 판이 있을 때만 실제로 멈춘다(js/game.js의 pause).
-   * 선택 화면에서는 멈출 것이 없어 아무 일도 일어나지 않으므로 그냥 보내도 안전하다.
-   * 되묻는 동안 뒤의 프로토콜 선택 화면은 inert로 잠가 타일을 못 누르게 한다.
-   */
-  askLeaveToMain() {
-    if (this.leaveAsked) return;
-    this.leaveAsked = true;
-    this.events.emit(GAME_EVENTS.REQUEST_PAUSE, {});
-    this.ui.protocolDesktop?.setAttribute("inert", "");
-    this.ui.leaveConfirmModal?.classList.remove("hidden");
-    // 기본 손가락은 "계속하기"에 둔다 — 잘못 눌러 판이 날아가지 않게.
-    this.ui.leaveCancelButton?.focus();
-  }
-
-  /* "계속하기" · Esc — 멈춘 판을 다시 돌리고 선택 화면으로 돌아간다. */
-  cancelLeaveToMain() {
-    if (!this.leaveAsked) return;
-    this.leaveAsked = false;
-    this.ui.leaveConfirmModal?.classList.add("hidden");
-    this.ui.protocolDesktop?.removeAttribute("inert");
-    this.events.emit(GAME_EVENTS.REQUEST_RESUME, {});
-    this.ui.stageSelectBackButton?.focus();
-  }
-
-  /* "메인 화면으로" — 판을 접고 메인 화면으로 돌아온다. */
-  confirmLeaveToMain() {
-    if (!this.leaveAsked) return;
-    this.leaveAsked = false;
-    this.ui.leaveConfirmModal?.classList.add("hidden");
-    this.ui.protocolDesktop?.removeAttribute("inert");
-    // open()이 컷신·프로토콜 선택을 걷어내고 판을 초기화한다.
-    this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
-    this.ui.mainPlayButton?.focus();
-  }
 
   /* 스테이지 목록은 엔진이 준비되면 game.js가 넘겨 준다. 도감도 같은 목록을 쓴다. */
   setStages(stages) {
@@ -173,7 +127,7 @@ class MainMenuFlow {
 
   /*
    * 한 스테이지가 끝나 ARCHIVE 복구 기록이 갱신됐을 때 game.js가 부른다.
-   * 그 기록을 그리는 것은 프로토콜 선택 화면이므로 그대로 넘긴다.
+   * 그 기록을 그리는 것은 브리핑 화면이므로 그대로 넘긴다.
    */
   renderStages() {
     this.protocolSelect.render();

@@ -32,6 +32,7 @@ class SettingsFlow {
     this.ui = dom;
     this.soundBus = soundBus;
     this.snapshot = null;
+    this.returnFocus = null;
 
     this.sliders = [
       {
@@ -85,9 +86,15 @@ class SettingsFlow {
       if (event.target === this.ui.settingsBackdrop) this.cancel();
     });
 
-    // 결과 모달이 위에 덮여 있는 동안에는 Esc가 뒤 화면(설정)까지 닿으면 안 된다.
+    /*
+     * 결과 모달이 위에 덮여 있는 동안에는 Esc가 뒤 화면(설정)까지 닿으면 안 된다.
+     * 여기서 닫았다는 표시로 preventDefault를 남긴다 — 안 그러면 같은 Esc가
+     * 뒤의 일시정지 창(js/ui/pause-flow.js)까지 함께 걷어낸다.
+     */
     window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen() && !modalFlow.isOpen()) this.cancel();
+      if (event.key !== "Escape" || !this.isOpen() || modalFlow.isOpen()) return;
+      event.preventDefault();
+      this.cancel();
     });
 
     document.addEventListener("fullscreenchange", () => this.syncFullscreen());
@@ -108,13 +115,19 @@ class SettingsFlow {
     else this.open();
   }
 
-  open() {
+  /*
+   * returnFocus — 닫을 때 손가락을 돌려줄 곳. 메인 화면의 톱니바퀴가 기본이지만,
+   * 일시정지 창에서 열었다면 그 창의 "설정" 버튼으로 돌아가야 한다
+   * (메인 화면은 그때 숨어 있어 포커스를 받지 못한다).
+   */
+  open({ returnFocus = this.ui.mainSettingsButton } = {}) {
     this.snapshot = {
       volumes: { ...this.soundBus.volumes },
       muted: this.soundBus.muted,
       channelMuted: { ...this.soundBus.channelMuted },
       story: { ...globalThis.ARCHIVE_STORY_SETTINGS },
     };
+    this.returnFocus = returnFocus;
     this.ui.settingsBackdrop?.classList.remove("hidden");
     this.ui.mainSettingsButton?.setAttribute("aria-expanded", "true");
     this.syncAudio();
@@ -126,9 +139,11 @@ class SettingsFlow {
 
   close({ restoreFocus = true } = {}) {
     this.snapshot = null;
+    const target = this.returnFocus ?? this.ui.mainSettingsButton;
+    this.returnFocus = null;
     this.ui.settingsBackdrop?.classList.add("hidden");
     this.ui.mainSettingsButton?.setAttribute("aria-expanded", "false");
-    if (restoreFocus) this.ui.mainSettingsButton?.focus();
+    if (restoreFocus) target?.focus();
   }
 
   apply() {
