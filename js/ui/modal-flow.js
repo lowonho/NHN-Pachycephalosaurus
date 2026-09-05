@@ -62,16 +62,14 @@ class ModalFlow {
     const act = run?.currentAct ?? 1;
     const slot = run?.currentStageInAct ?? 1;
     const recordId = `A${act}-${String(slot).padStart(2, '0')}`;
-    const storyRecord = SCENARIO_DATA.records.find((item) => item.id === recordId);
     const lives = `${'◆'.repeat(run?.lives ?? 0)}${'◇'.repeat(Math.max(0, 3 - (run?.lives ?? 0)))}`;
     this.ui.secondaryButton.hidden = true;
 
     if (success) {
       this.ui.modalStep.textContent = `${recordId} / REGISTERED`;
       this.ui.modalTitle.textContent = 'STAGE RECORD REGISTERED';
-      this.ui.modalCopy.textContent = `${storyRecord?.title ?? stage.title}\n${storyRecord?.text ?? ''}`;
+      this.ui.modalCopy.textContent = stage.title;
       const lines = [
-        `ACT RECORDS ${run?.actRecordCount ?? 0}/6 · TOTAL RECORDS ${run?.totalRecordCount ?? 0}/18`,
         `${stage.actionLabel} ${actions}회 · ${elapsed.toFixed(2)}초`,
       ];
       if (record) lines.push(`${record.isNew ? 'NEW BEST! ' : 'BEST '}${record.best.elapsed.toFixed(2)}초`);

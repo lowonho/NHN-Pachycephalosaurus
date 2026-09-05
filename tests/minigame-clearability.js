@@ -26,7 +26,14 @@
   let lastDrop = -10;
   // 메챠 포즈는 옛 마네킹보다 훨씬 홀쭉해서, 한 명이 자리를 잡는 데 1초쯤 걸린다.
   // 그보다 빨리 떨어뜨리면 이미 서 있는 사람을 무너뜨리기만 한다.
-  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > 1 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
+  // 떨어진 사람은 레일 속도를 물려받아 옆으로 흐르므로, 낙하 시간만큼 앞서 겨냥해 놓는다.
+  // 단상이 넓으니 픽셀 단위로 맞출 필요는 없다 — 사람처럼 한가운데 20px 안쪽이면 떨어뜨린다.
+  const e3OnTarget = () => {
+    const t = scene.stageGame.tuning, s = scene.state, rail = scene.stageGame.speed.call(scene);
+    const flight = Math.sqrt(2 * Math.max(40, t.baseY - s.height - s.spawnY) / (t.gravity * 1000));
+    return Math.abs(s.x + s.direction * rail * t.carryMomentum * flight - 480) < Math.max(20, rail / 90);
+  };
+  advance(20.3, () => { if (e3OnTarget() && scene.elapsed - lastDrop > 1 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
   const maze = scene.state, center = scene.stageGame.tileCenter;

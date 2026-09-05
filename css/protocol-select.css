@@ -1,14 +1,13 @@
 /*
- * A(비주얼) 전용 — 프로토콜 선택 화면(옛 스테이지 선택).
+ * A(비주얼) 전용 — 프로토콜 브리핑 화면(옛 스테이지 선택).
  * 배치 기준: assets/images/concept/stage select.png
  *   1인칭으로 마주 보는 모니터 한 대. 그 스크린 안에
- *   표제 → 안내 문구 → 현재 막의 프로토콜 앱 타일 6개 → 하단 바 순서로 쌓인다.
+ *   표제 → 기억 이름 → 기록 카드와 계기판 → 하단 바 순서로 쌓인다.
  *
  * 컨셉 이미지와 다른 점.
- *   · 좌우 화살표로 넘기는 캐러셀이 아니다. 6개를 한 화면에 모두 편다.
- *   · 카드의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 그리지 않는다.
- *   · 안내 문구는 한 줄만 왼쪽에 붙인다.
- *   · 현재 스테이지의 20.26초는 책상 위 탁상시계에도 표시한다.
+ *   · 고를 목록(캐러셀·타일 판)이 없다. 이번 차례의 브리핑 한 장만 뜬다.
+ *   · 화면을 떠나는 PAUSE는 모니터 밖(방의 우상단)에 둔다.
+ *   · 현재 스테이지의 20.26초는 책상 위 탁상시계에 표시한다.
  *
  * 방·책상·소품(머그·포스트잇·메모·시계 몸체)·키보드·양손은 에셋이다
  * (assets/images/ui/stage select/*). 모니터 몸체와 스크린 안쪽만 CSS로 그린다.
@@ -157,6 +156,16 @@
   /* 손목이 회전 중심이다. 팔뚝이 빠져나가는 아래쪽 바깥 모서리 근처에 둔다. */
   transform-origin: 22% 96%;
   will-change: transform;
+  /*
+   * 손을 뗄 때 제자리로 내려앉는 시간. 위아래 진폭이 28px이라 애니메이션을
+   * 그냥 걷어내면 손이 마지막 자세에서 툭 튄다.
+   *
+   * 이 줄만으로는 안 걸린다 — 애니메이션이 도는 동안에도 transform의 계산값은
+   * 내내 none이라, 애니메이션이 빠져도 계산값이 바뀌지 않아 전환이 시작되지
+   * 않는다. 그래서 js가 멈추는 순간의 자세를 인라인으로 붙잡았다 놓아 준다
+   * (js/ui/desk-hands.js의 settleToRest). 시간은 여기서 잡는다.
+   */
+  transition: transform 130ms ease-out;
 }
 
 .scene-hand--left {
@@ -178,8 +187,19 @@
  *
  * 한 주기에 두 번 짚는다. 내려찍기만 하면 제자리 방아처럼 보여서,
  * 짚을 때마다 좌우로 조금씩 옮겨 가며 다른 키를 누르는 것처럼 만든다.
- *   25%  바깥쪽으로 짚는다
- *   75%  안쪽으로 짚는다
+ *   0% · 50% · 100%  들어 올린다
+ *   25%             바깥쪽으로 짚는다
+ *   75%             안쪽으로 짚는다
+ *
+ * 위아래가 이 동작의 중심이다. 짚는 자리(+20px)만 잡고 쉬는 자리를 0으로 두면
+ * 아래로만 눌렸다 돌아오는 꼴이라 눈에 잘 안 띈다. 그래서 쉬는 자리를 -8px로
+ * 띄워 손이 실제로 떴다 내려앉게 만든다 ─ 위아래 진폭이 28px로 벌어진다.
+ * 띄우는 쪽은 넉넉하다. 조각의 아랫변(팔뚝)은 화면 한참 밖이라 몇십 px 올려도
+ * 밑이 비지 않는다.
+ *
+ * 회전축이 손목(아래쪽 화면 밖)이라 rotate는 손끝에서 크게 번역된다.
+ * 1도당 손끝이 7~9px 옆으로 밀리므로, 손끝의 실제 좌우 흔들림은
+ * translate 값보다 훨씬 크다. 각도를 더 키우면 타자가 아니라 손 흔들기가 된다.
  *
  * 두 손은 서로 엇갈려야 한다. 주기가 같고 오른손만 1/4주기 앞에서 시작하므로
  * (음수 delay) 왼손이 짚는 사이사이에 오른손이 짚는다.
@@ -196,19 +216,19 @@
 @keyframes desk-hand-tap-left {
   0%,
   100% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate(0, -8px) rotate(0deg);
   }
 
   25% {
-    transform: translate(-7px, 6px) rotate(1deg);
+    transform: translate(-12px, 20px) rotate(2deg);
   }
 
   50% {
-    transform: translate(0, 1px) rotate(0deg);
+    transform: translate(0, -6px) rotate(0.2deg);
   }
 
   75% {
-    transform: translate(6px, 6px) rotate(-0.7deg);
+    transform: translate(11px, 18px) rotate(-1.4deg);
   }
 }
 
@@ -216,19 +236,19 @@
 @keyframes desk-hand-tap-right {
   0%,
   100% {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate(0, -8px) rotate(0deg);
   }
 
   25% {
-    transform: translate(7px, 6px) rotate(-1deg);
+    transform: translate(12px, 20px) rotate(-2deg);
   }
 
   50% {
-    transform: translate(0, 1px) rotate(0deg);
+    transform: translate(0, -6px) rotate(-0.2deg);
   }
 
   75% {
-    transform: translate(-6px, 6px) rotate(0.7deg);
+    transform: translate(-11px, 18px) rotate(1.4deg);
   }
 }
 
@@ -284,6 +304,64 @@
   height: 90px;
   transform: translateX(-50%);
   background: linear-gradient(90deg, #0a0d14, #1b2331 42%, #0a0d14);
+}
+
+/* ── PAUSE ─────────────────────────────────────────────────────────── */
+
+/*
+ * 모니터 밖, 방의 우상단 벽. 스크린 안이 아니라 프레임 위에 붙는다 —
+ * 브리핑이 스크린을 꽉 채우므로 안에 두면 브리핑 내용과 자리를 다툰다.
+ *
+ * x는 모니터 오른쪽 끝(248 + 1424 = 1672)보다 오른쪽, y는 포스트잇(352) 위다.
+ * 층은 손(8) 위 — 스크린 안쪽 레이어와는 쌓임 맥락이 달라 겹치지 않는다.
+ */
+.protocol-pause {
+  position: absolute;
+  z-index: 9;
+  top: 44px;
+  right: 48px;
+  display: inline-flex;
+  height: 52px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 24px;
+  border: 2px solid var(--pro-line);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  background: var(--pro-glass-deep);
+  color: var(--pro-text);
+  cursor: pointer;
+  font: 800 18px/1 var(--font-ui);
+  letter-spacing: 0.18em;
+  transition: background 140ms ease, filter 140ms ease;
+}
+
+.protocol-pause[hidden] {
+  display: none;
+}
+
+.protocol-pause:hover,
+.protocol-pause:focus-visible {
+  outline: none;
+  background: rgba(87, 232, 255, 0.22);
+  filter: drop-shadow(0 0 16px rgba(87, 232, 255, 0.4));
+}
+
+/*
+ * 아이콘 — 막대 두 개를 CSS로 세운다. 글꼴에 없는 글자(❚❚)를 쓰면
+ * 환경에 따라 굵기와 간격이 제각각이라 그림이 흔들린다.
+ */
+.protocol-pause-mark {
+  display: flex;
+  width: 16px;
+  height: 20px;
+  justify-content: space-between;
+}
+
+.protocol-pause-mark::before,
+.protocol-pause-mark::after {
+  width: 5px;
+  background: var(--pro-line);
+  content: "";
 }
 
 /* ── 탁상시계 ──────────────────────────────────────────────────────── */
@@ -373,7 +451,7 @@
 /* ── 스크린 ────────────────────────────────────────────────────────── */
 
 /*
- * 스크린 한 장(1440×810). 프로토콜 선택(.protocol-desktop)과
+ * 스크린 한 장(1440×810). 브리핑(.protocol-brief)과
  * 플레이(.app-shell)가 이 안에서 자리를 바꾼다 — data-mode가 정한다.
  *
  * 스크린 안에 얹히는 1920×1080 설계 레이어(.hud-layer · .screen-overlays)는
@@ -394,19 +472,6 @@
     radial-gradient(80% 60% at 50% 112%, rgba(87, 232, 255, 0.1), transparent 60%),
     #041028;
   box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
-}
-
-/* 프로토콜 선택 레이어 — 스크린을 꽉 채운다. 안쪽 여백은 여기가 가진다. */
-.protocol-desktop {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  inset: 0;
-  padding: 36px 46px 30px;
-}
-
-.protocol-screen[data-mode="play"] .protocol-desktop {
-  display: none;
 }
 
 /* 스크린 안쪽 격자 — 홀로그램 바탕. */
@@ -484,70 +549,6 @@
   opacity: 0.45;
 }
 
-/* 내용은 주사선(z-index 5) 아래에 깔린다. */
-.protocol-header,
-.protocol-prompt,
-.stage-select-grid,
-.protocol-footer {
-  position: relative;
-  z-index: 1;
-}
-
-/* ── 스크린 표제 ───────────────────────────────────────────────────── */
-
-.protocol-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--pro-line-soft);
-}
-
-.protocol-brand {
-  margin: 0;
-  color: var(--pro-text);
-  font: 900 34px/1 var(--font-ui);
-  letter-spacing: 0.05em;
-  text-shadow: 0 0 24px rgba(87, 232, 255, 0.4);
-}
-
-.protocol-brand span {
-  color: var(--pro-line);
-}
-
-/*
- * 이야기 자동 등록 현황 — 표제 오른쪽. 현재 막과 전체 18개 기록을 표시한다.
- * 채우는 쪽은 js/ui/protocol-select-flow.js의 renderArchive다.
- */
-.protocol-archive {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 0;
-}
-
-.protocol-archive-readout {
-  text-align: right;
-}
-
-.protocol-archive-rate {
-  margin: 0;
-  color: var(--pro-line);
-  font: 800 20px/1.2 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.16em;
-  text-shadow: 0 0 20px rgba(87, 232, 255, 0.42);
-}
-
-.protocol-archive-detail {
-  margin: 6px 0 0;
-  color: var(--pro-dim);
-  font: 700 14px/1 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-}
-
 /* 컨셉 이미지 우상단의 바코드 같은 눈금. */
 .protocol-meta-rule {
   width: 132px;
@@ -556,276 +557,16 @@
   opacity: 0.6;
 }
 
-/* ── 안내 문구 ─────────────────────────────────────────────────────── */
-
-/* 안내 문구 한 줄. 남은 시간은 책상 위 탁상시계(.desk-clock)에만 있다. */
-.protocol-prompt {
-  margin: 24px 0 22px;
-}
-
-/* 좌측 정렬. 컨셉 이미지의 두 번째 줄(부제)은 넣지 않는다. */
-.protocol-prompt-text {
-  margin: 0;
-  color: var(--pro-text);
-  font-family: var(--font-display);
-  font-size: 42px;
-  font-weight: 400;
-  line-height: 1.1;
-  text-align: left;
-  text-shadow: 0 0 26px rgba(87, 232, 255, 0.28);
-}
-
-/* ── 현재 막의 프로토콜 앱 타일 6개 ───────────────────────────────── */
+/* ── 브리핑(이번 차례 기억의 프로토콜 설명) ───────────────────────── */
 
 /*
- * grid가 아니라 flex-wrap이다 — 마지막 줄(3개)이 가운데로 모여야
- * 데스크톱 아이콘 판처럼 보인다. grid는 남는 칸이 한쪽으로 몰린다.
- *
- * 첫 줄에 4개가 서야 한다 — 296×4 + 26×3 = 1262 ≤ 안쪽 폭 1300.
- * 스크린 폭(--screen-w)을 줄이면 이 값도 같이 줄여야 한다. 넘치면 3+3+1로 접히면서
- * 하단 바가 스크린 밖으로 밀려난다.
- */
-.stage-select-grid {
-  width: 940px; /* Three 296px cards and two 26px gaps. */
-  max-width: 100%;
-  margin-inline: auto;
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-content: center;
-  justify-content: center;
-  gap: 26px;
-}
-
-.stage-select-card {
-  display: flex;
-  width: 296px;
-  height: 200px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px 18px;
-  border: 1px solid var(--pro-line-soft);
-  /* 좌상·우하 모서리를 깎은 홀로그램 패널 — 컷신 패널과 같은 컷이다. */
-  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
-  background: linear-gradient(160deg, rgba(87, 232, 255, 0.1), rgba(6, 26, 62, 0.2)), var(--pro-glass);
-  color: var(--pro-text);
-  cursor: pointer;
-  text-align: center;
-  transition: transform 140ms ease, background 140ms ease, filter 140ms ease;
-}
-
-.protocol-app-icon {
-  display: grid;
-  width: 78px;
-  height: 78px;
-  place-items: center;
-  border: 1px solid rgba(87, 232, 255, 0.4);
-  border-radius: 20px;
-  background: linear-gradient(150deg, rgba(87, 232, 255, 0.24), rgba(31, 92, 255, 0.14));
-  color: var(--pro-line);
-  box-shadow: inset 0 0 22px rgba(87, 232, 255, 0.16);
-}
-
-.protocol-app-code {
-  color: var(--pro-line);
-  font: 800 15px/1 var(--font-ui);
-  letter-spacing: 0.18em;
-}
-
-.protocol-app-title {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 400;
-  line-height: 1.1;
-}
-
-/*
- * 현재 막의 등록 완료·접속 가능·잠금 상태를 표시한다.
- * 복구 전에도 자리는 잡아 둔다 — 안 그러면 타일 높이가 들썩인다.
- */
-.protocol-app-mark {
-  height: 13px;
-  color: var(--pro-line);
-  font: 800 13px/1 var(--font-ui);
-  letter-spacing: 0.14em;
-  opacity: 0;
-}
-
-/*
- * 타일 색은 "이번 판"만 말한다 — 두 가지뿐이다.
- *   기본(파랑)  이번 판에서 아직 증언하지 않은 기록. 지난 판에 몇 번을
- *               복구했든, BEST 기록이 남아 있든 똑같은 파란 톤이다.
- *   회색 딤드   이번 판에서 클리어한 기록. 잠기고 다시 고를 수 없다
- *               (js/ui/protocol-select-flow.js가 disabled까지 건다).
- *
- * 판을 넘어 남는 복구 등급(data-recovery)은 여기서 색을 바꾸지 않는다.
- * 예전에는 full을 초록으로 칠했는데, 이번 판에 안 건드린 기록까지 클리어처럼
- * 보여서 "무엇이 남았나"를 읽을 수 없었다. 등급은 헤더의 ARCHIVE RECOVERY와
- * 브리핑의 도장(.protocol-brief-record)이 맡는다.
- */
-.stage-select-card[data-restored="true"] .protocol-app-mark {
-  opacity: 1;
-}
-
-.stage-select-card[data-current="true"] .protocol-app-mark {
-  opacity: 1;
-}
-
-.stage-select-card:disabled {
-  cursor: not-allowed;
-  filter: grayscale(.55);
-  opacity: .48;
-}
-
-.stage-select-card:disabled:hover {
-  background: linear-gradient(160deg, rgba(87, 232, 255, 0.1), rgba(6, 26, 62, 0.2)), var(--pro-glass);
-  filter: grayscale(.55);
-  transform: none;
-}
-
-.stage-select-card[data-restored="true"] {
-  border-color: rgba(226, 236, 245, 0.18);
-  background: linear-gradient(160deg, rgba(226, 236, 245, 0.06), rgba(10, 16, 30, 0.42)), var(--pro-glass-deep);
-  color: rgba(226, 236, 245, 0.45);
-  cursor: default;
-  filter: grayscale(1);
-  opacity: 0.55;
-}
-
-.stage-select-card[data-restored="true"] .protocol-app-code,
-.stage-select-card[data-restored="true"] .protocol-app-mark {
-  color: rgba(226, 236, 245, 0.5);
-}
-
-.stage-select-card[data-restored="true"] .protocol-app-icon {
-  border-color: rgba(226, 236, 245, 0.18);
-  background: linear-gradient(150deg, rgba(226, 236, 245, 0.08), rgba(10, 16, 30, 0.3));
-  color: rgba(226, 236, 245, 0.5);
-  box-shadow: none;
-}
-
-/* 잠긴 타일은 호버·포커스에도 떠오르지 않는다 — 누를 수 있어 보이면 안 된다. */
-.stage-select-card[data-restored="true"]:hover,
-.stage-select-card[data-restored="true"]:focus-visible {
-  background: linear-gradient(160deg, rgba(226, 236, 245, 0.06), rgba(10, 16, 30, 0.42)), var(--pro-glass-deep);
-  filter: grayscale(1);
-  transform: none;
-}
-
-/*
- * clip-path는 바깥 box-shadow까지 잘라 낸다. 글로우는 filter로 준다
- * (필터는 클리핑 뒤에 적용돼 잘리지 않는다). 같은 이유로 outline도 쓰지 않는다.
- */
-.stage-select-card:hover,
-.stage-select-card:focus-visible {
-  outline: none;
-  background: linear-gradient(160deg, rgba(87, 232, 255, 0.24), rgba(6, 26, 62, 0.2)), var(--pro-glass-deep);
-  filter: drop-shadow(0 0 20px rgba(87, 232, 255, 0.45));
-  transform: translateY(-4px);
-}
-
-.stage-select-card:active {
-  transform: translateY(0);
-}
-
-/* 스테이지 목록이 아직 안 왔을 때의 빈 칸. */
-.stage-select-card--soon {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.5);
-  cursor: default;
-}
-
-/* ── 하단 바 ───────────────────────────────────────────────────────── */
-
-.protocol-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--pro-line-soft);
-}
-
-.protocol-progress {
-  margin: 0;
-  color: var(--pro-dim);
-  font: 700 15px/1 var(--font-ui);
-  letter-spacing: 0.18em;
-}
-
-/* 엔진이 아직 없을 때 잠깐 뜨는 경고. 한글 문구라 자간을 좁힌다. */
-.protocol-progress[data-state="warn"] {
-  color: var(--pro-alarm);
-  font-family: var(--font-body);
-  letter-spacing: 0.02em;
-}
-
-/*
- * 하단 바 왼쪽 묶음 — 막·스테이지·목숨·18개 기록과 지원 상태를 쌓는다.
- */
-.protocol-footer-status {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 7px;
-}
-
-/* 1막 지원 프로토콜이 열린 뒤 상태를 표시한다. */
-.protocol-archive-ending {
-  margin: 0;
-  color: #93fca0;
-  font: 800 14px/1.4 var(--font-ui);
-  letter-spacing: 0.1em;
-  text-shadow: 0 0 18px rgba(147, 252, 160, 0.38);
-}
-
-.protocol-back {
-  display: inline-flex;
-  width: 168px;
-  height: 48px;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 0;
-  border: 2px solid var(--pro-line);
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
-  background: var(--pro-glass-deep);
-  color: var(--pro-text);
-  cursor: pointer;
-  font: 800 17px/1 var(--font-ui);
-  letter-spacing: 0.12em;
-  transition: background 140ms ease, filter 140ms ease;
-}
-
-.protocol-back:hover,
-.protocol-back:focus-visible {
-  outline: none;
-  background: rgba(87, 232, 255, 0.22);
-  filter: drop-shadow(0 0 16px rgba(87, 232, 255, 0.4));
-}
-
-.protocol-back-mark {
-  font-size: 14px;
-}
-
-/* ── 브리핑(선택한 기억의 프로토콜 설명) ──────────────────────────── */
-
-/*
- * 기억을 고르면 스크린 안에서 앱 하나가 더 열린다 — 화면을 덮는 대사창이 아니라
+ * 화면이 열리면 스크린 안에 이 앱이 뜬다 — 화면을 덮는 대사창이 아니라
  * 모니터 안의 UI다(data-mode="brief"). 방·책상·모니터·탁상시계는 그대로 서 있고
- * 스크린 안쪽만 프로토콜 선택 → 브리핑 → 플레이로 갈린다.
+ * 스크린 안쪽만 브리핑 → 플레이로 갈린다.
  *
- * 배치는 앞의 .protocol-desktop과 같은 뼈대다(표제 → 본문 → 하단 바).
+ * 뼈대는 표제 → 본문 → 하단 바 순서로 쌓는다.
  * 크기는 스크린 안쪽(1392×783) 좌표다 — 바깥 배율은 조상이 이미 걸었다.
  */
-.protocol-screen[data-mode="brief"] .protocol-desktop {
-  display: none;
-}
-
 .protocol-brief {
   position: absolute;
   z-index: 2;
@@ -1062,7 +803,7 @@
   font-size: 17px;
 }
 
-/* 하단 바 — 선택 화면의 .protocol-footer와 같은 위치에 같은 굵기로 앉는다. */
+/* 하단 바 — 왼쪽에 남은 목숨과 안내 문구, 오른쪽에 시작 버튼. */
 .protocol-brief-actions {
   display: flex;
   align-items: center;
@@ -1072,11 +813,37 @@
   border-top: 1px solid var(--pro-line-soft);
 }
 
+.protocol-brief-status {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * 남은 목숨 — 브리핑에 남긴 유일한 진행도다.
+ * 마름모는 시안, 잃은 자리는 흐리게 두어 한눈에 개수가 읽힌다.
+ */
+.protocol-brief-lives {
+  margin: 0;
+  color: var(--pro-line);
+  font: 800 19px/1 var(--font-ui);
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 18px rgba(87, 232, 255, 0.4);
+}
+
 .protocol-brief-note {
   margin: 0;
   color: var(--pro-dim);
   font: 700 14px/1 var(--font-ui);
   letter-spacing: 0.12em;
+}
+
+/* 엔진이 아직 없을 때 잠깐 뜨는 경고. 한글 문구라 자간을 좁힌다. */
+.protocol-brief-note[data-state="warn"] {
+  color: var(--pro-alarm);
+  font-family: var(--font-body);
+  letter-spacing: 0.02em;
 }
 
 .protocol-brief-buttons {

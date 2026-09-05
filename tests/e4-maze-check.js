@@ -28,9 +28,13 @@
   load('e4');
   assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
   const e4 = scene.stageGame, grid = e4.grid, bounds = e4.tileRect(grid.cols - 1, grid.rows - 1);
-  assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 497, 'e4: whole maze fits fixed viewport');
+  // 필드(가로 20~940, 세로 61.75~579.25) 안에 들어가고, 아래 조작 안내 줄과도 겹치지 않는다.
+  assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 540, 'e4: whole maze fits fixed viewport');
   assert(grid.passageX >= 80 && grid.passageY >= 80 && grid.wall === 12, 'e4: wide passages with thin walls');
-  assert(!scene.readout?.visible && grid.y === 88 && bounds.y + bounds.h === 384, 'e4: explanation row is replaced with a taller playable maze');
+  assert(!scene.readout?.visible && bounds.y + bounds.h === 384, 'e4: explanation row is replaced with a taller playable maze');
+  // 위아래 여백이 같아야 미로가 위로 쏠려 보이지 않는다.
+  const topGap = grid.y - 61.75, bottomGap = 579.25 - (grid.y + bounds.y + bounds.h);
+  assert(Math.abs(topGap - bottomGap) <= 1 && Math.abs((grid.x - 20) - (940 - grid.x - bounds.x - bounds.w)) <= 1, 'e4: maze sits centered in the field');
   const direction = scene.state.tiles[1][2] === 0 ? 'right' : 'down';
   const origin = { x: scene.state.x, y: scene.state.y };
   scene.directionPress(direction); advance(.1);
@@ -82,7 +86,11 @@
     return scene.state.x - initialX;
   };
   const lowDrift = coast(280), highDrift = coast(1100);
-  assert(lowDrift > 4 && lowDrift < 7 && highDrift > 80 && highDrift < 88, 'e4: high speed brakes over about 84px versus 5px at low speed');
+  assert(lowDrift > 8 && lowDrift < 11 && highDrift > 106 && highDrift < 116, 'e4: high speed slides over about 112px versus 10px at low speed');
+  // 관성이 남는 구간: 등감속이라면 이미 서 있을 시점에도 아직 미끄러지는 중이어야 한다.
+  load('e4'); Object.assign(scene.state, { speed: 1100, vx: 1100, vy: 0 });
+  for (let i = 0; i < 18; i++) e4.update.call(scene, 1 / 120);
+  assert(scene.state.vx > 240 && scene.state.vx < 360 && scene.state.moving, 'e4: releasing at top speed still coasts after 0.15s');
   assert(Math.abs(coast(1100, 1 / 60) - highDrift) < .001, 'e4: brake distance stays consistent across simulation step sizes');
   load('e4'); Object.assign(scene.state, { x: 30, speed: 1100, vx: -1100, vy: 0 });
   advance(.2);
@@ -93,7 +101,7 @@
   const frozenX = scene.state.x;
   archiveGame.pause(true); scene.update(0, 500);
   assert(scene.state.x === frozenX && scene.state.vx === 1100, 'e4: pause freezes braking motion');
-  archiveGame.pause(false); advance(.2);
+  archiveGame.pause(false); advance(.3);
   assert(scene.state.x > frozenX && scene.state.vx === 0, 'e4: resume completes pending braking');
   load('e4'); advance(20.3);
   assert(scene.mode === 'done' && scene.remaining === 0 && Math.abs(scene.elapsed - 20.26) < .001, 'e4: time expires at 20.26 seconds');
