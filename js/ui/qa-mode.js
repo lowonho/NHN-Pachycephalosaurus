@@ -297,8 +297,8 @@ class QaModeFlow {
 
     /*
      * 브리핑은 모니터 스크린 안에서 열린다(js/ui/protocol-select-flow.js).
-     * 그래서 QA에서도 모니터부터 세우고, "목록으로"는 QA 판으로 되돌린다 —
-     * QA는 프로토콜 선택 화면을 건너뛰고 들어왔으므로 돌아갈 목록이 없다.
+     * 그래서 QA에서도 모니터부터 세우고, Esc는 QA 판으로 되돌린다 —
+     * 이야기 흐름에서 Esc는 일시정지지만, QA는 돌아갈 판이 따로 있다.
      */
     if (this.playBrief) {
       this.ui.stageSelectScreen?.classList.remove("hidden");

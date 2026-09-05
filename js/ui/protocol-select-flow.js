@@ -1,13 +1,14 @@
 /*
- * 기능(B) — 프로토콜 선택 화면(옛 스테이지 선택).
+ * 기능(B) — 프로토콜 브리핑 화면(옛 스테이지 선택).
  *
- * 1인칭 모니터 화면 안에 복구할 기록 5개를 데스크톱 앱처럼 펼친다.
- * 타일을 누르면 같은 스크린 안에서 브리핑(openBrief)이 열리고,
- * 거기서 "아카이빙 시작"을 눌러야 그 프로토콜이 시작된다(REQUEST_START).
+ * 화면이 열리면(open) 이번 차례의 기억을 곧바로 브리핑한다. 고를 것이 없어
+ * 앞에 목록을 두지 않는다 — 이야기는 정해진 순서대로 흐르고, 예전 선택 화면도
+ * 이번 차례 타일 하나만 누를 수 있었다. "증언 시작"을 누르면 그 프로토콜이
+ * 시작된다(REQUEST_START).
  *
  * 각 게임은 독립된 20.26초 타이머를 사용한다. 책상 시계도 현재 시도의 시간을
- * 표시한다. 선택/소개/결과/일시정지에서는 멈춘다. 메인 화면으로 나가면(reset)
- * 랜덤 5개와 이번 판의 클리어 현황만 초기화하며 최고 기록은 유지한다.
+ * 표시한다. 브리핑/소개/결과/일시정지에서는 멈춘다. 메인 화면으로 나가면(reset)
+ * 랜덤 6개와 이번 판의 클리어 현황만 초기화하며 최고 기록은 유지한다.
  *
  * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
  * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
@@ -17,38 +18,8 @@
 const RECOVERY_BUDGET_MS = 20260;
 const RECOVERY_URGENT_MS = 5000;
 
-/*
- * ARCHIVE 복구 등급 — js/archive/progress.mjs의 RECORD_STATUS와 같은 문자열이다.
- * 그쪽은 ES 모듈이라 클래식 스크립트인 이 파일에서 import할 수 없어 값만 옮겨 적는다.
- * (progress.mjs의 값을 바꾸면 여기도 함께 바꿔야 한다.)
- */
-const RECORD_DAMAGED = "DAMAGED";
-const RECORD_PARTIAL = "PARTIALLY RESTORED";
-const RECORD_FULL = "FULLY RESTORED";
-
-/*
- * 앱 아이콘 — 스테이지가 뒤트는 물리 채널 하나를 그림 하나로 보여 준다.
- * (지침 9절: 물리 상태는 숫자보다 그림으로 알린다.)
- */
-const PROTOCOL_GLYPHS = Object.freeze({
-  stack: '<path d="M3 20h18M6 14h12v6H6zM8 8h10v6H8zM5 2h10v6H5z"/>',
-  // 속도 — 가속선과 화살촉
-  maze: '<path d="M3 8h9M3 12h12M3 16h7"/><path d="M15 6l5 6-5 6"/>',
-  // 중력 — 바닥으로 떨어지는 화살
-  gravity: '<path d="M12 3v11"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/>',
-  // 탄성 — 튀어 오르는 공
-  bounce: '<circle cx="12" cy="5" r="2.5"/><path d="M3 20c3-8 6-8 9 0s6 8 9 0"/>',
-  // 반동 — 조준점
-  recoil: '<circle cx="12" cy="12" r="6.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
-  // 마찰 — 미끄러지는 화물
-  friction: '<path d="M3 20h18"/><path d="M6 16l2.5-6h7l2.5 6z"/><path d="M15 5h6M17 8h4"/>',
-  // 시야 — 꺼져 가는 눈
-  darkness: '<path d="M2.5 12S6.5 6.5 12 6.5 21.5 12 21.5 12 17.5 17.5 12 17.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.4"/><path d="M4 20L20 4"/>',
-  // 각속도 — 멈추지 않는 회전
-  rotation: '<path d="M20 12a8 8 0 1 1-2.9-6.2"/><path d="M20.5 4v5h-5"/>',
-});
-
-const PROTOCOL_GLYPH_FALLBACK = '<circle cx="12" cy="12" r="7"/><path d="M12 8v5"/>';
+/* 브리핑 하단 바의 안내 문구. 엔진 경고가 잠깐 덮었다가 이 문장으로 되돌아온다. */
+const BRIEF_NOTE = "Enter · Space로 시작 / Esc로 일시정지";
 
 class ProtocolSelectFlow {
   constructor(events, dom, soundBus, strings, cutscene) {
@@ -58,7 +29,10 @@ class ProtocolSelectFlow {
     this.strings = strings;
     this.cutscene = cutscene;
 
-    /* 브리핑 화면의 두 버튼이 할 일. 브리핑을 접을 때 함께 비운다. */
+    /*
+     * 브리핑에서 "시작"과 "돌아가기"가 할 일. 브리핑을 접을 때 함께 비운다.
+     * 돌아갈 곳은 QA 모드에만 있다(js/ui/qa-mode.js) — 이야기 흐름에는 null이다.
+     */
     this.briefStart = null;
     this.briefBack = null;
 
@@ -78,7 +52,6 @@ class ProtocolSelectFlow {
     this.events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.continueStory());
 
     this.ui.protocolBriefStartButton?.addEventListener("click", () => this.confirmBrief());
-    this.ui.protocolBriefBackButton?.addEventListener("click", () => this.cancelBrief());
     window.addEventListener("keydown", (event) => this.onBriefKeyDown(event));
 
     this.render();
@@ -86,6 +59,10 @@ class ProtocolSelectFlow {
 
   /* ── 화면 여닫기 ─────────────────────────────────────────────────── */
 
+  /*
+   * 모니터를 세우고 이번 차례의 브리핑을 편다.
+   * 오프닝 뒤, 한 기록을 끝낸 뒤, 이어하기에서 모두 이 하나로 들어온다.
+   */
   open() {
     this.soundBus.resume();
     this.refreshStages();
@@ -93,10 +70,10 @@ class ProtocolSelectFlow {
     // 뒤 화면(메인)은 보이더라도 만질 수 없어야 한다.
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
-    this.showScreen("select");
 
-    const firstTile = this.ui.stageSelectGrid?.querySelector("button:not(:disabled)");
-    (firstTile ?? this.ui.stageSelectBackButton)?.focus();
+    const stageId = window.archiveRun?.snapshot().expectedStageId;
+    if (stageId) this.openBrief(stageId);
+    else this.showScreen("brief");
   }
 
   /* 모니터를 통째로 내린다 — 메인 화면으로 나갈 때만 부른다. */
@@ -104,13 +81,13 @@ class ProtocolSelectFlow {
     // 브리핑을 열어 둔 채로 나갔다면 예약된 "시작"도 함께 버린다.
     this.briefStart = null;
     this.briefBack = null;
-    this.showScreen("select");
+    this.showScreen("brief");
     this.ui.stageSelectScreen?.classList.add("hidden");
   }
 
   /*
-   * 모니터 스크린 안에서 선택 · 브리핑 · 플레이가 자리를 바꾼다.
-   * 모니터·방·책상은 세 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
+   * 모니터 스크린 안에서 브리핑과 플레이가 자리를 바꾼다.
+   * 모니터·방·책상은 두 상태에서 그대로 서 있다 — 스크린 안쪽만 갈린다.
    */
   showScreen(mode) {
     const playing = mode === "play";
@@ -125,6 +102,11 @@ class ProtocolSelectFlow {
       else this.ui.appShell.setAttribute("inert", "");
     }
 
+    /*
+     * 모니터 밖의 PAUSE는 브리핑에서만 선다. 플레이 중에는 스크린 안 HUD의
+     * 일시정지 버튼(#pause-button)이 같은 일을 맡는다 — 둘을 함께 띄우지 않는다.
+     */
+    if (this.ui.protocolPauseButton) this.ui.protocolPauseButton.hidden = playing;
 
     /*
      * Phaser는 부팅할 때 부모(#game-container)를 재는데, 그때 모니터가 아직
@@ -150,7 +132,7 @@ class ProtocolSelectFlow {
 
   /*
    * 엔진이 보고해 온 목록으로 갈아 끼운다.
-   * 빈 목록은 무시한다 — 이미 그려 둔 타일을 지우고 화면을 비우는 쪽이 더 나쁘다.
+   * 빈 목록은 무시한다 — 이미 그려 둔 브리핑을 지우고 화면을 비우는 쪽이 더 나쁘다.
    */
   setStages(stages) {
     if (!Array.isArray(stages) || stages.length === 0) return;
@@ -159,20 +141,13 @@ class ProtocolSelectFlow {
     this.render();
   }
 
+  /*
+   * 기억 하나의 브리핑을 연다 — 이번 차례가 아닌 기록은 QA 모드에서만 열린다.
+   * (open()이 이미 이 일을 하므로 이야기 흐름에서는 쓰이지 않는다. 검수·테스트 입구다.)
+   */
   startStage(stageId) {
     const run = window.archiveRun?.snapshot();
     if (!run?.qaMode && stageId !== run?.expectedStageId) return;
-
-    /*
-     * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
-     * 나가 버리면 빈 캔버스만 남고 일시정지 버튼도 없어서 돌아올 길이 사라진다.
-     * (엔진이 늦게 뜨는 중이거나, index.html을 file://로 열어 모듈이 막힌 경우다.)
-     */
-    if (!window.archiveGame) {
-      this.warnEngineMissing();
-      return;
-    }
-
     const stage = this.stages.find((item) => item.id === stageId);
     if (!stage) return;
     this.soundBus.resume();
@@ -189,17 +164,17 @@ class ProtocolSelectFlow {
    * 안에서 앱 하나가 더 열리는 모양이라 방·책상·탁상시계가 계속 보인다 —
    * 1인칭으로 모니터를 마주 본다는 화면 전제가 브리핑에서도 끊기지 않는다.
    *
-   * onStart·onBack을 주면 그것을 따른다(QA 모드는 목록 대신 QA 판으로 돌아간다).
-   * 기본값은 이 화면의 흐름 그대로 — 시작하면 플레이로, 돌아가면 기억 목록으로.
+   * onStart·onBack을 주면 그것을 따른다. 이야기 흐름에는 돌아갈 곳이 없어(고를
+   * 목록이 없다) onBack이 없고, QA 모드만 Esc로 QA 판에 돌아간다.
    */
   openBrief(stageId, { onStart, onBack } = {}) {
-    // 목록에 없는 기억도 열 수 있다 — QA 모드는 9개 전부를 바로 연다.
+    // 이번 차례가 아닌 기억도 열 수 있다 — QA 모드는 10개 전부를 바로 연다.
     const stage = this.stages.find((item) => item.id === stageId)
       ?? this.catalog.find((item) => item.id === stageId);
     if (!stage) return;
 
     this.briefStart = typeof onStart === "function" ? onStart : () => this.launchStage(stage.id);
-    this.briefBack = typeof onBack === "function" ? onBack : () => this.closeBrief(stage.id);
+    this.briefBack = typeof onBack === "function" ? onBack : null;
 
     this.renderBrief(stage);
     this.showScreen("brief");
@@ -214,21 +189,12 @@ class ProtocolSelectFlow {
     start?.();
   }
 
-  /* 목록으로 — 무엇도 시작하지 않는다(시간은 아직 흐르지 않았다). */
+  /* 돌아가기 — QA 판으로만 되돌아간다. 무엇도 시작하지 않는다. */
   cancelBrief() {
     const back = this.briefBack;
     this.briefStart = null;
     this.briefBack = null;
     back?.();
-  }
-
-  /* 기억 목록으로 되돌리고, 방금 고른 타일에 포커스를 돌려준다. */
-  closeBrief(stageId) {
-    this.showScreen("select");
-    const tile = stageId
-      ? this.ui.stageSelectGrid?.querySelector(`[data-stage-id="${stageId}"]`)
-      : null;
-    (tile ?? this.ui.stageSelectGrid?.querySelector("button:not(:disabled)"))?.focus();
   }
 
   isBriefOpen() {
@@ -237,15 +203,21 @@ class ProtocolSelectFlow {
   }
 
   /*
-   * 브리핑에서는 Enter·Space로 시작하고 Esc로 목록으로 돌아간다.
+   * 브리핑에서는 Enter·Space로 시작하고 Esc로 일시정지한다 —
+   * 플레이 중과 같은 창(js/ui/pause-flow.js)이 뜬다. 돌아갈 목록이 없어졌으므로
+   * Esc가 화면을 물릴 곳도 없다. QA 모드만 예외로 QA 판으로 되돌아간다.
+   *
    * 버튼에 포커스가 있으면 그 버튼이 알아서 처리하므로 여기서는 비켜선다.
    */
   onBriefKeyDown(event) {
     if (!this.isBriefOpen()) return;
+    // 위에 덮인 창(일시정지·설정)이 있으면 키는 그쪽 것이다.
+    if (pauseFlow.paused || pauseFlow.menuPaused || settingsFlow.isOpen()) return;
 
     if (event.key === "Escape") {
       event.preventDefault();
-      this.cancelBrief();
+      if (this.briefBack) this.cancelBrief();
+      else pauseFlow.pauseMenu();
       return;
     }
 
@@ -255,7 +227,7 @@ class ProtocolSelectFlow {
     this.confirmBrief();
   }
 
-  /* 브리핑 내용 — 목록 타일이 title로만 갖고 있던 설명을 화면에 펼친다. */
+  /* 브리핑 내용 — 이번 기록의 목표·조작·이상현상·최고 기록을 화면에 펼친다. */
   renderBrief(stage) {
     const set = (element, text) => {
       if (element) element.textContent = text;
@@ -294,6 +266,16 @@ class ProtocolSelectFlow {
   }
 
   launchStage(stageId) {
+    /*
+     * 엔진이 아직 없으면 이 화면을 떠나지 않는다.
+     * 나가 버리면 빈 캔버스만 남고 일시정지 버튼도 없어서 돌아올 길이 사라진다.
+     * (엔진이 늦게 뜨는 중이거나, index.html을 file://로 열어 모듈이 막힌 경우다.)
+     */
+    if (!window.archiveGame) {
+      this.warnEngineMissing();
+      return;
+    }
+
     this.showScreen("play");
     this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
   }
@@ -346,14 +328,21 @@ class ProtocolSelectFlow {
     });
   }
 
-  /* 하단 바 문구를 잠깐 경고로 바꾼다. 엔진이 도착하면 setStages가 알아서 되돌린다. */
+  /* 하단 바 안내 문구를 잠깐 경고로 바꾼다. 잠시 뒤 원래 문구로 되돌아온다. */
   warnEngineMissing() {
-    const label = this.ui.protocolProgress;
-    if (!label) return;
-    label.dataset.state = "warn";
-    label.textContent = this.strings.protocol.engineMissing;
+    const note = this.ui.protocolBriefNote;
+    if (!note) return;
+    note.dataset.state = "warn";
+    note.textContent = this.strings.protocol.engineMissing;
     window.clearTimeout(this.warnHandle);
-    this.warnHandle = window.setTimeout(() => this.renderProgress(), 2800);
+    this.warnHandle = window.setTimeout(() => this.restoreNote(), 2800);
+  }
+
+  restoreNote() {
+    const note = this.ui.protocolBriefNote;
+    if (!note) return;
+    delete note.dataset.state;
+    note.textContent = BRIEF_NOTE;
   }
 
   syncRun(snapshot = {}) {
@@ -366,7 +355,6 @@ class ProtocolSelectFlow {
   /* ── 그리기 ──────────────────────────────────────────────────────── */
 
   render() {
-    this.renderTiles();
     this.renderTimer();
     this.renderProgress();
     this.renderArchive();
@@ -387,31 +375,30 @@ class ProtocolSelectFlow {
     if (this.ui.deskClockCentis) this.ui.deskClockCentis.textContent = parts.centis;
   }
 
+  /*
+   * 브리핑 하단 바 왼쪽 — 남은 목숨 하나뿐이다.
+   *
+   * 막·스테이지·기록 수는 여기 두지 않는다. 브리핑에서 정할 것은 "시작할지"
+   * 하나뿐이고, 그 판단에 필요한 것은 실패했을 때 무엇을 잃느냐다. 나머지 진행도는
+   * 플레이 HUD(#stage-hud)와 결과 화면이 이미 말한다.
+   */
   renderProgress() {
-    const label = this.ui.protocolProgress;
+    const label = this.ui.protocolBriefLives;
     const run = window.archiveRun?.snapshot();
     if (!label || !run) return;
-    window.clearTimeout(this.warnHandle);
-    delete label.dataset.state;
     const lives = `${"◆".repeat(run.lives)}${"◇".repeat(Math.max(0, 3 - run.lives))}`;
-    label.textContent = `ACT ${run.currentAct}/3 · STAGE ${run.currentStageInAct}/6 · LIVES ${lives} · RECORDS ${run.totalRecordCount}/18`;
-    if (this.ui.stageSelectTitle) {
-      const act = SCENARIO_DATA.acts[run.currentAct - 1];
-      this.ui.stageSelectTitle.textContent = `ACT ${run.currentAct} ${act?.code ?? ""} · 6 OF 10 RECORDS CONNECTED`;
-    }
+    label.textContent = `LIVES ${lives}`;
   }
 
   /*
    * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
    *
-   * 위의 renderProgress(RESTORED n / 5)와 성격이 다르다. 그쪽은 이번 판에서
-   * 복구한 개수라 reset()으로 0이 되고, 여기는 localStorage에 저장돼 다음 판에도 남는다.
+   * 이번 판에서 복구한 개수(reset()으로 0이 된다)와 달리 localStorage에 저장돼
+   * 다음 판에도 남는다. 지금 이 숫자가 뜨는 곳은 메인 화면의 [data-archive-recovery]다.
    *
    * 기록은 엔진(js/archive/game.mjs)이 세우므로 엔진이 뜨기 전에는 없을 수 있다.
-   * 그때는 마크업의 기본값(0%)을 그대로 두고 아무것도 건드리지 않는다 —
+   * 그때는 마크업의 기본값을 그대로 두고 아무것도 건드리지 않는다 —
    * 0으로 덮어써도 같은 값이라 얻는 것이 없고, 엔진이 뜨면 setStages가 다시 부른다.
-   *
-   * 복구율은 메인 화면에도 같은 [data-archive-recovery]로 떠 있어서 함께 갱신된다.
    */
   renderArchive() {
     const run = window.archiveRun?.snapshot();
@@ -420,82 +407,6 @@ class ProtocolSelectFlow {
     this.ui.archiveRecoveryRates?.forEach((element) => {
       element.textContent = `TOTAL RECORDS ${run.totalRecordCount}/18`;
     });
-
-    if (this.ui.archiveRecoveryDetail) {
-      this.ui.archiveRecoveryDetail.textContent = `ACT ${run.currentAct} RECORDS ${run.actRecordCount}/6 · ATTEMPT ${run.actAttemptCount[run.currentAct - 1]}`;
-    }
-
-    const ending = this.ui.archiveEndingStatus;
-    if (ending) {
-      ending.hidden = !run.assistProtocolAct1;
-      ending.textContent = run.assistProtocolAct1 ? "ASSIST PROTOCOL ENABLED" : "";
-    }
-  }
-
-  renderTiles() {
-    const grid = this.ui.stageSelectGrid;
-    if (!grid) return;
-    grid.replaceChildren();
-    const run = window.archiveRun?.snapshot();
-    if (!run?.active && !run?.qaMode) {
-      const loading = document.createElement("div");
-      loading.className = "stage-select-card stage-select-card--soon";
-      loading.textContent = "기록 접속을 시작해 주세요.";
-      grid.append(loading);
-      return;
-    }
-
-    this.stages.forEach((stage, index) => grid.append(this.buildTile(stage, index, run)));
-  }
-
-  buildTile(stage, index, run) {
-    const tile = document.createElement("button");
-    const slot = index + 1;
-    const restored = Boolean(run.stageRecords?.[run.currentAct - 1]?.[index]);
-    const current = slot === run.currentStageInAct;
-    tile.type = "button";
-    // .stage-select-card / data-stage-id는 화면 밖(테스트·스크립트)에서 쓰는 이름이라 유지한다.
-    tile.className = "stage-select-card protocol-app";
-    tile.dataset.stageId = stage.id;
-    tile.dataset.slot = String(slot);
-    tile.dataset.restored = String(restored);
-    tile.dataset.current = String(current);
-    tile.dataset.recovery = restored ? "full" : "damaged";
-    tile.disabled = !run.qaMode && (!current || restored);
-
-    const icon = document.createElement("span");
-    icon.className = "protocol-app-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = stage.recordSymbol;
-
-    const code = document.createElement("span");
-    code.className = "protocol-app-code";
-    // ◆ 완전 복구 / ◇ 그 외 — 복구 등급을 글자 하나로 붙인다.
-    code.textContent = `A${run.currentAct}-${String(slot).padStart(2, "0")} · ${restored ? "◆" : current ? "▶" : "◇"}`;
-
-    const title = document.createElement("strong");
-    title.className = "protocol-app-title";
-    title.textContent = stage.title;
-
-    const mark = document.createElement("span");
-    mark.className = "protocol-app-mark";
-    mark.textContent = restored ? "REGISTERED" : current ? "CONNECT" : "LOCKED";
-
-    tile.append(icon, code, title, mark);
-    tile.title = `${stage.controls}\n${stage.objective}\n${stage.anomaly}`;
-    const best = window.archiveRecords?.best(stage.id);
-    if (best) {
-      const record = document.createElement('small');
-      record.className = 'protocol-best'; record.textContent = `BEST ${best.elapsed.toFixed(2)}s · ${best.actions}회`;
-      tile.append(record);
-    }
-    tile.addEventListener("click", () => this.startStage(stage.id));
-    return tile;
-  }
-
-  static glyph(stageId) {
-    const paths = PROTOCOL_GLYPHS[stageId] ?? PROTOCOL_GLYPH_FALLBACK;
-    return `<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
   }
 
   /* 143000 → "02:23.00". 1/100초까지 스테이지 HUD와 같은 기준으로 표시한다. */

@@ -2,7 +2,7 @@
  * A(비주얼) 전용 — 설정 다이얼로그.
  * 배치 기준: assets/images/concept/setting.png
  *   타이틀 알약 → 프레임 → 행 슬롯 → 적용/뒤로가기.
- *   현재는 오디오 3줄, 전체 화면, 컷신 속도, 컷신 건너뛰기의 6줄이다.
+ *   현재는 오디오 3줄, 전체 화면, 컷신 속도의 5줄이다.
  *
  * 조각 에셋은 assets/images/ui/settings/*.webp 이고, 원본 시트
  * settings_ui_assets_cyber_archive_exact_2k.png(2048×2048)에서 잘라낸 것이라
@@ -161,6 +161,15 @@
   gap: 21px;
   min-height: 89px;
   padding: 0 29px;
+}
+
+/*
+ * 컷신 속도만 값이 "1.00×"로 길어 56px 칸을 넘겼다. 그러면 오른쪽으로 삐져나와
+ * 행 슬롯 밖으로 나간다. 이 줄만 값 칸을 넓히고 슬라이더(가변 칸)가 그만큼
+ * 양보한다 — 줄의 오른쪽 끝은 그대로라 숫자 오른쪽 모서리는 볼륨 줄들과 같은 선이다.
+ */
+.settings-row--wide-value {
+  grid-template-columns: 53px minmax(139px, 1.1fr) minmax(0, 2fr) 44px 84px;
 }
 
 /* 원본 1192×173, 잘린 모서리 ≈ 48. 높이 89 → 배율 0.514 → 슬라이스 25px. */

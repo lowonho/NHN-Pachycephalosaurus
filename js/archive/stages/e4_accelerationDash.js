@@ -1,202 +1,191 @@
 import { MINI } from './minigame-kit.js';
 
+/* 방과 벽을 번갈아 놓은 미로의 전체 크기(876×384). 화면 한가운데 놓으려면 먼저 재야 한다. */
+const MAZE = { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12 };
+const MAZE_W = (MAZE.cols - 1) / 2 * (MAZE.passageX + MAZE.wall) + MAZE.wall;
+const MAZE_H = (MAZE.rows - 1) / 2 * (MAZE.passageY + MAZE.wall) + MAZE.wall;
+
 export const E4_ACCELERATION_DASH = {
-  /* turns: 출구까지 필요한 "최소" 꺾기 횟수. 출구는 아무리 잘 꺾어도 이만큼은 꺾어야 닿는 칸에만 놓는다.
-     speed/gain/maxSpeed: 꺾을 때마다 붙는 대쉬 가속. buffer: 미리 누른 방향키를 기억하는 시간. */
-  tuning: { turns: 10, speed: 235, gain: 28, maxSpeed: 520, buffer: .55, braid: .2, attempts: 80 },
-  /* 미로 전체가 필드(20,144~940,497) 안에 들어오는 홀수 격자. 화면이 따라 움직이지 않아 길을 한눈에 읽는다. */
-  grid: { cell: 36, cols: 25, rows: 9, x: 30, y: 158 },
-  /* 방향 번호는 dir ^ 1이 곧 반대 방향이 되도록 짝지어 둔다. */
-  names: ['right', 'left', 'up', 'down'],
+  timeLimit: 20.26,
+  // brake는 속도와 무관한 마찰, drag는 속도에 비례하는 저항(1/초)이다. 둘을 더한 값이
+  // 감속도라서, 손을 떼면 처음에는 크게 깎이고 끝에서는 관성으로 미끄러지며 멈춘다.
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 3600, drag: 2.6, radius: 10, wallPenalty: 1 },
+  // 미로는 화면(필드) 정중앙에 놓는다. 위아래 여백이 같아야 위로 쏠려 보이지 않는다.
+  grid: { ...MAZE, x: Math.round(MINI.FIELD.cx - MAZE_W / 2), y: Math.round(MINI.FIELD.cy - MAZE_H / 2) },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
-  labels: { right: 'D →', left: 'A ←', up: 'W ↑', down: 'S ↓' },
-  index(cx, cy) { return cy * E4_ACCELERATION_DASH.grid.cols + cx; },
-  step(dir) { const E4 = E4_ACCELERATION_DASH; return E4.steps[E4.names[dir]]; },
-  next(cell, dir) { const E4 = E4_ACCELERATION_DASH, step = E4.step(dir); return cell + step.y * E4.grid.cols + step.x; },
-  open(map, cell, dir) { return Boolean(map[E4_ACCELERATION_DASH.next(cell, dir)]); },
-  center(cell) {
-    const g = E4_ACCELERATION_DASH.grid, cx = cell % g.cols, cy = (cell - cx) / g.cols;
-    return { x: g.x + (cx + .5) * g.cell, y: g.y + (cy + .5) * g.cell };
+  tileRect(col, row) {
+    const g = E4_ACCELERATION_DASH.grid;
+    return { x: Math.floor(col / 2) * (g.passageX + g.wall) + (col % 2 ? g.wall : 0),
+      y: Math.floor(row / 2) * (g.passageY + g.wall) + (row % 2 ? g.wall : 0),
+      w: col % 2 ? g.passageX : g.wall, h: row % 2 ? g.passageY : g.wall };
   },
-  /* 벽 칸과 통로 칸이 번갈아 놓이는 홀수 격자를 재귀 백트래킹으로 판다.
-     막다른 칸 일부는 벽을 한 겹 더 뚫어(braid) 대쉬가 자주 갇히지 않게 한다. */
-  carve(random = Math.random) {
-    const E4 = E4_ACCELERATION_DASH, g = E4.grid, t = E4.tuning, map = new Uint8Array(g.cols * g.rows);
-    const inside = cell => {
-      const cx = cell % g.cols, cy = (cell - cx) / g.cols;
-      return cx > 0 && cy > 0 && cx < g.cols - 1 && cy < g.rows - 1;
+  tileCenter(col, row) {
+    const r = E4_ACCELERATION_DASH.tileRect(col, row);
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  },
+  // 8개 직선(7번 회전)의 주 경로를 먼저 만들고, 나머지 방을 가지로 연결한다.
+  // 이미 열린 방끼리는 연결하지 않아 출구까지의 지름길이 생기지 않는다.
+  route(random = Math.random) {
+    const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid;
+    const tiles = Array.from({ length: rows }, () => Array(cols).fill(1));
+    const rooms = [], pick = list => list[Math.floor(random() * list.length)];
+    const carve = (from, to) => {
+      tiles[(from.y + to.y) / 2][(from.x + to.x) / 2] = 0;
+      tiles[to.y][to.x] = 0; rooms.push(to);
     };
-    const pick = list => list[Math.floor(random() * list.length)];
-    const first = E4.index(1 + 2 * Math.floor(random() * ((g.cols - 1) / 2)), 1 + 2 * Math.floor(random() * ((g.rows - 1) / 2)));
-    const stack = [first];
-    map[first] = 1;
-    while (stack.length) {
-      const cell = stack[stack.length - 1];
-      const options = [0, 1, 2, 3].filter(dir => { const far = E4.next(E4.next(cell, dir), dir); return inside(far) && !map[far]; });
-      if (!options.length) { stack.pop(); continue; }
-      const dir = pick(options), mid = E4.next(cell, dir), far = E4.next(mid, dir);
-      map[mid] = 1; map[far] = 1; stack.push(far);
-    }
-    for (let cell = 0; cell < map.length; cell++) {
-      if (!map[cell] || !inside(cell)) continue;
-      // 출구가 하나뿐인 칸이 막다른 길이다. 통로 사이 칸은 출구가 둘이라 걸리지 않는다.
-      const exits = [0, 1, 2, 3].filter(dir => map[E4.next(cell, dir)]);
-      if (exits.length !== 1 || random() > t.braid) continue;
-      const walls = [0, 1, 2, 3].filter(dir => !map[E4.next(cell, dir)] && inside(E4.next(E4.next(cell, dir), dir)));
-      if (walls.length) map[E4.next(cell, pick(walls))] = 1;
-    }
-    return map;
-  },
-  /* (칸, 진행 방향) 상태로 0-1 BFS를 돈다. 직진은 0, 꺾기는 1이라 결과가 곧 "몇 번 꺾어야 하는가"다.
-     back이면 화살표를 뒤집어 "그 칸에서 from까지 몇 번 꺾어야 하는가"가 된다. */
-  scan(map, from, back) {
-    const E4 = E4_ACCELERATION_DASH, cost = new Int32Array(map.length * 4).fill(-1), queue = [];
-    for (let dir = 0; dir < 4; dir++) { cost[from * 4 + dir] = 0; queue.push(from * 4 + dir); }
-    while (queue.length) {
-      const state = queue.shift(), cell = state >> 2, dir = state & 3, here = cost[state];
-      if (here < 0) continue;
-      const ahead = E4.next(cell, back ? dir ^ 1 : dir), straight = ahead * 4 + dir;
-      if (map[ahead] && (cost[straight] < 0 || cost[straight] > here)) { cost[straight] = here; queue.unshift(straight); }
-      for (let turn = 0; turn < 4; turn++) {
-        const state = cell * 4 + turn;
-        if (turn === dir || (cost[state] >= 0 && cost[state] <= here + 1)) continue;
-        cost[state] = here + 1; queue.push(state);
+    // 수평 길이를 1~3개 방 단위로 섞어 짧은 코너와 긴 가속 구간을 번갈아 만든다.
+    const spans = [1, 1, 1, 1];
+    for (let left = 4; left > 0; left--) spans[pick([0, 1, 2, 3].filter(i => spans[i] < 3))]++;
+    let here = { x: 1, y: 1 };
+    tiles[1][1] = 0; rooms.push(here);
+    for (let leg = 0; leg < 4; leg++) {
+      for (let i = 0; i < spans[leg]; i++) {
+        const next = { x: here.x + 2, y: here.y }; carve(here, next); here = next;
+      }
+      const targetY = leg % 2 === 0 ? pick([3, 5]) : 1;
+      while (here.y !== targetY) {
+        const next = { x: here.x, y: here.y + Math.sign(targetY - here.y) * 2 };
+        carve(here, next); here = next;
       }
     }
-    return cost;
-  },
-  /* 미로를 뽑고, 최소 꺾기 횟수가 정확히 tuning.turns인 칸만 출구 후보로 남긴다.
-     그중 출발점에서 먼 쪽을 골라 코스가 화면 한쪽에 몰리지 않게 한다. */
-  route(random = Math.random) {
-    const E4 = E4_ACCELERATION_DASH, t = E4.tuning;
-    for (let attempt = 0; attempt < t.attempts; attempt++) {
-      const map = E4.carve(random), cells = [];
-      for (let cell = 0; cell < map.length; cell++) if (map[cell]) cells.push(cell);
-      const start = cells[Math.floor(random() * cells.length)], cost = E4.scan(map, start, false);
-      const goals = cells.filter(cell => Math.min(cost[cell * 4], cost[cell * 4 + 1], cost[cell * 4 + 2], cost[cell * 4 + 3]) === t.turns);
-      if (!goals.length) continue;
-      const from = E4.center(start);
-      const ranked = goals
-        .map(cell => ({ cell, span: Math.hypot(E4.center(cell).x - from.x, E4.center(cell).y - from.y) }))
-        .sort((a, b) => b.span - a.span);
-      const goal = ranked[Math.floor(random() * Math.ceil(ranked.length / 3))].cell;
-      return { map, start, goal, toGoal: E4.scan(map, goal, true) };
+    const goal = E4.tileCenter(here.x, here.y);
+    const frontier = rooms.slice(), steps = Object.values(E4.steps);
+    while (frontier.length) {
+      const from = pick(frontier);
+      const options = steps.map(d => ({ x: from.x + d.x * 2, y: from.y + d.y * 2 }))
+        .filter(p => p.x > 0 && p.y > 0 && p.x < cols - 1 && p.y < rows - 1 && tiles[p.y][p.x]);
+      if (!options.length) { frontier.splice(frontier.indexOf(from), 1); continue; }
+      const next = pick(options); carve(from, next); frontier.push(next);
     }
-    return E4.comb();
-  },
-  /* 무작위 미로가 조건을 못 맞추면 정확히 tuning.turns번(짝수) 꺾어야 하는 빗살 미로로 되돌아간다.
-     세로 통로를 오르내릴 때마다 두 번씩 꺾이므로 turns/2번째 통로의 반대쪽 끝이 곧 목표다. */
-  comb() {
-    const E4 = E4_ACCELERATION_DASH, g = E4.grid, t = E4.tuning;
-    const map = new Uint8Array(g.cols * g.rows), top = 1, bottom = g.rows - 2, lane = Math.floor(t.turns / 2);
-    for (let i = 0; i < (g.cols - 1) / 2; i++) {
-      const cx = 1 + i * 2;
-      for (let cy = top; cy <= bottom; cy++) map[E4.index(cx, cy)] = 1;
-      if (i) map[E4.index(cx - 1, i % 2 ? bottom : top)] = 1;
-    }
-    const goal = E4.index(1 + lane * 2, lane % 2 ? top : bottom);
-    return { map, start: E4.index(1, top), goal, toGoal: E4.scan(map, goal, true) };
+    return { tiles, goal };
   },
   build() {
     MINI.init(this, 0xc6a2ff);
-    const E4 = E4_ACCELERATION_DASH, course = E4.route(this.random);
-    this.state = {
-      map: course.map, toGoal: course.toGoal, start: course.start, goal: course.goal, cell: course.start,
-      dir: null, want: null, wantAt: -9, off: 0, turns: 0, bumps: 0, stuck: false,
-      left: E4.tuning.turns, seen: new Set([course.start]),
-    };
-  },
-  speed() {
-    const t = E4_ACCELERATION_DASH.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.turns * this.penalty(t.gain));
-  },
-  /* 방향이 실제로 바뀌는 지점. 꺾을 때마다 속도가 붙고, 첫 출발은 꺾기로 세지 않는다. */
-  steer(dir) {
-    const s = this.state;
-    if (s.dir !== null) s.turns++;
-    s.dir = dir; s.want = null; s.stuck = false; this.sfx('hit');
+    const E4 = E4_ACCELERATION_DASH;
+    this.state = { ...E4.route(this.random), ...E4.tileCenter(1, 1),
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+    this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
+      { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
   },
   press(direction) {
-    const E4 = E4_ACCELERATION_DASH, s = this.state, dir = E4.names.indexOf(direction);
-    if (dir < 0 || s.want === dir || (s.want === null && s.dir === dir)) return;
-    this.actions++; s.want = dir; s.wantAt = this.elapsed;
-    // 멈춰 있을 때와 되돌아갈 때는 칸 중앙을 기다리지 않고 그 자리에서 꺾는다.
-    if (s.dir === null) { if (E4.open(s.map, s.cell, dir)) E4.steer.call(this, dir); return; }
-    if (dir !== (s.dir ^ 1)) return;
-    if (!s.off) { if (E4.open(s.map, s.cell, dir)) E4.steer.call(this, dir); return; }
-    s.cell = E4.next(s.cell, s.dir); s.off = E4.grid.cell - s.off; E4.steer.call(this, dir);
+    const E4 = E4_ACCELERATION_DASH;
+    if (!E4.steps[direction]) return;
+    this.actions++;
+    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + this.penalty(E4.tuning.tapGain));
   },
-  cancelInput() { if (this.state) this.state.want = null; },
-  /* 자동 플레이/테스트용. 다음 판단 지점(칸 중앙)에서 출구까지 꺾기가 가장 적은 방향을 고른다. */
-  hint() {
-    const E4 = E4_ACCELERATION_DASH, s = this.state;
-    const cell = s.off ? E4.next(s.cell, s.dir) : s.cell;
-    // 다음 칸이 곧 출구면 그대로 들어가면 된다. 여기서 다시 재면 "출구를 떠나는 값"을 보게 된다.
-    if (cell === s.goal) return E4.names[s.dir];
-    let best = s.dir, cost = Infinity;
-    for (let dir = 0; dir < 4; dir++) {
-      // 막힌 방향은 후보에서 뺀다. 벽을 보고 선 채로 같은 방향을 계속 고르면 영영 못 움직인다.
-      if (!E4.open(s.map, cell, dir)) continue;
-      // 한 칸 나아간 뒤의 값으로 재야 "여기서 꺾는다"와 "지나치고 나중에 꺾는다"가 구분된다.
-      const total = (dir === s.dir ? 0 : 1) + s.toGoal[E4.next(cell, dir) * 4 + dir];
-      if (total < cost) { cost = total; best = dir; }
+  wallsAt(x, y) {
+    const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid, r = E4.tuning.radius;
+    const hits = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (!this.state.tiles[row][col]) continue;
+        const wall = E4.tileRect(col, row);
+        if (x + r > wall.x && x - r < wall.x + wall.w && y + r > wall.y && y - r < wall.y + wall.h) hits.push(`${col},${row}`);
+      }
     }
-    return E4.names[best];
+    return hits;
   },
   update(dt) {
-    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid;
-    if (s.want !== null && this.elapsed - s.wantAt > t.buffer) s.want = null;
-    let move = s.dir === null ? 0 : E4.speed.call(this) * dt;
-    // 칸 중앙에서만 직각으로 꺾고 벽을 판정한다. 그 사이 구간은 이미 뚫린 통로라 그냥 지나간다.
-    while (move > 0) {
-      if (!s.off) {
-        if (s.want !== null && s.want !== s.dir && E4.open(s.map, s.cell, s.want)) E4.steer.call(this, s.want);
-        if (!E4.open(s.map, s.cell, s.dir)) {
-          if (!s.stuck) { s.stuck = true; s.bumps++; this.bump(); }
-          break;
+    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning;
+    const dx = this.axis('left', 'right'), dy = this.axis('up', 'down'), length = Math.hypot(dx, dy);
+    const oldX = s.x, oldY = s.y;
+    s.flash = Math.max(0, s.flash - dt);
+    let moveX = 0, moveY = 0;
+    // 가속 기록은 유지하되 실제 이동 속도는 브레이크로 줄인다.
+    if (length) {
+      const heading = `${dx},${dy}`;
+      if (s.heading !== null && s.heading !== heading) s.turns++;
+      s.heading = heading;
+      // 누적 속도는 새 입력에서만 증가한다. 유지 중에는 같은 속도로 이동한다.
+      const driveSpeed = s.speed;
+      s.vx = dx / length * driveSpeed; s.vy = dy / length * driveSpeed;
+      moveX = s.vx * dt; moveY = s.vy * dt;
+      s.braking = false;
+    } else {
+      const velocity = Math.hypot(s.vx, s.vy);
+      s.braking = velocity > 0;
+      if (velocity > 0) {
+        // v' = -(brake + drag * v)의 해를 그대로 쓴다. 정지하는 마지막 스텝도 정확히
+        // 적분하므로 프레임 간격이 달라져도 미끄러진 거리는 같다. 고속일수록 길게 밀린다.
+        const hold = t.brake / t.drag;  // 저항이 마찰과 같아지는 속도. 관성이 남는 구간의 기준이다.
+        const stopTime = Math.log(1 + velocity / hold) / t.drag;
+        const step = Math.min(dt, stopTime), decay = Math.exp(-t.drag * step);
+        const distance = (velocity + hold) * (1 - decay) / t.drag - hold * step;
+        moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
+        const factor = step < stopTime ? Math.max(0, (velocity + hold) * decay - hold) / velocity : 0;
+        s.vx *= factor; s.vy *= factor;
+      }
+    }
+    // 축별로 이동을 잘게 나누어 벽 관통을 막고 벽을 따라 이동하게 한다.
+    const count = Math.max(1, Math.ceil(Math.hypot(moveX, moveY) / (t.radius / 2)));
+    let impacted = false;
+    const contacts = new Set();
+    for (let i = 0; i < count; i++) {
+      for (const axis of ['x', 'y']) {
+        const distance = axis === 'x' ? moveX : moveY;
+        if (!distance) continue;
+        const next = s[axis] + distance / count;
+        const walls = E4.wallsAt.call(this, axis === 'x' ? next : s.x, axis === 'y' ? next : s.y);
+        if (!walls.length) s[axis] = next;
+        else {
+          impacted = true; walls.forEach(key => contacts.add(key));
+          if (axis === 'x') { moveX = 0; s.vx = 0; } else { moveY = 0; s.vy = 0; }
         }
       }
-      const use = Math.min(move, g.cell - s.off);
-      s.off += use; move -= use;
-      if (s.off >= g.cell - 1e-9) { s.cell = E4.next(s.cell, s.dir); s.off = 0; s.seen.add(s.cell); }
     }
-    const at = s.off ? E4.next(s.cell, s.dir) : s.cell;
-    s.left = s.dir === null
-      ? Math.min(s.toGoal[at * 4], s.toGoal[at * 4 + 1], s.toGoal[at * 4 + 2], s.toGoal[at * 4 + 3])
-      : s.toGoal[at * 4 + s.dir];
-    this.anomaly = `속도 ${Math.round(E4.speed.call(this))} · 남은 코너 ${s.left}`;
-    this.risk = Math.min(100, s.turns * 6 + s.bumps * 5);
-    if (s.cell === s.goal) this.finish(true, `${s.turns}번 꺾어 도착`);
+    // 접촉 유지 중에는 중복 차감하지 않는다. 입력을 놓아도 벽에서 떨어져야 재무장된다.
+    E4.wallsAt.call(this, s.x - 5, s.y).concat(E4.wallsAt.call(this, s.x + 5, s.y),
+      E4.wallsAt.call(this, s.x, s.y - 5), E4.wallsAt.call(this, s.x, s.y + 5))
+      .forEach(key => { if (s.contacts.has(key)) contacts.add(key); });
+    if (impacted && !s.contacts.size) {
+      s.hits++; s.flash = .65; this.timePenalty += this.penalty(t.wallPenalty);
+      this.remaining = Math.max(0, this.timeLimit - this.elapsed - this.timePenalty); this.bump();
+    }
+    s.contacts = contacts;
+    s.moving = Math.hypot(s.x - oldX, s.y - oldY) > .01;
+    s.braking = s.braking && s.moving;
+    if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
+    else s.trail.shift();
+    this.anomaly = `누적 속도 ${Math.round(s.speed)} · 방향 전환 ${s.turns}회 · 충돌 -${s.hits}초`;
+    this.risk = Math.min(100, s.hits * 5);
+    if (this.remaining <= 0) this.finish(false, '벽 충돌로 시간 소진');
+    else if (Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 16) this.finish(true);
   },
   render() {
-    const E4 = E4_ACCELERATION_DASH, s = this.state, t = E4.tuning, g = E4.grid, ink = this.ink;
-    const guide = s.dir === null ? '방향키로 출발' : E4.labels[E4.names[s.dir]];
-    MINI.frame(this, `꺾기 ${s.turns}회    남은 최소 ${s.left}회    벽 ${s.bumps}회    ${guide}`);
-    // 미로판을 통째로 깔고 통로 칸만 다시 파낸다.
-    ink.fillStyle(0x241d46).fillRoundedRect(g.x - 4, g.y - 4, g.cols * g.cell + 8, g.rows * g.cell + 8, 12);
-    for (let cell = 0; cell < s.map.length; cell++) {
-      if (!s.map[cell]) continue;
-      const point = E4.center(cell);
-      ink.fillStyle(0x0d2234).fillRect(point.x - g.cell / 2, point.y - g.cell / 2, g.cell, g.cell);
+    const E4 = E4_ACCELERATION_DASH, s = this.state, g = E4.grid;
+    const actualSpeed = Math.hypot(s.vx, s.vy);
+    const boost = MINI.clamp((actualSpeed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed), 0, 1);
+    MINI.frame(this);
+    const sx = x => x + g.x, sy = y => y + g.y;
+    const extent = E4.tileRect(g.cols - 1, g.rows - 1);
+    this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
+    for (let row = 0; row < g.rows; row++) for (let col = 0; col < g.cols; col++) {
+      if (!s.tiles[row][col]) continue;
+      const r = E4.tileRect(col, row), px = sx(r.x), py = sy(r.y);
+      this.ink.fillStyle(0x4a3b69).fillRect(px, py, r.w, r.h);
+      this.ink.lineStyle(1, 0x9476b5, .65).strokeRect(px + 1, py + 1, r.w - 2, r.h - 2);
     }
-    // 지나온 칸을 옅게 남겨 헤맨 길을 되짚을 수 있게 한다.
-    s.seen.forEach(cell => {
-      const point = E4.center(cell);
-      ink.fillStyle(this.accent, .12).fillRect(point.x - g.cell / 2, point.y - g.cell / 2, g.cell, g.cell);
-    });
-    const start = E4.center(s.start);
-    MINI.circle(this, start.x, start.y, 5, 0x554279);
-    // 출구는 금색 과녁이라 통로 표시와 헷갈리지 않는다.
-    const goal = E4.center(s.goal);
-    ink.lineStyle(3, 0xffcf7b).strokeCircle(goal.x, goal.y, 13);
-    ink.lineStyle(2, 0xffcf7b, .35).strokeCircle(goal.x, goal.y, 18);
-    MINI.circle(this, goal.x, goal.y, 8, 0xffcf7b, .85);
-    MINI.circle(this, goal.x, goal.y, 4, 0x2c2350);
-    const here = E4.center(s.cell), step = E4.step(s.dir ?? 0);
-    const px = here.x + step.x * s.off, py = here.y + step.y * s.off;
-    const pop = MINI.spawnScale(this);
-    MINI.actor(this, 'player', 'player', px, py, 24 * pop, 24 * pop);
-    MINI.spawnFx(this, px, py, 20);
-    MINI.meter(this, 1 - s.left / t.turns);
+    // 속도가 높아질수록 길고 밝아지는 이동 궤적과 캐릭터 양옆의 속도선.
+    for (let i = 1; i < s.trail.length; i++) {
+      const a = s.trail[i - 1], b = s.trail[i], alpha = i / s.trail.length;
+      this.ink.lineStyle(2 + alpha * 10, this.accent, alpha * (.2 + boost * .45))
+        .lineBetween(sx(a.x), sy(a.y), sx(b.x), sy(b.y));
+      if (i % 6 === 0) MINI.circle(this, sx(a.x), sy(a.y), 7, this.accent, alpha * .18);
+    }
+    const start = E4.tileCenter(1, 1);
+    this.ink.lineStyle(2, 0x779fcd, .7).strokeCircle(sx(start.x), sy(start.y), 17);
+    MINI.goal(this, sx(s.goal.x), sy(s.goal.y), 19);
+    this.mazeLabels[0].setPosition(sx(start.x), sy(start.y) + 28);
+    this.mazeLabels[1].setPosition(sx(s.goal.x), sy(s.goal.y) + 29);
+    if (s.moving && boost > .05) {
+      const angle = Math.atan2(s.vy, s.vx), ux = Math.cos(angle), uy = Math.sin(angle);
+      for (const side of [-1, 1]) for (let i = 0; i < 2; i++) {
+        const offset = side * (16 + i * 7), back = 6 + i * 13;
+        const x = sx(s.x) - uy * offset - ux * back, y = sy(s.y) + ux * offset - uy * back;
+        this.ink.lineStyle(2, 0xe3d6ff, boost * .7).lineBetween(x, y, x - ux * (12 + boost * 26), y - uy * (12 + boost * 26));
+      }
+    }
+    MINI.actor(this, 'player', 'player', sx(s.x), sy(s.y), 20, 20, 0, s.flash ? 0xff8799 : this.accent);
+    MINI.meter(this, boost);
   },
 };

@@ -228,6 +228,11 @@ export function createArchiveRunState(stageIds, options = {}) {
       }
       return snapshot();
     },
+    // 미로의 벽 충돌 시간 차감도 스토리 HUD와 책상 시계에 동일하게 반영합니다.
+    syncRemaining(ms) {
+      if (Number.isFinite(ms)) state.remainingMs = Math.max(0, Math.min(stageTimeMs, ms));
+      return snapshot();
+    },
     completeAttempt(success) {
       if (state.phase !== 'playing') return snapshot();
       state.phase = 'result';

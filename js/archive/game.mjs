@@ -49,12 +49,18 @@ class ArchiveGame extends Phaser.Scene {
     });
     this.input.on('pointerdown', p => {
       if (!this.playable() || this.pointerId !== null || p.button > 0) return;
-      this.pointerId = p.id; this.pointerAction(p.x, p.y);
+      const point = this.worldPoint(p);
+      this.pointerId = p.id; this.pointerAction(point.x, point.y);
     });
-    this.input.on('pointermove', p => { if (this.playable() && this.pointerId === p.id) this.stageGame.pointerMove?.call(this, p.x, p.y); });
+    this.input.on('pointermove', p => {
+      if (!this.playable() || this.pointerId !== p.id) return;
+      const point = this.worldPoint(p);
+      this.stageGame.pointerMove?.call(this, point.x, point.y);
+    });
     const up = p => {
       if (this.pointerId !== p.id) return;
-      if (this.playable()) this.stageGame.pointerUp?.call(this, p.x, p.y);
+      const point = this.worldPoint(p);
+      if (this.playable()) this.stageGame.pointerUp?.call(this, point.x, point.y);
       this.pointerId = null;
     };
     this.input.on('pointerup', up); this.input.on('pointerupoutside', up);
@@ -74,6 +80,9 @@ class ArchiveGame extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('archive-game-ready', { detail: { scene: this, stages: STAGES } }));
   }
   playable() { return this.mode === 'playing' && !this.pausedByMenu; }
+  /* 필드를 화면에 꽉 채우느라 카메라에 배율이 걸려 있다(stages/minigame-kit.js의 MINI.init).
+     포인터는 캔버스 좌표로 오므로 게임이 쓰는 설계 좌표로 되돌려서 넘긴다. */
+  worldPoint(pointer) { return this.cameras.main.getWorldPoint(pointer.x, pointer.y); }
   held(name) {
     const alias = { left: 'arrowLeft', right: 'arrowRight', up: 'arrowUp', down: 'arrowDown' };
     return this.touch.has(name) || Boolean(this.keys[name]?.isDown || this.keys[alias[name]]?.isDown);
@@ -95,8 +104,8 @@ class ArchiveGame extends Phaser.Scene {
     this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
     this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
-    this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
-    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
+    this.timeLimit = globalThis.archiveStageTimeLimit?.(this.stageGame.timeLimit) ?? this.stageGame.timeLimit ?? 20.26;
+    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.timePenalty = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
     this.stageGame.build.call(this);
     this.assistText = this.assistProtocol ? this.add.text(42, 158, '', {
@@ -138,8 +147,8 @@ class ArchiveGame extends Phaser.Scene {
       const hints = {
         e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
         e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
-        e7: '안전 정렬: 금색 영역', e8: '안전 균형: 수평 근처',
-        e9: '안전 속도: 과녁 안 완전 정지', e10: '안전 입력: 목표 순서',
+        e7: '안전 정렬: 금색 영역', e8: '안전 연결: 가장 가까운 거미줄 지점',
+        e9: '안전 속도: 점선 고리 안에서 한 번만 정지', e10: '안전 입력: 목표 순서',
       };
       this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
       if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {
@@ -163,7 +172,7 @@ class ArchiveGame extends Phaser.Scene {
     while (this.accumulator >= step && this.playable()) {
       this.accumulator -= step;
       const dt = Math.min(step, this.remaining);
-      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed);
+      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed - this.timePenalty);
       window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: dt * 1000 } }));
       this.stageGame.update.call(this, dt);
       if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
@@ -174,6 +183,7 @@ class ArchiveGame extends Phaser.Scene {
     if (!this.playable()) return;
     this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
+    this.sendHud();
     window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));
   }
 }

@@ -21,25 +21,27 @@
   assert(!scene.stackStable.has(center.id) && scene.state.height > 0, 'Supported rocking body still contributes height');
   assert(center.parts.length > 8 && Number.isFinite(center.inertia) && center.inverseInertia > 0, 'Arms, torso, head and legs form a rotating compound body');
   load();
-  const edge = spawn(558); step(3.5);
+  // Just past the pedestal edge, wherever the pedestal currently ends.
+  const edgeX = 480 + scene.stageGame.tuning.baseWidth / 2 + 9;
+  const edge = spawn(edgeX); step(1);
   measurements.edgeAngle = edge.angle; measurements.edgeY = edge.position.y;
-  assert(Math.abs(edge.angle) > .4 && edge.position.y > 425, 'Off-center contact naturally topples mannequin onto floor');
-  assert(scene.people.includes(edge) && !edge.isStatic, 'Toppled mannequin remains dynamic debris');
-  const incoming = spawn(edge.position.x, 240, 1);
-  let contactedDebris = false;
-  const observeContact = event => { contactedDebris ||= event.pairs.some(p => [p.collision.parentA.id,p.collision.parentB.id].includes(incoming.id) && [p.collision.parentA.id,p.collision.parentB.id].includes(edge.id)); };
-  M.Events.on(scene.stackWorld, 'collisionStart', observeContact); step(2.8);
-  M.Events.off(scene.stackWorld, 'collisionStart', observeContact);
-  assert(scene.stackGrounded.has(incoming.id), 'New mannequin finds support after falling onto debris');
-  assert(contactedDebris, 'Debris collides with subsequently dropped bodies');
+  assert(Math.abs(edge.angle) > .4 && !scene.stackGrounded.has(edge.id) && edge.position.y > scene.stageGame.tuning.floorY,
+    'Off-center contact tips the mannequin off the pedestal');
+  assert(scene.people.includes(edge) && !edge.isStatic, 'A tipped mannequin keeps falling as a free body');
+  // There is no floor: whoever misses the pedestal drops past the screen and is gone for good.
+  step(1.5);
+  assert(!scene.people.includes(edge) && !scene.stackBodyById.has(edge.id) && !scene.stackGrounded.has(edge.id),
+    'A mannequin that falls below the screen is removed from the world');
+  const missed = spawn(edgeX + 70, 240, 1); step(3);
+  assert(!scene.people.includes(missed) && scene.people.length === 0 && scene.state.height === 0, 'Nothing piles up beside the pedestal to stack on');
   load();
   const floating = spawn(480, 120); M.Body.setVelocity(floating, { x: 0, y: 0 });
   scene.stageGame.measureTower.call(scene);
   assert(scene.state.height === 0 && scene.state.held === 0, 'Unsupported body at rest in air cannot score height');
   load();
-  scene.state.x = 558; scene.primaryAction(); step(.5); scene.state.x = 565; scene.primaryAction();
+  scene.state.x = edgeX; scene.primaryAction(); step(.5); scene.state.x = edgeX + 7; scene.primaryAction();
   const speed = scene.stageGame.speed.call(scene); step(4);
-  assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed && scene.people.length === 2, 'Collapse retains every person and accumulated speed');
+  assert(scene.state.drops === 2 && scene.stageGame.speed.call(scene) === speed, 'A collapse still counts every drop, so the rail keeps its speed');
   load();
   const dropAngle = scene.state.nextAngle, dropX = scene.state.x, dropY = scene.state.spawnY;
   scene.primaryAction();
@@ -53,31 +55,95 @@
   assert(before === JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle }))), 'Pause freezes falling body and rotation');
   archiveGame.pause(false); step(.3);
   assert(before !== JSON.stringify(scene.people.map(b => ({ p: b.position, a: b.angle }))), 'Resume continues physical fall');
-  // Synthetic skin checks exercise the real texture branch, including pose replacement and pivot.
-  const skin = document.createElement('canvas'); skin.width = 94; skin.height = 88;
-  skin.getContext('2d').fillRect(20, 10, 50, 60);
-  scene.textures.addCanvas('e3:person_crouch', skin);
+  // The baked metcha poses drive both the collider and the picture, so check them together.
+  const poses = scene.stageGame.poses;
+  assert(poses.length === 8 && poses.every(p => scene.textures.exists(`e3:${p.id}`)), 'All eight baked pose images are loaded');
+  assert(poses.every(p => p.parts.length >= 8 && p.parts.every(([, , w, h]) => w > 0 && h > 0)), 'Every pose carries solid rectangles cut from its own alpha');
   scene.stageGame.render.call(scene);
   const sprite = scene.assetSprites.get('person0');
-  assert(sprite?.texture.key === 'e3:person_crouch', 'Pose-specific asset is used by real render path');
+  const dropped0 = poses[scene.people[0].plugin.e3.poseIndex];
+  assert(sprite?.texture.key === `e3:${dropped0.id}`, 'Pose image is used by the real render path');
+  assert(Math.abs(sprite.displayWidth - dropped0.width * scene.state.zoom) < .001 && Math.abs(sprite.displayHeight - dropped0.height * scene.state.zoom) < .001, 'Image is shown at the baked size, so picture and collider share one scale');
   const body = scene.people[0]; M.Body.setAngle(body, .63); scene.stageGame.render.call(scene);
   const o = body.plugin.e3.origin;
   const expected = scene.stageGame.project.call(scene, body.position.x + o.x * Math.cos(body.angle) - o.y * Math.sin(body.angle), body.position.y + o.x * Math.sin(body.angle) + o.y * Math.cos(body.angle));
   assert(Math.hypot(sprite.x - expected.x, sprite.y - expected.y) < .001 && Math.abs(sprite.rotation - body.angle) < .00001, 'Asset pivots around physical center of mass without drifting');
-  scene.state.nextPose = 0; scene.stageGame.render.call(scene);
+  scene.state.nextPose = 2; scene.stageGame.render.call(scene);
   const preview = scene.assetSprites.get('preview');
-  assert(Math.abs(preview.rotation - scene.state.nextAngle) < .00001, 'Preview asset displays the upcoming drop angle');
-  scene.state.nextPose = 1; scene.stageGame.render.call(scene);
-  assert(preview && !preview.visible, 'Missing next-pose asset hides previous skin before fallback');
+  assert(preview?.texture.key === `e3:${poses[2].id}` && Math.abs(preview.rotation - scene.state.nextAngle) < .00001, 'Preview shows the upcoming pose at its drop angle');
+  // The goal marker is pinned to the right end of the success line and keeps its size as the view zooms out.
+  const marker = scene.assetSprites.get('goalMark');
+  const goalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
+  assert(marker?.texture.key === 'e3:line' && marker.visible, 'Success line marker uses the line asset');
+  assert(marker.x === scene.stageGame.tuning.markerX && marker.x > scene.stageGame.tuning.goalRight && Math.abs(marker.y - goalY) < .001, 'Marker sits on the success line, to the right of its dashes');
+  scene.state.zoom = .5; scene.stageGame.render.call(scene);
+  const zoomedGoalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
+  assert(Math.abs(marker.y - zoomedGoalY) < .001 && Math.abs(marker.displayHeight - scene.stageGame.tuning.markerHeight) < .001, 'Marker follows the line but is not scaled by the camera zoom');
+  scene.state.zoom = 1;
+  // A pose without a picture hides the previous skin instead of leaving it behind.
+  poses.push({ id: 'missing', name: '없음', width: 40, height: 40, parts: [[0, 0, 40, 40]] });
+  scene.state.nextPose = poses.length - 1; scene.stageGame.render.call(scene);
+  assert(preview && !preview.visible, 'Pose with no image hides the previous skin before falling back to shapes');
+  poses.pop(); scene.state.nextPose = 0;
   const world = scene.stackWorld;
   scene.stopGame();
   assert(world.world.bodies.length === 0 && !world.events.collisionStart?.length && scene.stackBodyById.size === 0, 'Leaving e3 disposes bodies, collision listeners and maps');
-  scene.textures.remove('e3:person_crouch');
+  // Left/right input turns the waiting person instead of moving it: a tap steps, a hold keeps turning.
+  load();
+  const stepRad = scene.stageGame.tuning.spinStep * Math.PI / 180;
+  const spinBase = scene.state.nextAngle;
+  archiveGame.press('left');
+  assert(Math.abs(scene.state.nextAngle - (spinBase - stepRad)) < 1e-9, 'A tap on the left turns the waiting person by one step');
+  archiveGame.release('left'); step(.3);
+  assert(scene.state.nextAngle === spinBase - stepRad, 'A released key stops turning it');
+  archiveGame.press('right'); step(.4);
+  const turnedBy = scene.state.nextAngle - (spinBase - stepRad);
+  archiveGame.release('right');
+  assert(turnedBy > stepRad * 1.5 && turnedBy <= stepRad + scene.stageGame.tuning.spinSpeed * Math.PI / 180 * .45, 'Holding the key keeps turning it, at the tuned speed');
+  const aimed = scene.state.nextAngle;
+  scene.primaryAction();
+  assert(scene.people[0].angle === aimed, 'The person is dropped at the angle the player aimed for');
+  assert(scene.state.nextAngle === scene.stageGame.tuning.dropAngles[1] * Math.PI / 180, 'The next person arrives at its own angle, not the aimed one');
+  assert(Math.abs(scene.state.nextAngle) <= Math.PI, 'Turning keeps the shown angle inside half a turn');
+  // The rail's own speed rides along with the drop, so a fast pass throws the person sideways.
+  load();
+  const railSpeed = scene.stageGame.speed.call(scene);
+  scene.state.direction = 1; scene.state.x = 480;
+  scene.primaryAction();
+  const thrown = scene.people[0], startX = thrown.position.x;
+  // Measure the drift the player actually sees (pixels per second), not Matter's internal units.
+  step(.1);
+  const drift = (thrown.position.x - startX) / .1;
+  measurements.carriedDriftPerSecond = drift;
+  measurements.railSpeed = railSpeed;
+  assert(thrown.position.y < scene.stageGame.tuning.baseY, 'The measured drift happens while the body is still falling');
+  assert(Math.abs(drift - railSpeed * scene.stageGame.tuning.carryMomentum) < railSpeed * .1, 'A dropped person keeps flying at the speed the rail was moving');
+  load();
+  scene.state.direction = -1; scene.state.x = 480; scene.state.drops = 6;
+  scene.primaryAction();
+  const fast = scene.people[0], fastStartX = fast.position.x;
+  step(.1);
+  const fastDrift = (fast.position.x - fastStartX) / .1;
+  measurements.fastDriftPerSecond = fastDrift;
+  assert(fastDrift < 0, 'The drift follows whichever way the rail was heading');
+  assert(Math.abs(fastDrift) > Math.abs(drift) * 1.5, 'A rail sped up by earlier drops throws the person harder');
+  // Cadence of the stand-in player below. The metcha poses are far slimmer than the old squat
+  // mannequins, so a tower needs about a second to settle before the next body lands on it;
+  // dropping faster than this just knocks over what is already standing.
+  const DROP_GAP = 1;
+  // A dropped person keeps the rail's sideways speed, so the stand-in player leads its aim by the
+  // distance the body covers while it falls, the same way a person has to. The pedestal is wide,
+  // so it aims like a person too: within about 20px of the middle, not to the pixel.
+  const onTarget = () => {
+    const t = scene.stageGame.tuning, s = scene.state, rail = scene.stageGame.speed.call(scene);
+    const flight = Math.sqrt(2 * Math.max(40, t.baseY - s.height - s.spawnY) / (t.gravity * 1000));
+    return Math.abs(s.x + s.direction * rail * t.carryMomentum * flight - 480) < Math.max(20, rail / 90);
+  };
   // Break a real tower during its countdown: partial hold must not carry over.
   load();
   let lastPartial = -10;
   for (let i = 0; i < 2400 && scene.playable() && scene.state.held < 1; i++) {
-    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastPartial > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
+    if (onTarget() && scene.elapsed - lastPartial > DROP_GAP && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastPartial = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
   assert(scene.state.held >= 1 && scene.playable(), 'Reaching target for one second does not clear');
@@ -91,7 +157,7 @@
   load();
   let last = -10;
   for (let i = 0; i < 2432 && scene.playable(); i++) {
-    if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - last > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); last = scene.elapsed; }
+    if (onTarget() && scene.elapsed - last > DROP_GAP && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); last = scene.elapsed; }
     scene.update(0, 1000 / 120);
   }
   measurements.clearTime = scene.elapsed;

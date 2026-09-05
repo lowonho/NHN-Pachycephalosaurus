@@ -1,16 +1,43 @@
 /* 렌더링/충돌 도구만 공유합니다. 모든 게임 상태는 scene.state에 새로 생성합니다. */
 export const MINI = {
+  /*
+   * 플레이 화면(필드) = 모니터 스크린 전체.
+   *
+   * 예전에는 캔버스(960×540) 한가운데 920×353짜리 판을 그리고 위아래 빈 띠에
+   * 글자를 얹었다. 지금은 그 판이 곧 화면이다 — 설계 좌표(가로 20~940)는 그대로 두고
+   * 카메라 한 번으로 필드를 16:9 화면에 꽉 채운다. 게임 좌표·판정은 하나도 바뀌지 않고
+   * 같은 배율만큼 위아래로 더 보이게 되어, 각 게임이 가장자리까지 그림을 잇는다.
+   *
+   * 화면 위 UI(조작 안내 · 진행 막대)는 이 필드 위에 겹쳐 그린다.
+   */
+  FIELD: (() => {
+    const x = 20, w = 920, cy = 320.5;      // 옛 필드의 가로 범위와 세로 중심
+    const h = w * 540 / 960;                // 16:9 — 517.5
+    return { x, y: cy - h / 2, w, h, right: x + w, bottom: cy + h / 2, cx: x + w / 2, cy };
+  })(),
   clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
   rand: (lo, hi, random = Math.random) => lo + random() * (hi - lo),
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
+    const f = MINI.FIELD;
+    // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
+    scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
+    // 배경 그림(manifest 의 backdrop 역할)이 있으면 ink 보다 먼저 깔아 필드를 통째로 덮는다.
+    // 필드와 그림이 둘 다 16:9 라 늘려 채워도 잘리거나 찌그러지지 않는다.
+    const backdropKey = `${scene.stageId}:backdrop`;
+    scene.backdrop = scene.textures.exists(backdropKey)
+      ? scene.add.image(f.cx, f.cy, backdropKey).setDisplaySize(f.w, f.h)
+      : null;
     scene.ink = scene.add.graphics();
     scene.fieldMask = scene.make.graphics({ x: 0, y: 0, add: false });
-    scene.fieldMask.fillStyle(0xffffff).fillRect(20, 144, 920, 353);
+    scene.fieldMask.fillStyle(0xffffff).fillRect(f.x, f.y, f.w, f.h);
     scene.ink.setMask(scene.fieldMask.createGeometryMask());
-    scene.readout = scene.add.text(32, 109, '', { fontFamily: 'Arial, sans-serif', fontSize: '19px', color: '#f4f3e9' });
-    scene.instruction = scene.add.text(480, 513, scene.stage.controls, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2' }).setOrigin(0.5);
+    // 조작 안내는 플레이 화면 위에 겹친다. 배경 위에서도 읽히도록 테두리를 준다.
+    scene.instruction = scene.add.text(f.cx, f.bottom - 26, scene.stage.controls, {
+      fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2',
+      stroke: '#04121b', strokeThickness: 4,
+    }).setOrigin(0.5).setAlpha(.9);
     scene.assetSprites = new Map();
     scene.spawnAt = -1;
   },
@@ -35,7 +62,7 @@ export const MINI = {
   spawnFx(scene, x, y, size = 30, color = scene.accent) {
     const phase = MINI.spawnPhase(scene);
     if (phase === null) return;
-    const g = scene.ink, top = 144;
+    const g = scene.ink, top = MINI.FIELD.y;
     const drop = Math.min(1, phase / .32), land = Math.max(0, phase - .32) / .68;
     const bottom = top + (y - top) * (1 - (1 - drop) ** 3), fade = 1 - land * land;
     const half = size * (.5 + .45 * fade);
@@ -54,13 +81,16 @@ export const MINI = {
     g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
     g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
-  frame(scene, text) {
-    const g = scene.ink; g.clear();
-    g.fillStyle(0x0c202e).fillRoundedRect(20, 144, 920, 353, 14);
+  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다.
+     배경 그림이 깔린 게임은 격자 대신 어둠막 한 겹만 얹는다 — 그림 위에 격자를 그으면
+     사진이 뭉개지고, 밝은 배경 위에서는 흰 캐릭터와 HUD 글씨가 묻힌다. */
+  frame(scene) {
+    const g = scene.ink, f = MINI.FIELD; g.clear();
+    if (scene.backdrop) { g.fillStyle(0x07141d, .42).fillRect(f.x, f.y, f.w, f.h); return; }
+    g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
     g.lineStyle(1, scene.accent, 0.13);
-    for (let x = 40; x < 940; x += 40) g.lineBetween(x, 150, x, 490);
-    for (let y = 170; y < 497; y += 40) g.lineBetween(20, y, 940, y);
-    scene.readout.setText(text);
+    for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
+    for (let y = f.y + 28; y < f.bottom; y += 40) g.lineBetween(f.x, y, f.right, y);
   },
   box(scene, x, y, w, h, color, alpha = 1) {
     scene.ink.fillStyle(color, alpha).fillRoundedRect(x, y, w, h, Math.min(5, w / 3, h / 3));
@@ -80,6 +110,9 @@ export const MINI = {
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
      표시 크기만 교체하고 물리 판정은 각 게임의 기존 도형을 유지합니다. */
   actor(scene, role, key, x, y, w, h, angle = 0, color = scene.accent) {
+    // 소환 연출 앞부분은 배율이 0이다(MINI.spawnScale). 그릴 것이 없을 뿐 아니라
+    // 반지름이 음수가 되어 캔버스가 예외를 던지고 게임 루프가 멈춰 버린다.
+    if (!(w > 0) || !(h > 0)) { MINI.hideActor(scene, key); return; }
     const texture = `${scene.stageId}:${role}`;
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);
@@ -97,7 +130,7 @@ export const MINI = {
       g.lineBetween(w * .15, h * .15, w * .28, h * .43);
     } else if (scene.stageId === 'e2' || role === 'stone' || role === 'projectile') {
       g.fillStyle(color).fillCircle(0, 0, w / 2);
-      g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
+      if (w > 6) g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
       g.fillStyle(0x08212b).fillCircle(-w * .16, -h * .12, 2.5).fillCircle(w * .16, -h * .12, 2.5);
     } else {
       g.fillStyle(color).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(8, h / 3));
@@ -106,8 +139,10 @@ export const MINI = {
     g.restore();
   },
   hideActor(scene, key) { scene.assetSprites.get(key)?.setVisible(false); },
+  /* 진행 막대도 화면 위 오버레이다 — 필드 맨 아래에 얇게 눕힌다. */
   meter(scene, fraction) {
-    MINI.box(scene, 32, 487, 896, 4, 0x204251);
-    MINI.box(scene, 32, 487, 896 * MINI.clamp(fraction, 0, 1), 4, scene.accent);
+    const f = MINI.FIELD, x = f.x + 12, y = f.bottom - 9, w = f.w - 24;
+    MINI.box(scene, x, y, w, 4, 0x204251, .85);
+    MINI.box(scene, x, y, w * MINI.clamp(fraction, 0, 1), 4, scene.accent);
   },
 };

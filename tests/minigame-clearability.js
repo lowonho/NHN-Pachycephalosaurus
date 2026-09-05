@@ -9,54 +9,65 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
-  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','map','toGoal','seen'].includes(key) ? undefined : value)) });
+  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','timbers','map','toGoal','seen'].includes(key) ? undefined : value)) });
   load('e1');
   const flippedGates = new Set();
+  const lead = scene.hurdles[0].x, gateGap = scene.hurdles[2].x - scene.hurdles[0].x;
   advance(20.3, () => {
     const s = scene.state;
-    // 다음 묶음 110px 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
-    const next = scene.hurdles.find(h => h.x - s.x > -15);
-    if (next && next.x - s.x < 110 && !flippedGates.has(next.x)) { flippedGates.add(next.x); scene.primaryAction(); }
+    // 다음 묶음 0.386초 앞에서 반전해 느리게 따라오는 가시/블록보다 먼저 벽을 옮깁니다.
+    // 코스 간격은 속도에 따라 달라지므로 반응 거리도 속도에서 뽑습니다.
+    // 가시는 묶음마다 두 개씩 붙어 있으므로 묶음 번호로 묶어 한 번만 반전합니다.
+    const next = scene.hurdles.find(h => h.x - s.x > -15), gate = next && Math.round((next.x - lead) / gateGap);
+    if (next && next.x - s.x < scene.stageGame.tuning.speed * .386 && !flippedGates.has(gate)) { flippedGates.add(gate); scene.primaryAction(); }
   }); save('e1');
-  load('e2'); scene.directionPress('right');
-  advance(20.3, () => {
-    const s = scene.state;
-    const p = scene.platforms.find(p => s.checkpoint === p.x + 50);
-    if (s.grounded && p && s.x >= p.x + p.w - 16 && p !== scene.platforms.at(-1)) scene.primaryAction();
-  }); save('e2');
+  load('e2'); driveE2(); save('e2');
   load('e3');
   let lastDrop = -10;
-  advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
+  // 메챠 포즈는 옛 마네킹보다 훨씬 홀쭉해서, 한 명이 자리를 잡는 데 1초쯤 걸린다.
+  // 그보다 빨리 떨어뜨리면 이미 서 있는 사람을 무너뜨리기만 한다.
+  // 떨어진 사람은 레일 속도를 물려받아 옆으로 흐르므로, 낙하 시간만큼 앞서 겨냥해 놓는다.
+  // 단상이 넓으니 픽셀 단위로 맞출 필요는 없다 — 사람처럼 한가운데 20px 안쪽이면 떨어뜨린다.
+  const e3OnTarget = () => {
+    const t = scene.stageGame.tuning, s = scene.state, rail = scene.stageGame.speed.call(scene);
+    const flight = Math.sqrt(2 * Math.max(40, t.baseY - s.height - s.spawnY) / (t.gravity * 1000));
+    return Math.abs(s.x + s.direction * rail * t.carryMomentum * flight - 480) < Math.max(20, rail / 90);
+  };
+  advance(20.3, () => { if (e3OnTarget() && scene.elapsed - lastDrop > 1 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
-  // 미로를 읽고 다음 갈림길에서 꺾을 방향을 미리 눌러 준다. 사람도 낼 수 있는 50ms 간격 입력이고,
-  // 같은 방향을 다시 눌러도 게임이 무시하므로 입력 횟수는 실제 꺾은 횟수만큼만 늘어난다.
-  advance(20.3, frame => {
-    if (frame % 6) return;
-    scene.touch.clear(); scene.directionPress(scene.stageGame.hint.call(scene));
+  const maze = scene.state, center = scene.stageGame.tileCenter;
+  const queue = [{ x: 1, y: 1, parent: -1 }], seen = new Set(['1,1']);
+  let end;
+  for (let i = 0; i < queue.length; i++) {
+    const p = queue[i];
+    if (Math.hypot(center(p.x, p.y).x - maze.goal.x, center(p.x, p.y).y - maze.goal.y) < 1) { end = i; break; }
+    for (const d of Object.values(scene.stageGame.steps)) {
+      const x = p.x + d.x, y = p.y + d.y, key = `${x},${y}`;
+      if (maze.tiles[y]?.[x] === 0 && !seen.has(key)) { seen.add(key); queue.push({ x, y, parent: i }); }
+    }
+  }
+  if (end === undefined) throw Error('e4: unreachable exit');
+  const path = [];
+  for (let i = end; i >= 0; i = queue[i].parent) path.unshift(queue[i]);
+  let waypoint = 1;
+  advance(20.3, () => {
+    const p = path[waypoint]; if (!p) return;
+    const dx = center(p.x, p.y).x - maze.x, dy = center(p.x, p.y).y - maze.y;
+    scene.touch.clear();
+    if (Math.hypot(dx, dy) < 8) { waypoint++; return; }
+    scene.directionPress(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
   }); save('e4');
   load('e5');
-  const chooseShot = () => {
-    const s = scene.state, power = scene.stageGame.power.call(scene); let best = null;
-    for (let angle = .18; angle < 1.35; angle += .025) for (let pull = 66; pull <= 112; pull += 2) {
-      let x = 164-Math.cos(angle)*pull, y = 382+Math.sin(angle)*pull;
-      let vx = Math.cos(angle)*pull*8.4*power, vy = -Math.sin(angle)*pull*8.4*power;
-      let score = 0; const hits = new Set();
-      for(let frame = 0; frame < 280; frame++) {
-        vy += 640/120; x += vx/120; y += vy/120;
-        if(y > 457 || x > 960) break;
-        s.targets.forEach((o,i) => {
-          if(o.hp<=0 || hits.has(i) || x+12<o.x || x-12>o.x+o.w || y+12<o.y || y-12>o.y+o.h) return;
-          const damage = Math.max(6,Math.hypot(vx,vy)*.1*power);
-          score += Math.min(o.hp,damage) + (damage>=o.hp ? 50 : 0); hits.add(i); vx *= .73; vy -= 60;
-        });
-      }
-      if(!best || score>best.score) best={score,x:164-Math.cos(angle)*pull,y:382+Math.sin(angle)*pull};
-    }
-    return best;
-  };
-  while(scene.playable() && scene.elapsed < 19) {
-    const aim=chooseShot(); scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,aim.x,aim.y); scene.stageGame.pointerUp.call(scene); advance(2.5);
+  // Real full-pull inputs: fracture the supports, then hit the remaining resident through the rubble.
+  // The former predictor ignored Matter joints and kept aiming at the same ineffective obstacle.
+  for(const angle of [.1, .3, .3, .3, .1]) {
+    if(!scene.playable()) break;
+    const pull=scene.stageGame.tuning.maxPull;
+    scene.pointerAction(164,382);
+    scene.stageGame.pointerMove.call(scene,164-Math.cos(angle)*pull,382+Math.sin(angle)*pull);
+    scene.stageGame.pointerUp.call(scene);
+    advance(1.5);
   }
   advance(2); save('e5');
   load('e6');
@@ -76,6 +87,7 @@
   // A real random roulette round can lose; verify the actual resting wedge judges both outcomes.
   load('e7'); scene.state.rotation = -Math.PI/2 - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');
+  load('e8'); driveE8(); save('e8');
   load('e9');
   const dx=scene.target.x-scene.state.x, dy=scene.target.y-scene.state.y, distance=Math.hypot(dx,dy);
   const pull=Math.sqrt(2*220*distance)/5.7;
