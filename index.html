@@ -122,15 +122,14 @@
       컷신 — assets/images/concept/cutscene.png의 UI 배치를 따른다.
       "게임 시작"을 누르면 스테이지 선택 앞에 한 번 나오고, 끝나거나 SKIP하면 스테이지 선택으로 넘어간다.
 
-      컨셉 이미지와 다른 점은 두 가지다.
-        · 배경 일러스트는 아직 없다. 검정 한 장이고, 준비되면 .cutscene-backdrop에 물린다.
-        · 우측 시스템 패널(RECORD CORRUPTED · STAGE_03 등)은 넣지 않는다.
+      장면별 배경 경로는 js/content/scenario-data.js에서 관리한다.
+      대응 이미지가 없는 장면에는 교체형 벡터 플레이스홀더를 사용한다.
 
       대사는 js/content/strings.ko.js의 STRINGS.cutscene.script가 채운다(여기에 적지 않는다).
     -->
     <div class="cutscene hidden" id="cutscene" role="dialog" aria-modal="true" aria-label="컷신" tabindex="-1">
       <div class="cutscene-frame">
-        <div class="cutscene-backdrop" aria-hidden="true"></div>
+        <div class="cutscene-backdrop" id="cutscene-backdrop" aria-hidden="true"></div>
 
         <!-- 실제 2026년 자료가 준비되기 전까지 쓰는 교체형 스토리 플레이스홀더. -->
         <div class="cutscene-story-visual" aria-hidden="true">
@@ -751,9 +750,10 @@
     <!--
       QA 모드 — 검수용 뒷문. 메인 화면 왼쪽 위 "2026 ARCHIVE"를 빠르게 10번 누르면 열린다.
 
-      두 가지만 한다.
+      세 가지를 한다.
         · 10개 미니게임 중 아무거나 바로 시작한다(막별 선정 순서와 브리핑을 건너뛴다).
         · 한 판의 제한시간을 20.26초 대신 다른 값으로 준다.
+        · 오프닝부터 엔딩까지 원하는 스토리 컷신을 바로 재생한다.
 
       QA 모드에서 만든 기록은 저장하지 않는다(js/game.js) — 제한시간이 다른 판이라
       20.26초 기준의 최고 기록·ARCHIVE 복구율과 같은 자리에 둘 수 없다.
@@ -775,7 +775,7 @@
         <header class="qa-header">
           <div class="qa-heading">
             <p class="qa-tag">QA MODE</p>
-            <h2 id="qa-title">미니게임 바로 진입</h2>
+            <h2 id="qa-title">게임·스토리 바로 진입</h2>
           </div>
           <button class="qa-close" id="qa-close-button" type="button" aria-label="QA 패널 닫기">✕</button>
         </header>
@@ -822,11 +822,23 @@
           <span>시작 전 브리핑 화면 보기</span>
         </label>
 
+        <section class="qa-story" aria-labelledby="qa-story-title">
+          <div class="qa-section-head">
+            <h3 id="qa-story-title">STORY CUTSCENES</h3>
+            <small>진행 기록을 변경하지 않고 선택한 장면만 재생합니다.</small>
+          </div>
+          <div class="qa-story-grid" id="qa-story-grid"></div>
+        </section>
+
+        <div class="qa-section-head qa-section-head--games">
+          <h3>MINIGAMES</h3>
+          <small>10개 게임을 현재 제한시간으로 바로 시작합니다.</small>
+        </div>
         <div class="qa-grid" id="qa-stage-grid"></div>
 
         <footer class="qa-footer">
           <p class="qa-hint" id="qa-hint">
-            타일을 누르면 그 미니게임이 바로 시작된다. 결과·일시정지에서 이 패널로 돌아온다.
+            스토리와 미니게임을 선택하면 검수 후 이 패널로 돌아온다.
             <b>Shift+Q</b>로도 열고 닫을 수 있다.
           </p>
           <button class="qa-exit" id="qa-exit-button" type="button">QA 모드 끄고 메인으로</button>

@@ -4,9 +4,10 @@
  * 여는 법: 메인 화면 왼쪽 위 "2026 ARCHIVE"를 QA_UNLOCK_WINDOW_MS 안에 10번 누른다.
  * (켜져 있는 동안은 Shift+Q로도 패널을 여닫는다.)
  *
- * 하는 일은 둘뿐이다.
+ * 하는 일은 세 가지다.
  *   1) 10개 미니게임 중 아무거나 바로 연다 — 막별 선정 순서와 브리핑을 건너뛴다.
  *   2) 한 판의 제한시간을 20.26초 대신 다른 값으로 준다.
+ *   3) 오프닝부터 엔딩까지 스토리 컷신을 진행 상태와 무관하게 바로 재생한다.
  *
  * 1)은 엔진이 "현재 막에 뽑힌 6개"만 열어 주기 때문에(js/game.js의 start) 그냥
  * 시작시킬 수 없다. 그래서 이번 판의 선택 목록을 10개 전부로 갈아 끼운다
@@ -26,12 +27,24 @@ const QA_UNLOCK_WINDOW_MS = 800;
 /* 눌리고 있다는 힌트를 슬쩍 주기 시작하는 지점(그 전에는 티가 나지 않는다). */
 const QA_UNLOCK_HINT_FROM = 5;
 
+const QA_STORY_LABELS = Object.freeze({
+  opening: "오프닝",
+  assist: "1막 지원",
+  betrayal: "1막 반전",
+  source: "삭제 주체",
+  experiment: "기억 억제",
+  successTest: "실험 결과",
+  blockade: "최종 봉쇄",
+  ending: "공동 기억 엔딩",
+});
+
 class QaModeFlow {
-  constructor(events, dom, soundBus, protocolSelect, catalog) {
+  constructor(events, dom, soundBus, protocolSelect, cutscene, catalog) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.protocolSelect = protocolSelect;
+    this.cutscene = cutscene;
 
     /* 엔진이 뜨면 game.js가 더 자세한 목록으로 갈아 끼운다(setStages). */
     this.catalog = catalog;
@@ -130,7 +143,7 @@ class QaModeFlow {
     this.renderTiles();
     this.ui.qaPanel?.classList.remove("hidden");
     this.ui.mainMenu?.setAttribute("inert", "");
-    this.ui.qaPanel?.querySelector(".qa-stage")?.focus();
+    this.ui.qaPanel?.querySelector(".qa-story-button, .qa-stage")?.focus();
   }
 
   close() {
@@ -200,6 +213,25 @@ class QaModeFlow {
     const ids = this.catalog.map((stage) => stage.id);
     const snapshot = window.archiveRun?.setSelection(ids);
     if (snapshot) this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
+  }
+
+  /* 진행 기록·본편의 시청 완료 상태를 건드리지 않는 독립 컷신 미리보기. */
+  playStory(storyId) {
+    const story = SCENARIO_DATA.cutscenes[storyId];
+    if (!this.active || !story) return;
+    this.soundBus.resume();
+    this.protocolSelect.close();
+    this.close();
+    this.ui.mainMenu?.setAttribute("inert", "");
+    this.cutscene.play({
+      chapter: `QA PREVIEW // ${story.chapter}`,
+      script: story.script,
+      auto: story.auto,
+      forceDisplay: true,
+      onDone: () => {
+        if (this.active) this.open();
+      },
+    });
   }
 
   /* ── 바로 진입 ───────────────────────────────────────────────────── */
@@ -276,6 +308,7 @@ class QaModeFlow {
   }
 
   renderTiles() {
+    this.renderStoryTiles();
     const grid = this.ui.qaStageGrid;
     if (!grid) return;
     grid.replaceChildren();
@@ -310,6 +343,32 @@ class QaModeFlow {
     });
   }
 
+  renderStoryTiles() {
+    const grid = this.ui.qaStoryGrid;
+    if (!grid) return;
+    grid.replaceChildren();
+
+    Object.entries(SCENARIO_DATA.cutscenes).forEach(([storyId, story], index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "qa-story-button";
+      button.dataset.storyId = storyId;
+
+      const code = document.createElement("span");
+      code.className = "qa-story-code";
+      code.textContent = String(index + 1).padStart(2, "0");
+
+      const title = document.createElement("strong");
+      title.className = "qa-story-title";
+      title.textContent = QA_STORY_LABELS[storyId] ?? story.chapter;
+
+      button.append(code, title);
+      button.title = `${story.chapter}\n대사 ${story.script.length}개`;
+      button.addEventListener("click", () => this.playStory(storyId));
+      grid.append(button);
+    });
+  }
+
   /* 안내 줄을 잠깐 경고로 바꾼다(프로토콜 선택의 warnEngineMissing과 같은 방식). */
   showHint(message) {
     const hint = this.ui.qaHint;
@@ -330,5 +389,6 @@ const qaModeFlow = new QaModeFlow(
   UI,
   audioBus,
   protocolSelectFlow,
+  cutsceneFlow,
   PROTOCOLS,
 );

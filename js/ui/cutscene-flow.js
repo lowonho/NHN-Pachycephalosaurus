@@ -39,6 +39,9 @@ class CutsceneFlow {
     this.typed = 0;
     this.fullText = "";
     this.auto = false;
+    this.backgrounds = globalThis.SCENARIO_DATA?.backgrounds ?? {};
+    this.backgroundCache = new Map();
+    this.preloadBackgrounds();
 
     // 버튼은 자기 일만 한다. 여기서 막지 않으면 컨테이너의 "다음 줄"까지 같이 걸린다.
     const onButton = (button, handler) => {
@@ -59,6 +62,30 @@ class CutsceneFlow {
     this.ui.cutscene?.addEventListener("click", () => this.advance());
 
     window.addEventListener("keydown", (event) => this.onKeyDown(event));
+  }
+
+  /* 장면 전환 순간 검은 화면이 뜨지 않도록 등록된 배경을 미리 읽어 둔다. */
+  preloadBackgrounds() {
+    if (typeof Image !== "function") return;
+    new Set(Object.values(this.backgrounds)).forEach((path) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = new URL(path, document.baseURI).href;
+      this.backgroundCache.set(path, image);
+    });
+  }
+
+  showBackground(phase) {
+    const path = this.backgrounds[phase] ?? "";
+    if (!this.ui.cutsceneBackdrop || !this.ui.cutscene) return;
+    if (!path) {
+      this.ui.cutsceneBackdrop.style.removeProperty("--cutscene-image");
+      this.ui.cutscene.dataset.hasBackground = "false";
+      return;
+    }
+    const href = new URL(path, document.baseURI).href;
+    this.ui.cutsceneBackdrop.style.setProperty("--cutscene-image", `url("${href}")`);
+    this.ui.cutscene.dataset.hasBackground = "true";
   }
 
   isOpen() {
@@ -87,13 +114,13 @@ class CutsceneFlow {
    * 컷신 재생. onDone은 끝까지 봤을 때도 SKIP으로 건너뛰었을 때도 한 번만 불린다.
    * (부르는 쪽은 "컷신 다음"만 알면 되고, 어떻게 끝났는지는 알 필요가 없다.)
    */
-  play({ onDone, script, chapter, auto } = {}) {
+  play({ onDone, script, chapter, auto, forceDisplay = false } = {}) {
     this.script = Array.isArray(script) ? script : (Array.isArray(this.copy.script) ? this.copy.script : []);
     this.onDone = typeof onDone === "function" ? onDone : null;
     this.returnFocus = document.activeElement;
     this.index = -1;
 
-    if (globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
+    if (!forceDisplay && globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
       const done = this.onDone;
       this.onDone = null;
       done?.();
@@ -140,6 +167,7 @@ class CutsceneFlow {
     }
 
     const { speaker = "", text = "", phase = "dialogue" } = this.script[this.index] || {};
+    this.showBackground(phase);
     this.ui.cutscene?.setAttribute("data-phase", phase);
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
     this.startTyping(String(text));
@@ -279,6 +307,8 @@ class CutsceneFlow {
     this.setAuto(false);
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
+    this.ui.cutscene?.removeAttribute("data-has-background");
+    this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     this.returnFocus = null;
   }

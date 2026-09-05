@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   const scene = archivePhaserGame.scene.getScene('archive-game');
   archivePhaserGame.loop.sleep();
   const checks = [];
@@ -8,6 +8,40 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
+  const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
+  const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error(`Cutscene image failed to load: ${path}`));
+    image.src = new URL(path, document.baseURI).href;
+  })));
+  assert(cutsceneImagePaths.length === 7 && cutsceneImageSizes.every(({ width, height }) => Math.abs(width / height - 16 / 9) < .002), 'Seven cutscene backgrounds load at 16:9');
+  assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
+    && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op02.png')
+    && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
+    && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png'), 'Opening, assist and betrayal phases use their matching artwork');
+  UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
+  assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op1.png')
+    && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
+  cutsceneFlow.close();
+  qaModeFlow.activate();
+  const qaStoryState = () => JSON.stringify({
+    currentAct: archiveRun.snapshot().currentAct,
+    currentStageInAct: archiveRun.snapshot().currentStageInAct,
+    lives: archiveRun.snapshot().lives,
+    records: archiveRun.snapshot().stageRecords,
+  });
+  const beforeQaStory = qaStoryState();
+  const qaRect = UI.qaPanel.querySelector('.qa-dialog').getBoundingClientRect();
+  assert(document.querySelectorAll('.qa-story-button').length === Object.keys(SCENARIO_DATA.cutscenes).length
+    && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
+  document.querySelector('.qa-story-button[data-story-id="opening"]').click();
+  assert(cutsceneFlow.isOpen() && UI.cutscene.dataset.phase === 'op-01' && UI.qaPanel.classList.contains('hidden'), 'QA story preview opens even when normal cutscene skipping is enabled');
+  cutsceneFlow.finish();
+  assert(!UI.qaPanel.classList.contains('hidden') && qaStoryState() === beforeQaStory, 'QA story preview returns to QA without changing progress');
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
+  qaModeFlow.deactivate();
   assert(UI.mainCodexButton.disabled, 'Testimony archive stays locked before the ending');
   const menuRect = UI.mainMenu.getBoundingClientRect();
   assert(document.querySelectorAll('.main-menu-actions .menu-button').length === 4

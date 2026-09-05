@@ -286,13 +286,83 @@
   accent-color: var(--qa-cyan);
 }
 
+/* ── 스토리 컷신 바로 보기 ─────────────────────────────────────────── */
+
+.qa-story {
+  margin-top: 14px;
+}
+
+.qa-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.qa-section-head--games {
+  margin-top: 16px;
+}
+
+.qa-section-head h3 {
+  margin: 0;
+  color: var(--qa-cyan);
+  font: 800 14px/1 var(--font-ui);
+  letter-spacing: .18em;
+}
+
+.qa-section-head small {
+  color: var(--qa-dim);
+  font: 400 12px/1.4 var(--font-body);
+}
+
+.qa-story-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.qa-story-button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--qa-line);
+  border-radius: 8px;
+  background: rgba(3, 14, 38, .72);
+  color: var(--qa-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.qa-story-button:hover,
+.qa-story-button:focus-visible {
+  border-color: var(--qa-cyan);
+  background: rgba(87, 232, 255, .12);
+}
+
+.qa-story-code {
+  color: var(--qa-cyan);
+  font: 800 11px/1 var(--font-ui);
+  letter-spacing: .12em;
+}
+
+.qa-story-title {
+  overflow: hidden;
+  font: 700 14px/1.2 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── 미니게임 타일 10개 ────────────────────────────────────────────── */
 
 .qa-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .qa-stage {

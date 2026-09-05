@@ -98,6 +98,18 @@ try {
   Write-Output 'PASS: native keyboard repeat suppression, number decode A/D/arrow/Space and mouse drag in scaled viewport'
   $artifactDir = Join-Path $root 'tests/.artifacts'
   New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+  Evaluate "mainMenuFlow.open(); qaModeFlow.activate();" | Out-Null
+  Start-Sleep -Milliseconds 80
+  $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+  [IO.File]::WriteAllBytes((Join-Path $artifactDir 'qa-story-panel.png'), [Convert]::FromBase64String($shot.data))
+  Evaluate "qaModeFlow.deactivate();" | Out-Null
+  foreach ($phase in @('op-01', 'op-02', 'op-06', 'op-09', 'assist', 'betrayal')) {
+    Evaluate "mainMenuFlow.close(); protocolSelectFlow.close(); UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('$phase'); UI.cutscene.dataset.phase='$phase'; UI.cutsceneChapter.textContent='CUTSCENE PREVIEW // $phase'; UI.cutsceneSpeaker.textContent='SYSTEM'; UI.cutsceneLine.textContent='2026 ARCHIVE // BACKGROUND CHECK'; UI.cutscenePanel.dataset.state='done';" | Out-Null
+    Start-Sleep -Milliseconds 80
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir "cutscene-$phase.png"), [Convert]::FromBase64String($shot.data))
+  }
+  Evaluate "cutsceneFlow.close(); mainMenuFlow.open();" | Out-Null
   foreach ($stageNumber in 1..10) {
     Evaluate "testLaunch('e$stageNumber'); archiveGame.pause(true);" | Out-Null
     Start-Sleep -Milliseconds 70

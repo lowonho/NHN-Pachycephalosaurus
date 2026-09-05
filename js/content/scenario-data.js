@@ -30,6 +30,21 @@
     { number: 3, code: "WITNESS", title: "폭로", objective: "기억 소거 실험 기록을 완성하고 공공망에 전송하십시오.", suppressionMultiplier: 1.35, ariaPhase: "HOSTILE" },
   ]);
 
+  /* 컷신 배경의 단일 연결표. 경로는 GitHub Pages와 file:// 모두에서 동작하는 상대경로다. */
+  const backgrounds = Object.freeze({
+    "op-01": "assets/images/backgrounds/op1.png",
+    "op-02": "assets/images/backgrounds/op02.png",
+    "op-03": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png",
+    "op-04": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png",
+    "op-05": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
+    "op-06": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
+    "op-07": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
+    "op-08": "assets/images/backgrounds/op9.png",
+    "op-09": "assets/images/backgrounds/op9.png",
+    assist: "assets/images/backgrounds/CUTSCENE H1.png",
+    betrayal: "assets/images/backgrounds/CUTSCENE 01.png",
+  });
+
   const cutscenes = Object.freeze({
     opening: Object.freeze({ id: "00", chapter: "CUTSCENE 00 // ARCHIVE CALL", auto: true, script: freeze([
       cue("SYSTEM", "2026 MEDIA FEED\n마지막 장면이 다시 반복됩니다.", "op-01", 4000),
@@ -129,6 +144,7 @@
     }),
     opening: cutscenes.opening,
     cutscenes,
+    backgrounds,
     acts,
     records,
     endings: Object.freeze({ shared: cutscenes.ending }),
