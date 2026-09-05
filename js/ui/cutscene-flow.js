@@ -55,7 +55,6 @@ class CutsceneFlow {
     onButton(this.ui.cutsceneAutoButton, () => this.toggleAuto());
     onButton(this.ui.cutsceneLogButton, () => this.toggleLog());
     onButton(this.ui.cutsceneSkipButton, () => this.finish());
-    onButton(this.ui.cutsceneSkipTopButton, () => this.finish());
 
     // 로그가 열려 있는 동안에는 로그 안을 눌러도 대사가 넘어가지 않아야 한다.
     this.ui.cutsceneLog?.addEventListener("click", (event) => event.stopPropagation());

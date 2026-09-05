@@ -38,7 +38,6 @@ const UI = Object.freeze({
   cutsceneAutoButton: document.querySelector("#cutscene-auto-button"),
   cutsceneLogButton: document.querySelector("#cutscene-log-button"),
   cutsceneSkipButton: document.querySelector("#cutscene-skip-button"),
-  cutsceneSkipTopButton: document.querySelector("#cutscene-skip-top-button"),
   cutsceneLog: document.querySelector("#cutscene-log"),
   cutsceneLogList: document.querySelector("#cutscene-log-list"),
 

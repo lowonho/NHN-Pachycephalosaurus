@@ -5,7 +5,7 @@ class ModalFlow {
     this.ui = dom;
     this.returnFocus = null;
     this.nextEvent = null;
-    this.autoHandle = 0;
+    this.failureResult = false;
     dom.primaryButton.addEventListener('click', () => this.activatePrimary());
     dom.secondaryButton.addEventListener('click', () => events.emit(GAME_EVENTS.REQUEST_RESTART, {}));
     document.querySelector('#result-main-button').addEventListener('click', () => events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {}));
@@ -15,9 +15,11 @@ class ModalFlow {
     events.on(GAME_EVENTS.STAGE_CLEAR, (detail) => this.showResult(true, detail));
     events.on(GAME_EVENTS.STAGE_FAIL, (detail) => this.showResult(false, detail));
     window.addEventListener('keydown', (event) => {
-      if (event.code === 'KeyR' && !event.repeat && this.isOpen() && this.nextEvent === GAME_EVENTS.REQUEST_RESTART) {
+      if (event.code === 'KeyR' && !event.repeat && this.isOpen()
+        && (this.failureResult || !this.ui.secondaryButton.hidden)) {
         event.preventDefault();
-        this.activatePrimary();
+        if (!this.ui.secondaryButton.hidden) this.ui.secondaryButton.click();
+        else this.activatePrimary();
       }
     });
   }
@@ -31,8 +33,7 @@ class ModalFlow {
   }
 
   close() {
-    window.clearTimeout(this.autoHandle);
-    this.autoHandle = 0;
+    this.failureResult = false;
     this.ui.modal.classList.add('hidden');
     this.ui.appShell.removeAttribute('inert');
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
@@ -45,6 +46,7 @@ class ModalFlow {
 
   showResult(success, { stage, elapsed = 0, actions = 0, extra = '', run, record } = {}) {
     this.open();
+    this.failureResult = !success;
     const qa = Boolean(globalThis.ARCHIVE_QA?.active || run?.qaMode);
     if (qa) {
       this.ui.modalStep.textContent = `${stage.id.toUpperCase()} / ${success ? 'CLEAR' : 'RETRY'}`;
@@ -78,17 +80,16 @@ class ModalFlow {
       this.nextEvent = GAME_EVENTS.REQUEST_CONTINUE;
     } else {
       const actRestarted = run?.transition === 'act-restarted';
-      this.ui.modalStep.textContent = actRestarted ? 'CONNECTION PATH REBUILT' : 'ARCHIVE CONNECTION LOST';
-      this.ui.modalTitle.textContent = actRestarted ? '막을 재구성합니다' : '목숨을 잃었습니다';
+      this.ui.modalStep.textContent = actRestarted ? `ACT ${act} / 재도전` : 'ARCHIVE CONNECTION LOST';
+      this.ui.modalTitle.textContent = actRestarted ? '현재 막을 다시 시작합니다' : '목숨을 잃었습니다';
       this.ui.modalCopy.textContent = actRestarted
-        ? `${SCENARIO_DATA.system.actRestarted}\n새로운 여섯 게임을 연결합니다.`
-        : `${extra || '기록 접속에 실패했습니다.'}\nLIVES ${lives}`;
+        ? '목숨을 모두 소진했습니다.\n현재 막의 게임 구성을 새로 뽑아 다시 도전합니다.'
+        : `${extra || '기록 접속에 실패했습니다.'}\n남은 목숨 ${lives}`;
       this.ui.modalResult.textContent = actRestarted
-        ? `ACT ${act} ATTEMPT ${run?.actAttemptCount?.[act - 1] ?? 1}`
+        ? `${run?.actAttemptCount?.[act - 1] ?? 1}번째 도전`
         : '같은 게임과 순서로 다시 접속합니다.';
-      this.ui.primaryButton.textContent = actRestarted ? '새 접속 경로 확인' : '재접속 (R)';
+      this.ui.primaryButton.textContent = actRestarted ? '현재 막 다시 도전 (R)' : '재접속 (R)';
       this.nextEvent = actRestarted ? GAME_EVENTS.REQUEST_CONTINUE : GAME_EVENTS.REQUEST_RESTART;
-      this.autoHandle = window.setTimeout(() => this.activatePrimary(), 900);
     }
     this.ui.primaryButton.disabled = false;
     this.ui.primaryButton.focus();

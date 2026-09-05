@@ -60,6 +60,9 @@
   assert(UI.cutscene.dataset.hasBackground === 'true'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('09_34_55.png')
     && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'CS-02 uses the deletion-source artwork without the centered archive-core placeholder');
+  assert(document.querySelector('#cutscene-skip-top-button') === null
+    && document.querySelectorAll('#cutscene [id*="skip"]').length === 1
+    && UI.cutsceneSkipButton?.id === 'cutscene-skip-button', 'Cutscenes keep only the lower dialogue-panel skip button');
   cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
   for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
   const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
@@ -505,7 +508,12 @@
     'The briefing shows the stage the story expects next');
   assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
   const retryId = archiveRun.snapshot().expectedStageId;
-  protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
+  protocolSelectFlow.launchStage(retryId); scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  assert(modalFlow.isOpen()
+    && archiveRun.snapshot().phase === 'result'
+    && document.querySelector('#primary-button').textContent === '재접속 (R)', 'Stage failure waits for retry or main-menu input');
+  document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');
   assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one act life');
   assert(UI.stageHudAct.textContent === 'ACT 1/3' && UI.stageHudStage.textContent === 'STAGE 2/6'
@@ -513,6 +521,22 @@
     && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, lives, act records and total records');
   scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
+  protocolSelectFlow.reset(); protocolSelectFlow.open();
+  const exhaustionId = archiveRun.snapshot().expectedStageId;
+  protocolSelectFlow.launchStage(exhaustionId);
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  const exhaustedRun = archiveRun.snapshot();
+  assert(modalFlow.isOpen()
+    && exhaustedRun.transition === 'act-restarted'
+    && UI.modalTitle.textContent === '현재 막을 다시 시작합니다'
+    && UI.primaryButton.textContent === '현재 막 다시 도전 (R)'
+    && document.querySelector('#result-main-button').textContent === '메인 메뉴로', 'Exhausting all lives waits on clear retry/current-act and main-menu choices');
+  document.querySelector('#primary-button').click();
+  assert(!modalFlow.isOpen() && protocolSelectFlow.isBriefOpen()
+    && archiveRun.snapshot().transition === null, 'Current-act retry proceeds only after player confirmation');
   // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   protocolSelectFlow.reset();
