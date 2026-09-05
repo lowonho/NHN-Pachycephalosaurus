@@ -18,14 +18,27 @@ const E3_SHAPES = globalThis.E3_POSE_SHAPES ?? {
 export const E3_HUMAN_STACK = {
   // 속도는 낙하 횟수만으로 증가합니다. 붕괴/바닥 접촉으로 되돌리지 않습니다.
   tuning: {
-    speed: 225, speedGain: 38, maxSpeed: 795, dropCooldown: .34,
+    speed: 153, speedGain: 26, maxSpeed: 795, dropCooldown: .34,
     targetHeight: 216, hold: 3,
     // 자세는 여덟 가지, 각도는 일곱 가지라 같은 조합이 쉰여섯 번에 한 번만 돌아옵니다.
+    // 이 각도는 "받아 든 자세"일 뿐이고, 떨어뜨리기 전에는 A/D · ←/→로 직접 돌립니다.
     dropAngles: [90, -35, -90, 25, 145, -65, 180],
-    gravity: 1.35, friction: .58, frictionStatic: .88, frictionAir: .006,
-    restitution: .045, density: .0022, carryMomentum: .075,
-    settleSpeed: 18, settleAngularSpeed: .22, spawnClearance: 90,
-    baseY: 425, baseWidth: 138, floorY: 477, debugPhysics: false,
+    // 한 번 톡 누르면 spinStep만큼, 꾹 누르고 있으면 초당 spinSpeed만큼 돌아갑니다(도 단위).
+    spinStep: 12, spinSpeed: 150,
+    // 사람끼리 잘 물리도록 마찰을 높였습니다 — 낮으면 얹자마자 미끄러져 흘러내립니다.
+    gravity: 1.35, friction: .8, frictionStatic: 1.05, frictionAir: .006,
+    // 낙하 순간 레일 속도의 이만큼을 물려받습니다. 1이면 그대로 — 다만 후반 속도에서는
+    // 레일 끝에서 떨어뜨려도 단상까지 날아오지 못해, 미리 겨냥이 가능한 선까지만 줍니다.
+    restitution: .045, density: .0022, carryMomentum: .32,
+    settleSpeed: 18, settleAngularSpeed: .22,
+    // 대기 위치가 오가는 폭. 성공선도 이 폭에 맞춰 긋습니다.
+    railLeft: 260, railRight: 700,
+    // dropHeight는 탑 꼭대기(아직 없으면 단상 윗면)에서 사람이 대기하는 높이까지의 거리입니다.
+    // 탑이 자란 만큼 대기 위치도 같이 올라가, 마지막 한 명까지 늘 같은 간격에서 겨냥합니다.
+    baseY: 452, baseWidth: 228, floorY: 500, dropHeight: 292, debugPhysics: false,
+    // 바닥 위로 화면에 담을 세로 길이. 이만큼을 넘어서면 시야가 물러납니다 —
+    // 크게 잡을수록 같은 탑을 더 크게, 대기 위치를 더 높게 보여 줍니다.
+    viewSpan: 358,
     // 성공선 오른쪽 끝에 붙박이로 세워 두는 표지. 화살표가 선을 가리킵니다.
     markerX: 900, markerHeight: 76, goalRight: 838,
   },
@@ -39,18 +52,16 @@ export const E3_HUMAN_STACK = {
       enableSleeping: false, positionIterations: 10, velocityIterations: 10,
     });
     this.stackWorld.gravity.y = t.gravity;
-    this.stackGround = M.Bodies.rectangle(480, t.floorY + 14, 2400, 28, {
-      isStatic: true, friction: t.friction, label: 'e3:floor',
-    });
     this.stackBase = M.Bodies.rectangle(480, (t.baseY + t.floorY) / 2, t.baseWidth, t.floorY - t.baseY, {
       isStatic: true, friction: t.friction, label: 'e3:pedestal',
     });
-    // 넓은 바닥이 잔해를 받습니다. 잔해를 지우거나 정적 물체로 고정하지 않습니다.
-    M.Composite.add(this.stackWorld.world, [this.stackGround, this.stackBase]);
+    // 받아 주는 바닥은 없습니다. 단상을 벗어난 사람은 화면 아래로 그대로 떨어져 사라집니다.
+    M.Composite.add(this.stackWorld.world, this.stackBase);
     this.state = {
       x: 270, direction: 1, drops: 0, cooldown: 0, held: 0, height: 0,
       bestHeight: 0, groundedCount: 0, stableCount: 0, zoom: 1,
-      spawnY: 200, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, impacts: [], impactCooldown: 0,
+      spawnY: t.baseY - t.dropHeight, nextPose: 0, nextAngle: t.dropAngles[0] * Math.PI / 180, spinShown: 0,
+      impacts: [], impactCooldown: 0,
     };
     this.people = [];
     this.stackBodyById = new Map();
@@ -59,8 +70,9 @@ export const E3_HUMAN_STACK = {
     this.stackLabels = {
       next: this.add.text(917, 117, '', { fontFamily: 'Arial', fontSize: '16px', color: '#d9e9ef' }).setOrigin(1, .5),
       goal: this.add.text(0, 0, '목표 높이', { fontFamily: 'Arial', fontSize: '13px', color: '#a7ffc6' }).setOrigin(1, 1),
-      hint: this.add.text(480, 166, '떨어질 자세와 각도를 보고 쌓기 · 목표 높이에서 3초 버티기', { fontFamily: 'Arial', fontSize: '14px', color: '#80a4b1' }).setOrigin(.5),
     };
+    // 조작 안내는 띄우지 않는다 — 회전 화살표와 클릭만으로 조작이 드러난다.
+    this.instruction?.setVisible(false);
     this.stackCollisionHandler = event => {
       for (const pair of event.pairs) {
         const a = pair.collision.parentA, b = pair.collision.parentB;
@@ -104,15 +116,47 @@ export const E3_HUMAN_STACK = {
     if (s.cooldown > 0) return;
     const M = Phaser.Physics.Matter.Matter;
     const body = E3_HUMAN_STACK.createPerson.call(this, s.x, s.spawnY, s.nextPose, s.nextAngle);
-    // 운반 중의 좌우 관성을 조금 물려줍니다. 초기 방향 이후 회전은 실제 충돌에 맡깁니다.
+    // 레일이 달리던 좌우 속도를 그대로 물려줍니다 — 빠를 때 떨어뜨리면 그만큼 옆으로 흐릅니다.
+    // Matter의 속도 단위는 60Hz 한 프레임의 이동량이라 초당 픽셀을 60으로 나눠 넣습니다.
+    // 초기 방향 이후의 회전은 실제 충돌에 맡깁니다.
     M.Body.setVelocity(body, { x: s.direction * E3_HUMAN_STACK.speed.call(this) * t.carryMomentum / 60, y: 0 });
     M.Composite.add(this.stackWorld.world, body);
     this.people.push(body); this.stackBodyById.set(body.id, body);
     s.drops++; this.actions++; s.nextPose = s.drops % E3_HUMAN_STACK.poses.length; s.cooldown = t.dropCooldown;
+    // 다음 사람은 다시 목록의 각도로 받아 듭니다. 방금 돌려 둔 각도는 따라오지 않습니다.
     s.nextAngle = t.dropAngles[s.drops % t.dropAngles.length] * Math.PI / 180;
     this.sfx('action');
   },
+  /* 좌우 입력은 이동이 아니라 회전입니다. 톡 누르면 한 칸, 꾹 누르면 update가 이어서 돌립니다. */
+  press(direction) {
+    const t = E3_HUMAN_STACK.tuning, turn = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    if (!turn) return;
+    E3_HUMAN_STACK.spin.call(this, turn * t.spinStep);
+  },
+  spin(degrees) {
+    const s = this.state;
+    s.nextAngle += degrees * Math.PI / 180;
+    // 각도가 한없이 커지지 않도록 -180°~180° 안에 붙잡아 둡니다(표시도 이 값을 씁니다).
+    const turn = Math.PI * 2;
+    s.nextAngle -= Math.round(s.nextAngle / turn) * turn;
+    s.spinShown = .6;
+  },
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
+  /* 단상을 놓친 사람은 잡아 주는 것 없이 계속 떨어집니다. 화면 아래로 완전히 사라지면
+     세계에서도 지웁니다 — 보이지 않는 곳에 쌓여 탑을 받치는 일이 없습니다. */
+  cullFallen() {
+    const M = Phaser.Physics.Matter.Matter, gone = MINI.FIELD.bottom + 20;
+    const before = this.people.length;
+    for (let i = before - 1; i >= 0; i--) {
+      const body = this.people[i];
+      if (E3_HUMAN_STACK.project.call(this, 0, body.bounds.min.y).y <= gone) continue;
+      M.Composite.remove(this.stackWorld.world, body);
+      this.people.splice(i, 1); this.stackBodyById.delete(body.id);
+      this.stackGrounded.delete(body.id); this.stackStable.delete(body.id);
+    }
+    // 그림은 목록 순서대로 다시 그려지므로, 줄어든 뒤 남는 꼬리 그림만 감춥니다.
+    for (let i = this.people.length; i < before; i++) this.assetSprites.get(`person${i}`)?.setVisible(false);
+  },
   measureTower() {
     const t = E3_HUMAN_STACK.tuning;
     const graph = new Map();
@@ -123,7 +167,7 @@ export const E3_HUMAN_STACK = {
       connect(a.id, b.id); connect(b.id, a.id);
     }
     const trace = stableOnly => {
-      const reached = new Set([this.stackGround.id, this.stackBase.id]), queue = [...reached];
+      const reached = new Set([this.stackBase.id]), queue = [...reached];
       for (let i = 0; i < queue.length; i++) for (const id of graph.get(queue[i]) ?? []) {
         if (reached.has(id)) continue;
         const body = this.stackBodyById.get(id);
@@ -146,17 +190,24 @@ export const E3_HUMAN_STACK = {
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
     s.x += s.direction * E3_HUMAN_STACK.speed.call(this) * dt;
-    if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
+    if (s.x < t.railLeft || s.x > t.railRight) { s.x = MINI.clamp(s.x, t.railLeft, t.railRight); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
     s.impactCooldown = Math.max(0, s.impactCooldown - dt);
+    // 좌우를 누르고 있는 동안은 계속 돌아갑니다(터치 버튼도 같은 입력을 씁니다).
+    const turn = this.axis('left', 'right');
+    if (turn) E3_HUMAN_STACK.spin.call(this, turn * t.spinSpeed * dt);
+    s.spinShown = Math.max(0, s.spinShown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
+    E3_HUMAN_STACK.cullFallen.call(this);
     const top = E3_HUMAN_STACK.measureTower.call(this);
-    // 위에서 계속 떨어뜨릴 공간을 확보합니다. 탑 높이에 따라 시야가 부드럽게 넓어집니다.
-    s.spawnY = Math.min(200, top - t.spawnClearance);
+    // 대기 위치는 늘 탑 꼭대기(없으면 단상 윗면)에서 dropHeight만큼 위입니다 —
+    // 탑이 자라도 겨냥할 거리가 그대로라 마지막 한 명도 처음과 같은 감으로 놓습니다.
+    // 그만큼 대기 위치가 올라가므로 시야는 아래 zoom이 부드럽게 물려 줍니다.
+    s.spawnY = Math.min(t.baseY, top) - t.dropHeight;
     // 연타해도 이미 공중에 있는 사람 안에서 새 강체가 생성되지 않습니다.
     // 누운 자세는 가로로 기니 그만큼 넓게 살핍니다.
     for (const body of this.people) if (Math.abs(body.position.x - s.x) < 130) s.spawnY = Math.min(s.spawnY, body.bounds.min.y - 70);
-    const desiredZoom = MINI.clamp(305 / Math.max(305, t.floorY - s.spawnY + 62), .35, 1);
+    const desiredZoom = MINI.clamp(t.viewSpan / Math.max(t.viewSpan, t.floorY - s.spawnY + 62), .35, 1);
     s.zoom += (desiredZoom - s.zoom) * (1 - Math.exp(-dt * 6));
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
     for (const impact of s.impacts) impact.age += dt;
@@ -198,7 +249,6 @@ export const E3_HUMAN_STACK = {
     const project = (x, y) => E3_HUMAN_STACK.project.call(this, x, y);
     MINI.frame(this, `HEIGHT ${Math.round(s.height)} / ${t.targetHeight}    ${s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초 남음` : `목표 높이에서 ${t.hold}초 버티기`}`);
     const base = project(480 - t.baseWidth / 2, t.baseY);
-    MINI.box(this, 22, t.floorY, 916, 12, 0x263f4d);
     MINI.box(this, base.x, base.y, t.baseWidth * s.zoom, t.floorY - base.y, 0x4e6370);
     MINI.line(this, base.x, base.y + 1, base.x + t.baseWidth * s.zoom, base.y + 1, 0xd4dad4, 3);
     for (let height = 0; height <= 400; height += 40) {
@@ -207,10 +257,12 @@ export const E3_HUMAN_STACK = {
       MINI.line(this, 66, p.y, height % 80 ? 75 : 85, p.y, 0x58818d, 1);
     }
     const goal = project(0, t.baseY - t.targetHeight);
-    for (let x = 115; x < t.goalRight; x += 20) MINI.line(this, x, goal.y, x + 10, goal.y, 0x96efba, 1);
-    this.stackLabels.goal.setPosition(t.goalRight + 18, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
-    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name}`);
-    this.stackLabels.hint.setVisible(s.drops === 0);
+    // 성공선은 대기 위치가 오가는 폭과 같은 길이로 긋습니다 — 놓을 수 있는 범위가 곧 목표 폭입니다.
+    const dashFrom = project(t.railLeft, 0).x, dashTo = project(t.railRight, 0).x;
+    for (let x = dashFrom; x < dashTo; x += 20) MINI.line(this, x, goal.y, Math.min(x + 10, dashTo), goal.y, 0x96efba, 1);
+    // 글자는 짧아진 선의 오른쪽 끝에 붙입니다. 오른쪽 끝의 표지는 높이만 가리키는 붙박이입니다.
+    this.stackLabels.goal.setPosition(dashTo + 14, goal.y - 5).setText(s.held ? `버티기 ${Math.max(0, t.hold - s.held).toFixed(1)}초` : '목표 높이 · 3초 유지');
+    this.stackLabels.next.setText(`다음: ${E3_HUMAN_STACK.poses[s.nextPose].name} · ${Math.round(s.nextAngle * 180 / Math.PI)}°`);
     // 성공선 오른쪽 끝에 세워 둔 표지. 가슴의 화살표가 선을 가리키며, 시야가 줄어도 크기는 그대로입니다.
     const marker = E3_HUMAN_STACK.sprite.call(this, 'goalMark', 'e3:line');
     if (marker) {
@@ -228,11 +280,28 @@ export const E3_HUMAN_STACK = {
       const p = project(impact.x, impact.y), fade = 1 - impact.age / .35;
       g.lineStyle(1.5, 0xffd99e, fade * .7).strokeEllipse(p.x, p.y, (12 + impact.age * 80) * s.zoom, (4 + impact.age * 25) * s.zoom);
     }
-    const rail = project(s.x, s.spawnY - 60);
-    MINI.line(this, project(260, 0).x, rail.y, project(700, 0).x, rail.y, 0x5f8190, 2);
-    MINI.circle(this, rail.x, rail.y, 4, 0xffd99e);
-    MINI.line(this, rail.x, rail.y + 4, rail.x, rail.y + 11, 0xffd99e, 2);
+    // 대기 위치는 레일 선 없이 사람만 떠 있습니다 — 움직이는 범위는 사람 자체로 보입니다.
     E3_HUMAN_STACK.drawPerson.call(this, s.nextPose, 'preview', s.x, s.spawnY, s.nextAngle, s.cooldown ? .3 : .8);
+    // 미리보기 위아래 맞은편에 곡선 화살표 하나씩. 둘 다 양쪽 끝에 화살촉이 있어
+    // 어느 쪽으로도 돌릴 수 있다는 걸 알립니다. 돌리는 동안 밝아집니다.
+    const ring = project(s.x, s.spawnY), pose = E3_HUMAN_STACK.poses[s.nextPose];
+    const radius = Math.hypot(pose.width, pose.height) / 2 * s.zoom + 6, glow = Math.min(1, .62 + s.spinShown * .63);
+    const head = Math.max(6, 10 * s.zoom);
+    for (const middle of [-90, 90]) {
+      const a0 = (middle - 50) * Math.PI / 180, a1 = (middle + 50) * Math.PI / 180;
+      g.lineStyle(3.2, 0xffd07a, glow);
+      g.beginPath(); g.arc(ring.x, ring.y, radius, a0, a1, false); g.strokePath();
+      // 양 끝에서 호가 뻗어 나가는 접선 방향으로 화살촉을 세웁니다.
+      for (const [angle, dir] of [[a0, -1], [a1, 1]]) {
+        const px = ring.x + Math.cos(angle) * radius, py = ring.y + Math.sin(angle) * radius;
+        const tx = -Math.sin(angle) * dir, ty = Math.cos(angle) * dir;
+        g.fillStyle(0xffd07a, glow).fillTriangle(
+          px + tx * head, py + ty * head,
+          px - tx * head * .25 - ty * head * .55, py - ty * head * .25 + tx * head * .55,
+          px - tx * head * .25 + ty * head * .55, py - ty * head * .25 - tx * head * .55,
+        );
+      }
+    }
     if (t.debugPhysics) for (const body of this.people) {
       for (const part of body.parts.slice(1)) {
         g.lineStyle(1, 0xff799b, .85).strokePoints(part.vertices.map(v => project(v.x, v.y)), true);

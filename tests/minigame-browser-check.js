@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   const scene = archivePhaserGame.scene.getScene('archive-game');
   archivePhaserGame.loop.sleep();
   const checks = [];
@@ -8,6 +8,131 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
+  const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
+  const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error(`Cutscene image failed to load: ${path}`));
+    image.src = new URL(path, document.baseURI).href;
+  })));
+  assert(cutsceneImagePaths.length === 11
+    && cutsceneImageSizes.every(({ width, height }) => width >= 1280 && height >= 720)
+    && cutsceneImageSizes.slice(0, -1).every(({ width, height }) => Math.abs(width / height - 16 / 9) < .03), 'Eleven cutscene backgrounds load at widescreen presentation resolution');
+  assert(SCENARIO_DATA.backgrounds['op-01'].endsWith('/op1.png')
+    && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op1.png')
+    && SCENARIO_DATA.backgrounds['op-03'].endsWith('/op02.png')
+    && SCENARIO_DATA.backgrounds['op-05'].endsWith('/green eye scan.png')
+    && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
+    && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
+    && SCENARIO_DATA.backgrounds.source.endsWith('/ChatGPT Image 2026년 9월 5일 오후 09_34_55.png')
+    && SCENARIO_DATA.backgrounds.experiment.endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png')
+    && SCENARIO_DATA.backgrounds['ending-a'].endsWith('/barrier.png')
+    && SCENARIO_DATA.backgrounds['ending-b'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-c'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-a-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png'), 'Opening, assist, betrayal, experiment and ending phases use their matching artwork');
+  UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
+  assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op1.png')
+    && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
+  cutsceneFlow.showBackground('ending-a-break'); UI.cutscene.dataset.phase = 'ending-a-break';
+  assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && document.querySelector('.story-records') === null, 'The temporary centered English records graphic is removed');
+  cutsceneFlow.showBackground('ending-a'); UI.cutscene.dataset.phase = 'ending-a';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('barrier.png'), 'CS-06A starts with the intact barrier artwork');
+  const firewallBreakPhasesRender = ['ending-a-break', 'ending-b', 'ending-c'].every((phase) => {
+    cutsceneFlow.showBackground(phase); UI.cutscene.dataset.phase = phase;
+    const backdropStyle = getComputedStyle(UI.cutsceneBackdrop);
+    return UI.cutscene.dataset.hasBackground === 'true'
+      && backdropStyle.backgroundImage.includes('07_30_12.png')
+      && backdropStyle.backgroundSize.includes('cover');
+  });
+  assert(firewallBreakPhasesRender, 'Firewall-breaking artwork remains from CS-06A dialogue four through CS-06C');
+  cutsceneFlow.showBackground('op-03'); UI.cutscene.dataset.phase = 'op-03';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op02.png')
+    && document.querySelector('.story-iris') === null, 'OP-03 starts the deleted-feed artwork and the old centered iris overlay is removed');
+  cutsceneFlow.showBackground('op-05'); UI.cutscene.dataset.phase = 'op-05';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('green%20eye%20scan.png')
+    && document.querySelector('.story-iris') === null, 'OP-05 uses the green eye scan artwork without a centered scan overlay');
+  cutsceneFlow.showBackground('source'); UI.cutscene.dataset.phase = 'source';
+  assert(UI.cutscene.dataset.hasBackground === 'true'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('09_34_55.png')
+    && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'CS-02 uses the deletion-source artwork without the centered archive-core placeholder');
+  cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
+  for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
+  const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
+  assert(cutsceneFlow.index === 3
+    && UI.cutscene.dataset.phase === 'ending-a-break'
+    && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && indexedEnding[3].chapterLabel.includes('CS-06A 최종 증거 전송 · 대사 4/5'), 'CS-06A switches to the firewall-breaking artwork on its fourth dialogue');
+  const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
+  assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
+  cutsceneFlow.close();
+  qaModeFlow.activate();
+  const qaStoryState = () => JSON.stringify({
+    currentAct: archiveRun.snapshot().currentAct,
+    currentStageInAct: archiveRun.snapshot().currentStageInAct,
+    lives: archiveRun.snapshot().lives,
+    records: archiveRun.snapshot().stageRecords,
+  });
+  const beforeQaStory = qaStoryState();
+  const qaRect = UI.qaPanel.querySelector('.qa-dialog').getBoundingClientRect();
+  assert(document.querySelectorAll('.qa-story-button').length === Object.keys(SCENARIO_DATA.cutscenes).length
+    && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
+  document.querySelector('.qa-story-button[data-story-id="opening"]').click();
+  assert(cutsceneFlow.isOpen()
+    && UI.cutscene.dataset.phase === 'op-01'
+    && UI.cutscene.dataset.cueKind === 'narration'
+    && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 장면 설명 1/1 · 큐 1/14'
+    && !cutsceneFlow.auto
+    && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
+    && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
+    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display !== 'none'
+    && UI.cutsceneLine.textContent.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.')
+    && UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the OP-01 scene description and AUTO disabled');
+  UI.cutsceneAutoButton.click();
+  assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
+  UI.cutsceneAutoButton.click();
+  assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
+  cutsceneFlow.advance();
+  assert(UI.cutscene.dataset.phase === 'op-02'
+    && UI.cutscene.dataset.cueKind === 'system'
+    && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
+    && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
+  const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
+  const systemLineRect = UI.cutsceneLine.getBoundingClientRect();
+  cutsceneFlow.advance();
+  cutsceneFlow.completeTyping();
+  const dialoguePanelRect = UI.cutscenePanel.getBoundingClientRect();
+  const dialogueLineRect = UI.cutsceneLine.getBoundingClientRect();
+  const sameRect = (a, b) => ['left', 'top', 'width', 'height'].every((key) => Math.abs(a[key] - b[key]) < .5);
+  assert(UI.cutsceneSpeaker.textContent === '김민'
+    && UI.cutsceneLine.textContent === '이상하다. 릴스가 끊길 리가 없는데.'
+    && sameRect(systemPanelRect, dialoguePanelRect)
+    && sameRect(systemLineRect, dialogueLineRect), 'OP-02 names Kim Min and keeps screen directions and dialogue at the same position');
+  const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
+  assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
+  cutsceneFlow.finish();
+  assert(!UI.qaPanel.classList.contains('hidden') && qaStoryState() === beforeQaStory, 'QA story preview returns to QA without changing progress');
+  cutsceneFlow.play({
+    chapter: 'QA FINAL CARD',
+    script: [SCENARIO_DATA.cutscenes.ending.script.at(-1)],
+    auto: false,
+    forceDisplay: true,
+  });
+  const everyScreenCueFits = screenCues.every(({ text }) => {
+    UI.cutsceneLine.textContent = text;
+    return UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1;
+  });
+  assert(everyScreenCueFits && UI.cutscene.dataset.cueKind === 'system', 'Every Korean screen direction fits in the fixed subtitle panel');
+  cutsceneFlow.finish();
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
+  qaModeFlow.deactivate();
   // 기록실 버튼은 도감이 있어 언제나 열린다 — 엔딩 전에 잠기는 것은 증언 기록 탭이다.
   assert(!UI.mainCodexButton.disabled && UI.codexRecordsTab.disabled, 'Testimony archive stays locked before the ending');
   const menuRect = UI.mainMenu.getBoundingClientRect();
@@ -15,13 +140,12 @@
     && menuRect.top >= -1 && menuRect.bottom <= innerHeight + 1, 'Main menu shows four story actions inside the viewport');
   settingsFlow.open();
   const settingsRect = UI.settingsDialog.getBoundingClientRect();
-  assert(document.querySelectorAll('.settings-row').length === 6
-    && settingsRect.top >= -1 && settingsRect.bottom <= innerHeight + 1, 'Six setting rows fit inside the viewport');
+  assert(document.querySelectorAll('.settings-row').length === 5
+    && settingsRect.top >= -1 && settingsRect.bottom <= innerHeight + 1, 'Five setting rows fit inside the viewport');
   UI.cutsceneSpeed.value = '200'; UI.cutsceneSpeed.dispatchEvent(new Event('input'));
-  UI.settingsSkipCutscenesToggle.click();
-  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 2 && ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cutscene speed and skip settings update');
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 2, 'Cutscene speed setting updates');
   settingsFlow.cancel();
-  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 1 && !ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cancel restores story settings');
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 1, 'Cancel restores story settings');
   const seen = new Set();
   for (let i = 0; i < 80; i++) {
     const run = archiveRun.reset();
@@ -68,13 +192,25 @@
   // 묶음 간격은 속도에 비례하므로 좌표가 아니라 반전 횟수만 확인합니다.
   load('e1'); scene.state.immune = 100;
   const releasedAfter = [];
-  for (let i = 0; i < 25; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
-  assert(releasedAfter[1] === 0 && releasedAfter[2] === 1, 'e1: the first spike only drops on the third flip');
-  assert(releasedAfter[24] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty-five flips');
+  for (let i = 0; i < 20; i++) { scene.primaryAction(); advance(.05); releasedAfter.push(scene.hurdles.filter(h => h.loose).length); }
+  assert(releasedAfter[0] === 0 && releasedAfter[1] === 1, 'e1: the first spike only drops on the second flip');
+  assert(releasedAfter[19] === 20 && scene.risk === 100, 'e1: every spike is loose once risk tops out at twenty flips');
   const releaseSteps = releasedAfter.map((n, i) => n - (i ? releasedAfter[i - 1] : 0));
   const drops = releaseSteps.filter(n => n);
-  assert(drops.length === 12 && releaseSteps.every((n, i) => !n || i % 2 === 0), 'e1: spikes drop on every other flip, not on every one');
+  assert(drops.length === 12, 'e1: the twenty flips carry twelve separate drops');
   assert(drops.every((n, i) => !i || n >= drops[i - 1]) && drops.at(-1) === 3, 'e1: each drop releases at least as many spikes as the one before');
+  // 코스를 실제로 달리는 동안에도, 이번 반전에 새로 풀린 가시는 모두 플레이어 앞에 있어야 합니다.
+  load('e1'); scene.state.immune = 100;
+  let wastedDrops = 0, aheadDrops = 0;
+  advance(16, frame => {
+    if (frame % 90) return;
+    const before = new Set(scene.hurdles.filter(h => h.loose));
+    scene.primaryAction();
+    const dropped = scene.hurdles.filter(h => h.loose && !before.has(h));
+    wastedDrops += dropped.filter(h => h.x <= scene.state.x).length;
+    aheadDrops += dropped.length;
+  });
+  assert(aheadDrops > 0 && wastedDrops === 0, 'e1: mid-course flips never waste a drop on a spike already behind');
   load('e1'); advance(20.3);
   assert(scene.state.deaths > 0 && scene.state.x < scene.stageGame.tuning.distance, 'e1: no-input play cannot clear');
   load('e2'); scene.primaryAction(); const jump = scene.state.jumps;
@@ -142,7 +278,8 @@
   Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
   scene.touch.add('right'); scene.primaryAction(); advance(.8);
   assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
-  load('e3'); scene.primaryAction(); advance(.5); scene.primaryAction(); advance(.5);
+  // Aim both drops at the pedestal: with no floor, a miss falls off the screen and is removed.
+  load('e3'); scene.state.x = 480; scene.primaryAction(); advance(.5); scene.state.x = 480; scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');
@@ -277,6 +414,23 @@
   assert(scene.state.visited.length>=5 && scene.state.multiplier===3, 'e8: four new connections reach the 3x boost cap');
   load('e9'); scene.pointerAction(166, 361); scene.stageGame.pointerMove.call(scene, 150, 361); scene.stageGame.pointerUp.call(scene); advance(1);
   assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
+  advance(.4); scene.pointerAction(166, 361);
+  assert(scene.state.drag !== null, 'e9: a new stone can be thrown after a failed one');
+  scene.stageGame.cancelInput.call(scene);
+  // 과녁 정중앙이 아니어도 점선 고리 안에서 멈추면 그 한 번으로 클리어된다.
+  const curl = offset => {
+    load('e9');
+    const s = scene.state, dx = scene.target.x + offset - s.x, dy = scene.target.y - s.y, distance = Math.hypot(dx, dy);
+    const pull = Math.sqrt(2 * scene.stageGame.friction.call(scene) * distance) / scene.stageGame.tuning.force;
+    scene.pointerAction(s.x, s.y);
+    scene.stageGame.pointerMove.call(scene, s.x - dx / distance * pull, s.y - dy / distance * pull);
+    scene.stageGame.pointerUp.call(scene);
+    advance(20.3);
+  };
+  curl(scene.stageGame.landingRadius() - 7);
+  assert(scene.actions === 1 && scene.state.failures === 0 && scene.remaining > 10, 'e9: one stone resting inside the ring clears the stage');
+  curl(scene.stageGame.landingRadius() + 25);
+  assert(scene.state.failures > 0 && scene.remaining <= .000001, 'e9: a stone resting outside the ring still misses');
   load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);
   assert(scene.state.drag === null, 'Pause cancels drag without firing');
   load('e10');
@@ -346,8 +500,10 @@
   document.querySelector('#primary-button').click();
   assert(archiveRun.snapshot().currentStageInAct === 2, 'Clear continues to the next story record');
   assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Act selection keeps the same six games');
-  assert(document.querySelectorAll('.stage-select-card').length === 6, 'UI displays exactly six games');
-  assert(document.querySelectorAll('.stage-select-card:not(:disabled)').length === 1, 'Only the current story stage is enabled');
+  assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
+  assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
+    'The briefing shows the stage the story expects next');
+  assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
   const retryId = archiveRun.snapshot().expectedStageId;
   protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');

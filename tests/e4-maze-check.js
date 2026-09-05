@@ -28,9 +28,11 @@
   load('e4');
   assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
   const e4 = scene.stageGame, grid = e4.grid, bounds = e4.tileRect(grid.cols - 1, grid.rows - 1);
-  assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 497, 'e4: whole maze fits fixed viewport');
+  assert(grid.x >= 20 && grid.y >= 80 && grid.x + bounds.x + bounds.w <= 940 && grid.y + bounds.y + bounds.h <= 540, 'e4: whole maze fits fixed viewport');
   assert(grid.passageX >= 60 && grid.passageY >= 80 && grid.wall === 28, 'e4: passable lanes with wider building walls');
-  assert(!scene.readout?.visible && grid.y === 88 && bounds.y + bounds.h === 382, 'e4: explanation row is replaced with a taller playable maze');
+  assert(!scene.readout?.visible && bounds.y + bounds.h === 382, 'e4: explanation row is replaced with a taller playable maze');
+  const topGap = grid.y - 61.75, bottomGap = 579.25 - (grid.y + bounds.y + bounds.h);
+  assert(Math.abs(topGap - bottomGap) <= 1 && Math.abs((grid.x - 20) - (940 - grid.x - bounds.x - bounds.w)) <= 1, 'e4: maze sits centered in the field');
   const direction = scene.state.tiles[1][2] === 0 ? 'right' : 'down';
   const origin = { x: scene.state.x, y: scene.state.y };
   scene.directionPress(direction); advance(.1);

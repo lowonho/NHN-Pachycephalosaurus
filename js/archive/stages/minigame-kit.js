@@ -23,6 +23,12 @@ export const MINI = {
     const f = MINI.FIELD;
     // 필드가 화면을 꽉 채우도록 맞춘다. 가로 f.w가 캔버스 960이 되고 세로도 같은 배율을 쓴다.
     scene.cameras.main.setZoom(960 / f.w).setScroll(f.cx - 480, f.cy - 270);
+    // 배경 그림(manifest 의 backdrop 역할)이 있으면 ink 보다 먼저 깔아 필드를 통째로 덮는다.
+    // 필드와 그림이 둘 다 16:9 라 늘려 채워도 잘리거나 찌그러지지 않는다.
+    const backdropKey = `${scene.stageId}:backdrop`;
+    scene.backdrop = scene.textures.exists(backdropKey)
+      ? scene.add.image(f.cx, f.cy, backdropKey).setDisplaySize(f.w, f.h)
+      : null;
     scene.ink = scene.add.graphics();
     scene.fieldMask = scene.make.graphics({ x: 0, y: 0, add: false });
     scene.fieldMask.fillStyle(0xffffff).fillRect(f.x, f.y, f.w, f.h);
@@ -75,9 +81,12 @@ export const MINI = {
     g.fillStyle(0xfaffec, fade * .5).fillEllipse(x, bottom, size * (1.4 + 2.4 * land), size * (.34 + .5 * land));
     g.lineStyle(2, color, fade * .7).strokeEllipse(x, bottom, size * (1.8 + 3.4 * land), size * (.44 + .7 * land));
   },
-  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다. */
+  /* 필드 바닥칠. 화면을 통째로 덮으므로 둥근 모서리도 바깥 여백도 두지 않는다.
+     배경 그림이 깔린 게임은 격자 대신 어둠막 한 겹만 얹는다 — 그림 위에 격자를 그으면
+     사진이 뭉개지고, 밝은 배경 위에서는 흰 캐릭터와 HUD 글씨가 묻힌다. */
   frame(scene) {
     const g = scene.ink, f = MINI.FIELD; g.clear();
+    if (scene.backdrop) { g.fillStyle(0x07141d, .42).fillRect(f.x, f.y, f.w, f.h); return; }
     g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
     g.lineStyle(1, scene.accent, 0.13);
     for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
@@ -101,8 +110,9 @@ export const MINI = {
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
      표시 크기만 교체하고 물리 판정은 각 게임의 기존 도형을 유지합니다. */
   actor(scene, role, key, x, y, w, h, angle = 0, color = scene.accent) {
-    // 소환 시작은 크기 0이다. Canvas에 음수 반지름을 넘기지 않고 완전히 감춘다.
-    if (w <= 0 || h <= 0) { MINI.hideActor(scene, key); return; }
+    // 소환 연출 앞부분은 배율이 0이다(MINI.spawnScale). 그릴 것이 없을 뿐 아니라
+    // 반지름이 음수가 되어 캔버스가 예외를 던지고 게임 루프가 멈춰 버린다.
+    if (!(w > 0) || !(h > 0)) { MINI.hideActor(scene, key); return; }
     const texture = `${scene.stageId}:${role}`;
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);

@@ -1,9 +1,14 @@
 import { MINI } from './minigame-kit.js';
 
+// 통로와 건물 벽을 포함한 전체 크기로 미로를 필드 중앙에 배치한다.
+const MAZE = { cols: 19, rows: 7, passageX: 66, passageY: 90, wall: 28 };
+const MAZE_W = (MAZE.cols - 1) / 2 * (MAZE.passageX + MAZE.wall) + MAZE.wall;
+const MAZE_H = (MAZE.rows - 1) / 2 * (MAZE.passageY + MAZE.wall) + MAZE.wall;
+
 export const E4_ACCELERATION_DASH = {
   timeLimit: 20.26,
   tuning: { speed: 240, tapGain: 100, maxSpeed: 800, brake: 2400, radius: 10, wallPenalty: 1 },
-  grid: { cols: 19, rows: 7, passageX: 66, passageY: 90, wall: 28, x: 42, y: 88 },
+  grid: { ...MAZE, x: Math.round(MINI.FIELD.cx - MAZE_W / 2), y: Math.round(MINI.FIELD.cy - MAZE_H / 2) },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
     const g = E4_ACCELERATION_DASH.grid;

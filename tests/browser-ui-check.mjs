@@ -74,30 +74,33 @@ await wait(1200);
 const initial = await evaluate(`({
   gameReady: Boolean(window.archiveGame),
   phaserReady: Boolean(window.archivePhaserGame),
-  cards: document.querySelectorAll('.stage-select-card[data-stage-id]').length,
   canvas: document.querySelectorAll('#game-container canvas').length
 })`);
 check("게임 엔진 로드", initial.gameReady && initial.phaserReady, JSON.stringify(initial));
-check("5개 스테이지 카드 생성", initial.cards === 5, `${initial.cards}개`);
 check("Phaser 캔버스 생성", initial.canvas === 1, `${initial.canvas}개`);
 
-// "게임 시작" → 컷신 → 프로토콜 선택. 컷신은 SKIP으로 건너뛴다.
+// "게임 시작" → 컷신 → 프로토콜 브리핑. 컷신은 SKIP으로 건너뛴다.
 await evaluate("document.querySelector('#main-play-button').click()");
 await evaluate("document.querySelector('#cutscene-skip-top-button').click()");
 await wait(80);
-const selectState = await evaluate(`({
+/* 고를 목록은 없다 — 컷신이 끝나면 이번 차례의 브리핑이 바로 뜬다. */
+const briefState = await evaluate(`({
   visible: !document.querySelector('#stage-select-screen').classList.contains('hidden'),
-  enabledCards: document.querySelectorAll('.stage-select-card[data-stage-id]:not(:disabled)').length
+  mode: document.querySelector('#protocol-screen').dataset.mode,
+  briefShown: !document.querySelector('#protocol-brief').hidden,
+  title: document.querySelector('#protocol-brief-title').textContent,
+  pauseShown: !document.querySelector('#protocol-pause-button').hidden
 })`);
-check("메인에서 스테이지 선택 열기", selectState.visible, JSON.stringify(selectState));
-check("스테이지 카드 선택 가능", selectState.enabledCards === 5, `${selectState.enabledCards}개`);
+check("메인에서 브리핑 바로 열기", briefState.visible && briefState.mode === "brief" && briefState.briefShown, JSON.stringify(briefState));
+check("브리핑이 이번 기록을 채움", Boolean(briefState.title), briefState.title);
+check("모니터 밖 PAUSE 노출", briefState.pauseShown, JSON.stringify(briefState));
 
 // 새 흐름은 오프닝 뒤 첫 기록 소개를 자동 재생한다. 소개 종료 뒤 설렘 스테이지가 시작된다.
 await evaluate("cutsceneFlow.finish()");
 await wait(180);
 /*
  * 플레이는 모니터 화면 안에서 일어난다 — 모니터(#stage-select-screen)는 그대로 서 있고
- * 스크린 안쪽만 프로토콜 선택(#protocol-desktop) → 플레이(.app-shell)로 바뀐다.
+ * 스크린 안쪽만 브리핑(#protocol-brief) → 플레이(.app-shell)로 바뀐다.
  */
 const startState = await evaluate(`({
   mainHidden: document.querySelector('#main-menu').classList.contains('hidden'),

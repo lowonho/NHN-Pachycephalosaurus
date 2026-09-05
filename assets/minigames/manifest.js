@@ -18,6 +18,9 @@ globalThis.MINIGAME_ASSETS = {
   // e3: 자세별 투명 이미지 여덟 장과 성공선 표지. 원점=이미지 중심이고, 표시 비율과
   // 사각형 충돌 조각은 scripts/bake-stack-poses.ps1 이 구운 e3/pose-shapes.js 가 정한다.
   e3: {
+    // backdrop 은 필드를 통째로 덮는 배경 한 장이다(16:9). 깔리는 순간 MINI.frame 의
+    // 격자는 사라지고 어둠막만 남는다. 원본은 같은 폴더의 backroom.png 다.
+    backdrop: 'assets/images/minigame/stacks/metcha/backroom.jpg',
     pose1: 'assets/images/minigame/stacks/metcha/pose1.webp',
     pose2: 'assets/images/minigame/stacks/metcha/pose2.webp',
     pose3: 'assets/images/minigame/stacks/metcha/pose3.webp',

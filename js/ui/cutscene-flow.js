@@ -31,6 +31,7 @@ class CutsceneFlow {
 
     this.script = [];
     this.index = -1;
+    this.chapter = "";
     this.onDone = null;
     this.returnFocus = null;
 
@@ -39,6 +40,9 @@ class CutsceneFlow {
     this.typed = 0;
     this.fullText = "";
     this.auto = false;
+    this.backgrounds = globalThis.SCENARIO_DATA?.backgrounds ?? {};
+    this.backgroundCache = new Map();
+    this.preloadBackgrounds();
 
     // 버튼은 자기 일만 한다. 여기서 막지 않으면 컨테이너의 "다음 줄"까지 같이 걸린다.
     const onButton = (button, handler) => {
@@ -59,6 +63,30 @@ class CutsceneFlow {
     this.ui.cutscene?.addEventListener("click", () => this.advance());
 
     window.addEventListener("keydown", (event) => this.onKeyDown(event));
+  }
+
+  /* 장면 전환 순간 검은 화면이 뜨지 않도록 등록된 배경을 미리 읽어 둔다. */
+  preloadBackgrounds() {
+    if (typeof Image !== "function") return;
+    new Set(Object.values(this.backgrounds)).forEach((path) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = new URL(path, document.baseURI).href;
+      this.backgroundCache.set(path, image);
+    });
+  }
+
+  showBackground(phase) {
+    const path = this.backgrounds[phase] ?? "";
+    if (!this.ui.cutsceneBackdrop || !this.ui.cutscene) return;
+    if (!path) {
+      this.ui.cutsceneBackdrop.style.removeProperty("--cutscene-image");
+      this.ui.cutscene.dataset.hasBackground = "false";
+      return;
+    }
+    const href = new URL(path, document.baseURI).href;
+    this.ui.cutsceneBackdrop.style.setProperty("--cutscene-image", `url("${href}")`);
+    this.ui.cutscene.dataset.hasBackground = "true";
   }
 
   isOpen() {
@@ -87,13 +115,13 @@ class CutsceneFlow {
    * 컷신 재생. onDone은 끝까지 봤을 때도 SKIP으로 건너뛰었을 때도 한 번만 불린다.
    * (부르는 쪽은 "컷신 다음"만 알면 되고, 어떻게 끝났는지는 알 필요가 없다.)
    */
-  play({ onDone, script, chapter, auto } = {}) {
+  play({ onDone, script, chapter, auto, forceDisplay = false } = {}) {
     this.script = Array.isArray(script) ? script : (Array.isArray(this.copy.script) ? this.copy.script : []);
     this.onDone = typeof onDone === "function" ? onDone : null;
     this.returnFocus = document.activeElement;
     this.index = -1;
 
-    if (globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
+    if (!forceDisplay && globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
       const done = this.onDone;
       this.onDone = null;
       done?.();
@@ -104,7 +132,8 @@ class CutsceneFlow {
     this.closeLog();
     this.renderLog();
 
-    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = chapter || this.copy.chapter;
+    this.chapter = chapter || this.copy.chapter;
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = this.chapter;
     this.ui.cutscene?.classList.remove("hidden");
     // 컷신 안에서 Space·Enter·Esc를 받아야 하므로 컨테이너로 포커스를 옮긴다.
     this.ui.cutscene?.focus();
@@ -139,10 +168,22 @@ class CutsceneFlow {
       return;
     }
 
-    const { speaker = "", text = "", phase = "dialogue" } = this.script[this.index] || {};
-    this.ui.cutscene?.setAttribute("data-phase", phase);
+    const currentCue = this.script[this.index] || {};
+    const {
+      speaker = "",
+      text = "",
+      phase = "dialogue",
+      kind = speaker === "SYSTEM" ? "system" : "dialogue",
+      backgroundPhase = phase,
+    } = currentCue;
+    const visualPhase = backgroundPhase || phase;
+    this.showBackground(visualPhase);
+    this.ui.cutscene?.setAttribute("data-phase", visualPhase);
+    this.ui.cutscene?.setAttribute("data-cue-kind", kind);
+    if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
+    this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
-    this.startTyping(String(text));
+    this.startTyping(String(text), { instant: kind !== "dialogue" });
     this.renderLog();
   }
 
@@ -152,12 +193,18 @@ class CutsceneFlow {
     return this.typeTimer !== 0;
   }
 
-  startTyping(text) {
+  startTyping(text, { instant = false } = {}) {
     this.stopTyping();
     this.fullText = text;
     this.typed = 0;
     this.ui.cutscenePanel?.setAttribute("data-state", "typing");
     if (this.ui.cutsceneLine) this.ui.cutsceneLine.textContent = "";
+
+    /* 시스템 UI와 무대사 장면은 대사가 아니므로 타자 효과 없이 장면 시간만 유지한다. */
+    if (instant) {
+      this.completeTyping();
+      return;
+    }
 
     const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
     this.typeTimer = window.setInterval(() => {
@@ -198,7 +245,10 @@ class CutsceneFlow {
     this.clearAuto();
     const cue = this.script[this.index] || {};
     const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
-    const typedFor = this.fullText.length * CutsceneFlow.TYPE_INTERVAL / speed;
+    const kind = cue.kind ?? (cue.speaker === "SYSTEM" ? "system" : "dialogue");
+    const typedFor = kind === "dialogue"
+      ? this.fullText.length * CutsceneFlow.TYPE_INTERVAL / speed
+      : 0;
     const hold = Number.isFinite(cue.durationMs)
       ? Math.max(180, cue.durationMs / speed - typedFor)
       : (CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR) / speed;
@@ -252,10 +302,10 @@ class CutsceneFlow {
       return;
     }
 
-    seen.forEach(({ speaker = "", text = "" }) => {
+    seen.filter(({ kind }) => kind !== "silent").forEach(({ speaker = "", text = "", kind = "dialogue" }) => {
       const item = document.createElement("li");
       const who = document.createElement("strong");
-      who.textContent = speaker;
+      who.textContent = speaker || (kind === "narration" ? "장면 설명" : "");
       item.append(who, document.createTextNode(String(text)));
       list.append(item);
     });
@@ -279,8 +329,13 @@ class CutsceneFlow {
     this.setAuto(false);
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
+    this.ui.cutscene?.removeAttribute("data-cue-kind");
+    this.ui.cutscene?.removeAttribute("data-qa-cue");
+    this.ui.cutscene?.removeAttribute("data-has-background");
+    this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     this.returnFocus = null;
+    this.chapter = "";
   }
 }
 

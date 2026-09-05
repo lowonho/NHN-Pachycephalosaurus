@@ -21,6 +21,6 @@
   const dx=scene.target.x-scene.state.x,dy=scene.target.y-scene.state.y,distance=Math.hypot(dx,dy);
   const pull=Math.sqrt(2*scene.stageGame.friction.call(scene)*distance)/scene.stageGame.tuning.force;
   shoot(scene.state.x-dx/distance*pull,scene.state.y-dy/distance*pull);advance(5);
-  assert(scene.mode==='done'&&scene.state.hold>=.2,'First successful throw completes normally');
+  assert(scene.mode==='done'&&scene.state.failures===0&&Math.hypot(scene.state.x-scene.target.x,scene.state.y-scene.target.y)<=scene.stageGame.landingRadius(),'First successful throw completes normally');
   return checks;
 })()

@@ -67,7 +67,6 @@
 .stage-hud-detail span:last-child { text-align: left; }
 .stage-hud[data-stage="e4"] .stage-hud-detail,
 .stage-hud[data-stage="e4"] .stage-hud-risk { display: none; }
-.protocol-app-icon { font: 700 40px/1 sans-serif; }
 #result-main-button { margin-top: 10px; }
 
 /* 3막은 HUD 안전 영역을 건드리지 않는 낮은 강도의 기록 억제 노이즈만 추가한다. */

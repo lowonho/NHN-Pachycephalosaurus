@@ -19,6 +19,7 @@ const UI = Object.freeze({
   qaPanel: document.querySelector("#qa-panel"),
   qaCloseButton: document.querySelector("#qa-close-button"),
   qaExitButton: document.querySelector("#qa-exit-button"),
+  qaStoryGrid: document.querySelector("#qa-story-grid"),
   qaStageGrid: document.querySelector("#qa-stage-grid"),
   qaTimeNumber: document.querySelector("#qa-time-number"),
   qaTimeSlider: document.querySelector("#qa-time-slider"),
@@ -29,6 +30,7 @@ const UI = Object.freeze({
   qaBadgeTime: document.querySelector("#qa-badge-time"),
 
   cutscene: document.querySelector("#cutscene"),
+  cutsceneBackdrop: document.querySelector("#cutscene-backdrop"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
   cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
   cutscenePanel: document.querySelector("#cutscene-panel"),
@@ -42,20 +44,14 @@ const UI = Object.freeze({
 
   /*
    * 모니터 화면 한 채. 그 안의 스크린(#protocol-screen)이 data-mode로
-   * 프로토콜 선택(#protocol-desktop)과 플레이(.app-shell) 사이를 오간다.
+   * 브리핑(#protocol-brief)과 플레이(.app-shell) 사이를 오간다.
+   * PAUSE 버튼만 모니터 밖(방의 우상단)에 서서 두 상태에 다 걸린다.
    */
   stageSelectScreen: document.querySelector("#stage-select-screen"),
   protocolScreen: document.querySelector("#protocol-screen"),
-  protocolDesktop: document.querySelector("#protocol-desktop"),
-  stageSelectGrid: document.querySelector("#stage-select-grid"),
-  stageSelectTitle: document.querySelector("#stage-select-title"),
-  stageSelectBackButton: document.querySelector("#stage-select-back-button"),
-  protocolProgress: document.querySelector("#protocol-progress"),
+  protocolPauseButton: document.querySelector("#protocol-pause-button"),
 
-  /*
-   * 브리핑 레이어 — 기억 하나를 고른 뒤 그 프로토콜을 설명한다.
-   * 스크린의 세 번째 모습이다(select · brief · play).
-   */
+  /* 브리핑 레이어 — 이번 차례의 기억과 그 프로토콜을 설명한다. */
   protocolBrief: document.querySelector("#protocol-brief"),
   protocolBriefCode: document.querySelector("#protocol-brief-code"),
   protocolBriefTitle: document.querySelector("#protocol-brief-title"),
@@ -69,7 +65,8 @@ const UI = Object.freeze({
   protocolBriefAnomaly: document.querySelector("#protocol-brief-anomaly"),
   protocolBriefBest: document.querySelector("#protocol-brief-best"),
   protocolBriefStartButton: document.querySelector("#protocol-brief-start"),
-  protocolBriefBackButton: document.querySelector("#protocol-brief-back"),
+  protocolBriefLives: document.querySelector("#protocol-brief-lives"),
+  protocolBriefNote: document.querySelector("#protocol-brief-note"),
 
   /* 책상 위 탁상시계 — 현재 스테이지의 20.26초를 표시한다. */
   /* 책상 위 양손 — 입력에 따라 각각 움직인다(js/ui/desk-hands.js). */
@@ -83,11 +80,9 @@ const UI = Object.freeze({
 
   /*
    * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
-   * 복구율은 메인 화면과 프로토콜 선택 화면 두 곳에 같이 뜨므로 목록으로 받는다.
+   * 지금 이 숫자를 띄우는 곳은 메인 화면뿐이지만, 여러 곳에 붙을 수 있어 목록으로 받는다.
    */
   archiveRecoveryRates: document.querySelectorAll("[data-archive-recovery]"),
-  archiveRecoveryDetail: document.querySelector("#archive-recovery-detail"),
-  archiveEndingStatus: document.querySelector("#archive-ending-status"),
   recoveryFailed: document.querySelector("#recovery-failed"),
   recoveryFailedButton: document.querySelector("#recovery-failed-button"),
 
@@ -116,8 +111,6 @@ const UI = Object.freeze({
   settingsFullscreenState: document.querySelector("#settings-fullscreen-state"),
   cutsceneSpeed: document.querySelector("#cutscene-speed"),
   cutsceneSpeedValue: document.querySelector("#cutscene-speed-value"),
-  settingsSkipCutscenesToggle: document.querySelector("#settings-skip-cutscenes-toggle"),
-  settingsSkipCutscenesState: document.querySelector("#settings-skip-cutscenes-state"),
   settingsApplyButton: document.querySelector("#settings-apply-button"),
   settingsBackButton: document.querySelector("#settings-back-button"),
 
@@ -149,11 +142,8 @@ const UI = Object.freeze({
   touchControls: document.querySelector("#touch-controls"),
   touchButtons: document.querySelectorAll("#touch-controls button"),
   pauseModal: document.querySelector("#pause-modal"),
+  pauseCopy: document.querySelector("#pause-copy"),
   resumeButton: document.querySelector("#resume-button"),
+  pauseSettingsButton: document.querySelector("#pause-settings-button"),
   pauseMainButton: document.querySelector("#pause-main-button"),
-
-  /* "◀ 메인메뉴로"를 눌렀을 때 되묻는 창(js/ui/main-menu-flow.js). */
-  leaveConfirmModal: document.querySelector("#leave-confirm-modal"),
-  leaveConfirmButton: document.querySelector("#leave-confirm-button"),
-  leaveCancelButton: document.querySelector("#leave-cancel-button"),
 });
