@@ -148,7 +148,7 @@ function createProgressStore(stageIds, storage = null) {
 /* Source: records.mjs */
 function createMinigameRecords(ids, storage = null) {
   const key = 'archive-2026-minigame-bests-v1', bests = {};
-  const limit = id => id === 'e4' ? 90.00001 : 20.26001;
+  const limit = () => 20.26001;
   try {
     const saved = JSON.parse(storage?.getItem(key) || '{}');
     for (const id of ids) if (Number.isFinite(saved[id]?.elapsed) && saved[id].elapsed >= 0 && saved[id].elapsed <= limit(id) && Number.isInteger(saved[id].actions) && saved[id].actions >= 0) bests[id] = saved[id];
@@ -931,9 +931,9 @@ const E3_HUMAN_STACK = {
 /* Source: stages/e4_accelerationDash.js */
 
 const E4_ACCELERATION_DASH = {
-  timeLimit: 90,
-  tuning: { speed: 180, gain: 650, maxSpeed: 520, radius: 10, wallPenalty: 1 },
-  grid: { cols: 19, rows: 7, passageX: 84, passageY: 88, wall: 12, x: 42, y: 160 },
+  timeLimit: 20.26,
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 7200, radius: 10, wallPenalty: 1 },
+  grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
     const g = E4_ACCELERATION_DASH.grid;
@@ -945,44 +945,58 @@ const E4_ACCELERATION_DASH = {
     const r = E4_ACCELERATION_DASH.tileRect(col, row);
     return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
   },
-  // 모든 방을 연결한 뒤 일부 벽을 열어 갈림길, 막다른 길, 순환 통로를 만든다.
+  // 8개 직선(7번 회전)의 주 경로를 먼저 만들고, 나머지 방을 가지로 연결한다.
+  // 이미 열린 방끼리는 연결하지 않아 출구까지의 지름길이 생기지 않는다.
   route() {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid;
     const tiles = Array.from({ length: rows }, () => Array(cols).fill(1));
-    const stack = [{ x: 1, y: 1 }], steps = Object.values(E4.steps);
-    tiles[1][1] = 0;
-    while (stack.length) {
-      const p = stack[stack.length - 1];
-      const options = steps.filter(d => {
-        const x = p.x + d.x * 2, y = p.y + d.y * 2;
-        return x > 0 && y > 0 && x < cols - 1 && y < rows - 1 && tiles[y][x];
-      });
-      if (!options.length) { stack.pop(); continue; }
-      const d = options[Math.floor(Math.random() * options.length)];
-      tiles[p.y + d.y][p.x + d.x] = 0;
-      const next = { x: p.x + d.x * 2, y: p.y + d.y * 2 };
-      tiles[next.y][next.x] = 0; stack.push(next);
+    const rooms = [], pick = list => list[Math.floor(Math.random() * list.length)];
+    const carve = (from, to) => {
+      tiles[(from.y + to.y) / 2][(from.x + to.x) / 2] = 0;
+      tiles[to.y][to.x] = 0; rooms.push(to);
+    };
+    // 수평 길이를 1~3개 방 단위로 섞어 짧은 코너와 긴 가속 구간을 번갈아 만든다.
+    const spans = [1, 1, 1, 1];
+    for (let left = 4; left > 0; left--) spans[pick([0, 1, 2, 3].filter(i => spans[i] < 3))]++;
+    let here = { x: 1, y: 1 };
+    tiles[1][1] = 0; rooms.push(here);
+    for (let leg = 0; leg < 4; leg++) {
+      for (let i = 0; i < spans[leg]; i++) {
+        const next = { x: here.x + 2, y: here.y }; carve(here, next); here = next;
+      }
+      const targetY = leg % 2 === 0 ? pick([3, 5]) : 1;
+      while (here.y !== targetY) {
+        const next = { x: here.x, y: here.y + Math.sign(targetY - here.y) * 2 };
+        carve(here, next); here = next;
+      }
     }
-    for (let y = 1; y < rows - 1; y++) for (let x = 1; x < cols - 1; x++) {
-      if (tiles[y][x] && (x % 2 !== y % 2) && Math.random() < .12) tiles[y][x] = 0;
+    const goal = E4.tileCenter(here.x, here.y);
+    const frontier = rooms.slice(), steps = Object.values(E4.steps);
+    while (frontier.length) {
+      const from = pick(frontier);
+      const options = steps.map(d => ({ x: from.x + d.x * 2, y: from.y + d.y * 2 }))
+        .filter(p => p.x > 0 && p.y > 0 && p.x < cols - 1 && p.y < rows - 1 && tiles[p.y][p.x]);
+      if (!options.length) { frontier.splice(frontier.indexOf(from), 1); continue; }
+      const next = pick(options); carve(from, next); frontier.push(next);
     }
-    const queue = [{ x: 1, y: 1 }], seen = new Set(['1,1']);
-    for (let i = 0; i < queue.length; i++) for (const d of steps) {
-      const p = { x: queue[i].x + d.x, y: queue[i].y + d.y }, key = `${p.x},${p.y}`;
-      if (tiles[p.y]?.[p.x] === 0 && !seen.has(key)) { seen.add(key); queue.push(p); }
-    }
-    const end = queue[queue.length - 1];
-    return { tiles, goal: E4.tileCenter(end.x, end.y) };
+    return { tiles, goal };
   },
   build() {
     MINI.init(this, 0xc6a2ff);
+    this.readout.setVisible(false);
+    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 80, 920, 417);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, moving: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
   },
-  press(direction) { if (E4_ACCELERATION_DASH.steps[direction]) this.actions++; },
+  press(direction) {
+    const E4 = E4_ACCELERATION_DASH;
+    if (!E4.steps[direction]) return;
+    this.actions++;
+    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + E4.tuning.tapGain);
+  },
   wallsAt(x, y) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid, r = E4.tuning.radius;
     const hits = [];
@@ -1000,18 +1014,44 @@ const E4_ACCELERATION_DASH = {
     const dx = this.axis('left', 'right'), dy = this.axis('up', 'down'), length = Math.hypot(dx, dy);
     const oldX = s.x, oldY = s.y;
     s.flash = Math.max(0, s.flash - dt);
-    s.speed = length ? Math.min(t.maxSpeed, s.speed + t.gain * dt) : t.speed;
+    let moveX = 0, moveY = 0;
+    // 가속 기록은 유지하되 실제 이동 속도는 브레이크로 줄인다.
+    if (length) {
+      const heading = `${dx},${dy}`;
+      if (s.heading !== null && s.heading !== heading) s.turns++;
+      s.heading = heading;
+      // 누적 속도는 새 입력에서만 증가한다. 유지 중에는 같은 속도로 이동한다.
+      const driveSpeed = s.speed;
+      s.vx = dx / length * driveSpeed; s.vy = dy / length * driveSpeed;
+      moveX = s.vx * dt; moveY = s.vy * dt;
+      s.braking = false;
+    } else {
+      const velocity = Math.hypot(s.vx, s.vy);
+      s.braking = velocity > 0;
+      if (velocity > 0) {
+        // 정지하는 마지막 스텝도 정확히 적분한다. 고속일수록 제동 거리가 길어진다.
+        const brakeTime = Math.min(dt, velocity / t.brake);
+        const distance = velocity * brakeTime - .5 * t.brake * brakeTime * brakeTime;
+        moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
+        const factor = Math.max(0, velocity - t.brake * dt) / velocity;
+        s.vx *= factor; s.vy *= factor;
+      }
+    }
     // 축별로 이동을 잘게 나누어 벽 관통을 막고 벽을 따라 이동하게 한다.
-    const count = Math.max(1, Math.ceil(s.speed * dt / (t.radius / 2)));
+    const count = Math.max(1, Math.ceil(Math.hypot(moveX, moveY) / (t.radius / 2)));
     let impacted = false;
     const contacts = new Set();
     for (let i = 0; i < count; i++) {
-      for (const [axis, input] of [['x', dx], ['y', dy]]) {
-        if (!input) continue;
-        const next = s[axis] + input / length * s.speed * dt / count;
+      for (const axis of ['x', 'y']) {
+        const distance = axis === 'x' ? moveX : moveY;
+        if (!distance) continue;
+        const next = s[axis] + distance / count;
         const walls = E4.wallsAt.call(this, axis === 'x' ? next : s.x, axis === 'y' ? next : s.y);
         if (!walls.length) s[axis] = next;
-        else { impacted = true; walls.forEach(key => contacts.add(key)); }
+        else {
+          impacted = true; walls.forEach(key => contacts.add(key));
+          if (axis === 'x') { moveX = 0; s.vx = 0; } else { moveY = 0; s.vy = 0; }
+        }
       }
     }
     // 접촉 유지 중에는 중복 차감하지 않는다. 입력을 놓아도 벽에서 떨어져야 재무장된다.
@@ -1024,18 +1064,20 @@ const E4_ACCELERATION_DASH = {
     }
     s.contacts = contacts;
     s.moving = Math.hypot(s.x - oldX, s.y - oldY) > .01;
-    s.vx = dt ? (s.x - oldX) / dt : 0; s.vy = dt ? (s.y - oldY) / dt : 0;
+    s.braking = s.braking && s.moving;
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
-    this.anomaly = `속도 ${Math.round(s.moving ? s.speed : 0)} · 벽 충돌 ${s.hits}회 (-${s.hits}초)`;
+    this.anomaly = `누적 속도 ${Math.round(s.speed)} · 방향 전환 ${s.turns}회 · 충돌 -${s.hits}초`;
     this.risk = Math.min(100, s.hits * 5);
     if (this.remaining <= 0) this.finish(false, '벽 충돌로 시간 소진');
     else if (Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 16) this.finish(true);
   },
   render() {
     const E4 = E4_ACCELERATION_DASH, s = this.state, g = E4.grid;
-    const boost = s.moving ? (s.speed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed) : 0;
-    MINI.frame(this, `${s.flash ? '벽 충돌 -1초!' : '가속 대쉬'}    SPEED ${Math.round(s.moving ? s.speed : 0)}    충돌 ${s.hits}회`);
+    const actualSpeed = Math.hypot(s.vx, s.vy);
+    const boost = MINI.clamp((actualSpeed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed), 0, 1);
+    this.ink.clear();
+    this.ink.fillStyle(0x0c202e).fillRoundedRect(20, 80, 920, 417, 14);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
     this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
@@ -1048,7 +1090,8 @@ const E4_ACCELERATION_DASH = {
     // 속도가 높아질수록 길고 밝아지는 이동 궤적과 캐릭터 양옆의 속도선.
     for (let i = 1; i < s.trail.length; i++) {
       const a = s.trail[i - 1], b = s.trail[i], alpha = i / s.trail.length;
-      MINI.line(this, sx(a.x), sy(a.y), sx(b.x), sy(b.y), this.accent, 2 + alpha * 10);
+      this.ink.lineStyle(2 + alpha * 10, this.accent, alpha * (.2 + boost * .45))
+        .lineBetween(sx(a.x), sy(a.y), sx(b.x), sy(b.y));
       if (i % 6 === 0) MINI.circle(this, sx(a.x), sy(a.y), 7, this.accent, alpha * .18);
     }
     const start = E4.tileCenter(1, 1);
@@ -1074,10 +1117,12 @@ const E4_ACCELERATION_DASH = {
 
 const E5_SLINGSHOT = {
   // Late full pulls still reach the far roof on an arc, but low shots fall short.
-  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: .2, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, settleSpeed: 18, settleAngularSpeed: .25, settleHold: .18, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
+  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, settledFor: 0, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 20, 920, 477);
+    this.readout.setVisible(false);
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -1144,10 +1189,10 @@ const E5_SLINGSHOT = {
         }
       }
     });
-    this.cookieNotice = this.add.text(480, 182, '', { fontFamily: 'Arial, sans-serif', fontSize: '23px', color: '#ffe6a7', stroke: '#221e21', strokeThickness: 4 }).setOrigin(.5).setDepth(8);
+
     this.add.text(178, 463, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.add.text(715, 261, '두딱쿠의 나무집 · 기둥을 노려보세요', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.instruction.setText('금이 간 기둥을 노려보세요 · 공과 건물이 안정되면 다음 두쫀쿠가 준비돼요');
+
+    this.instruction.setText('');
   },
   power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
   pointerDown(x, y) {
@@ -1175,7 +1220,7 @@ const E5_SLINGSHOT = {
     shot.body.plugin.shot = shot;
     M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
     M.Composite.add(this.slingWorld.world, shot.body);
-    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.settledFor = 0; s.combo = 0; this.sfx('jump');
+    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('jump');
   },
   cancelInput() { this.state.drag = null; },
   damage(target, amount, collapse = false) {
@@ -1203,6 +1248,11 @@ const E5_SLINGSHOT = {
           part.joints.length = 0;
           M.Sleeping.set(part.body, false);
         }
+        // A broken post must stop carrying the floor: keeping its full-size body
+        // made the released house balance on an invisible intact support.
+        M.Body.scale(target.body, .7, .28);
+        target.w *= .7; target.h *= .28;
+        target.body.friction = .35; target.body.frictionStatic = .45;
       }
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
@@ -1260,8 +1310,16 @@ const E5_SLINGSHOT = {
     for (const o of [...s.targets, ...s.timbers]) {
       o.flash = Math.max(0, o.flash - dt);
       o.x = o.body.position.x - o.w / 2; o.y = o.body.position.y - o.h / 2; o.angle = o.body.angle;
-      if (o.hp <= 0 || o.wood) continue;
+      if (o.hp <= 0) continue;
       const tilt = Math.abs(Math.atan2(Math.sin(o.angle), Math.cos(o.angle)));
+      if (o.wood) {
+        // Damaged foundations yield permanently once they buckle, instead of
+        // ground constraints pulling the leaning frame upright again.
+        if (o.foundation && o.hp <= t.woodHP / 2 && o.joints.length && tilt > .22) {
+          E5_SLINGSHOT.damage.call(this, o, o.hp, true);
+        }
+        continue;
+      }
       const displaced = Math.abs(o.body.position.x - o.originX) > 36 || o.body.position.y - o.originY > 35;
       // A brief wobble is safe; sustained tipping or falling off the tower counts as collapse.
       o.unstable = tilt > t.toppleAngle || displaced ? o.unstable + dt : 0;
@@ -1277,18 +1335,9 @@ const E5_SLINGSHOT = {
       if (!keep) { M.Composite.remove(this.slingWorld.world, b.body); this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
       return keep;
     });
-    if (s.waiting) {
-      // Count moving projectiles, intact pieces and rubble; ignore only off-field bodies.
-      const moving = [...s.balls, ...s.timbers, ...s.targets].some(item => {
-        if (item.hp <= 0 && !item.wood) return false;
-        const body = item.body;
-        if (body.isSleeping || body.position.x < -30 || body.position.x > 980 || body.position.y > 560) return false;
-        return Math.hypot(body.velocity.x, body.velocity.y) * 60 > t.settleSpeed || Math.abs(body.angularVelocity) * 60 > t.settleAngularSpeed;
-      });
-      s.settledFor = moving ? 0 : s.settledFor + dt;
-      if (s.cooldown === 0 && s.settledFor >= t.settleHold) {
-        s.waiting = false; s.feedback = '다음 두쫀쿠 준비!'; s.feedbackAge = .7;
-      }
+    if (s.waiting && s.cooldown <= 1e-9) {
+      s.cooldown = 0;
+      s.waiting = false; s.feedback = '다음 두쫀쿠 준비!'; s.feedbackAge = .7;
     }
     const left = s.targets.filter(o => o.hp > 0).length;
     this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
@@ -1316,7 +1365,13 @@ const E5_SLINGSHOT = {
   render() {
     const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
-    MINI.frame(this, '두쫀쿠 vs 두딱쿠     파괴 ' + broken + ' / 4     장력 ' + Math.round(power * 100) + '%');
+    const field = this.ink;
+    field.clear();
+    field.fillStyle(0x0c202e).fillRoundedRect(20, 20, 920, 477, 14);
+    field.lineStyle(1, this.accent, .13);
+    for (let x = 40; x < 940; x += 40) field.lineBetween(x, 26, x, 490);
+    for (let y = 50; y < 497; y += 40) field.lineBetween(20, y, 940, y);
+    this.instruction.setText('파괴 ' + broken + ' / 4 · 장력 ' + Math.round(power * 100) + '%' + (s.waiting ? ' · 다음 발사 ' + s.cooldown.toFixed(1) + '초' : ''));
     // Warm pastry counter, trays and reserves keep the play field readable.
     MINI.box(this, 22, 444, 916, 34, 0x372923);
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
@@ -1389,7 +1444,6 @@ const E5_SLINGSHOT = {
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
     }
     for (const c of s.crumbs) MINI.box(this, c.x, c.y, c.size, c.size, c.color, 1 - c.age / .75);
-    this.cookieNotice.setText(s.feedbackAge > 0 ? s.feedback : s.waiting ? '공과 건물이 멈추면 다음 발사' : '').setAlpha(s.feedbackAge > 0 ? Math.min(1, s.feedbackAge * 3) : .75);
     MINI.meter(this, broken / 4);
   },
   dispose() {
@@ -1527,108 +1581,131 @@ const E7_ROULETTE = {
 
 const E8_WEB_SWING = {
   tuning: {
-    speed: 320, acceleration: 55, maxSpeed: 1120, gravity: 1500, jump: 530,
-    radius: 18, roofY: 434, hookRange: 620, maxLaunchRise: 820, retryDelay: .32,
-    roofWidths: [650, 620, 650, 700, 750, 800, 850, 900, 1000],
-    gapWidths: [350, 430, 510, 590, 670, 750, 810, 850],
+    speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
+    airGravity: 1600, weightGain: .25,
+    retryDelay: .32,
+    spacing: 660, anchorCount: 22, fallY: 710,
   },
   build() {
     MINI.init(this, 0xff6687);
     const t = E8_WEB_SWING.tuning;
-    let x = 0;
-    this.roofs = t.roofWidths.map((w, index) => {
-      const roof = { x, w, y: t.roofY, index };
-      x += w + (t.gapWidths[index] || 0);
-      return roof;
-    });
-    this.anchors = this.roofs.slice(0, -1).map((roof, index) => ({
-      x: roof.x + roof.w + t.gapWidths[index] / 2,
-      y: 205 - index * 17, index,
+    const heights = [125, 85, 155, 110, 65, 140];
+    this.anchors = Array.from({ length: t.anchorCount }, (_, index) => ({
+      x: 310 + index * t.spacing, y: heights[index % heights.length], index,
+      kind: ['empire', 'crane', 'building'][index % 3],
     }));
-    this.goalX = x - 260;
+    this.goalX = this.anchors.at(-1).x + 410;
+    this.goalY = 320;
     this.state = {
-      x: 90, y: t.roofY - t.radius, vx: t.speed, vy: 0, speed: t.speed,
-      grounded: true, roofIndex: 0, checkpoint: 0, rope: null, pointerHeld: false,
-      jumps: 0, hooks: 0, misses: 0, deaths: 0, retry: 0, trail: [],
+      x: 0, y: 0, vx: 0, vy: 0, multiplier: 1, speed: t.speed,
+      rope: null, pointerHeld: false, visited: [0], checkpoint: 0,
+      hooks: 0, misses: 0, deaths: 0, retry: 0, trail: [], boostAt: -10,
     };
+    E8_WEB_SWING.respawn.call(this);
+    E8_WEB_SWING.camera.call(this, 0);
+  },
+  respawn() {
+    const s = this.state, t = E8_WEB_SWING.tuning;
+    s.rope = { anchor: s.checkpoint, length: 270, theta: -.7,
+      omega: t.speed * s.multiplier / 270, starter: true };
+    E8_WEB_SWING.pose.call(this);
+    s.trail = [];
+  },
+  pose() {
+    const s = this.state, r = s.rope, a = this.anchors[r.anchor];
+    const sn = Math.sin(r.theta), cs = Math.cos(r.theta);
+    s.x = a.x + sn * r.length; s.y = a.y + cs * r.length;
+    s.vx = cs * r.omega * r.length; s.vy = -sn * r.omega * r.length;
   },
   candidate() {
-    const s = this.state, t = E8_WEB_SWING.tuning;
-    return this.anchors.find(a => a.x > s.x + 18 && a.y < s.y - 35 &&
-      Math.hypot(a.x - s.x, a.y - s.y) <= t.hookRange) ?? null;
+    const s = this.state;
+    let nearest = null, nearestDistance = Infinity;
+    for (const a of this.anchors) {
+      const distance = Math.hypot(a.x - s.x, a.y - s.y);
+      // 방향·방문 이력·사거리 제한 없이 가까운 연결점. 길이 0인 줄만 제외합니다.
+      if (distance > 1 && distance < nearestDistance) { nearest = a; nearestDistance = distance; }
+    }
+    return nearest;
   },
   action() {
     const s = this.state, t = E8_WEB_SWING.tuning;
-    if (s.retry || s.rope) return;
+    if (s.retry) return;
+    if (s.rope?.starter) { s.rope.starter = false; return; }
+    // 해제 후 다음 물리 프레임 전에 다시 눌러도 즉시 새 판정을 합니다.
+    s.rope = null;
     this.actions++;
-    if (s.grounded) {
-      s.grounded = false; s.vy = -t.jump; s.jumps++; this.sfx('jump');
-      return;
+    const a = E8_WEB_SWING.candidate.call(this);
+    if (!a) { s.misses++; return; }
+    const dx = s.x - a.x, dy = s.y - a.y, length = Math.hypot(dx, dy);
+    const oldMultiplier = s.multiplier;
+    const fresh = !s.visited.includes(a.index);
+    if (fresh) {
+      s.visited.push(a.index); s.multiplier = Math.min(t.maxMultiplier, s.multiplier * t.boost);
+      s.boostAt = this.elapsed;
     }
-    const anchor = E8_WEB_SWING.candidate.call(this);
-    if (anchor) {
-      s.rope = { anchor: anchor.index, length: Math.hypot(s.x - anchor.x, s.y - anchor.y), taut: false };
-      s.hooks++; this.sfx('jump');
-    } else s.misses++;
+    // 줄을 잡을 때 반지름 방향의 속도는 사라지고 접선 성분이 남습니다.
+    // 새 연결점의 가속 효과는 그 접선 방향으로만 추가합니다.
+    const tangent = (s.vx * dy - s.vy * dx) / length;
+    const catchSpeed = fresh ? Math.sign(tangent || 1) * Math.max(t.speed * oldMultiplier, Math.abs(tangent)) * (s.multiplier / oldMultiplier) : tangent;
+    s.rope = { anchor: a.index, length,
+      theta: Math.atan2(dx, dy), omega: catchSpeed / length, starter: false };
+    s.hooks++; s.checkpoint = Math.max(s.checkpoint, a.index);
+    E8_WEB_SWING.pose.call(this); this.sfx('jump');
   },
-  pointerDown() {
-    this.state.pointerHeld = true;
-    E8_WEB_SWING.action.call(this);
-  },
+  pointerDown() { this.state.pointerHeld = true; E8_WEB_SWING.action.call(this); },
   pointerUp() {
     this.state.pointerHeld = false;
     if (!this.held('action')) this.state.rope = null;
   },
   cancelInput() { this.state.pointerHeld = false; this.state.rope = null; },
   fall() {
-    const s = this.state, t = E8_WEB_SWING.tuning, roof = this.roofs[s.checkpoint];
-    s.deaths++; s.x = roof.x + 60; s.y = roof.y - t.radius; s.vy = 0;
-    s.grounded = true; s.roofIndex = roof.index; s.rope = null; s.trail = [];
-    s.retry = t.retryDelay;
+    const s = this.state;
+    s.deaths++; s.retry = E8_WEB_SWING.tuning.retryDelay;
+    E8_WEB_SWING.respawn.call(this);
     MINI.summon(this); this.bump();
+  },
+  camera(dt) {
+    const s = this.state, t = E8_WEB_SWING.tuning;
+    const focus = s.rope ? this.anchors[s.rope.anchor] : this.anchors.find(a => a.x > s.x);
+    const top = Math.min(focus?.y ?? this.goalY - 170, s.y - 200);
+    const zoom = Math.min(.82 - (s.multiplier - 1) / (t.maxMultiplier - 1) * .2, 275 / Math.max(275, s.y - top));
+    const blend = dt ? 1 - Math.exp(-12 * dt) : 1;
+    s.zoom = (s.zoom ?? zoom) + (zoom - (s.zoom ?? zoom)) * blend;
+    const viewY = 178 - top * s.zoom;
+    s.viewY = (s.viewY ?? viewY) + (viewY - (s.viewY ?? viewY)) * blend;
+  },
+  airGravity() {
+    const t = E8_WEB_SWING.tuning;
+    return t.airGravity * (1 + (this.state.multiplier - 1) * t.weightGain);
   },
   update(dt) {
     const s = this.state, t = E8_WEB_SWING.tuning;
-    s.speed = Math.min(t.maxSpeed, t.speed + this.elapsed * t.acceleration);
-    s.vx = s.speed;
-    if (s.rope && !this.held('action') && !s.pointerHeld) s.rope = null;
+    if (s.rope && !s.rope.starter && !this.held('action') && !s.pointerHeld) s.rope = null;
     if (s.retry > 0) { s.retry = Math.max(0, s.retry - dt); return; }
     const oldX = s.x, oldY = s.y;
-    s.x += s.vx * dt;
-    const support = this.roofs[s.roofIndex];
-    if (s.grounded && s.x - t.radius > support.x + support.w) s.grounded = false;
-    if (!s.grounded) {
-      s.vy += t.gravity * dt; s.y += s.vy * dt;
-      if (s.rope) {
-        const rope = s.rope, a = this.anchors[rope.anchor], dx = s.x - a.x;
-        // 자동 전진 속도를 유지하면서 팽팽해진 줄의 원호를 따라 스윙합니다.
-        // 줄은 당기기만 하고, 놓으면 원호의 접선 방향 상승 속도를 이어받습니다.
-        const dy2 = rope.length ** 2 - dx ** 2;
-        if (dy2 <= 0) s.rope = null;
-        else {
-          const dy = Math.sqrt(dy2), limitY = a.y + dy;
-          if (s.y >= limitY) {
-            s.y = limitY; s.vy = -dx / dy * s.vx; rope.taut = true;
-            if (s.vy < -t.maxLaunchRise) { s.vy = -t.maxLaunchRise; s.rope = null; }
-          } else rope.taut = false;
-        }
-      }
-      let landed = false, wall = false;
-      for (const roof of this.roofs) {
-        if (s.x + t.radius <= roof.x || s.x - t.radius >= roof.x + roof.w) continue;
-        if (s.vy >= 0 && oldY + t.radius <= roof.y + .01 && s.y + t.radius >= roof.y) {
-          s.y = roof.y - t.radius; s.vy = 0; s.grounded = true; s.roofIndex = roof.index;
-          s.checkpoint = roof.index; s.rope = null; landed = true; break;
-        }
-        if (s.y + t.radius > roof.y + 5 && oldX + t.radius <= roof.x) wall = true;
-      }
-      if (!landed && (wall || s.y > 660)) E8_WEB_SWING.fall.call(this);
+    if (s.rope) {
+      const r = s.rope;
+      r.omega -= t.gravity / r.length * Math.sin(r.theta) * dt;
+      r.theta += r.omega * dt;
+      E8_WEB_SWING.pose.call(this);
+      // 줄은 밀어낼 수 없습니다. 장력이 사라지면 그 순간의 속도로 자유 낙하합니다.
+      if (r.length * r.omega ** 2 + t.gravity * Math.cos(r.theta) < 0) s.rope = null;
+    } else {
+      // 가속이 쌓일수록 공중에서도 더 무겁게 끌려 내려갑니다.
+      // 수평 관성은 유지하되 긴 체공으로 여러 연결점을 건너뛰기 어렵게 합니다.
+      s.vy += E8_WEB_SWING.airGravity.call(this) * dt; s.x += s.vx * dt; s.y += s.vy * dt;
     }
-    s.trail.push({ x: s.x, y: s.y });
-    if (s.trail.length > 10) s.trail.shift();
-    this.anomaly = `속도 ${(s.speed / t.speed).toFixed(1)}배 · 거미줄 ${s.hooks}회 · 추락 ${s.deaths}회`;
-    this.risk = (s.speed - t.speed) / (t.maxSpeed - t.speed) * 100;
-    if (s.x >= this.goalX && s.grounded) this.finish(true);
+    s.speed = Math.hypot(s.vx, s.vy);
+    if (s.y > t.fallY || s.x < -180) E8_WEB_SWING.fall.call(this);
+    s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 12) s.trail.shift();
+    this.anomaly = `가속 ${s.multiplier.toFixed(2)}배 · 연결 ${s.hooks}회 · 추락 ${s.deaths}회`;
+    this.risk = (s.multiplier - 1) / (t.maxMultiplier - 1) * 100;
+    E8_WEB_SWING.camera.call(this, dt);
+    // 공중 게이트를 실제로 가로질러야 성공합니다. 옥상 착지는 없습니다.
+    if (oldX < this.goalX && s.x >= this.goalX) {
+      const y = oldY + (s.y - oldY) * (this.goalX - oldX) / (s.x - oldX);
+      if (Math.abs(y - this.goalY) <= 170) this.finish(true);
+    }
   },
   building(x, y, w, index, distant = false) {
     const g = this.ink;
@@ -1661,13 +1738,35 @@ const E8_WEB_SWING = {
     }
     MINI.circle(this, a.x, a.y, 5, 0xff7892);
   },
+  landmark(a) {
+    const g = this.ink;
+    if (a.kind === 'empire') E8_WEB_SWING.tower.call(this, a);
+    else if (a.kind === 'crane') {
+      E8_WEB_SWING.building.call(this, a.x - 180, a.y + 285, 260, a.index, true);
+      const mast = a.x - 85;
+      MINI.line(this, mast, a.y + 300, mast, a.y - 25, 0xba8d47, 13);
+      MINI.line(this, mast - 70, a.y, a.x + 155, a.y, 0xf4bd60, 10);
+      MINI.line(this, mast, a.y - 65, mast - 70, a.y, 0xffd891, 3);
+      MINI.line(this, mast, a.y - 65, a.x + 155, a.y, 0xffd891, 3);
+      for (let y = a.y + 15; y < a.y + 280; y += 28) {
+        MINI.line(this, mast - 6, y, mast + 6, y + 24, 0xffd891, 2);
+      }
+      g.fillStyle(0x8d6a39).fillRect(mast - 65, a.y + 8, 45, 24);
+      MINI.circle(this, a.x, a.y, 6, 0xff7892);
+    } else {
+      E8_WEB_SWING.building.call(this, a.x + 30, a.y + 28, 180, a.index);
+      MINI.line(this, a.x + 85, a.y + 30, a.x + 85, a.y, 0xa9c8e0, 5);
+      MINI.line(this, a.x + 85, a.y, a.x, a.y, 0xa9c8e0, 5);
+      MINI.circle(this, a.x, a.y, 6, 0xff7892);
+    }
+  },
   hero(x, y, angle) {
     if (this.textures.exists('e8:player')) {
       MINI.actor(this, 'player', 'player', x, y, 40, 48, angle); return;
     }
     const g = this.ink, s = this.state;
     g.save(); g.translateCanvas(x, y); g.rotateCanvas(angle);
-    const stride = s.grounded ? Math.sin(this.elapsed * s.speed / 18) * 8 : 6;
+    const stride = s.rope ? 6 : 10;
     g.lineStyle(7, 0x367cff).lineBetween(-4, 8, -10 - stride, 19).lineBetween(4, 8, 10 + stride, 17);
     g.lineStyle(5, 0xe74061).lineBetween(-10 - stride, 19, -4 - stride, 20).lineBetween(10 + stride, 17, 16 + stride, 17);
     g.fillStyle(0xe74061).fillRoundedRect(-9, -9, 18, 23, 5);
@@ -1682,28 +1781,25 @@ const E8_WEB_SWING = {
   },
   render() {
     const s = this.state, t = E8_WEB_SWING.tuning, g = this.ink;
-    const progress = MINI.clamp((s.x - 90) / (this.goalX - 90), 0, 1);
-    MINI.frame(this, `WEB RUN  ${Math.floor(progress * 100)}%     SPEED ×${(s.speed / t.speed).toFixed(1)}     FALL ${s.deaths}`);
+    const progress = MINI.clamp(s.x / this.goalX, 0, 1);
+    MINI.frame(this, `WEB SWING  ${Math.floor(progress * 100)}%     BOOST ×${s.multiplier.toFixed(2)}     FALL ${s.deaths}`);
     g.fillStyle(0x101a36).fillRect(22, 146, 916, 339);
     MINI.circle(this, 808, 203, 24, 0xeee2c3, .85);
     for (let i = 0; i < 14; i++) {
       const x = ((i * 103 - s.x * .13) % 1450 + 1450) % 1450 - 200;
       E8_WEB_SWING.building.call(this, x, 265 + (i * 47 % 100), 65 + i % 3 * 22, i, true);
     }
-    const scale = 1 - (s.speed - t.speed) / (t.maxSpeed - t.speed) * .34;
+    const scale = s.zoom;
     const cameraX = s.x - 200 / scale;
-    const shiftY = MINI.clamp(420 - t.roofY * scale, 190 - s.y * scale, 462 - s.y * scale);
+    const shiftY = s.viewY;
     g.save(); g.translateCanvas(-cameraX * scale, shiftY); g.scaleCanvas(scale, scale);
     const visible = x => x > cameraX - 160 && x < cameraX + 1100 / scale;
-    for (const a of this.anchors) if (visible(a.x)) E8_WEB_SWING.tower.call(this, a);
-    for (const roof of this.roofs) if (roof.x + roof.w > cameraX && visible(roof.x)) {
-      E8_WEB_SWING.building.call(this, roof.x, roof.y, roof.w, roof.index);
-    }
+    for (const a of this.anchors) if (visible(a.x)) E8_WEB_SWING.landmark.call(this, a);
     const next = E8_WEB_SWING.candidate.call(this);
-    if (next && !s.grounded && !s.rope) {
+    if (next && !s.rope) {
       g.lineStyle(2, 0xf7e9db, .7).strokeCircle(next.x, next.y, 12);
     }
-    const angle = s.rope ? MINI.clamp((s.x - this.anchors[s.rope.anchor].x) / s.rope.length, -.8, .8) : MINI.clamp(s.vy / 1700, -.45, .45);
+    const angle = s.rope ? -s.rope.theta : MINI.clamp(Math.atan2(s.vy, Math.abs(s.vx)) + .6, -.9, 1.1);
     if (s.rope) {
       const a = this.anchors[s.rope.anchor];
       const handX = a.x < s.x ? -17 : 17, handY = a.x < s.x ? -20 : -24;
@@ -1713,11 +1809,13 @@ const E8_WEB_SWING = {
       g.lineStyle(1, 0xc2e5ff, .35).strokeCircle(a.x, a.y, 10);
     }
     s.trail.forEach((p, i) => { if (i % 2 === 0) MINI.circle(this, p.x, p.y, 3, 0xe94064, i / 35); });
+    const boostFlash = (this.elapsed - s.boostAt) / .4;
+    if (boostFlash >= 0 && boostFlash < 1) g.lineStyle(3, 0xffa474, 1 - boostFlash).strokeCircle(s.x, s.y, 25 + boostFlash * 25);
     if (!this.textures.exists('e8:player')) E8_WEB_SWING.hero.call(this, s.x, s.y, angle);
     if (visible(this.goalX)) {
-      MINI.line(this, this.goalX, t.roofY, this.goalX, t.roofY - 132, 0xa7ffc6, 4);
-      g.fillStyle(0xa7ffc6).fillTriangle(this.goalX, t.roofY - 132, this.goalX + 57, t.roofY - 115, this.goalX, t.roofY - 98);
-      MINI.goal(this, this.goalX, t.roofY - 55, 20);
+      g.lineStyle(6, 0xa7ffc6).strokeEllipse(this.goalX, this.goalY, 75, 340);
+      g.lineStyle(2, 0xa7ffc6, .3).strokeEllipse(this.goalX, this.goalY, 98, 365);
+      MINI.line(this, this.goalX - 20, this.goalY - 170, this.goalX + 20, this.goalY - 170, 0xffffff, 6);
     }
     g.restore();
     if (this.textures.exists('e8:player')) MINI.actor(this, 'player', 'player', 200, s.y * scale + shiftY, 40 * scale, 48 * scale, angle);

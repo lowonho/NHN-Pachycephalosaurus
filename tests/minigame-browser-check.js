@@ -127,13 +127,13 @@
   scene.directionRelease('left'); scene.directionPress('right'); advance(.1);
   scene.directionRelease('right'); scene.directionPress('left'); advance(.2);
   assert(scene.state.hits === 2 && scene.timePenalty === 2, 'e4: separate impact costs another second');
-  assert(Math.abs(scene.remaining - (90 - scene.elapsed - 2)) < .00001, 'e4: timer retains penalties');
-  scene.remaining = .5; scene.timePenalty = 90 - scene.elapsed - .5;
+  assert(Math.abs(scene.remaining - (20.26 - scene.elapsed - 2)) < .00001, 'e4: timer retains penalties');
+  scene.remaining = .5; scene.timePenalty = 20.26 - scene.elapsed - .5;
   scene.directionRelease('left'); scene.directionPress('right'); advance(.1);
   scene.directionRelease('right'); scene.directionPress('left'); advance(.2);
   assert(scene.mode === 'done' && scene.remaining === 0, 'e4: impact can exhaust timer');
   load('e4');
-  assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 90, 'e4: retry resets timer and penalty');
+  assert(scene.state.hits === 0 && scene.timePenalty === 0 && scene.remaining === 20.26, 'e4: retry resets timer and penalty');
   load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
@@ -146,32 +146,67 @@
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: actual losing wedge shrinks to 1/${2 * (miss + 1)}`);
   }
-  load('e8'); advance(20.3);
-  assert(scene.mode === 'done' && scene.state.deaths > 0 && scene.state.x < scene.goalX, 'e8: no-input run falls and times out instead of surviving to win');
-  load('e8'); driveE8(1.9); advance(.15);
-  const rope = scene.state.rope, anchor = scene.anchors[rope?.anchor];
-  assert(rope?.taut && Math.abs(Math.hypot(scene.state.x - anchor.x, scene.state.y - anchor.y) - rope.length) < .01, 'e8: taut web constrains the runner to a circular swing');
-  scene.touch.delete('action'); advance(1 / 120);
-  assert(!scene.state.rope && scene.state.vy < 0, 'e8: releasing Space preserves upward launch velocity');
-  load('e8'); driveE8(1.5); scene.touch.clear(); advance(.25); scene.pointerAction(600, 300); advance(.1);
-  assert(scene.state.pointerHeld && scene.state.rope, 'e8: airborne mouse hold attaches and maintains a web');
-  scene.stageGame.pointerUp.call(scene);
-  assert(!scene.state.pointerHeld && !scene.state.rope, 'e8: mouse release detaches the web');
-  scene.pointerAction(600, 300);
-  const pauseX = scene.state.x;
-  archiveGame.pause(true); scene.update(0, 1000);
-  assert(scene.state.x === pauseX && !scene.state.pointerHeld && !scene.state.rope, 'e8: pause freezes motion and cancels held web input');
-  archiveGame.pause(false);
-  const speedBeforeFall = scene.state.speed;
-  scene.state.y = 700; scene.state.vy = 100; advance(.02);
-  assert(scene.state.deaths === 1 && scene.state.speed >= speedBeforeFall && scene.state.retry > 0, 'e8: fall returns to a roof while retaining acceleration');
   load('e8');
-  assert(scene.state.speed === scene.stageGame.tuning.speed && scene.state.hooks === 0 && scene.state.deaths === 0, 'e8: fresh retry resets speed and web counters');
-  for (const options of [{}, { reactionFrames: 10, hookDelay: .35, releaseAt: .3 }, { hookDelay: .25 }, { jumpLead: .22 }]) {
-    load('e8'); driveE8(20.3, options);
-    assert(scene.state.x >= scene.goalX && scene.state.deaths === 0 && scene.elapsed < 18 && scene.state.speed >= scene.stageGame.tuning.speed * 3,
-      `e8: eight roof gaps clear with accelerating speed and human-scale input timing ${JSON.stringify(options)}`);
+  assert(scene.state.rope?.starter && !('grounded' in scene.state) && !scene.roofs, 'e8: starts in an aerial swing without running or landing platforms');
+  const startSpeed = scene.state.speed;
+  advance(.45);
+  assert(scene.state.vx !== startSpeed && scene.state.multiplier === 1, 'e8: pendulum changes velocity under gravity without time-based boosts');
+  const r = scene.state.rope, a = scene.anchors[r.anchor];
+  assert(Math.abs(Math.hypot(scene.state.x-a.x,scene.state.y-a.y)-r.length)<.001 && Math.abs((scene.state.x-a.x)*scene.state.vx+(scene.state.y-a.y)*scene.state.vy)<.001, 'e8: web keeps constant length and tangential velocity');
+  scene.touch.add('action'); scene.primaryAction(); scene.touch.clear();
+  const launch = {x:scene.state.x,y:scene.state.y,vx:scene.state.vx,vy:scene.state.vy};
+  advance(1/120);
+  assert(!scene.state.rope && Math.abs(scene.state.vx-launch.vx)<.001 && Math.abs(scene.state.vy-launch.vy-scene.stageGame.airGravity.call(scene)/120)<.001, 'e8: release preserves horizontal momentum and gravity changes vertical velocity');
+  const fallSamples=[];
+  for(const multiplier of [1,3]) {
+    load('e8'); Object.assign(scene.state,{rope:null,x:1500,y:320,vx:1050,vy:-350,multiplier});
+    advance(.3); fallSamples.push({x:scene.state.x,y:scene.state.y,vy:scene.state.vy});
   }
+  assert(Math.abs(fallSamples[0].x-fallSamples[1].x)<.001 && fallSamples[1].y>fallSamples[0].y+30 && fallSamples[1].vy>fallSamples[0].vy+200,
+    'e8: accumulated speed increases downward pull without erasing horizontal momentum');
+  load('e8'); Object.assign(scene.state,{rope:null,x:1500,y:320,vx:1050,vy:-400,multiplier:3});
+  let coastX=1500;
+  advance(.85,()=>{if(!scene.state.deaths) coastX=Math.max(coastX,scene.state.x);});
+  assert(scene.state.deaths===1 && coastX-1500<scene.stageGame.tuning.spacing*1.3, 'e8: fast unassisted flight drops before coasting across multiple building gaps');
+  load('e8'); scene.touch.add('action'); scene.primaryAction(); advance(.1); scene.touch.clear(); advance(.02);
+  const beforeCatch = {x:scene.state.x,y:scene.state.y,multiplier:scene.state.multiplier,speed:Math.hypot(scene.state.vx,scene.state.vy)};
+  scene.pointerAction(600,300);
+  assert(scene.state.rope && Math.hypot(scene.state.x-beforeCatch.x,scene.state.y-beforeCatch.y)<.001 && scene.state.multiplier===beforeCatch.multiplier && Math.abs(scene.state.rope.omega*scene.state.rope.length)<=beforeCatch.speed+.001, 'e8: catching the same anchor neither teleports nor adds a boost');
+  scene.stageGame.pointerUp.call(scene);
+  assert(!scene.state.rope && !scene.state.pointerHeld, 'e8: mouse release detaches the web');
+  scene.pointerAction(600,300); const pauseX=scene.state.x;
+  archiveGame.pause(true); scene.update(0,1000);
+  assert(scene.state.x===pauseX && !scene.state.rope && !scene.state.pointerHeld, 'e8: pause freezes motion and cancels held web input');
+  load('e8'); driveE8(1.6);
+  assert(Math.abs(scene.state.multiplier-1.35)<.0001, 'e8: first new anchor immediately adds a 35 percent boost');
+  const savedBoost=scene.state.multiplier, visited=scene.state.visited.join(',');
+  scene.state.rope=null; scene.state.y=720; advance(.02);
+  assert(scene.state.deaths===1 && scene.state.multiplier===savedBoost && scene.state.visited.join(',')===visited && scene.state.rope?.starter, 'e8: fall resumes in the air with boosts and visited anchors preserved');
+  load('e8'); advance(20.3);
+  assert(scene.mode==='done' && scene.state.x<scene.goalX && scene.state.multiplier===1, 'e8: waiting cannot clear or accumulate boosts');
+  for(const options of [{},{releaseAngle:.6},{reactionFrames:10,releaseAngle:.45},{reactionFrames:10,releaseAngle:.5}]) {
+    load('e8'); driveE8(20.3,options);
+    assert(scene.mode==='done' && scene.elapsed>15 && scene.elapsed<20.26 && scene.state.x>=scene.goalX && scene.state.deaths===0 && scene.state.multiplier===3,
+      `e8: aerial course clears without falls with capped boosts ${JSON.stringify(options)}`);
+  }
+  load('e8');
+  assert(scene.state.multiplier===1 && scene.state.visited.length===1 && scene.state.hooks===0, 'e8: fresh retry resets accumulated boosts');
+  // Every direction is eligible, including the just-released anchor behind or below the player.
+  for(const [dx,dy] of [[70,60],[0,-60],[0,30],[320,560]]) {
+    load('e8'); const a=scene.anchors[1];
+    Object.assign(scene.state,{x:a.x+dx,y:a.y+dy,vx:250,vy:100,rope:null});
+    const expected=[...scene.anchors].sort((a,b)=>Math.hypot(a.x-scene.state.x,a.y-scene.state.y)-Math.hypot(b.x-scene.state.x,b.y-scene.state.y))[0];
+    const position={x:scene.state.x,y:scene.state.y};
+    scene.touch.add('action'); scene.primaryAction();
+    assert(scene.state.rope?.anchor===expected.index && Math.hypot(scene.state.x-position.x,scene.state.y-position.y)<.001,
+      `e8: nearest anchor connects without direction, height, or former range restrictions ${dx},${dy}`);
+    const multiplier=scene.state.multiplier;
+    scene.primaryAction();
+    assert(scene.state.rope?.anchor===expected.index && scene.state.multiplier===multiplier,
+      `e8: immediate repress can recatch the same anchor without another boost ${dx},${dy}`);
+  }
+  load('e8'); driveE8(5);
+  assert(scene.state.visited.length>=5 && scene.state.multiplier===3, 'e8: four new connections reach the 3x boost cap');
   load('e9'); scene.pointerAction(166, 361); scene.stageGame.pointerMove.call(scene, 150, 361); scene.stageGame.pointerUp.call(scene); advance(1);
   assert(scene.state.failures === 1 && scene.state.x === 166 && scene.stageGame.friction.call(scene) < 220, 'e9: failed stone resets; ice remains slippery');
   load('e9'); scene.pointerAction(166, 361); archiveGame.pause(true);

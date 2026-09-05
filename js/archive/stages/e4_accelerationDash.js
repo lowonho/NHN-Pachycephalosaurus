@@ -1,9 +1,9 @@
 import { MINI } from './minigame-kit.js';
 
 export const E4_ACCELERATION_DASH = {
-  timeLimit: 90,
-  tuning: { speed: 180, gain: 650, maxSpeed: 520, radius: 10, wallPenalty: 1 },
-  grid: { cols: 19, rows: 7, passageX: 84, passageY: 88, wall: 12, x: 42, y: 160 },
+  timeLimit: 20.26,
+  tuning: { speed: 240, tapGain: 100, maxSpeed: 1100, brake: 7200, radius: 10, wallPenalty: 1 },
+  grid: { cols: 19, rows: 7, passageX: 84, passageY: 112, wall: 12, x: 42, y: 88 },
   steps: { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } },
   tileRect(col, row) {
     const g = E4_ACCELERATION_DASH.grid;
@@ -15,44 +15,58 @@ export const E4_ACCELERATION_DASH = {
     const r = E4_ACCELERATION_DASH.tileRect(col, row);
     return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
   },
-  // 모든 방을 연결한 뒤 일부 벽을 열어 갈림길, 막다른 길, 순환 통로를 만든다.
+  // 8개 직선(7번 회전)의 주 경로를 먼저 만들고, 나머지 방을 가지로 연결한다.
+  // 이미 열린 방끼리는 연결하지 않아 출구까지의 지름길이 생기지 않는다.
   route() {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid;
     const tiles = Array.from({ length: rows }, () => Array(cols).fill(1));
-    const stack = [{ x: 1, y: 1 }], steps = Object.values(E4.steps);
-    tiles[1][1] = 0;
-    while (stack.length) {
-      const p = stack[stack.length - 1];
-      const options = steps.filter(d => {
-        const x = p.x + d.x * 2, y = p.y + d.y * 2;
-        return x > 0 && y > 0 && x < cols - 1 && y < rows - 1 && tiles[y][x];
-      });
-      if (!options.length) { stack.pop(); continue; }
-      const d = options[Math.floor(Math.random() * options.length)];
-      tiles[p.y + d.y][p.x + d.x] = 0;
-      const next = { x: p.x + d.x * 2, y: p.y + d.y * 2 };
-      tiles[next.y][next.x] = 0; stack.push(next);
+    const rooms = [], pick = list => list[Math.floor(Math.random() * list.length)];
+    const carve = (from, to) => {
+      tiles[(from.y + to.y) / 2][(from.x + to.x) / 2] = 0;
+      tiles[to.y][to.x] = 0; rooms.push(to);
+    };
+    // 수평 길이를 1~3개 방 단위로 섞어 짧은 코너와 긴 가속 구간을 번갈아 만든다.
+    const spans = [1, 1, 1, 1];
+    for (let left = 4; left > 0; left--) spans[pick([0, 1, 2, 3].filter(i => spans[i] < 3))]++;
+    let here = { x: 1, y: 1 };
+    tiles[1][1] = 0; rooms.push(here);
+    for (let leg = 0; leg < 4; leg++) {
+      for (let i = 0; i < spans[leg]; i++) {
+        const next = { x: here.x + 2, y: here.y }; carve(here, next); here = next;
+      }
+      const targetY = leg % 2 === 0 ? pick([3, 5]) : 1;
+      while (here.y !== targetY) {
+        const next = { x: here.x, y: here.y + Math.sign(targetY - here.y) * 2 };
+        carve(here, next); here = next;
+      }
     }
-    for (let y = 1; y < rows - 1; y++) for (let x = 1; x < cols - 1; x++) {
-      if (tiles[y][x] && (x % 2 !== y % 2) && Math.random() < .12) tiles[y][x] = 0;
+    const goal = E4.tileCenter(here.x, here.y);
+    const frontier = rooms.slice(), steps = Object.values(E4.steps);
+    while (frontier.length) {
+      const from = pick(frontier);
+      const options = steps.map(d => ({ x: from.x + d.x * 2, y: from.y + d.y * 2 }))
+        .filter(p => p.x > 0 && p.y > 0 && p.x < cols - 1 && p.y < rows - 1 && tiles[p.y][p.x]);
+      if (!options.length) { frontier.splice(frontier.indexOf(from), 1); continue; }
+      const next = pick(options); carve(from, next); frontier.push(next);
     }
-    const queue = [{ x: 1, y: 1 }], seen = new Set(['1,1']);
-    for (let i = 0; i < queue.length; i++) for (const d of steps) {
-      const p = { x: queue[i].x + d.x, y: queue[i].y + d.y }, key = `${p.x},${p.y}`;
-      if (tiles[p.y]?.[p.x] === 0 && !seen.has(key)) { seen.add(key); queue.push(p); }
-    }
-    const end = queue[queue.length - 1];
-    return { tiles, goal: E4.tileCenter(end.x, end.y) };
+    return { tiles, goal };
   },
   build() {
     MINI.init(this, 0xc6a2ff);
+    this.readout.setVisible(false);
+    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 80, 920, 417);
     const E4 = E4_ACCELERATION_DASH;
     this.state = { ...E4.route(), ...E4.tileCenter(1, 1),
-      speed: E4.tuning.speed, moving: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
+      speed: E4.tuning.speed, heading: null, turns: 0, moving: false, braking: false, vx: 0, vy: 0, hits: 0, flash: 0, contacts: new Set(), trail: [] };
     this.mazeLabels = ['START', 'GOAL'].map((text, i) => this.add.text(0, 0, text,
       { fontFamily: 'Arial', fontSize: '11px', fontStyle: 'bold', color: i ? '#a7ffc6' : '#a5c5ef' }).setOrigin(.5));
   },
-  press(direction) { if (E4_ACCELERATION_DASH.steps[direction]) this.actions++; },
+  press(direction) {
+    const E4 = E4_ACCELERATION_DASH;
+    if (!E4.steps[direction]) return;
+    this.actions++;
+    this.state.speed = Math.min(E4.tuning.maxSpeed, this.state.speed + E4.tuning.tapGain);
+  },
   wallsAt(x, y) {
     const E4 = E4_ACCELERATION_DASH, { cols, rows } = E4.grid, r = E4.tuning.radius;
     const hits = [];
@@ -70,18 +84,44 @@ export const E4_ACCELERATION_DASH = {
     const dx = this.axis('left', 'right'), dy = this.axis('up', 'down'), length = Math.hypot(dx, dy);
     const oldX = s.x, oldY = s.y;
     s.flash = Math.max(0, s.flash - dt);
-    s.speed = length ? Math.min(t.maxSpeed, s.speed + t.gain * dt) : t.speed;
+    let moveX = 0, moveY = 0;
+    // 가속 기록은 유지하되 실제 이동 속도는 브레이크로 줄인다.
+    if (length) {
+      const heading = `${dx},${dy}`;
+      if (s.heading !== null && s.heading !== heading) s.turns++;
+      s.heading = heading;
+      // 누적 속도는 새 입력에서만 증가한다. 유지 중에는 같은 속도로 이동한다.
+      const driveSpeed = s.speed;
+      s.vx = dx / length * driveSpeed; s.vy = dy / length * driveSpeed;
+      moveX = s.vx * dt; moveY = s.vy * dt;
+      s.braking = false;
+    } else {
+      const velocity = Math.hypot(s.vx, s.vy);
+      s.braking = velocity > 0;
+      if (velocity > 0) {
+        // 정지하는 마지막 스텝도 정확히 적분한다. 고속일수록 제동 거리가 길어진다.
+        const brakeTime = Math.min(dt, velocity / t.brake);
+        const distance = velocity * brakeTime - .5 * t.brake * brakeTime * brakeTime;
+        moveX = s.vx / velocity * distance; moveY = s.vy / velocity * distance;
+        const factor = Math.max(0, velocity - t.brake * dt) / velocity;
+        s.vx *= factor; s.vy *= factor;
+      }
+    }
     // 축별로 이동을 잘게 나누어 벽 관통을 막고 벽을 따라 이동하게 한다.
-    const count = Math.max(1, Math.ceil(s.speed * dt / (t.radius / 2)));
+    const count = Math.max(1, Math.ceil(Math.hypot(moveX, moveY) / (t.radius / 2)));
     let impacted = false;
     const contacts = new Set();
     for (let i = 0; i < count; i++) {
-      for (const [axis, input] of [['x', dx], ['y', dy]]) {
-        if (!input) continue;
-        const next = s[axis] + input / length * s.speed * dt / count;
+      for (const axis of ['x', 'y']) {
+        const distance = axis === 'x' ? moveX : moveY;
+        if (!distance) continue;
+        const next = s[axis] + distance / count;
         const walls = E4.wallsAt.call(this, axis === 'x' ? next : s.x, axis === 'y' ? next : s.y);
         if (!walls.length) s[axis] = next;
-        else { impacted = true; walls.forEach(key => contacts.add(key)); }
+        else {
+          impacted = true; walls.forEach(key => contacts.add(key));
+          if (axis === 'x') { moveX = 0; s.vx = 0; } else { moveY = 0; s.vy = 0; }
+        }
       }
     }
     // 접촉 유지 중에는 중복 차감하지 않는다. 입력을 놓아도 벽에서 떨어져야 재무장된다.
@@ -94,18 +134,20 @@ export const E4_ACCELERATION_DASH = {
     }
     s.contacts = contacts;
     s.moving = Math.hypot(s.x - oldX, s.y - oldY) > .01;
-    s.vx = dt ? (s.x - oldX) / dt : 0; s.vy = dt ? (s.y - oldY) / dt : 0;
+    s.braking = s.braking && s.moving;
     if (s.moving) { s.trail.push({ x: s.x, y: s.y }); if (s.trail.length > 30) s.trail.shift(); }
     else s.trail.shift();
-    this.anomaly = `속도 ${Math.round(s.moving ? s.speed : 0)} · 벽 충돌 ${s.hits}회 (-${s.hits}초)`;
+    this.anomaly = `누적 속도 ${Math.round(s.speed)} · 방향 전환 ${s.turns}회 · 충돌 -${s.hits}초`;
     this.risk = Math.min(100, s.hits * 5);
     if (this.remaining <= 0) this.finish(false, '벽 충돌로 시간 소진');
     else if (Math.hypot(s.x - s.goal.x, s.y - s.goal.y) < 16) this.finish(true);
   },
   render() {
     const E4 = E4_ACCELERATION_DASH, s = this.state, g = E4.grid;
-    const boost = s.moving ? (s.speed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed) : 0;
-    MINI.frame(this, `${s.flash ? '벽 충돌 -1초!' : '가속 대쉬'}    SPEED ${Math.round(s.moving ? s.speed : 0)}    충돌 ${s.hits}회`);
+    const actualSpeed = Math.hypot(s.vx, s.vy);
+    const boost = MINI.clamp((actualSpeed - E4.tuning.speed) / (E4.tuning.maxSpeed - E4.tuning.speed), 0, 1);
+    this.ink.clear();
+    this.ink.fillStyle(0x0c202e).fillRoundedRect(20, 80, 920, 417, 14);
     const sx = x => x + g.x, sy = y => y + g.y;
     const extent = E4.tileRect(g.cols - 1, g.rows - 1);
     this.ink.fillStyle(0x171c30).fillRect(g.x, g.y, extent.x + extent.w, extent.y + extent.h);
@@ -118,7 +160,8 @@ export const E4_ACCELERATION_DASH = {
     // 속도가 높아질수록 길고 밝아지는 이동 궤적과 캐릭터 양옆의 속도선.
     for (let i = 1; i < s.trail.length; i++) {
       const a = s.trail[i - 1], b = s.trail[i], alpha = i / s.trail.length;
-      MINI.line(this, sx(a.x), sy(a.y), sx(b.x), sy(b.y), this.accent, 2 + alpha * 10);
+      this.ink.lineStyle(2 + alpha * 10, this.accent, alpha * (.2 + boost * .45))
+        .lineBetween(sx(a.x), sy(a.y), sx(b.x), sy(b.y));
       if (i % 6 === 0) MINI.circle(this, sx(a.x), sy(a.y), 7, this.accent, alpha * .18);
     }
     const start = E4.tileCenter(1, 1);

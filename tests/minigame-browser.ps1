@@ -75,6 +75,29 @@ try {
     New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
     [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-maze.png'), [Convert]::FromBase64String($shot.data))
+    $dashKey = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); archiveGame.pause(false); return s.state.tiles[1][2]===0 ? 'd' : 's'; })()"
+    $dashCode = if ($dashKey -eq 'd') { 'KeyD' } else { 'KeyS' }
+    $dashVirtualKey = if ($dashKey -eq 'd') { 68 } else { 83 }
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey; autoRepeat = $true } | Out-Null
+    $dash = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); for(let i=0;i<30;i++) s.update(0,1000/120); return {speed:s.state.speed,moving:s.state.moving,trail:s.state.trail.length}; })()"
+    if (!$dash.moving -or $dash.speed -lt 340 -or $dash.trail -lt 20) { throw 'E4 native keyboard acceleration failed' }
+    if ($dash.speed -ne 340) { throw 'E4 hold or key auto-repeat incorrectly added speed' }
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
+    Evaluate "archiveGame.pause(true); archivePhaserGame.loop.wake();" | Out-Null
+    Start-Sleep -Milliseconds 100
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-dash.png'), [Convert]::FromBase64String($shot.data))
+    $brake = Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); archiveGame.pause(false); const x=s.state.x,y=s.state.y,v=Math.hypot(s.state.vx,s.state.vy); for(let i=0;i<3;i++) s.update(0,1000/120); return {distance:Math.hypot(s.state.x-x,s.state.y-y),speed:Math.hypot(s.state.vx,s.state.vy),before:v,braking:s.state.braking}; })()"
+    if (!$brake.braking -or $brake.distance -le 0 -or $brake.speed -ge $brake.before) { throw 'E4 native key release did not brake with drift' }
+    Evaluate "archiveGame.pause(true); archivePhaserGame.loop.wake();" | Out-Null
+    Start-Sleep -Milliseconds 100
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-brake.png'), [Convert]::FromBase64String($shot.data))
+    Evaluate "archivePhaserGame.loop.sleep(); archiveGame.pause(false);" | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
+    if (!(Evaluate "archivePhaserGame.scene.getScene('archive-game').state.speed === 440")) { throw 'E4 same-direction native repress did not add a speed step' }
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     Write-Output 'PASS: E4 maze collision, timer, retry, and 25 generated mazes'
     return
@@ -146,18 +169,19 @@ try {
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
   if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown; })()")) { throw 'Native D + Space failed to land on final stair without W' }
   Write-Output 'PASS: native D + Space reaches final staircase at minimum jump without W'
-  # Native e8 press / release / second press / hold on both input routes.
-  Evaluate "testLaunch('e8'); archivePhaserGame.scene.getScene('archive-game').state.x=500;" | Out-Null
+  # Native e8 adopts the starting web, releases, then catches it again on both input routes.
+  Evaluate "testLaunch('e8');" | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 220
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+  Start-Sleep -Milliseconds 40
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 80
-  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.jumps===1 && s.hooks===1 && !!s.rope; })()")) { throw 'Native e8 Space jump / airborne hold failed' }
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.hooks===1 && s.multiplier===1 && !!s.rope; })()")) { throw 'Native e8 Space catch / hold failed' }
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 40
   if (!(Evaluate "!archivePhaserGame.scene.getScene('archive-game').state.rope")) { throw 'Native e8 Space release failed' }
-  Evaluate "testLaunch('e8'); archivePhaserGame.scene.getScene('archive-game').state.x=500;" | Out-Null
+  Evaluate "testLaunch('e8');" | Out-Null
   $rect = Evaluate "(() => { const r=archivePhaserGame.canvas.getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height}; })()"
   $webMouse = @{ button = 'left'; clickCount = 1; x = $rect.x + 600 * $rect.w / 960; y = $rect.y + 300 * $rect.h / 540 }
   Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mousePressed';buttons=1}) | Out-Null
@@ -165,12 +189,12 @@ try {
   Start-Sleep -Milliseconds 220
   Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mousePressed';buttons=1}) | Out-Null
   Start-Sleep -Milliseconds 80
-  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.jumps===1 && s.hooks===1 && s.pointerHeld && !!s.rope; })()")) { throw 'Native e8 mouse jump / airborne hold failed' }
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return s.hooks===1 && s.multiplier===1 && s.pointerHeld && !!s.rope; })()")) { throw 'Native e8 mouse catch / hold failed' }
   Send-Cdp 'Input.dispatchMouseEvent' ($webMouse + @{type='mouseReleased';buttons=0}) | Out-Null
   Start-Sleep -Milliseconds 40
   if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game').state; return !s.pointerHeld && !s.rope; })()")) { throw 'Native e8 mouse release failed' }
-  Write-Output 'PASS: native e8 keyboard and scaled mouse jump / web hold / release'
-  foreach ($webTime in @(2.05, 12.95)) {
+  Write-Output 'PASS: native e8 keyboard and scaled mouse web catch / hold / release'
+  foreach ($webTime in @(1.7, 8.4, 15.6)) {
     Evaluate "testLaunch('e8'); archivePhaserGame.loop.sleep(); driveE8($webTime); archivePhaserGame.scene.getScene('archive-game').pausedByMenu=true; archivePhaserGame.loop.wake();" | Out-Null
     Start-Sleep -Milliseconds 70
     $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }

@@ -1,6 +1,6 @@
 export function createMinigameRecords(ids, storage = null) {
   const key = 'archive-2026-minigame-bests-v1', bests = {};
-  const limit = id => id === 'e4' ? 90.00001 : 20.26001;
+  const limit = () => 20.26001;
   try {
     const saved = JSON.parse(storage?.getItem(key) || '{}');
     for (const id of ids) if (Number.isFinite(saved[id]?.elapsed) && saved[id].elapsed >= 0 && saved[id].elapsed <= limit(id) && Number.isInteger(saved[id].actions) && saved[id].actions >= 0) bests[id] = saved[id];

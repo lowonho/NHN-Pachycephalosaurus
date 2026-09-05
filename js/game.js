@@ -39,6 +39,7 @@ class ArchiveGameBridge {
     this.soundBus.startGameAudio(); this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
+    this.ui.stageHud.dataset.stage = stageId;
     this.ui.stageHudTitle.textContent = `${stage.id.toUpperCase()} · ${stage.title}`;
     /* 도감은 클리어가 아니라 "해 봤는가"로 열린다 — 시작하는 이 자리에서 남긴다.
        QA 모드의 시도는 최고 기록과 마찬가지로 남기지 않는다. */
@@ -89,7 +90,7 @@ class ArchiveGameBridge {
     let record = null;
     /*
      * QA 모드의 판은 남기지 않는다. 기록은 각 스테이지의 기본 제한시간을
-     * 기준으로 검증한다(일반 20.26초, e4 미로 90초).
+     * 기준으로 검증한다(20.26초).
      */
     if (success && !globalThis.ARCHIVE_QA?.active) {
       window.archiveProgress.record(this.currentStage.id, true, true);

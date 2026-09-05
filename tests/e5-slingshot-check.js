@@ -21,8 +21,8 @@
   assert(scene.state.targets.every(o => o.hp === 100) && scene.state.timbers.every(o => Math.abs(o.angle) < .04), 'Houses remain stable without input');
   const roofY = scene.state.timbers[6].body.position.y;
   const postX = scene.state.timbers[0].body.position.x;
-  let hit = impact(1, 850); advance(.025);
-  assert(hit.target.hp > 0 && hit.target.hp < scene.stageGame.tuning.woodHP, 'First strong impact cracks reinforced wood without piercing');
+  let hit = impact(1, 400); advance(.025);
+  assert(hit.target.hp > 0 && hit.target.hp < scene.stageGame.tuning.woodHP, 'First moderate impact cracks wood without piercing');
   advance(1);
   assert(scene.state.targets.every(o=>o.hp===100), 'Residents survive the first post impact');
   assert(hit.target.joints.length > 0, 'Joints retain the structure while timber is intact');
@@ -36,12 +36,16 @@
   advance(2);
   assert(scene.state.timbers[6].body.position.y > roofY + 8 || Math.abs(scene.state.timbers[6].angle) > .1, 'Repeated post impacts destabilize the upper structure');
   assert(M.Composite.allBodies(scene.slingWorld.world).includes(hit.target.body), 'Broken timber remains as physical rubble');
+  assert(hit.target.body.bounds.max.y - hit.target.body.bounds.min.y < 55, 'Broken post no longer remains a full-height support');
   const oldWorld = scene.slingWorld;
   load();
   assert(M.Composite.allBodies(oldWorld.world).length === 0, 'Restart disposes previous physics world');
   scene.state.timbers[0].hp = 30;
   hit = impact(1, 850); advance(.025);
   assert(hit.target.hp === 0 && hit.shot.body.velocity.x > 0, 'Strong shot pierces already weakened wood');
+  load(); advance(2);
+  hit = impact(1, 850); advance(1);
+  assert(hit.target.hp === 0 && hit.target.joints.length === 0, 'Strong base hit buckles the damaged post instead of springing upright');
   load(); advance(1);
   const base = scene.state.targets[0];
   M.Body.setAngle(base.body, .15); advance(.06);
@@ -70,21 +74,23 @@
   assert(scene.state.waiting, 'Launch immediately locks reloading');
   scene.pointerAction(164,382);
   assert(scene.state.drag === null && scene.state.shots === 1, 'Input cannot prepare another shot during motion');
-  advance(.35);
-  assert(scene.state.waiting, 'Elapsed cooldown does not unlock an airborne projectile');
-  // Isolate the settle gate from the particular collision path.
-  for (const body of M.Composite.allBodies(scene.slingWorld.world)) if (!body.isStatic) M.Sleeping.set(body,true);
-  scene.state.settledFor = 0;
-  advance(.1); assert(scene.state.waiting, 'A brief still moment does not unlock early');
-  const rubble = scene.state.timbers[0].body;
-  M.Sleeping.set(rubble,false); M.Body.setAngularVelocity(rubble,.12);
-  advance(1/120); assert(scene.state.settledFor === 0, 'Rotating debris resets the settle window');
-  for (const body of M.Composite.allBodies(scene.slingWorld.world)) if (!body.isStatic) M.Sleeping.set(body,true);
-  advance(.2); assert(!scene.state.waiting, 'Ready within 0.2 seconds after all bodies settle');
+  advance(1.4);
+  assert(scene.state.waiting, 'Cannot reload before 1.5 seconds');
+  scene.pausedByMenu = true;
+  const remaining = scene.state.cooldown; scene.update(0, 500);
+  assert(scene.state.cooldown === remaining, 'Pause freezes reload countdown');
+  scene.pausedByMenu = false;
+  const movingBall = scene.state.balls[0];
+  if (movingBall) {
+    M.Body.setPosition(movingBall.body, { x: 300, y: 180 });
+    M.Body.setVelocity(movingBall.body, { x: 3, y: -3 });
+  }
+  advance(.1);
+  assert(!scene.state.waiting, 'Reload unlocks at 1.5 seconds regardless of motion');
   scene.pointerAction(164,382);
   assert(Boolean(scene.state.drag), 'Next shot accepts input as soon as it is ready');
   load();
-  assert(!scene.state.waiting && scene.state.settledFor === 0, 'Restart clears the pending reload');
+  assert(!scene.state.waiting && scene.state.cooldown === 0, 'Restart clears the pending reload');
   const lateShot = angle => {
     load(); scene.state.shots = 8;
     // Last-house scenario: the closer house have already been cleared.
@@ -103,8 +109,8 @@
   M.Body.setVelocity(floorBall.body, { x: 3, y: 2 });
   advance(.2);
   assert(scene.state.balls.length === 0 && !M.Composite.allBodies(scene.slingWorld.world).includes(floorBall.body), 'Ground impact removes the rolling ball within 0.2 seconds');
-  advance(.2);
-  assert(!scene.state.waiting, 'A missed ground shot quickly allows reloading');
+  advance(1.3);
+  assert(!scene.state.waiting, 'A missed ground shot reloads after 1.5 seconds');
   load();
   scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,64,426); scene.stageGame.pointerUp.call(scene);
   const apexBall = scene.state.balls[0];

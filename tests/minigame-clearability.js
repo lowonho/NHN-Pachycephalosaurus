@@ -39,11 +39,11 @@
   const path = [];
   for (let i = end; i >= 0; i = queue[i].parent) path.unshift(queue[i]);
   let waypoint = 1;
-  advance(90.1, () => {
+  advance(20.3, () => {
     const p = path[waypoint]; if (!p) return;
     const dx = center(p.x, p.y).x - maze.x, dy = center(p.x, p.y).y - maze.y;
     scene.touch.clear();
-    if (Math.hypot(dx, dy) < 3) { waypoint++; return; }
+    if (Math.hypot(dx, dy) < 8) { waypoint++; return; }
     scene.directionPress(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
   }); save('e4');
   load('e5');

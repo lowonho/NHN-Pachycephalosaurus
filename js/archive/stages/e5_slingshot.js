@@ -2,10 +2,12 @@ import { MINI } from './minigame-kit.js';
 
 export const E5_SLINGSHOT = {
   // Late full pulls still reach the far roof on an arc, but low shots fall short.
-  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: .2, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, settleSpeed: 18, settleAngularSpeed: .25, settleHold: .18, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
+  tuning: { force: 8.8, decay: .05, minPower: .76, gravity: 640, maxPull: 112, cooldown: 1.5, targetHP: 100, woodHP: 60, woodHitMax: 40, jointStiffness: .2, pierceSpeed: 580, piercePower: .86, toppleAngle: .62, toppleHold: .18 },
   build() {
     MINI.init(this, 0xd9bc7a);
-    this.state = { shots: 0, cooldown: 0, waiting: false, settledFor: 0, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
+    this.fieldMask.clear().fillStyle(0xffffff).fillRect(20, 20, 920, 477);
+    this.readout.setVisible(false);
+    this.state = { shots: 0, cooldown: 0, waiting: false, drag: null, balls: [], targets: [], timbers: [], crumbs: [], feedback: '', feedbackAge: 0, combo: 0 };
     const M = Phaser.Physics.Matter.Matter;
     this.slingWorld = M.Engine.create({ enableSleeping: true, positionIterations: 8, velocityIterations: 8 });
     this.slingWorld.gravity.y = .64;
@@ -72,10 +74,10 @@ export const E5_SLINGSHOT = {
         }
       }
     });
-    this.cookieNotice = this.add.text(480, 182, '', { fontFamily: 'Arial, sans-serif', fontSize: '23px', color: '#ffe6a7', stroke: '#221e21', strokeThickness: 4 }).setOrigin(.5).setDepth(8);
+
     this.add.text(178, 463, '두쫀쿠', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.add.text(715, 261, '두딱쿠의 나무집 · 기둥을 노려보세요', { fontFamily: 'Arial', fontSize: '14px', color: '#e7d09d' }).setOrigin(.5);
-    this.instruction.setText('금이 간 기둥을 노려보세요 · 공과 건물이 안정되면 다음 두쫀쿠가 준비돼요');
+
+    this.instruction.setText('');
   },
   power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
   pointerDown(x, y) {
@@ -103,7 +105,7 @@ export const E5_SLINGSHOT = {
     shot.body.plugin.shot = shot;
     M.Body.setVelocity(shot.body, { x: shot.vx / 60, y: shot.vy / 60 });
     M.Composite.add(this.slingWorld.world, shot.body);
-    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.settledFor = 0; s.combo = 0; this.sfx('jump');
+    s.shots++; this.actions++; s.cooldown = t.cooldown; s.waiting = true; s.combo = 0; this.sfx('jump');
   },
   cancelInput() { this.state.drag = null; },
   damage(target, amount, collapse = false) {
@@ -131,6 +133,11 @@ export const E5_SLINGSHOT = {
           part.joints.length = 0;
           M.Sleeping.set(part.body, false);
         }
+        // A broken post must stop carrying the floor: keeping its full-size body
+        // made the released house balance on an invisible intact support.
+        M.Body.scale(target.body, .7, .28);
+        target.w *= .7; target.h *= .28;
+        target.body.friction = .35; target.body.frictionStatic = .45;
       }
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
@@ -188,8 +195,16 @@ export const E5_SLINGSHOT = {
     for (const o of [...s.targets, ...s.timbers]) {
       o.flash = Math.max(0, o.flash - dt);
       o.x = o.body.position.x - o.w / 2; o.y = o.body.position.y - o.h / 2; o.angle = o.body.angle;
-      if (o.hp <= 0 || o.wood) continue;
+      if (o.hp <= 0) continue;
       const tilt = Math.abs(Math.atan2(Math.sin(o.angle), Math.cos(o.angle)));
+      if (o.wood) {
+        // Damaged foundations yield permanently once they buckle, instead of
+        // ground constraints pulling the leaning frame upright again.
+        if (o.foundation && o.hp <= t.woodHP / 2 && o.joints.length && tilt > .22) {
+          E5_SLINGSHOT.damage.call(this, o, o.hp, true);
+        }
+        continue;
+      }
       const displaced = Math.abs(o.body.position.x - o.originX) > 36 || o.body.position.y - o.originY > 35;
       // A brief wobble is safe; sustained tipping or falling off the tower counts as collapse.
       o.unstable = tilt > t.toppleAngle || displaced ? o.unstable + dt : 0;
@@ -205,18 +220,9 @@ export const E5_SLINGSHOT = {
       if (!keep) { M.Composite.remove(this.slingWorld.world, b.body); this.assetSprites.get('ball' + b.id)?.destroy(); this.assetSprites.delete('ball' + b.id); }
       return keep;
     });
-    if (s.waiting) {
-      // Count moving projectiles, intact pieces and rubble; ignore only off-field bodies.
-      const moving = [...s.balls, ...s.timbers, ...s.targets].some(item => {
-        if (item.hp <= 0 && !item.wood) return false;
-        const body = item.body;
-        if (body.isSleeping || body.position.x < -30 || body.position.x > 980 || body.position.y > 560) return false;
-        return Math.hypot(body.velocity.x, body.velocity.y) * 60 > t.settleSpeed || Math.abs(body.angularVelocity) * 60 > t.settleAngularSpeed;
-      });
-      s.settledFor = moving ? 0 : s.settledFor + dt;
-      if (s.cooldown === 0 && s.settledFor >= t.settleHold) {
-        s.waiting = false; s.feedback = '다음 두쫀쿠 준비!'; s.feedbackAge = .7;
-      }
+    if (s.waiting && s.cooldown <= 1e-9) {
+      s.cooldown = 0;
+      s.waiting = false; s.feedback = '다음 두쫀쿠 준비!'; s.feedbackAge = .7;
     }
     const left = s.targets.filter(o => o.hp > 0).length;
     this.anomaly = '고무줄 장력 ' + Math.round(E5_SLINGSHOT.power.call(this) * 100) + '% · ' + (E5_SLINGSHOT.power.call(this) <= .8 ? '높게 띄워 지붕 공략' : '기둥을 노려보세요');
@@ -244,7 +250,13 @@ export const E5_SLINGSHOT = {
   render() {
     const s = this.state, d = s.drag ?? { x: 164, y: 382 }, power = E5_SLINGSHOT.power.call(this), t = E5_SLINGSHOT.tuning;
     const broken = s.targets.filter(o => o.hp <= 0).length;
-    MINI.frame(this, '두쫀쿠 vs 두딱쿠     파괴 ' + broken + ' / 4     장력 ' + Math.round(power * 100) + '%');
+    const field = this.ink;
+    field.clear();
+    field.fillStyle(0x0c202e).fillRoundedRect(20, 20, 920, 477, 14);
+    field.lineStyle(1, this.accent, .13);
+    for (let x = 40; x < 940; x += 40) field.lineBetween(x, 26, x, 490);
+    for (let y = 50; y < 497; y += 40) field.lineBetween(20, y, 940, y);
+    this.instruction.setText('파괴 ' + broken + ' / 4 · 장력 ' + Math.round(power * 100) + '%' + (s.waiting ? ' · 다음 발사 ' + s.cooldown.toFixed(1) + '초' : ''));
     // Warm pastry counter, trays and reserves keep the play field readable.
     MINI.box(this, 22, 444, 916, 34, 0x372923);
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
@@ -317,7 +329,6 @@ export const E5_SLINGSHOT = {
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'ball' + b.id, b.x, b.y, 26 + b.squash * 30, 26 - b.squash * 20, Math.atan2(b.vy, b.vx));
     }
     for (const c of s.crumbs) MINI.box(this, c.x, c.y, c.size, c.size, c.color, 1 - c.age / .75);
-    this.cookieNotice.setText(s.feedbackAge > 0 ? s.feedback : s.waiting ? '공과 건물이 멈추면 다음 발사' : '').setAlpha(s.feedbackAge > 0 ? Math.min(1, s.feedbackAge * 3) : .75);
     MINI.meter(this, broken / 4);
   },
   dispose() {

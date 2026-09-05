@@ -355,7 +355,7 @@ class ProtocolSelectFlow {
     window.clearTimeout(this.warnHandle);
     delete label.dataset.state;
     const run = window.archiveRun?.snapshot();
-    label.textContent = `RANDOM 5 / 9 · CLEAR ${this.restored.size} / ${this.stages.length || 5} · 기본 20.26초 / 미로 90초`;
+    label.textContent = `RANDOM 5 / 9 · CLEAR ${this.restored.size} / ${this.stages.length || 5} · 각 20.26초`;
   }
 
   /*
