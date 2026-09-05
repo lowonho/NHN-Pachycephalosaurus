@@ -33,7 +33,7 @@ export const E2_BOUNCE_BALL = {
     if (s.y < 202 || s.y > 535) {
       s.deaths++; s.x = s.checkpoint;
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
-      s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; this.bump();
+      s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
     this.anomaly = `점프력 ${Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain)} · 사망 ${s.deaths}회`;
     this.risk = Math.min(100, s.jumps * 9);
@@ -44,7 +44,9 @@ export const E2_BOUNCE_BALL = {
     MINI.frame(this, `JUMP +${s.jumps * E2_BOUNCE_BALL.tuning.jumpGain}    CHECKPOINT ${this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1}`);
     for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
     for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
-    MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30, 30, s.x / 60);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30 * pop, 30 * pop, s.x / 60);
+    MINI.spawnFx(this, s.x - cam, s.y, 30);
     MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, 424);
     MINI.meter(this, s.x / E2_BOUNCE_BALL.tuning.goal);
   },

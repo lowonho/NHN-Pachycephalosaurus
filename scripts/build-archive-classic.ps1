@@ -8,6 +8,7 @@ $sourceNames = @(
   "audio.mjs",
   "progress.mjs",
   "records.mjs",
+  "plays.mjs",
   "run-state.mjs",
   "stages/minigame-kit.js",
   "stages/e1_gravityDash.js",

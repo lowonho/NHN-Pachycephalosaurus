@@ -30,11 +30,11 @@ export const E1_GRAVITY_DASH = {
       if (o.y < 173 || o.y > 441) { o.y = MINI.clamp(o.y, 173, 441); o.vy = 0; }
       if (!s.immune && MINI.hit({ x: 165, y: s.y - 15, w: 30, h: 30 }, { ...o, x: o.x - s.x + 180 })) {
         s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8;
-        this.bump(); break;
+        MINI.summon(this); this.bump(); break;
       }
     }
     if (!s.immune && this.hurdles.some(o => MINI.hit({ x: 165, y: s.y - 15, w: 30, h: 30 }, { ...o, x: o.x - s.x + 180 }))) {
-      s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8; this.bump();
+      s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8; MINI.summon(this); this.bump();
     }
     this.anomaly = `장애물 중력 ${s.sign === 1 ? '↓' : '↑'} · 충돌 ${s.deaths}회`;
     this.risk = Math.min(100, this.actions * 7);
@@ -55,8 +55,10 @@ export const E1_GRAVITY_DASH = {
         MINI.line(this, x + o.w / 2, o.y - 8, x + o.w / 2, o.y - 8 - s.sign * 18, 0xffadb8);
       } else MINI.hideActor(this, `o${i}`);
     }
-    if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30, 30, -s.x / 80);
+    const pop = MINI.spawnScale(this);
+    if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30 * pop, 30 * pop, -s.x / 80);
     else MINI.hideActor(this, 'player');
+    MINI.spawnFx(this, 180, s.y, 30);
     const goal = t.distance - s.x + 180; if (goal < 950) MINI.goal(this, goal, 433);
     MINI.meter(this, s.x / t.distance);
   },

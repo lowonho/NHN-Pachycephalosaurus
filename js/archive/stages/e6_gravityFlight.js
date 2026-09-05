@@ -17,7 +17,7 @@ export const E6_GRAVITY_FLIGHT = {
     s.y += s.vy * dt;
     const gate = this.gates.find(g => Math.abs(g.x - s.x) < 45 && (s.y - 13 < g.y - t.gap / 2 || s.y + 13 > g.y + t.gap / 2));
     if (!s.immune && (gate || s.y < 169 || s.y > 467)) {
-      s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; this.bump();
+      s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; MINI.summon(this); this.bump();
     }
     s.y = MINI.clamp(s.y, 168, 468);
     this.anomaly = `중력 ${gravity} · 상승 ${lift} · 충돌 ${s.hits}회`;
@@ -35,7 +35,9 @@ export const E6_GRAVITY_FLIGHT = {
       MINI.line(this, x - 30, gate.y - t.gap / 2, x + 30, gate.y - t.gap / 2, 0xff779b, 5);
       MINI.line(this, x - 30, gate.y + t.gap / 2, x + 30, gate.y + t.gap / 2, 0xff779b, 5);
     }
-    MINI.actor(this, 'player', 'player', 180, s.y, 36, 28, s.vy / 900);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
+    MINI.spawnFx(this, 180, s.y, 32);
     if (this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
     MINI.goal(this, t.distance - s.x + 180, 316);
     MINI.meter(this, s.x / t.distance);

@@ -12,6 +12,34 @@ export const MINI = {
     scene.readout = scene.add.text(32, 109, '', { fontFamily: 'Arial, sans-serif', fontSize: '19px', color: '#f4f3e9' });
     scene.instruction = scene.add.text(480, 513, scene.stage.controls, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2' }).setOrigin(0.5);
     scene.assetSprites = new Map();
+    scene.spawnAt = -1;
+  },
+  /* 죽고 다시 시작할 때의 공통 소환 연출. 재생 시간은 MINI.SPAWN초로 0.5초를 넘지 않습니다.
+     scene.elapsed(공통 게임 시간)만 사용하므로 게임 쪽에 별도 타이머가 필요 없습니다. */
+  SPAWN: .42,
+  summon(scene) { scene.spawnAt = scene.elapsed; },
+  spawnPhase(scene) {
+    const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
+    return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;
+  },
+  /* 소환 직후 캐릭터가 부풀었다 제자리로 돌아오는 배율. 도형과 이미지에 함께 적용합니다. */
+  spawnScale(scene) {
+    const phase = MINI.spawnPhase(scene);
+    if (phase === null) return 1;
+    return phase < .45 ? .35 + phase / .45 * .8 : 1.15 - (phase - .45) / .55 * .15;
+  },
+  spawnFx(scene, x, y, size = 30, color = scene.accent) {
+    const phase = MINI.spawnPhase(scene);
+    if (phase === null) return;
+    // 바깥에서 조여드는 두 겹의 링과 빨려드는 파편으로 "다시 소환됐다"를 알립니다.
+    const fade = 1 - phase;
+    scene.ink.lineStyle(3, color, fade).strokeCircle(x, y, size * (2.5 - 1.9 * phase));
+    scene.ink.lineStyle(1, 0xfaffec, fade * .55).strokeCircle(x, y, size * (3.6 - 2.9 * phase));
+    for (let i = 0; i < 7; i++) {
+      const angle = i * Math.PI * 2 / 7 + phase * 1.5, radius = size * (2.2 - 1.75 * phase);
+      MINI.circle(scene, x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 1 + 3 * fade, 0xfaffec, fade);
+    }
+    MINI.circle(scene, x, y, size * .85 * fade, 0xfaffec, fade * .7);
   },
   frame(scene, text) {
     const g = scene.ink; g.clear();

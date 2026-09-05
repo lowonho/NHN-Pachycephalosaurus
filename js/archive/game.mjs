@@ -2,6 +2,7 @@ import { STAGES } from './data.mjs';
 import { createProgressStore } from './progress.mjs';
 import { createArchiveRunState } from './run-state.mjs';
 import { createMinigameRecords } from './records.mjs';
+import { createMinigamePlayLog } from './plays.mjs';
 import { audio } from './audio.mjs';
 import { STAGE_GAMES } from './stages/index.mjs';
 
@@ -11,6 +12,8 @@ try { progressStorage = window.localStorage; } catch { /* 세션 저장만 사�
 window.archiveProgress = createProgressStore(STAGES.map(stage => stage.id), progressStorage);
 window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id));
 window.archiveRecords = createMinigameRecords(STAGES.map(stage => stage.id), progressStorage);
+/* 미니게임 도감(js/ui/codex-flow.js)이 읽는 "해 본 게임" 기록. */
+window.archivePlays = createMinigamePlayLog(STAGES.map(stage => stage.id), progressStorage);
 window.addEventListener('archive-sfx', event => audio.play(event.detail?.name));
 
 class ArchiveGame extends Phaser.Scene {
@@ -74,7 +77,9 @@ class ArchiveGame extends Phaser.Scene {
     this.ink?.clearMask(true); this.fieldMask?.destroy();
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
-    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = 20.26; this.accumulator = 0;
+    // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
+    this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
+    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
     this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
   }
@@ -98,7 +103,7 @@ class ArchiveGame extends Phaser.Scene {
   sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
   bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
-    window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
+    window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
   }
   update(_time, deltaMs) {
     if (!this.playable()) return;
@@ -108,10 +113,10 @@ class ArchiveGame extends Phaser.Scene {
     while (this.accumulator >= step && this.playable()) {
       this.accumulator -= step;
       const dt = Math.min(step, this.remaining);
-      this.elapsed += dt; this.remaining = Math.max(0, 20.26 - this.elapsed);
+      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed);
       window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: dt * 1000 } }));
       this.stageGame.update.call(this, dt);
-      if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), '20.26초 종료');
+      if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
     }
     this.stageGame.render.call(this); this.sendHud();
   }
@@ -119,7 +124,7 @@ class ArchiveGame extends Phaser.Scene {
     if (!this.playable()) return;
     this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
-    window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, actions: this.actions, extra } }));
+    window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));
   }
 }
 

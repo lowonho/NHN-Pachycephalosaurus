@@ -29,7 +29,8 @@ export const E9_ICE_CURLING = {
   cancelInput() { this.state.drag = null; },
   retryStone() {
     const s = this.state;
-    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = s.hold = 0; this.sfx('failure');
+    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = s.hold = 0;
+    MINI.summon(this); this.sfx('failure');
   },
   update(dt) {
     const s = this.state, t = E9_ICE_CURLING.tuning;
@@ -64,7 +65,9 @@ export const E9_ICE_CURLING = {
       MINI.line(this, s.x, s.y, s.x + (s.x - s.drag.x) * 1.4, s.y + (s.y - s.drag.y) * 1.4, 0xffdc90, 2);
       MINI.circle(this, s.drag.x, s.drag.y, 6, 0xffdc90);
     }
-    MINI.actor(this, 'stone', 'stone', s.x, s.y, 28, 28, 0, 0xffd78f);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'stone', 'stone', s.x, s.y, 28 * pop, 28 * pop, 0, 0xffd78f);
     MINI.line(this, s.x - 7, s.y - 3, s.x + 7, s.y - 3, 0x735743, 5);
+    MINI.spawnFx(this, s.x, s.y, 28);
   },
 };

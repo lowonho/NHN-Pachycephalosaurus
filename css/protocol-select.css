@@ -742,23 +742,15 @@
 }
 
 /*
- * 하단 바 왼쪽 묶음 — 성격이 다른 두 숫자를 위아래로 쌓는다.
- *   TESTIMONY n / 7  이번 판(2:23) 안에서 증언한 개수. 판이 끝나면 0으로 돌아간다.
- *   복구 등급 안내   그 아래 ARCHIVE 기록(누적)의 ◇/◆ 표식을 읽는 법.
+ * 하단 바 왼쪽 묶음 — 이번 판의 진행과 엔딩 등급을 위아래로 쌓는다.
+ *   RANDOM 5 / 9 · CLEAR n / 5  이번 판에서 클리어한 개수. 판이 끝나면 0으로 돌아간다.
+ *   엔딩 등급                    5개를 전부 복구했을 때만 그 아래 뜬다.
  */
 .protocol-footer-status {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 7px;
-}
-
-/* 복구 등급 규칙 — 읽는 문장이라 자간을 넓히지 않는다. */
-.protocol-archive-help {
-  margin: 0;
-  color: var(--pro-dim);
-  font: 400 13px/1.4 var(--font-body);
-  opacity: 0.78;
 }
 
 /* 5개를 전부 복구했을 때만 뜬다(엔딩 등급). ARCHIVE 초록으로 구분한다. */
