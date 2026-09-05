@@ -59,7 +59,7 @@
   const pushFrames = new Set();
   for (let i = 0; i < 36; i++) { advance(1 / 120); pushFrames.add(scene.skater.frame.name); }
   assert(pushFrames.size > 1, 'e10: pressing direction again resumes leg animation');
-  scene.loadStage('e9');
+  scene.loadStage('e1');
   assert(!scene.children.list.some(child => child.texture?.key === 'e10:glide'), 'e10: switching games removes the skater');
   return checks;
 })()

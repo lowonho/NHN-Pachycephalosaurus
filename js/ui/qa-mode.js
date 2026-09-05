@@ -6,6 +6,8 @@
  *
  * 하는 일은 세 가지다.
  *   1) 10개 미니게임 중 아무거나 바로 연다 — 막별 선정 순서와 브리핑을 건너뛴다.
+ *      그림 세트가 갈리는 게임(js/config/qa.js의 STAGE_ART_SETS)은 세트마다 타일을 따로
+ *      세운다 — 개발자에게만 다른 스테이지다. 도감·기록·막별 선정은 그대로 10개를 센다.
  *   2) 한 판의 제한시간을 20.26초 대신 다른 값으로 준다.
  *   3) 오프닝부터 엔딩까지 스토리 컷신을 진행 상태와 무관하게 바로 재생한다.
  *
@@ -149,6 +151,8 @@ class QaModeFlow {
     if (!this.active) return;
     this.active = false;
     ARCHIVE_QA.active = false;
+    /* 골라 둔 그림 세트도 함께 버린다 — QA 밖에서는 다시 판마다 무작위여야 한다. */
+    ARCHIVE_QA.artSet = {};
     this.ui.qaBadge?.classList.add("hidden");
     this.close();
     window.archiveRun?.exitQa?.();
@@ -285,11 +289,17 @@ class QaModeFlow {
 
   /* ── 바로 진입 ───────────────────────────────────────────────────── */
 
-  launch(stageId) {
+  launch(stageId, artSet = null) {
     if (!window.archiveGame) {
       this.showHint("엔진이 아직 준비되지 않았습니다. 잠시 뒤 다시 시도하세요.");
       return;
     }
+    /*
+     * 세트를 골라 연 타일이면 그 세트로 고정하고, 아니면 골라 둔 것을 지운다. 엔진은 판을
+     * 세울 때 이 값을 읽는다(js/config/qa.js 의 archiveStageArtSet). 다시하기도 같은 세트다.
+     */
+    if (artSet) ARCHIVE_QA.artSet[stageId] = artSet.id;
+    else delete ARCHIVE_QA.artSet[stageId];
     this.soundBus.resume();
     this.selectAllStages();
     this.syncRunBudget();
@@ -363,35 +373,49 @@ class QaModeFlow {
     grid.replaceChildren();
 
     this.catalog.forEach((stage) => {
-      const tile = document.createElement("button");
-      tile.type = "button";
-      tile.className = "qa-stage";
-      tile.dataset.stageId = stage.id;
-
-      const code = document.createElement("span");
-      code.className = "qa-stage-code";
-      code.textContent = stage.id.toUpperCase();
-
-      const icon = document.createElement("span");
-      icon.className = "qa-stage-icon";
-      icon.setAttribute("aria-hidden", "true");
-      /* 기호가 SVG 마크업(거미줄 질주 등)이면 그대로 꽂고, 아니면 여느 문자 기호처럼 넣는다. */
-      if (stage.recordSymbol.trim().startsWith("<")) icon.innerHTML = stage.recordSymbol;
-      else icon.textContent = stage.recordSymbol;
-
-      const title = document.createElement("strong");
-      title.className = "qa-stage-title";
-      title.textContent = stage.title;
-
-      const controls = document.createElement("small");
-      controls.className = "qa-stage-controls";
-      controls.textContent = stage.controls;
-
-      tile.append(code, icon, title, controls);
-      tile.title = `${stage.objective}\n${stage.anomaly}`;
-      tile.addEventListener("click", () => this.launch(stage.id));
-      grid.append(tile);
+      /*
+       * 그림 세트가 갈리는 스테이지는 세트마다 타일을 하나씩 낸다 — 개발자에게는 서로 다른
+       * 스테이지다. 도감과 막별 선정은 이 목록을 보지 않으므로 밖에서는 여전히 열 개다.
+       */
+      const sets = ARCHIVE_QA.STAGE_ART_SETS?.[stage.id] ?? [];
+      if (sets.length > 1) sets.forEach((set) => grid.append(this.stageTile(stage, set)));
+      else grid.append(this.stageTile(stage));
     });
+  }
+
+  /* 타일 한 장. artSet 을 주면 그 세트로 고정해 여는 타일이 된다. */
+  stageTile(stage, artSet = null) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "qa-stage";
+    tile.dataset.stageId = stage.id;
+    if (artSet) tile.dataset.artSet = artSet.id;
+
+    const code = document.createElement("span");
+    code.className = "qa-stage-code";
+    code.textContent = artSet ? `${stage.id.toUpperCase()} · ${artSet.label}` : stage.id.toUpperCase();
+
+    const icon = document.createElement("span");
+    icon.className = "qa-stage-icon";
+    icon.setAttribute("aria-hidden", "true");
+    /* 기호가 SVG 마크업(거미줄 질주 등)이면 그대로 꽂고, 아니면 여느 문자 기호처럼 넣는다. */
+    if (stage.recordSymbol.trim().startsWith("<")) icon.innerHTML = stage.recordSymbol;
+    else icon.textContent = stage.recordSymbol;
+
+    const title = document.createElement("strong");
+    title.className = "qa-stage-title";
+    title.textContent = stage.title;
+
+    const controls = document.createElement("small");
+    controls.className = "qa-stage-controls";
+    controls.textContent = stage.controls;
+
+    tile.append(code, icon, title, controls);
+    tile.title = artSet
+      ? `${stage.objective}\n${stage.anomaly}\n그림 세트 ${artSet.label} 고정`
+      : `${stage.objective}\n${stage.anomaly}`;
+    tile.addEventListener("click", () => this.launch(stage.id, artSet));
+    return tile;
   }
 
   renderStoryTiles() {

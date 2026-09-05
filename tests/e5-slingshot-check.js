@@ -9,7 +9,7 @@
   const impact = (power, speed) => {
     while (scene.state.waiting && scene.playable()) advance(1 / 120);
     assert(scene.playable(), 'Scene settles before time runs out');
-    scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
+    scene.pointerAction(164, 418); scene.stageGame.pointerMove.call(scene, 64, 462); scene.stageGame.pointerUp.call(scene);
     const shot = scene.state.balls[scene.state.balls.length - 1], target = scene.state.timbers[0];
     shot.power = power;
     M.Body.setPosition(shot.body, { x: target.x - 15, y: target.y + 12 });
@@ -59,8 +59,8 @@
   assert(!M.Composite.allBodies(scene.slingWorld.world).includes(base.body), 'Destroyed cookie is removed from physics');
   assert(!scene.assetSprites.has('target0'), 'Destroyed cookie leaves no actor sprite');
   load();
-  scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, -1000, 1000);
-  assert(Math.hypot(scene.state.drag.x - 164, scene.state.drag.y - 382) <= scene.stageGame.tuning.maxPull + .001, 'Pull length is capped');
+  scene.pointerAction(164, 418); scene.stageGame.pointerMove.call(scene, -1000, 1000);
+  assert(Math.hypot(scene.state.drag.x - 164, scene.state.drag.y - 418) <= scene.stageGame.tuning.maxPull + .001, 'Pull length is capped');
   scene.clearInput(); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 0, 'Cancelled aim does not fire');
   impact(.55, 450);
@@ -70,9 +70,9 @@
   scene.state.shots = 10;
   assert(scene.stageGame.power.call(scene) < scene.stageGame.tuning.piercePower, 'Late shots cannot use early piercing power');
   load();
-  scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,64,426); scene.stageGame.pointerUp.call(scene);
+  scene.pointerAction(164,418); scene.stageGame.pointerMove.call(scene,64,462); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.waiting, 'Launch immediately locks reloading');
-  scene.pointerAction(164,382);
+  scene.pointerAction(164,418);
   assert(scene.state.drag === null && scene.state.shots === 1, 'Input cannot prepare another shot during motion');
   advance(1.4);
   assert(scene.state.waiting, 'Cannot reload before 1.5 seconds');
@@ -82,12 +82,12 @@
   scene.pausedByMenu = false;
   const movingBall = scene.state.balls[0];
   if (movingBall) {
-    M.Body.setPosition(movingBall.body, { x: 300, y: 180 });
+    M.Body.setPosition(movingBall.body, { x: 300, y: 216 });
     M.Body.setVelocity(movingBall.body, { x: 3, y: -3 });
   }
   advance(.1);
   assert(!scene.state.waiting, 'Reload unlocks at 1.5 seconds regardless of motion');
-  scene.pointerAction(164,382);
+  scene.pointerAction(164,418);
   assert(Boolean(scene.state.drag), 'Next shot accepts input as soon as it is ready');
   load();
   assert(!scene.state.waiting && scene.state.cooldown === 0, 'Restart clears the pending reload');
@@ -97,24 +97,24 @@
     for (const wood of scene.state.timbers.slice(0, 7)) { wood.hp = 0; M.Composite.remove(scene.slingWorld.world, wood.body); }
     for (const cookie of scene.state.targets.slice(0, 2)) { cookie.hp = 0; M.Composite.remove(scene.slingWorld.world, cookie.body); }
     const pull = scene.stageGame.tuning.maxPull;
-    scene.pointerAction(164, 382);
-    scene.stageGame.pointerMove.call(scene, 164 - Math.cos(angle) * pull, 382 + Math.sin(angle) * pull);
+    scene.pointerAction(164, 418);
+    scene.stageGame.pointerMove.call(scene, 164 - Math.cos(angle) * pull, 418 + Math.sin(angle) * pull);
     scene.stageGame.pointerUp.call(scene);
     return scene.state.balls[0];
   };
   load();
-  scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,64,426); scene.stageGame.pointerUp.call(scene);
+  scene.pointerAction(164,418); scene.stageGame.pointerMove.call(scene,64,462); scene.stageGame.pointerUp.call(scene);
   const floorBall = scene.state.balls[0];
-  M.Body.setPosition(floorBall.body, { x: 300, y: 455 });
+  M.Body.setPosition(floorBall.body, { x: 300, y: 491 });
   M.Body.setVelocity(floorBall.body, { x: 3, y: 2 });
   advance(.2);
   assert(scene.state.balls.length === 0 && !M.Composite.allBodies(scene.slingWorld.world).includes(floorBall.body), 'Ground impact removes the rolling ball within 0.2 seconds');
   advance(1.3);
   assert(!scene.state.waiting, 'A missed ground shot reloads after 1.5 seconds');
   load();
-  scene.pointerAction(164,382); scene.stageGame.pointerMove.call(scene,64,426); scene.stageGame.pointerUp.call(scene);
+  scene.pointerAction(164,418); scene.stageGame.pointerMove.call(scene,64,462); scene.stageGame.pointerUp.call(scene);
   const apexBall = scene.state.balls[0];
-  M.Body.setPosition(apexBall.body, { x: 300, y: 230 });
+  M.Body.setPosition(apexBall.body, { x: 300, y: 266 });
   M.Body.setVelocity(apexBall.body, { x: 0, y: 0 });
   advance(.2);
   assert(scene.state.balls.includes(apexBall), 'A slow untouched ball at its apex is not discarded');
@@ -122,7 +122,7 @@
   advance(.2);
   assert(scene.state.balls.length === 0, 'A spent resting projectile is removed promptly');
   let late = lateShot(.15);
-  while (scene.playable() && late.age < 2 && late.y < 456) advance(1 / 120);
+  while (scene.playable() && late.age < 2 && late.y < 492) advance(1 / 120);
   assert(late.x < 660 && late.hit.size === 0, 'Late low shot falls short of the last house');
   late = lateShot(.78);
   let downwardRoofHit = false;

@@ -1,5 +1,18 @@
 import { MINI } from './minigame-kit.js';
 
+/* 그림(assets/minigames/manifest.js 의 e2)은 표시만 바꾼다. 판정은 예전 그대로
+   공의 반지름 20과 발판 윗면 한 줄이라 여기 수치를 만져도 난이도는 달라지지 않는다. */
+// 왁뿌볼 정사각 그림의 한 변 / 공 지름. 위로 솟은 매듭이 들어갈 만큼 여유를 둔 값이고,
+// scripts/bake-wakppu.ps1 의 -BallPad 와 같아야 공이 판정 지름 그대로 그려진다.
+const BALL_ART = 1.45;
+// 파손 그림이 바뀌는 점프 횟수. 0~2회는 ball1, 3~5회는 ball2, 6~8회는 ball3, 9회부터 ball4다.
+const BALL_STAGE = [0, 3, 6, 9];
+// 밟은 발판이 출렁이는 시간과 첫 눌림에서 줄어드는 두께 비율. 말랑이 발판을 디딜 때의
+// "디용" 하는 연출이고, 그림만 눌렀다 펴므로 판정선도 공의 운동도 그대로다.
+// 부서지는 왁뿌바는 이미 갈라지는 그림이 따로 있어 걸지 않는다.
+const WOBBLE_TIME = .4;
+const WOBBLE_SQUASH = .18;
+
 export const E2_BOUNCE_BALL = {
   tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 300, radius: 20, goal: 3730,
     liftRange: 22, liftSpeed: 2.1, crumbleTime: .55, rebuildTime: 1.4 },
@@ -22,7 +35,8 @@ export const E2_BOUNCE_BALL = {
       // 높이는 고정하고 간격은 90px. 최소 점프력에서도 체공 보정 없이 끝에서 도약할 수 있습니다.
       { x: 2860, y: 424, w: 150, h: 24 }, { x: 3100, y: 404, w: 150, h: 24 },
       { x: 3340, y: 384, w: 150, h: 24 }, { x: 3580, y: 364, w: 240, h: 28 },
-    ].map((p, index) => ({ ...p, index, baseY: p.y, previousY: p.y, active: true, crumbleLeft: null, rebuildLeft: 0 }));
+    ].map((p, index) => ({ ...p, index, baseY: p.y, previousY: p.y, active: true, crumbleLeft: null, rebuildLeft: 0,
+      wobble: 0 }));
   },
   jumpPower() {
     const t = E2_BOUNCE_BALL.tuning;
@@ -45,6 +59,8 @@ export const E2_BOUNCE_BALL = {
     const s = this.state, t = E2_BOUNCE_BALL.tuning, wasGrounded = s.grounded, oldX = s.x;
     for (const p of this.platforms) {
       p.previousY = p.y;
+      // 출렁임은 그림에만 쓰는 값입니다. 일시정지 중에는 update가 돌지 않아 함께 멈춥니다.
+      p.wobble = Math.max(0, p.wobble - dt);
       if (p.kind === 'lift') p.y = p.baseY + (p.range ?? t.liftRange) * Math.sin(this.elapsed * t.liftSpeed + p.index);
       if (!p.active) {
         p.rebuildLeft = Math.max(0, p.rebuildLeft - dt);
@@ -72,7 +88,9 @@ export const E2_BOUNCE_BALL = {
       const previousTop = wasGrounded && p === support ? p.y : p.previousY;
       if (p.active && s.vy >= (p.y - previousTop) / dt && s.x + t.radius - 2 > p.x && s.x - t.radius + 2 < p.x + p.w && previous + t.radius <= previousTop + 1 && s.y + t.radius >= p.y) {
         s.y = p.y - t.radius; s.vy = 0; s.grounded = true;
-        if (!wasGrounded) s.squash = 1;
+        // 밟은 발판 그림을 출렁이게 합니다. 공의 위치·속도는 위에서 이미 정해졌고
+        // 이 값은 render만 읽으므로 궤적에는 아무 영향이 없습니다.
+        if (!wasGrounded) { s.squash = 1; if (p.kind !== 'crumble') p.wobble = WOBBLE_TIME; }
         s.platformIndex = p.index;
         if (p.kind === 'crumble') {
           if (p.crumbleLeft === null) p.crumbleLeft = t.crumbleTime;
@@ -91,19 +109,51 @@ export const E2_BOUNCE_BALL = {
     this.risk = (t.jump - power) / (t.jump - t.minJump) * 100;
     if (s.x >= t.goal && s.grounded) this.finish(true);
   },
+  /* 키에 묶인 이미지를 만들거나 다시 씁니다. 없는 텍스처면 null을 돌려줍니다. */
+  sprite(key, texture) {
+    if (!this.textures.exists(texture)) { this.assetSprites.get(key)?.setVisible(false); return null; }
+    let sprite = this.assetSprites.get(key);
+    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask); this.assetSprites.set(key, sprite); }
+    return sprite.setTexture(texture).setVisible(true);
+  },
+  /* 발판 그림은 폭을 발판에 맞추고 윗면을 판정선(p.y)에 겁니다. 아래로 얼마나 두껍게
+     그려지든 충돌은 예전 그대로 윗면 한 줄이라 난이도는 달라지지 않습니다.
+     윗면이 둥근 호빵만 조금 파묻어야 공이 표면에 닿아 보입니다.
+     그림이 없으면 false를 돌려주고 예전 도형으로 그립니다. */
+  drawPlatform(p, x, y) {
+    const role = p.kind === 'lift' ? (p.w >= 135 ? 'liftWide' : 'liftNarrow')
+      : p.kind === 'crumble' ? (p.crumbleLeft === null ? 'crumble' : 'crumbleSplit')
+      : p.w >= 240 ? 'platformLong' : p.w >= 150 ? 'platformMedium' : 'platformShort';
+    const sprite = E2_BOUNCE_BALL.sprite.call(this, `p${p.index}`, `e2:${role}`);
+    if (!sprite) return false;
+    const h = p.w * sprite.height / sprite.width, sink = p.kind === 'lift' ? .2 : .06;
+    // 밟은 뒤 WOBBLE_TIME 동안 두께가 줄었다 늘기를 두 바퀴 반 되풀이하며 잦아듭니다.
+    // 윗면은 판정선에 붙여 둔 채 아랫면만 오르내리므로 공은 언제나 발판 표면에 닿아 보이고,
+    // 옆으로 부푸는 폭은 착지할 수 있는 자리를 넘겨짚지 않게 눌린 만큼의 1/4로 둡니다.
+    const left = p.wobble / WOBBLE_TIME;
+    const press = left > 0 ? Math.cos((1 - left) * Math.PI * 5) * left * left * WOBBLE_SQUASH : 0;
+    sprite.setPosition(x + p.w / 2, y + h * (1 - press) / 2 - h * sink)
+      .setDisplaySize(p.w * (1 + press * .25), h * (1 - press));
+    return true;
+  },
   drawBall(x, y, pop) {
     const s = this.state, t = E2_BOUNCE_BALL.tuning, g = this.ballInk, r = t.radius;
-    const textured = this.textures.exists('e2:player');
     const sx = pop * (1 + s.squash * .16 - s.burst * .08), sy = pop * (1 - s.squash * .14 + s.burst * .1);
-    if (textured) MINI.actor(this, 'player', 'player', x, y, r * 2 * sx, r * 2 * sy, s.roll);
+    // 그림이 있으면 파손 단계를 넉 장이 대신하므로 아래의 도형과 균열은 그리지 않습니다.
+    const stage = BALL_STAGE.filter(jumps => s.jumps >= jumps).length;
+    if (this.textures.exists(`e2:ball${stage}`)) {
+      MINI.actor(this, `ball${stage}`, 'player', x, y, r * 2 * BALL_ART * sx, r * 2 * BALL_ART * sy, s.roll);
+      // 발판 그림은 화면에 들어올 때마다 새로 생겨 공보다 나중에 그려집니다. 한 층 위에 세워
+      // 어느 발판에 올라서도 공이 가려지지 않게 합니다(균열·조각을 그리는 ballInk는 3층).
+      this.assetSprites.get('player')?.setDepth(2);
+      return;
+    }
     g.save(); g.translateCanvas(x, y); g.rotateCanvas(s.roll);
     g.scaleCanvas(sx, sy);
-    if (!textured) {
-      g.fillStyle(0x41685c).fillCircle(0, 0, r + 1);
-      g.fillStyle(0x9be8ba).fillCircle(0, 0, r);
-      g.fillStyle(0xd9ffe2, .65).fillEllipse(-6, -7, 19, 13);
-      g.lineStyle(2, 0x5fb88d, .55).strokeCircle(0, 0, r - 2);
-    }
+    g.fillStyle(0x41685c).fillCircle(0, 0, r + 1);
+    g.fillStyle(0x9be8ba).fillCircle(0, 0, r);
+    g.fillStyle(0xd9ffe2, .65).fillEllipse(-6, -7, 19, 13);
+    g.lineStyle(2, 0x5fb88d, .55).strokeCircle(0, 0, r - 2);
     // 같은 균열이 누적되고 바깥 왁스가 떨어진 자리로 분홍색 속이 드러납니다.
     const order = [2, 7, 0, 5, 9, 3, 8, 1, 6, 4];
     for (let i = 0; i < Math.min(s.jumps, order.length); i++) {
@@ -116,12 +166,10 @@ export const E2_BOUNCE_BALL = {
       const rim = edge(a), bend = { x: Math.cos(a - .14) * 13, y: Math.sin(a - .14) * 13 };
       g.lineStyle(1.4, 0x43584f, .9).lineBetween(rim.x, rim.y, bend.x, bend.y).lineBetween(bend.x, bend.y, tip.x, tip.y);
     }
-    if (!textured) {
-      g.fillStyle(0x243b35).fillEllipse(-6, -2, 3, 5).fillEllipse(6, -2, 3, 5);
-      g.fillStyle(0xef91a6, .65).fillEllipse(-11, 3, 5, 3).fillEllipse(11, 3, 5, 3);
-      if (s.jumps < 4) g.lineStyle(1.5, 0x243b35).lineBetween(-3, 5, 0, 7).lineBetween(0, 7, 3, 5);
-      else g.fillStyle(0x243b35).fillEllipse(0, 7, 5, 3);
-    }
+    g.fillStyle(0x243b35).fillEllipse(-6, -2, 3, 5).fillEllipse(6, -2, 3, 5);
+    g.fillStyle(0xef91a6, .65).fillEllipse(-11, 3, 5, 3).fillEllipse(11, 3, 5, 3);
+    if (s.jumps < 4) g.lineStyle(1.5, 0x243b35).lineBetween(-3, 5, 0, 7).lineBetween(0, 7, 3, 5);
+    else g.fillStyle(0x243b35).fillEllipse(0, 7, 5, 3);
     g.restore();
   },
   render() {
@@ -131,6 +179,8 @@ export const E2_BOUNCE_BALL = {
     this.ballInk.clear();
     for (const p of this.platforms) {
       const x = p.x - cam, y = p.y - camY;
+      // 화면 밖이거나 무너진 발판은 그림도 함께 감춥니다.
+      if (x + p.w < 20 || x > 940 || !p.active) MINI.hideActor(this, `p${p.index}`);
       if (x + p.w < 20 || x > 940) continue;
       const color = p.kind === 'lift' ? 0x65d8ef : p.kind === 'crumble' ? 0xffbd77 : 0xb8f77b;
       if (p.kind === 'lift') {
@@ -142,15 +192,16 @@ export const E2_BOUNCE_BALL = {
         MINI.box(this, x, y + p.h + 5, p.w * (1 - p.rebuildLeft / t.rebuildTime), 3, color, .5);
         continue;
       }
-      MINI.box(this, x, y, p.w, p.h, p.kind === 'lift' ? 0x28576b : p.kind === 'crumble' ? 0x866044 : 0x4f7560);
-      MINI.line(this, x + 4, y + 2, x + p.w - 4, y + 2, color, 3);
-      if (p.kind === 'crumble') {
-        for (let offset = 18; offset < p.w; offset += 26) {
+      if (!E2_BOUNCE_BALL.drawPlatform.call(this, p, x, y)) {
+        MINI.box(this, x, y, p.w, p.h, p.kind === 'lift' ? 0x28576b : p.kind === 'crumble' ? 0x866044 : 0x4f7560);
+        MINI.line(this, x + 4, y + 2, x + p.w - 4, y + 2, color, 3);
+        if (p.kind === 'crumble') for (let offset = 18; offset < p.w; offset += 26) {
           MINI.line(this, x + offset, y + 4, x + offset - 5, y + 12, 0x392f32, 2);
           MINI.line(this, x + offset - 5, y + 12, x + offset + 3, y + p.h, 0x392f32, 2);
         }
-        if (p.crumbleLeft !== null) MINI.box(this, x, y - 7, p.w * p.crumbleLeft / t.crumbleTime, 3, 0xff6e6e);
       }
+      // 무너지기까지 남은 시간은 그림이 있든 없든 발판 위에 붉은 막대로 알립니다.
+      if (p.kind === 'crumble' && p.crumbleLeft !== null) MINI.box(this, x, y - 7, p.w * p.crumbleLeft / t.crumbleTime, 3, 0xff6e6e);
     }
     const pop = MINI.spawnScale(this);
     for (const shard of s.shards) {

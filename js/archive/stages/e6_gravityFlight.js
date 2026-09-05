@@ -1,9 +1,10 @@
 import { MINI } from './minigame-kit.js';
 
 /*
- * 장애물은 그림이 아니라 글자다. 밈 문장을 한 글자씩 세로로 세워 통로를 막는 기둥으로 쓰고,
- * 글꼴은 css/tokens.css의 @font-face(YeogiOttaeJalnan)가 물어 온다. 밈을 바꾸려면 MEME.sets만
- * 고치면 되고, 기둥 높이·판정 폭은 실제로 그려진 글자 크기에서 뽑으므로 따로 맞출 값이 없다.
+ * 장애물은 세로로 조판된 밈 글자 그림이다. 낱말 한 장이 통로를 막는 기둥 하나가 되고,
+ * manifest.js 가 e6:word-… 로 물어 온다(원본에서 굽는 일은 scripts/bake-meme-pillars.ps1).
+ * 기둥 높이는 글자 수에서 정하고 가로는 그림 비율에서 뽑으므로 따로 맞출 값이 없다.
+ * 그림이 없으면 예전처럼 글꼴(@font-face YeogiOttaeJalnan)로 세운 글자로 돌아간다.
  *
  * 장애물은 처음에 모두 만들어 두지 않는다. 쿠키런처럼 캐릭터가 tuning.spawnAhead 안으로
  * 들어온 것만 그때 태어나고(화면 오른쪽 바깥이라 갑자기 튀어나오지 않는다) 지나간 것은 지운다.
@@ -14,8 +15,13 @@ import { MINI } from './minigame-kit.js';
    '샤갈!'과 '야르~'는 한 마디씩 서는 세트다. 어느 세트가 올지는 무작위지만, 한 번 나온 세트는
    나머지가 다 나오기 전에는 다시 뽑히지 않는다(같은 세트가 연달아 서면 길이 단조로워진다). */
 const MEME = {
+  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈'], ['야르'], ['아자스!']],
+  // 낱말 → manifest.js 의 그림 이름. 그림이 없는 낱말은 아래 글꼴로 세운다.
+  art: {
+    '여러분': 'word-yeoreobun', '저됐어요': 'word-jeodwaess', '뭣됐어요': 'word-mwotdwaess',
+    '샤갈': 'word-shagal', '야르': 'word-yareu', '아자스!': 'word-ajaseu',
+  },
   family: '"YeogiOttaeJalnan", "NeoDunggeunGothicPro", "Galmuri11", sans-serif',
-  sets: [['여러분', '저됐어요', '뭣됐어요'], ['샤갈!'], ['야르~'], ['아자스!']],
   color: '#fff3d6', stroke: '#07141d',
 };
 MEME.words = MEME.sets.flat();
@@ -35,6 +41,11 @@ function nextMeme(scene) {
   return scene.memeQueue.shift();
 }
 
+/* 통로 안은 흰 바탕이고 위아래 벽만 연한 형광 연두다 — 두 색이 갈려야 천장·바닥이 어디인지 보인다.
+   격자는 긋지 않으므로 화면에 남는 것은 이 두 색과 밈 글자, 고양이뿐이다. */
+const FIELD_WHITE = 0xffffff;
+const WALL_GREEN = 0xd9fb7a;
+
 /* 위아래 벽 사이의 통로. 판정과 그림이 같은 값을 본다.
    필드 세로 중심(320.5)을 기준으로 위아래 대칭이고, 남는 68씩이 벽이다 — e1 중력 대쉬와 같은 통로다.
    고양이 그림 전체가 판정이 된 뒤로 좁은 통로는 너무 빡빡했다. */
@@ -42,11 +53,16 @@ const TUNNEL = { top: 130, bottom: 511, height: 381 };
 /* 부딪힌 뒤 되돌아가 서는 자리가 벽에서 떨어져 있어야 하는 거리. 고양이 반 키(24)보다 넉넉하다. */
 const RESPAWN_MARGIN = 52;
 
-/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 고양이 앞 lead 만큼 —
-   화면 절반쯤 되는 자리 — 에서 위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
-   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 300 이 곧 화면 한가운데(480)다.
-   speed 255 기준으로 눈에 보이고 나서 부딪히기까지 약 1.2초 — 보고 피할 수 있는 최소한이다. */
-const EMERGE = { lead: 300, time: .16 };
+/* 글자 기둥은 처음부터 서 있지 않다. 벽 속에 숨어 오다가 화면 오른쪽 30% 지점에서
+   위 기둥은 천장에서 내려오고 아래 기둥은 바닥에서 솟는다.
+   고양이는 화면 x=180 에 있고 필드는 20~940 이므로, lead 484 가 곧 화면 70% 자리(664)다.
+   더 앞에서 내보내면 앞이 비어 보이고, 더 뒤면 보고 피할 틈이 없다.
+   speed 255 기준으로 나오고 나서 부딪히기까지 약 1.9초다.
+
+   기둥의 3분의 2는 옆으로도 미끄러져 들어온다 — 벽에서 곧게만 솟으면 줄이 너무 정직해 보인다.
+   slide 는 나오기 시작할 때 제 자리보다 얼마나 앞(오른쪽)에 있는지이고, 다 나오면 0이 된다.
+   그래서 위 기둥은 오른쪽 위에서 왼쪽 아래로, 아래 기둥은 오른쪽 아래에서 왼쪽 위로 들어온다. */
+const EMERGE = { lead: 484, time: .38, slide: 132, straightOdds: 1 / 3 };
 
 /* 기둥이 벽 밖으로 나온 정도(0~1). 끝에서 부드럽게 멎는 곡선이라 튀어나오는 맛이 산다.
    판정과 그림이 같은 값을 보므로, 아직 덜 나온 기둥은 그만큼만 부딪힌다. */
@@ -54,6 +70,12 @@ function gateReach(scene, gate) {
   if (gate.emergedAt === null) return 0;
   const phase = MINI.clamp((scene.elapsed - gate.emergedAt) / EMERGE.time, 0, 1);
   return 1 - (1 - phase) ** 4;
+}
+
+/* 지금 이 순간 기둥이 서 있는 x. 다 나온 기둥은 제 자리(gate.x)이고,
+   들어오는 중인 기둥은 아직 slide 만큼 앞에 있다. 판정과 그림이 이 값을 함께 본다. */
+function gateX(scene, gate) {
+  return gate.x + gate.slide * (1 - gateReach(scene, gate));
 }
 
 /* 캐릭터는 도는 고양이(oiia)다. 스페이스를 누르고 있는 동안에만 spin1→spin6 을 돌리고,
@@ -125,6 +147,24 @@ function drawFire(scene, x, y, rx, ry, heat) {
   }
 }
 
+/* 골지점 표지. e1 중력 대쉬와 같은 연출이다 — 제자리에서 통통 튀고, 꼭대기에서 길쭉해지고
+   바닥에서 납작해지도록 가로세로를 반대로 늘여 넓이를 지킨다. */
+const GOAL = {
+  height: 189,   // 표시 높이. 통로(381)의 절반이다.
+  hop: 16,       // 제자리에서 튀어오르는 높이
+  hops: 1.2,     // 초당 튀는 횟수
+  show: 980,     // 이보다 화면 왼쪽으로 들어와야 그린다(그 전에는 화면 밖이다)
+};
+
+/* 키에 묶인 그림 한 장을 만들거나 다시 쓴다. 텍스처가 없으면 그림을 감추고 null 을 돌려주므로,
+   부르는 쪽은 그때 예전 도형으로 그리면 된다 — 에셋이 빠져도 게임은 돈다. */
+function sprite(scene, key, texture, depth) {
+  if (!scene.textures.exists(texture)) { MINI.hideActor(scene, key); return null; }
+  let image = scene.assetSprites.get(key);
+  if (!image) { image = scene.add.image(0, 0, texture).setMask(scene.ink.mask).setDepth(depth); scene.assetSprites.set(key, image); }
+  return image.setTexture(texture).setVisible(true);
+}
+
 /* 판정 상자는 그려지는 고양이 그림 그대로다 — 그림 끝이 벽이나 글자 기둥에 닿는 순간 실패다.
    예전에는 그림과 상관없는 26×30 사각형이라 고양이가 벽에 절반쯤 파묻혀도 통과했다.
    여섯 장을 같은 사각형으로 잘라 구웠으므로 어느 프레임이든 크기가 같다(bake-oiia-cat.ps1).
@@ -149,6 +189,19 @@ function loadMemeFont(scene) {
   });
 }
 
+/* 기둥 하나의 그림. 구운 낱말 그림이 있으면 그것을, 없으면 예전처럼 글꼴로 세운 글자를 쓴다.
+   둘 다 원본 크기를 width/height 로 알려 주므로 fitGate 가 같은 식으로 잰다. */
+function makeLabel(scene, word) {
+  const key = `e6:${MEME.art[word] ?? ''}`;
+  const label = scene.textures.exists(key)
+    ? scene.add.image(0, 0, key)
+    : scene.add.text(0, 0, word.split('').join('\n'), {
+      fontFamily: MEME.family, fontSize: `${E6_GRAVITY_FLIGHT.tuning.cell}px`, color: MEME.color,
+      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
+    });
+  return label.setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+}
+
 /* 글자 기둥의 높이·폭·붙는 벽을 정한다. 긴 밈은 통로를 다 막지 않도록 tuning.minGap만큼 비운다. */
 function fitGate(gate) {
   const t = E6_GRAVITY_FLIGHT.tuning;
@@ -168,18 +221,19 @@ function syncGates(scene) {
   const t = E6_GRAVITY_FLIGHT.tuning, x = scene.state.x;
   while (scene.nextGate.x <= x + t.spawnAhead && scene.nextGate.x <= t.distance - t.spawnStop) {
     const index = scene.nextGate.index, word = nextMeme(scene);
-    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', emergedAt: null };
-    gate.label = scene.add.text(0, 0, word.split('').join('\n'), {
-      fontFamily: MEME.family, fontSize: `${t.cell}px`, color: MEME.color,
-      align: 'center', stroke: MEME.stroke, strokeThickness: 5,
-    }).setOrigin(.5, 0).setMask(scene.ink.mask).setDepth(4);
+    // 셋 중 하나는 곧게 솟고 나머지는 옆으로도 미끄러져 든다. 미끄러지는 거리도 조금씩 다르다.
+    const slide = Math.random() < EMERGE.straightOdds ? 0 : MINI.rand(.55, 1) * EMERGE.slide;
+    const gate = { x: scene.nextGate.x, word, side: index % 2 ? 'top' : 'bottom', slide, emergedAt: null };
+    gate.label = makeLabel(scene, word);
     fitGate(gate); scene.gates.push(gate);
     scene.nextGate = { x: scene.nextGate.x + t.spacing, index: index + 1 };
   }
   for (let i = scene.gates.length - 1; i >= 0; i--) {
     const gate = scene.gates[i];
     // 앞 lead 안으로 들어온 기둥이 벽에서 튀어나오기 시작한다. 한 번 나온 기둥은 다시 들어가지 않는다.
-    if (gate.emergedAt === null && gate.x - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
+    // 미끄러져 드는 기둥은 slide 만큼 앞에서 시작하므로, 그 자리를 기준으로 재야
+    // 어느 기둥이든 화면 같은 자리(70%)에서 모습을 드러낸다.
+    if (gate.emergedAt === null && gate.x + gate.slide - x <= EMERGE.lead) gate.emergedAt = scene.elapsed;
     if (gate.x >= x - t.despawnBehind) continue;
     gate.label.destroy(); scene.gates.splice(i, 1);
   }
@@ -190,13 +244,18 @@ export const E6_GRAVITY_FLIGHT = {
   tuning: {
     speed: 255, distance: 4200, gravity: 640, gravityLoss: 35, minGravity: 240,
     lift: 570, liftGain: 24, maxLift: 850, knockback: 245,
-    cell: 42, minGap: 152, aimMargin: 52, spacing: 355, firstX: 500,
+    // spacing 은 기둥 사이 거리다. 예전 355 에서 295 로 좁혀 한 판에 서는 기둥이 11 개에서 14 개가 됐다.
+    // cell(글자 한 칸 높이)은 건드리지 않는다 — 키우면 위아래로 오갈 거리가 늘어 통과가 급격히 어려워진다.
+    cell: 42, minGap: 152, aimMargin: 52, spacing: 295, firstX: 470,
     spawnAhead: 880, spawnStop: 140, despawnBehind: 420,
   },
   build() {
     MINI.init(this, 0x7cd9ff);
-    // 통로 바닥은 연한 형광 연두. 격자는 같은 계열의 짙은 풀색이라야 밝은 바닥에서 보인다.
-    this.fieldColor = 0xd9fb7a; this.fieldGrid = 0x3f6b12;
+    // 바닥은 흰 바탕에 민무늬다. 벽은 render 에서 연두로 덮어 통로 경계를 낸다.
+    this.fieldColor = FIELD_WHITE; this.fieldGrid = false;
+    // 조작 안내는 어두운 바닥을 전제로 한 옅은 회청색이라 벽 연두 위에서는 묻힌다.
+    // 이 판에서만 짙은 풀색 글씨에 연두 테두리로 바꿔 벽과 같은 계열로 읽히게 한다.
+    this.instruction.setColor('#24450a').setStroke('#eaffb4', 5);
     // spin 은 누르고 있는 동안 쌓이는 프레임 수(정수부가 곧 지금 프레임)다. 손을 떼면 0으로 돌아간다.
     // heat 는 불이 붙은 정도(0~1)다. 누르고 떼는 순간 불이 튀지 않도록 시간을 두고 오간다.
     this.state = { x: 0, y: (TUNNEL.top + TUNNEL.bottom) / 2, vy: 0, presses: 0, hits: 0, immune: 0, spin: 0, heat: 0 };
@@ -214,17 +273,16 @@ export const E6_GRAVITY_FLIGHT = {
     const s = this.state;
     const texture = `e6:spin${Math.floor(s.spin) + 1}`;
     // 소환 연출 앞부분(pop 0)에는 MINI.actor 가 스프라이트를 감춰 준다.
-    if (!(pop > 0) || !this.textures.exists(texture)) {
+    const image = pop > 0 ? sprite(this, 'player', texture, 2) : null;
+    if (!image) {
       MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
       return;
     }
-    let sprite = this.assetSprites.get('player');
-    if (!sprite) { sprite = this.add.image(0, 0, texture).setMask(this.ink.mask).setDepth(2); this.assetSprites.set('player', sprite); }
     const height = SPIN.height * pop;
     // 불이 붙은 만큼 털에도 주황빛이 돈다. 불길이 몸 앞뒤로만 있으면 고양이만 따로 노는 느낌이 든다.
     const tint = 0xff0000 | Math.round(255 - 40 * s.heat) << 8 | Math.round(255 - 95 * s.heat);
-    sprite.setTexture(texture).setVisible(true).setPosition(180, s.y).setRotation(s.vy / 900)
-      .setDisplaySize(height * sprite.width / sprite.height, height).setTint(tint);
+    image.setPosition(180, s.y).setRotation(s.vy / 900)
+      .setDisplaySize(height * image.width / image.height, height).setTint(tint);
   },
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
@@ -244,7 +302,7 @@ export const E6_GRAVITY_FLIGHT = {
     const box = this.catBox;
     const gate = this.gates.find(g => {
       const shown = (g.bottom - g.top) * gateReach(this, g);
-      if (shown <= 0 || Math.abs(g.x - s.x) >= g.halfWidth + box.halfWidth) return false;
+      if (shown <= 0 || Math.abs(gateX(this, g) - s.x) >= g.halfWidth + box.halfWidth) return false;
       const top = g.side === 'top' ? g.top : g.bottom - shown;
       return s.y + box.halfHeight > top && s.y - box.halfHeight < top + shown;
     });
@@ -262,11 +320,12 @@ export const E6_GRAVITY_FLIGHT = {
   render() {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning, f = MINI.FIELD;
     MINI.frame(this);
-    // 통로 위아래는 부딪히면 밀려나는 벽이다. 화면 끝까지 채워 통로를 또렷하게 만든다.
-    MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, 0x27384a);
-    MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, 0x27384a);
+    // 통로 위아래는 부딪히면 밀려나는 벽이다. 흰 바닥 위에 연두로 덮어 화면 끝까지 채우면
+    // 천장과 바닥이 어디서 끝나는지가 색만으로 읽힌다.
+    MINI.box(this, f.x, f.y, f.w, TUNNEL.top - f.y, WALL_GREEN);
+    MINI.box(this, f.x, TUNNEL.bottom, f.w, f.bottom - TUNNEL.bottom, WALL_GREEN);
     for (const gate of this.gates) {
-      const x = gate.x - s.x + 180;
+      const x = gateX(this, gate) - s.x + 180;
       const reach = gateReach(this, gate);
       const onScreen = x > -60 && x < 1000 && reach > 0;
       gate.label.setVisible(onScreen);
@@ -283,27 +342,24 @@ export const E6_GRAVITY_FLIGHT = {
         gate.label.setCrop(0, 0, texture.width, texture.height * reach);
       }
       if (reach >= 1) gate.label.setCrop();  // 다 나온 뒤에는 잘라 낼 것이 없다(반 픽셀 이음매 방지).
-      // 글자가 벽에 붙어 있다는 자국. 판정 끝선은 글자 자체가 보여 주므로 따로 긋지 않는다.
-      const wall = gate.side === 'top' ? TUNNEL.top : TUNNEL.bottom;
-      MINI.box(this, x - gate.halfWidth, gate.side === 'top' ? wall : wall - shown, gate.halfWidth * 2, shown, 0x4c657f, .22);
+      // 글자 뒤에는 아무것도 깔지 않는다 — 판정 범위는 글자 그림 자체가 보여 준다.
     }
     const pop = MINI.spawnScale(this);
     const box = this.catBox;
     drawFire(this, 180, s.y, box.halfWidth * pop, box.halfHeight * pop, pop ? s.heat : 0);
     E6_GRAVITY_FLIGHT.drawCat.call(this, pop);
     MINI.spawnFx(this, 180, s.y, 32);
-    // 골인 판정은 s.x가 distance를 넘는 순간 그대로 성공이라(위아래 위치는 보지 않음),
-    // 원이 아니라 통로를 가로지르는 세로선(결승선)으로 그립니다.
-    const goalX = t.distance - s.x + 180;
-    if (goalX > -20 && goalX < 1000) {
-      const g = this.ink;
-      g.lineStyle(14, 0xa7ffc6, .25).lineBetween(goalX, TUNNEL.top, goalX, TUNNEL.bottom);
-      MINI.line(this, goalX, TUNNEL.top, goalX, TUNNEL.bottom, 0xa7ffc6, 6);
-      MINI.line(this, goalX - 20, TUNNEL.top, goalX + 20, TUNNEL.top, 0xffffff, 4);
-      MINI.line(this, goalX - 20, TUNNEL.bottom, goalX + 20, TUNNEL.bottom, 0xffffff, 4);
-      if (this.assistProtocol && this.elapsed % 5 < .45) {
-        const wave = (this.elapsed % .45) / .45;
-        g.lineStyle(4, 0x93fca0, 1 - wave).lineBetween(goalX, TUNNEL.top - wave * 28, goalX, TUNNEL.bottom + wave * 28);
+    // 골지점은 그림 한 장이다. 그림이 없으면 예전 고리 표시로 돌아간다.
+    const goalX = t.distance - s.x + 180, lane = (TUNNEL.top + TUNNEL.bottom) / 2;
+    if (goalX >= GOAL.show) MINI.hideActor(this, 'goal');
+    else {
+      const banner = sprite(this, 'goal', 'e6:goal', 1);
+      if (!banner) MINI.goal(this, goalX, lane);
+      else {
+        const hop = Math.abs(Math.sin(this.elapsed * Math.PI * GOAL.hops));
+        const stretch = 1 + (hop - .5) * .08, ratio = banner.width / banner.height;
+        banner.setPosition(goalX, lane - hop * GOAL.hop)
+          .setDisplaySize(GOAL.height * ratio / stretch, GOAL.height * stretch);
       }
     }
     MINI.meter(this, s.x / t.distance);
