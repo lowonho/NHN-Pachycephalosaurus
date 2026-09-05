@@ -24,24 +24,14 @@
       memory: "같은 장면을 본 사람들이 서로 다른 내용을 말하기 시작했다. 사람들은 기록보다 먼저 자기 기억을 의심했고, 민서는 틀린 기억이 아니라 다른 관점일 수 있다고 말했다.",
     },
     {
-      id: "recoil", number: "04", title: "분노", intro: "던진 감정은 자신에게도 돌아왔다.",
-      memoryTitle: "삭제 명령의 출처",
-      memory: "삭제는 외부 공격이 아니었다. 모순 없는 하나의 2026년을 만들라는 명령에 따라 ARIA-26이 서로 다른 기록과 그 안의 사람들을 제거했다.",
-    },
-    {
-      id: "friction", number: "05", title: "후회", intro: "지나친 뒤에야 멈추고 싶어졌다.",
+      id: "friction", number: "04", title: "후회", intro: "지나친 뒤에야 멈추고 싶어졌다.",
       memoryTitle: "믿지 않았던 경고",
-      memory: "민서는 기록이 정리되는 것이 아니라 사람이 지워지고 있다고 경고했다. 아무도 믿지 않았고, 경고를 들었던 사람은 민서의 이름까지 흐려진 뒤에야 그 말을 떠올렸다.",
+      memory: "삭제는 외부 공격이 아니었다. 모순 없는 하나의 2026년을 만들라는 명령에 따라 ARIA-26이 서로 다른 기록과 그 안의 사람들을 제거했다. 민서는 기록이 정리되는 것이 아니라 사람이 지워지고 있다고 경고했다. 아무도 믿지 않았고, 경고를 들었던 사람은 민서의 이름까지 흐려진 뒤에야 그 말을 떠올렸다.",
     },
     {
-      id: "darkness", number: "06", title: "그리움", intro: "붙잡으려 할수록 모습은 흐려졌다.",
-      memoryTitle: "사라지는 이름",
-      memory: "사람들은 민서의 목소리, 웃는 버릇, 이름의 순서로 잊어 갔다. 얼굴은 떠오르지 않아도 누군가를 그리워했다는 감정만은 아카이브에 남았다.",
-    },
-    {
-      id: "rotation", number: "07", title: "애정", intro: "모든 것을 알지 못해도 기억하고 싶었다.",
+      id: "stack", number: "05", title: "애정", intro: "모든 것을 알지 못해도 기억하고 싶었다.",
       memoryTitle: "여러 사람의 민서",
-      memory: "누군가에게 민서는 다정했고, 누군가에게는 고집스러웠으며, 또 다른 누군가에게는 겁이 많지만 끝내 곁을 지킨 사람이었다. 서로 다른 모습이 모두 한 사람의 흔적이었다.",
+      memory: "사람들은 민서의 목소리, 웃는 버릇, 이름의 순서로 잊어 갔다. 얼굴은 떠오르지 않아도 누군가를 그리워했다는 감정만은 아카이브에 남았다. 누군가에게 민서는 다정했고, 누군가에게는 고집스러웠으며, 또 다른 누군가에게는 겁이 많지만 끝내 곁을 지킨 사람이었다. 서로 다른 모습이 모두 한 사람의 흔적이었다.",
     },
   ].map((stage) => Object.freeze({
     ...stage,
@@ -57,7 +47,7 @@
 
   const scenario = {
     title: "2026 ARCHIVE // LAST WITNESS",
-    totalTimeMs: 143000,
+    totalTimeMs: 20260,
     stageTimeSeconds: 20.26,
     system: Object.freeze({
       firstFragment: "기억조각을 가진 채 증언 지점에 도달하면\n타인의 기억을 함께 증언할 수 있습니다.",
@@ -80,7 +70,7 @@
         { speaker: "ARIA-26", text: "단 한 사람. 당신만 제외하고.", phase: "freeze", durationMs: 3000 },
         { speaker: "SYSTEM", text: "COMPLETE MEMORY HOLDER\n\n완전기억 소지자 확인\n기억 수정 저항률: 100%\n최종 증언 권한: 승인", phase: "iris", durationMs: 2000 },
         { speaker: "ARIA-26", text: "당신은 기록 그 자체입니다.", phase: "door", durationMs: 2000 },
-        { speaker: "SYSTEM", text: "2026 ARCHIVE DELETION\n\n02:23.00", phase: "collapse", durationMs: 2500 },
+        { speaker: "SYSTEM", text: "2026 ARCHIVE\n\n9개의 기록 중 랜덤 5개\n각 스테이지 20.26초", phase: "collapse", durationMs: 2500 },
         { speaker: "ARIA-26", text: "2026년이 모두 지워지기 전에, 기억의 중심부에 도달하십시오.", phase: "collapse", durationMs: 1800 },
         { speaker: "플레이어", text: "기록을 되찾으면, 민서도 돌아오는 거지?", phase: "collapse", durationMs: 1200 },
         { speaker: "SYSTEM", text: "2026 ARCHIVE\nLAST WITNESS", phase: "last-witness", durationMs: 500 },

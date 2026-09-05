@@ -7,13 +7,15 @@ import { PHYSICS } from "../js/archive/level-data.mjs";
 
 const story = globalThis.SCENARIO_DATA;
 const ids = STAGES.map((stage) => stage.id);
-const expectedNames = ["설렘", "기대", "긴장", "분노", "후회", "그리움", "애정"];
+const expectedNames = ["설렘", "기대", "긴장", "후회", "애정"];
 
 assert.equal(TOTAL_TIME_MS, 143000);
 assert.equal(story.totalTimeMs, 143000);
 assert.equal(PHYSICS.timeLimit, 20.26);
-assert.equal(STAGES.length, 7);
-assert.deepEqual(STAGES.map((stage) => stage.title), expectedNames);
+assert.equal(STAGES.length, 5);
+assert.deepEqual(ids, ['maze','gravity','bounce','friction','stack']);
+assert.deepEqual(story.stages.map(stage => stage.id), ids);
+assert.deepEqual(STAGES.map(stage => stage.number), ['01','02','03','04','05']);
 assert.deepEqual(story.stages.map((stage) => stage.title), expectedNames);
 assert.equal(story.opening.script.reduce((sum, cue) => sum + cue.durationMs, 0), 25000);
 assert.ok(!story.stages.flatMap((stage) => stage.brief).some((cue) => cue.text.includes("물리법칙")));
@@ -59,7 +61,7 @@ ids.forEach((id) => {
   trueEnding.completeAttempt(true, true);
 });
 assert.equal(trueEnding.resolveEnding(), "true");
-assert.equal(trueEnding.snapshot().memoryCount, 7);
+assert.equal(trueEnding.snapshot().memoryCount, 5);
 
 const failed = createArchiveRunState(ids);
 failed.beginAttempt("maze");
@@ -67,4 +69,4 @@ failed.consume(143000);
 assert.equal(failed.resolveEnding(), "failure");
 assert.equal(failed.snapshot().totalRemainingMs, 0);
 
-console.log("PASS | 25초 오프닝, 감정 스테이지 7개, 20.26/143초 타이머, 조각 초기화·누적, 엔딩 판정");
+console.log("PASS | 25초 오프닝, 5개 스테이지 스토리 연결, 20.26/143초 타이머, 조각 초기화·누적, 엔딩 판정");

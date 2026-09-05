@@ -64,7 +64,7 @@ try {
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
   const screen = async (name) => {
     await wait(150);
     const { data } = await send("Page.captureScreenshot");
@@ -88,6 +88,8 @@ try {
    * 회수/복구 검증 단계에서는 run-state만 잠시 멈추고 타이머는 별도 항목에서 검사한다.
    */
   await screen("records");
+  await evaluate("window.addEventListener('archive-stage-end', event => { window.lastStageEnd=event.detail; })");
+  const retry = async () => { await wait(520); assert.equal(await evaluate("testScene.mode"),"playing"); };
   const start = async (stage) => evaluate(`protocolSelectFlow.launchStage(${JSON.stringify(stage)}); window.archiveRun.setPaused(true); window.testScene = window.archivePhaserGame.scene.getScene('archive-game'); window.archivePhaserGame.loop.sleep();`);
   const continueToRecords = async () => {
     const saved = await evaluate("window.archiveProgress.summary()");
@@ -195,19 +197,103 @@ try {
   assert.equal(await evaluate("testScene.mode"), "playing");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
-  for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
+  for (const hz of [40,60,120]) {
+    await start('friction');
+    const stops=await evaluate(`(() => {
+      Object.assign(testScene.state,{x:440,y:108,vx:0,vy:0,direction:null});
+      for(let i=0;i<${hz};i++) testScene.update(0,1000/${hz});
+      const first=testScene.state.stopIndex;
+      testScene.actions=10;
+      Object.assign(testScene.state,{x:648,y:428,vx:22,vy:0,direction:null});
+      for(let i=0;i<${hz}*2;i++) testScene.update(0,1000/${hz});
+      return { first, second:testScene.state.stopIndex, speed:Math.hypot(testScene.state.vx,testScene.state.vy), labels:testScene.stopRings.map(stop=>stop.label.text) };
+    })()`);
+    assert.deepEqual(stops,{first:1,second:2,speed:0,labels:['LOCKED','LOCKED']});
+  }
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:850,y:92,vx:0,vy:0}); for(let i=0;i<100;i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate('testScene.mode'),'playing','Dock cannot bypass both stops');
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:262,y:250,vx:160,vy:0,direction:'right'}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),1);
+  assert.ok(Math.abs(await evaluate('testScene.remaining')-19.235)<0.0001);
+  await evaluate("for(let i=0;i<60;i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate('testScene.timePenalty'),1,'Continuous wall contact is one hit');
+  await evaluate("Object.assign(testScene.state,{x:220,y:250,vx:0,vy:0,direction:null}); testScene.update(0,25); Object.assign(testScene.state,{x:262,vx:160,direction:'right'}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),2,'Leaving and hitting again costs another second');
+  await start('friction');
+  await evaluate("Object.assign(testScene.state,{x:58,y:58,vx:-160,vy:-160}); testScene.update(0,25)");
+  assert.equal(await evaluate('testScene.timePenalty'),1,'A corner impact is one hit');
+  await start('friction');
+  await evaluate("testScene.remaining=0.5; Object.assign(testScene.state,{x:262,y:250,vx:160,vy:0}); testScene.update(0,25)");
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  assert.equal(await evaluate('testScene.remaining'),0);
+  await retry();
+  assert.equal(await evaluate('testScene.timePenalty'),0);
+  assert.equal(await evaluate('testScene.state.stopIndex'),0);
+  for (const memory of [false, true]) {
+    await start('friction');
+    await evaluate("testScene.pausedByMenu=true; window.archivePhaserGame.loop.wake()");
+    await screen('friction-course');
+    await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu=false");
+    const result = await evaluate(`(() => {
+      const route = [[92,108],[440,108], ...(${memory} ? [[440,64],[440,108]] : []), [440,428],[640,428],[640,108],[850,92]];
+      let index=0;
+      for(let i=0;i<1216 && testScene.mode==='playing';i++) {
+        const s=testScene.state, t=route[index];
+        const ex=t[0]-s.x, ey=t[1]-s.y;
+        const waiting = (t[0]===440 && t[1]===108 && s.stopIndex<1) || (t[0]===640 && t[1]===428 && s.stopIndex<2);
+        if(!waiting && Math.hypot(ex,ey)<14 && Math.hypot(s.vx,s.vy)<75 && index<route.length-1) index++;
+        const cap=v=>Math.max(-230,Math.min(230,v));
+        const ax=cap(ex*3)-s.vx, ay=cap(ey*3)-s.vy;
+        const direction=Math.max(Math.abs(ax),Math.abs(ay))<10?null:Math.abs(ax)>Math.abs(ay)?(ax>0?'right':'left'):(ay>0?'down':'up');
+        if(direction!==s.direction) {
+          if(s.direction) archiveGame.release(s.direction);
+          if(direction) archiveGame.press(direction);
+        }
+        testScene.update(0,1000/60);
+      }
+      return { title:UI.modalTitle.textContent, fragment:testScene.fragmentCollected, elapsed:testScene.elapsed, penalty:testScene.timePenalty, stops:testScene.state.stopIndex, index, x:testScene.state.x, y:testScene.state.y };
+    })()`);
+    console.log('FRICTION ROUTE', memory, result);
+    assert.equal(result.title, memory ? 'SHARED TESTIMONY' : 'PERSONAL TESTIMONY');
+    assert.equal(result.fragment,memory);
+    assert.equal(result.stops,2);
+  }
+  for (const memory of [false, true]) {
+    await start('stack');
+    await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
+    await screen('stack-course');
+    await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
+    const result = await evaluate(`(() => {
+      for (let i=0; i<1216 && testScene.mode==='playing'; i++) {
+        const s=testScene.state;
+        if (!s.dropping && s.blocks.length<6) {
+          const target = ${memory} ? (!s.blocks.length ? 514 : 490) : 480;
+          if (Math.abs(target-s.x)<=2.01) testScene.pointerAction(700,80);
+          else archiveGame.press(target>s.x ? 'right' : 'left');
+        }
+        testScene.update(0,1000/60);
+      }
+      return { title: UI.modalTitle.textContent, fragment: testScene.fragmentCollected };
+    })()`);
+    assert.deepEqual(result, {title: memory ? 'SHARED TESTIMONY' : 'PERSONAL TESTIMONY', fragment:memory});
+  }
+  await start('stack');
+  await evaluate("archiveGame.press('right'); for(let i=0;i<35;i++) testScene.update(0,1000/60); testScene.pointerAction(480, 80); for (let i=0;i<100 && testScene.mode==='playing';i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate("window.lastStageEnd.success"), false);
+  await retry();
+  assert.equal(await evaluate('testScene.state.blocks.length'), 0);
+  assert.equal(await evaluate('testScene.fragmentCollected'), false);
+  for (const stage of ["maze", "gravity", "bounce", "friction", "stack"]) {
     await start(stage);
     assert.equal(await evaluate("testScene.timePenalty"), 0, `${stage}: time penalty reset`);
-    assert.equal(await evaluate("UI.stageHudPenalty.hidden"), stage !== 'maze');
+    assert.equal(await evaluate("UI.stageHudPenalty.hidden"), !['maze','friction'].includes(stage));
     assert.equal(await evaluate("testScene.fragmentCollected"), false, `${stage}: retry resets fragment`);
     // Drive each stage's existing update method through the real collection adapter.
     await evaluate(`(() => {
       const s = testScene.state, f = testScene.fragment;
-      if (testScene.stageId === 'recoil') {
-        s.bullets.push({ x: f.x - 35, y: f.y, vx: 2800, vy: 0, object: testScene.add.circle(0, 0, 5) });
-      } else if (testScene.stageId === 'rotation') {
-        s.angle = -2.1;
-      } else {
+      {
         const body = testScene.stageId === 'maze' ? s.ball : s;
         body.x = f.x; body.y = f.y; body.vx = 0; body.vy = 0;
       }
@@ -218,6 +304,11 @@ try {
     await evaluate("testScene.finish(true)");
     assert.equal(await evaluate("UI.modalTitle.textContent"), "SHARED TESTIMONY");
     assert.equal(await evaluate(`window.archiveProgress.status(${JSON.stringify(stage)})`), "FULLY RESTORED");
+    if (stage === 'friction') {
+      await evaluate("modalFlow.onPrimary(); cutsceneFlow.finish()");
+      assert.equal(await evaluate('UI.cutsceneChapter.textContent'), 'RECORD 04 // CONTRADICTION');
+      await evaluate("cutsceneFlow.finish()");
+    }
   }
   assert.equal(await evaluate("window.archiveProgress.summary().recoveryRate"), 100);
   assert.equal(await evaluate("window.archiveProgress.summary().ending"), "complete");
@@ -249,15 +340,15 @@ try {
   await evaluate("cutsceneFlow.finish()");
   await send("Page.reload");
   await wait(1200);
-  assert.equal(await evaluate("window.archiveProgress.summary().fragmentCount"), 7);
-  assert.equal(await evaluate("document.querySelectorAll('[data-recovery=full]').length"), 7);
+  assert.equal(await evaluate("window.archiveProgress.summary().fragmentCount"), 5);
+  assert.equal(await evaluate("document.querySelectorAll('[data-recovery=full]').length"), 5);
   // The generated bundle must also boot when the game is opened as a local file.
   await send("Page.navigate", { url: new URL(`file:///${root.replaceAll('\\', '/')}/index.html`).href });
   await wait(1200);
   assert.equal(await evaluate("Boolean(window.archiveGame)"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
   assert.deepEqual(errors, []);
-  console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 7 pickups, pause, persistence, file:// boot, no runtime errors");
+  console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 5 pickups, pause, persistence, file:// boot, no runtime errors");
 } finally {
   socket?.close();
   browser.kill();

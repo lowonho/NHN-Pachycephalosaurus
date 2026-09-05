@@ -130,7 +130,7 @@
           <div class="story-ticket">TICKET<br><strong>SEAT 26A · 26B</strong></div>
           <div class="story-iris"><i></i><b>IRIS SCAN // 100%</b></div>
           <div class="story-archive-core"><i></i><b>2026 ARCHIVE DELETION</b></div>
-          <div class="story-fragments">◆ ◆ ◆ ◆ ◆ ◆ ◆</div>
+          <div class="story-fragments">◆ ◆ ◆ ◆ ◆</div>
           <div class="story-phone">발신자: 민서<br><strong>승차권 아직 가지고 있어?</strong></div>
         </div>
 
@@ -208,12 +208,12 @@
 
     <!--
       프로토콜 선택 — assets/images/concept/stage select.png의 배치를 따른다.
-      1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 7개가 데스크톱 앱처럼 놓인다.
+      1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 5개가 데스크톱 앱처럼 놓인다.
       (방·책상·소품·키보드·양손은 assets/images/ui/stage select/* 에셋이고,
        모니터 몸체와 스크린 안쪽만 CSS로 그린다.)
 
       컨셉 이미지와 다른 점은 네 가지다.
-        · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 7개를 한 화면에 모두 편다.
+        · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 5개를 한 화면에 모두 편다.
         · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
           다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
           이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
@@ -257,7 +257,7 @@
                   <span class="protocol-meta-rule" aria-hidden="true"></span>
                   <div class="protocol-archive-readout">
                     <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
-                    <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+                    <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/5 · 기억 조각 0/5</p>
                   </div>
                 </div>
               </header>
@@ -276,9 +276,9 @@
               <footer class="protocol-footer">
                 <div class="protocol-footer-status">
                   <!-- 이번 판의 증언/조각 수. 2:23.00이 끝나거나 새 게임이면 0으로 돌아간다. -->
-                  <p class="protocol-progress" id="protocol-progress">TESTIMONY 0 / 7 · MEMORY 0 / 7</p>
+                  <p class="protocol-progress" id="protocol-progress">RANDOM 5 / 9 · CLEAR 0 / 5 · 각 20.26초</p>
                   <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
-                  <p class="protocol-archive-help">증언 지점 도달 → 개인 증언 / 기억조각과 함께 도달 → 공동 증언</p>
+                  <p class="protocol-archive-help">게임을 선택해 20.26초 안에 클리어 · 다시하기로 최고 기록에 도전</p>
                   <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
                 </div>
                 <button class="protocol-back" id="stage-select-back-button" type="button">
@@ -311,7 +311,7 @@
                     <strong id="stage-hud-title">STAGE</strong>
                   </div>
                   <div class="stage-hud-run">
-                    <span>MEMORY <output id="stage-hud-memory">0/7</output></span>
+                    <span>CLEAR <output id="stage-hud-memory">0/5</output></span>
                   </div>
                   <div class="stage-hud-detail">
                     <span id="stage-hud-action">입력 00</span>
@@ -354,6 +354,7 @@
                   <p class="modal-result" id="modal-result"></p>
                   <button class="primary-button" id="primary-button" type="button">다시 도전</button>
                   <button class="secondary-button" id="secondary-button" type="button">메인 화면으로</button>
+                  <button class="secondary-button" id="result-main-button" type="button">메인으로</button>
                 </section>
               </div>
 
@@ -617,6 +618,8 @@
     <!-- 공통 계약 (동결) -->
     <script src="js/core/game-events.js"></script>
     <script src="js/content/scenario-data.js"></script>
+    <script src="js/content/minigame-catalog.js"></script>
+    <script src="assets/minigames/manifest.js"></script>
     <script src="js/config/stage-geometry.js"></script>
     <script src="js/config/balance.js"></script>
     <script src="js/config/protocols.js"></script>
