@@ -61,13 +61,13 @@ export const E10_NUMBER_DECODE = {
       color: '#fff4bf', stroke: '#7a315a', strokeThickness: 3,
     };
     this.targetGlyphs = [...target].map((digit, index) => this.add.text(420 + index * 40, 193, digit, targetStyle).setOrigin(.5));
+    // 글자를 다 가로지르지 않고, 숫자 위에 짧게 겹치는 선 2개만 얹는다.
     this.targetScribbles = [...target].flatMap((digit, index) => {
       const x = 420 + index * 40;
-      const offset = (Number(digit) * 5 + index * 3) % 9 - 4;
+      const offset = (Number(digit) * 5 + index * 3) % 7 - 3;
       return [
-        { x1: x - 15, y1: 177 + offset, x2: x + 15, y2: 207 - offset, color: 0xff4f87, width: 3 },
-        { x1: x - 14, y1: 207, x2: x + 14, y2: 179 + offset, color: 0x67e8ff, width: 2 },
-        { x1: x - 17, y1: 188 - offset, x2: x + 17, y2: 196 + offset, color: 0xff4f87, width: 2 },
+        { x1: x - 15, y1: 178 + offset, x2: x + 15, y2: 188 + offset, color: 0xff4f87, width: 3 },
+        { x1: x - 14, y1: 198 - offset, x2: x + 14, y2: 208 - offset, color: 0x67e8ff, width: 2 },
       ];
     });
     this.scribbleInk = this.add.graphics();
