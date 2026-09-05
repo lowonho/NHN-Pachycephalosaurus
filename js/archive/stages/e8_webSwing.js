@@ -5,6 +5,7 @@ export const E8_WEB_SWING = {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
     airGravity: 1600, weightGain: .25,
     retryDelay: .32,
+    startAngle: -1.0,
     spacing: 660, anchorCount: 22, fallY: 710,
   },
   build() {
@@ -27,7 +28,7 @@ export const E8_WEB_SWING = {
   },
   respawn() {
     const s = this.state, t = E8_WEB_SWING.tuning;
-    s.rope = { anchor: s.checkpoint, length: 270, theta: -.7,
+    s.rope = { anchor: s.checkpoint, length: 270, theta: s.deaths === 0 && s.checkpoint === 0 ? t.startAngle : -.7,
       omega: t.speed * s.multiplier / 270, starter: true };
     E8_WEB_SWING.pose.call(this);
     s.trail = [];

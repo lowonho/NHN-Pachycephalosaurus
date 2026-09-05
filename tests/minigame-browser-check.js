@@ -210,9 +210,9 @@
   const spin = scene.stageGame.tuning;
   assert(scene.state.spinning && Math.abs(scene.state.speed) <= spin.maxSpeed && Math.abs(scene.state.speed) >= spin.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
-    scene.state.rotation = -Math.PI / 2 + .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
+    scene.state.rotation = .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);
-    assert(scene.state.misses === miss && !scene.state.spinning, `e7: actual losing wedge shrinks to 1/${2 * (miss + 1)}`);
+    assert(scene.state.misses === miss && !scene.state.spinning, `e7: miss ${miss} reduces friction`);
   }
   load('e8');
   assert(scene.state.rope?.starter && !('grounded' in scene.state) && !scene.roofs, 'e8: starts in an aerial swing without running or landing platforms');

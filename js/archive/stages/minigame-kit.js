@@ -101,6 +101,8 @@ export const MINI = {
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
      표시 크기만 교체하고 물리 판정은 각 게임의 기존 도형을 유지합니다. */
   actor(scene, role, key, x, y, w, h, angle = 0, color = scene.accent) {
+    // 소환 시작은 크기 0이다. Canvas에 음수 반지름을 넘기지 않고 완전히 감춘다.
+    if (w <= 0 || h <= 0) { MINI.hideActor(scene, key); return; }
     const texture = `${scene.stageId}:${role}`;
     if (scene.textures.exists(texture)) {
       let sprite = scene.assetSprites.get(key);
@@ -118,7 +120,7 @@ export const MINI = {
       g.lineBetween(w * .15, h * .15, w * .28, h * .43);
     } else if (scene.stageId === 'e2' || role === 'stone' || role === 'projectile') {
       g.fillStyle(color).fillCircle(0, 0, w / 2);
-      g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
+      if (w > 6) g.lineStyle(2, 0xe9ffff, .6).strokeCircle(0, 0, w / 2 - 3);
       g.fillStyle(0x08212b).fillCircle(-w * .16, -h * .12, 2.5).fillCircle(w * .16, -h * .12, 2.5);
     } else {
       g.fillStyle(color).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(8, h / 3));

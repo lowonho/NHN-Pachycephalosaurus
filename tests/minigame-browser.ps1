@@ -1,4 +1,4 @@
-param([switch]$E4Only)
+param([switch]$E4Only, [switch]$E8Only, [switch]$E9Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -66,6 +66,35 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  if ($E9Only) {
+    Evaluate "(() => { archiveGameBridge.active=false; const s=archivePhaserGame.scene.getScene('archive-game'); s.loadStage('e9'); s.startStage(); s.settings={shake:false,effects:false}; s.pointerAction(166,361); s.stageGame.pointerMove.call(s,150,361); s.stageGame.pointerUp.call(s); archivePhaserGame.loop.wake(); })()" | Out-Null
+    Start-Sleep -Milliseconds 1200
+    if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.elapsed>.9 && s.state.failures===1 && !s.state.moving && s.playable(); })()")) { throw 'E9 real Canvas render loop stopped during first respawn' }
+    Write-Output 'PASS: real Canvas render loop continues through the first respawn'
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e9-curling-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e9'); archivePhaserGame.loop.wake();" | Out-Null
+    Start-Sleep -Milliseconds 100
+    foreach ($shotNumber in 1..4) {
+      $points = Evaluate "(() => { const c=archivePhaserGame.scene.getScene('archive-game').cameras.main,r=archivePhaserGame.canvas.getBoundingClientRect(),p=c.getWorldPoint(0,0),u=c.getWorldPoint(960,0),v=c.getWorldPoint(0,540),ax=u.x-p.x,ay=u.y-p.y,bx=v.x-p.x,by=v.y-p.y,det=ax*by-ay*bx; return [[166,361],[150,361]].map(([x,y])=>({x:r.x+((x-p.x)*by-(y-p.y)*bx)/det*r.width,y:r.y+(ax*(y-p.y)-ay*(x-p.x))/det*r.height})); })()"
+      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mousePressed'; button = 'left'; buttons = 1; clickCount = 1; x = $points[0].x; y = $points[0].y } | Out-Null
+      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseMoved'; button = 'left'; buttons = 1; x = $points[1].x; y = $points[1].y } | Out-Null
+      Send-Cdp 'Input.dispatchMouseEvent' @{ type = 'mouseReleased'; button = 'left'; buttons = 0; clickCount = 1; x = $points[1].x; y = $points[1].y } | Out-Null
+      Start-Sleep -Milliseconds 1600
+      if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.playable() && s.actions===$shotNumber && s.state.failures===$shotNumber && s.pointerId===null && !s.state.moving; })()")) { throw "E9 native mouse throw $shotNumber failed" }
+    }
+    Write-Output 'PASS: four consecutive native mouse throws with timer and input still active'
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    return
+  }
+  if ($E8Only) {
+    Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-course-driver.js'))) | Out-Null
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e8-start-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    return
+  }
   if ($E4Only) {
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-maze-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)

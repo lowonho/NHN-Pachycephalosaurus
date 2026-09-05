@@ -29,6 +29,6 @@ globalThis.MINIGAME_ASSETS = {
     line: 'assets/images/minigame/stacks/metcha/line.webp',
   }, e4: { player: null },
   e5: { projectile: null, target: null }, e6: { player: null },
-  e7: { prize: null }, e8: { player: null }, e9: { stone: null },
+  e7: { prize: null, coach: 'assets/minigames/e7/coach-sheet.png', coachBack: 'assets/minigames/e7/coach-back.png' }, e8: { player: null }, e9: { stone: null },
   e10: { player: null },
 };

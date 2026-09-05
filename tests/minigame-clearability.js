@@ -78,7 +78,7 @@
     if(!hold) scene.touch.delete('action');
   }); save('e6');
   // A real random roulette round can lose; verify the actual resting wedge judges both outcomes.
-  load('e7'); scene.state.rotation = -Math.PI/2 - .2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
+  load('e7'); scene.state.rotation = -.2; scene.state.spinning=true; scene.state.speed=.0001; scene.state.deceleration=8;
   advance(.02); save('e7');
   load('e8'); driveE8(); save('e8');
   load('e9');
