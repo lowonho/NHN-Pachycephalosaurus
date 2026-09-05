@@ -15,7 +15,7 @@ export const E2_BOUNCE_BALL = {
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
-    s.vy = -Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain);
+    s.vy = -Math.min(t.maxJump, t.jump + s.jumps * this.penalty(t.jumpGain));
     s.grounded = false; s.jumps++; this.actions++; this.sfx('jump');
   },
   update(dt) {
@@ -35,7 +35,7 @@ export const E2_BOUNCE_BALL = {
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
       s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
-    this.anomaly = `점프력 ${Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain)} · 사망 ${s.deaths}회`;
+    this.anomaly = `점프력 ${Math.round(Math.min(t.maxJump, t.jump + s.jumps * this.penalty(t.jumpGain)))} · 사망 ${s.deaths}회`;
     this.risk = Math.min(100, s.jumps * 9);
     if (s.x >= t.goal && s.grounded) this.finish(true);
   },

@@ -86,9 +86,9 @@
 }
 
 .story-media-wall small { color: var(--cut-dim); font-size: 15px; }
-.cutscene[data-phase="media"] .story-media-wall,
-.cutscene[data-phase="media-deleted"] .story-media-wall { display: grid; }
-.cutscene[data-phase="media-deleted"] .story-media-wall span::after {
+.cutscene[data-phase="op-01"] .story-media-wall,
+.cutscene[data-phase="op-02"] .story-media-wall { display: grid; }
+.cutscene[data-phase="op-02"] .story-media-wall span::after {
   content: "삭제됨";
   display: block;
   margin-top: 28px;
@@ -96,62 +96,43 @@
   font-size: 42px;
 }
 
-.story-photo {
-  position: relative;
-  width: 660px;
-  height: 390px;
-  border: 22px solid #eaf7ff;
-  border-bottom-width: 68px;
-  background: linear-gradient(#4893ae 0 58%, #173b4c 58%);
-  box-shadow: 0 0 70px rgba(87,232,255,.25);
-}
-.story-photo b { position: absolute; left: 24px; bottom: -52px; color: #071427; font: 800 21px var(--font-ui); }
-.story-person { position: absolute; bottom: 0; width: 130px; height: 240px; border-radius: 65px 65px 18px 18px; background: #d9f8ff; }
-.story-person::before { content: ""; position: absolute; left: 25px; top: -62px; width: 80px; height: 80px; border-radius: 50%; background: inherit; }
-.story-person--player { left: 150px; }
-.story-person--minseo { right: 150px; background: #ffd0df; }
-.cutscene[data-phase="photo"] .story-photo,
-.cutscene[data-phase="ticket"] .story-photo { display: block; }
-.cutscene[data-phase="ticket"] .story-person--minseo { opacity: 0; filter: blur(18px); }
-
-.story-ticket,
-.story-phone {
-  padding: 46px 72px;
-  border: 2px dashed #ffdc83;
-  background: #251d10;
-  color: #ffdc83;
-  font: 800 28px/1.6 var(--font-ui);
-  letter-spacing: .12em;
-}
-.cutscene[data-phase="ticket"] .story-ticket { display: block; position: absolute; right: 230px; bottom: 20px; }
-
 .story-iris { width: 410px; height: 410px; border: 3px solid var(--cut-line); border-radius: 50%; place-items: center; box-shadow: 0 0 80px rgba(87,232,255,.35), inset 0 0 80px rgba(87,232,255,.22); }
 .story-iris i { width: 95px; height: 95px; border: 20px solid #4ca9dd; border-radius: 50%; background: #03070d; }
 .story-iris b { position: absolute; margin-top: 500px; font: 800 22px var(--font-ui); letter-spacing: .2em; }
-.cutscene[data-phase="iris"] .story-iris { display: grid; }
+.cutscene[data-phase="op-06"] .story-iris { display: grid; }
 
 .story-archive-core { position: relative; width: 760px; height: 330px; border: 2px solid #ff6969; place-items: center; background: repeating-linear-gradient(135deg, rgba(255,80,80,.14) 0 8px, transparent 8px 24px); }
 .story-archive-core i { width: 170px; height: 170px; border: 12px double var(--cut-line); transform: rotate(18deg); animation: archive-collapse 900ms steps(2) infinite; }
 .story-archive-core b { position: absolute; bottom: 26px; color: #ff8c82; font: 800 25px var(--font-ui); letter-spacing: .15em; }
-.cutscene[data-phase="door"] .story-archive-core,
-.cutscene[data-phase="collapse"] .story-archive-core,
-.cutscene[data-phase="contradiction"] .story-archive-core,
-.cutscene[data-phase="ending-failure"] .story-archive-core { display: grid; }
+.cutscene[data-phase="op-03"] .story-archive-core,
+.cutscene[data-phase="op-04"] .story-archive-core,
+.cutscene[data-phase="op-05"] .story-archive-core,
+.cutscene[data-phase="op-07"] .story-archive-core,
+.cutscene[data-phase="op-08"] .story-archive-core,
+.cutscene[data-phase="op-09"] .story-archive-core,
+.cutscene[data-phase="assist"] .story-archive-core,
+.cutscene[data-phase="betrayal"] .story-archive-core,
+.cutscene[data-phase="source"] .story-archive-core,
+.cutscene[data-phase="experiment"] .story-archive-core,
+.cutscene[data-phase="test-success"] .story-archive-core,
+.cutscene[data-phase="blockade"] .story-archive-core { display: grid; }
 @keyframes archive-collapse { 50% { transform: translate(18px,-9px) rotate(32deg) scale(.88); filter: blur(2px); } }
 
-.story-fragments { color: #ffdd83; font: 900 72px var(--font-ui); letter-spacing: .28em; text-shadow: 0 0 34px #ffce62; }
-.cutscene[data-phase="memory"] .story-fragments,
-.cutscene[data-phase="seven-fragments"] .story-fragments,
-.cutscene[data-phase="shared-seal"] .story-fragments { display: block; }
-
-.story-phone { border-style: solid; background: #061528; color: #eaf7ff; }
-.story-phone strong { color: #93fca0; }
-.cutscene[data-phase="minseo-call"] .story-phone { display: block; }
+.story-records {
+  padding: 54px 78px;
+  border: 2px solid var(--cut-line);
+  background: rgba(4, 20, 49, .86);
+  color: #ffdd83;
+  font: 900 58px/1.5 var(--font-ui);
+  letter-spacing: .18em;
+  text-align: center;
+  text-shadow: 0 0 34px rgba(255, 206, 98, .7);
+}
+.story-records strong { color: var(--cut-line); font-size: 34px; }
+.cutscene[data-phase="shared-ending"] .story-records { display: block; }
 
 .cutscene[data-phase="stage-brief"] .cutscene-story-visual::before,
-.cutscene[data-phase="last-witness"] .cutscene-story-visual::before,
-.cutscene[data-phase="ending-true"] .cutscene-story-visual::before,
-.cutscene[data-phase="ending-normal"] .cutscene-story-visual::before {
+.cutscene[data-phase="last-witness"] .cutscene-story-visual::before {
   content: "2026 ARCHIVE\A LAST WITNESS";
   white-space: pre;
   color: var(--cut-text);

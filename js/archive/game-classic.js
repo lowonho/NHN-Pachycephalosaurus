@@ -209,62 +209,314 @@ function createMinigamePlayLog(stageIds, storage = null) {
 
 
 /* Source: run-state.mjs */
-const TOTAL_TIME_MS = 20_260;
+const STAGE_TIME_MS = 20_260;
+const TOTAL_TIME_MS = STAGE_TIME_MS; // 이전 호출부와 QA 도구 호환용 이름
+const ACT_COUNT = 3;
+const STAGES_PER_ACT = 6;
+const LIVES_PER_ACT = 3;
+const STORY_RECORD_COUNT = ACT_COUNT * STAGES_PER_ACT;
+const RUN_STORAGE_KEY = 'archive-2026-story-run-v3';
 
-function sampleStages(ids, count = 5, random = Math.random) {
+function sampleStages(ids, count = STAGES_PER_ACT, random = Math.random) {
   const bag = [...new Set(ids)];
   for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]];
+    const j = Math.floor(random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
   }
-  return bag.slice(0, count);
+  return bag.slice(0, Math.min(count, bag.length));
 }
 
-function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
-  let selected = sampleStages(stageIds), phase = 'menu', currentStageId = null, paused = false;
-  // 한 시도의 시간 예산. QA 모드만 20.26초에서 바꿔 놓는다(js/config/qa.js).
-  let budgetMs = totalTimeMs;
-  let remaining = budgetMs, elapsedMs = 0;
-  const cleared = new Set();
-  const resolveEnding = () => cleared.size === selected.length ? 'normal' : null;
-  const snapshot = () => ({
-    totalTimeMs: budgetMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
-    selectedStageIds: [...selected], clearedStageIds: [...cleared], clearedCount: cleared.size,
-    totalStages: selected.length, memoryCount: cleared.size, memoryStageIds: [...cleared],
-    ending: resolveEnding(),
+function makeGrid(value = false) {
+  return Array.from({ length: ACT_COUNT }, () => Array(STAGES_PER_ACT).fill(value));
+}
+
+function createArchiveRunState(stageIds, options = {}) {
+  const ids = [...new Set(stageIds)];
+  const config = typeof options === 'number' ? { stageTimeMs: options } : options;
+  const storage = config.storage ?? null;
+  const random = config.random ?? Math.random;
+  let stageTimeMs = Math.max(1, Math.round(config.stageTimeMs ?? STAGE_TIME_MS));
+
+  const blank = () => ({
+    version: 3,
+    active: false,
+    finished: false,
+    archiveViewerUnlocked: false,
+    archiveEntries: [],
+    currentAct: 1,
+    currentStageInAct: 1,
+    currentStageId: null,
+    selectedGames: [[], [], []],
+    selectionSeeds: [null, null, null],
+    lives: LIVES_PER_ACT,
+    actAttemptCount: [1, 1, 1],
+    assistProtocolAct1: false,
+    stageRecords: makeGrid(false),
+    cutscenesSeen: {},
+    phase: 'menu',
+    paused: false,
+    elapsedMs: 0,
+    remainingMs: stageTimeMs,
+    transition: null,
+    qaMode: false,
   });
+
+  let state = blank();
+  let qaBackup = null;
+
+  const validSelection = (selection) => Array.isArray(selection)
+    && selection.every((id) => ids.includes(id))
+    && new Set(selection).size === selection.length;
+
+  try {
+    const saved = JSON.parse(storage?.getItem(RUN_STORAGE_KEY) || 'null');
+    if (saved?.version === 3 && Array.isArray(saved.selectedGames)
+      && saved.selectedGames.length === ACT_COUNT
+      && saved.selectedGames.every(validSelection)) {
+      state = {
+        ...blank(),
+        ...saved,
+        archiveEntries: Array.isArray(saved.archiveEntries) ? saved.archiveEntries.map((entry) => ({ ...entry })) : [],
+        selectedGames: saved.selectedGames.map((selection) => [...selection]),
+        selectionSeeds: [...saved.selectionSeeds],
+        actAttemptCount: [...saved.actAttemptCount],
+        stageRecords: saved.stageRecords.map((row) => row.map(Boolean)),
+        cutscenesSeen: { ...saved.cutscenesSeen },
+        phase: saved.phase === 'playing' ? 'menu' : saved.phase,
+        paused: false,
+        currentStageId: null,
+        elapsedMs: 0,
+        remainingMs: stageTimeMs,
+        qaMode: false,
+      };
+    }
+  } catch { /* 손상되거나 사용할 수 없는 저장소는 새 상태로 대체한다. */ }
+
+  const persist = () => {
+    try { storage?.setItem(RUN_STORAGE_KEY, JSON.stringify(state)); } catch { /* 세션 진행은 유지 */ }
+  };
+
+  const currentSelection = () => state.selectedGames[state.currentAct - 1] ?? [];
+  const expectedStageId = () => currentSelection()[state.currentStageInAct - 1] ?? null;
+  const recordCount = () => state.stageRecords.flat().filter(Boolean).length;
+  const actRecordCount = () => state.stageRecords[state.currentAct - 1]?.filter(Boolean).length ?? 0;
+  const suppressionMultiplier = () => {
+    const base = [0.85, 1, 1.35][state.currentAct - 1] ?? 1;
+    return state.currentAct === 1 && state.assistProtocolAct1 ? base * .8 : base;
+  };
+
+  const stageConfigSeed = () => {
+    const stageId = state.currentStageId || expectedStageId() || '';
+    let hash = 2166136261;
+    for (const character of stageId) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    const actSeed = Number(state.selectionSeeds[state.currentAct - 1]) >>> 0;
+    return (actSeed ^ Math.imul(state.currentStageInAct, 0x9e3779b1) ^ hash) >>> 0;
+  };
+
+  const selectAct = (actIndex) => {
+    state.selectionSeeds[actIndex] = Math.floor(random() * 0x7fffffff);
+    state.selectedGames[actIndex] = sampleStages(ids, STAGES_PER_ACT, random);
+  };
+
+  const snapshot = () => {
+    const selected = currentSelection();
+    const currentActRecords = state.stageRecords[state.currentAct - 1] ?? [];
+    const selectedCleared = selected.filter((_, index) => currentActRecords[index]);
+    const totalRecordCount = recordCount();
+    return {
+      active: state.active,
+      hasSave: state.active && !state.finished,
+      finished: state.finished,
+      archiveViewerUnlocked: state.archiveViewerUnlocked,
+      archiveEntries: state.archiveEntries.map((entry) => ({ ...entry })),
+      currentAct: state.currentAct,
+      currentStageInAct: state.currentStageInAct,
+      currentStageId: state.currentStageId || expectedStageId(),
+      expectedStageId: expectedStageId(),
+      selectedGames: state.selectedGames.map((selection) => [...selection]),
+      selectedStageIds: [...selected],
+      selectionSeeds: [...state.selectionSeeds],
+      stageConfigSeed: stageConfigSeed(),
+      lives: state.lives,
+      actAttemptCount: [...state.actAttemptCount],
+      assistProtocolAct1: state.assistProtocolAct1,
+      suppressionMultiplier: suppressionMultiplier(),
+      ariaPhase: ['GUIDE', 'REVEALED', 'HOSTILE'][state.currentAct - 1],
+      stageRecords: state.stageRecords.map((row) => [...row]),
+      registeredRecordIds: state.stageRecords.flatMap((row, actIndex) => row.flatMap((registered, slotIndex) => (
+        registered ? [`A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`] : []
+      ))),
+      actRecordCount: actRecordCount(),
+      totalRecordCount,
+      clearedStageIds: selectedCleared,
+      clearedCount: actRecordCount(),
+      totalStages: selected.length || STAGES_PER_ACT,
+      memoryCount: totalRecordCount,
+      memoryStageIds: [],
+      stageTimeMs,
+      totalTimeMs: stageTimeMs,
+      stageRemainingMs: Math.round(state.remainingMs),
+      totalRemainingMs: Math.round(state.remainingMs),
+      elapsedMs: state.elapsedMs,
+      phase: state.phase,
+      paused: state.paused,
+      transition: state.transition,
+      ending: state.finished ? 'shared' : null,
+      qaMode: state.qaMode,
+    };
+  };
+
+  const startNew = () => {
+    const viewerUnlocked = state.archiveViewerUnlocked;
+    const archiveEntries = state.archiveEntries.map((entry) => ({ ...entry }));
+    state = blank();
+    state.archiveViewerUnlocked = viewerUnlocked;
+    state.archiveEntries = archiveEntries;
+    state.active = true;
+    selectAct(0);
+    persist();
+    return snapshot();
+  };
+
   return {
-    snapshot, resolveEnding,
-    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = budgetMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
-    /*
-     * QA 모드 전용 — 랜덤 5개 대신 지정한 목록을 이번 판의 선택으로 쓴다.
-     * (게임 브리지는 selectedStageIds에 없는 스테이지를 열어 주지 않는다.)
-     */
-    setSelection(ids) {
-      const next = [...new Set(ids)].filter(id => stageIds.includes(id));
+    snapshot,
+    resolveEnding: () => state.finished ? 'shared' : null,
+    hasSave: () => state.active && !state.finished,
+    startNew,
+    reset: startNew,
+    setSelection(selection) {
+      const next = [...new Set(selection)].filter((id) => ids.includes(id));
       if (next.length === 0) throw new RangeError('Empty stage selection');
-      selected = next;
-      for (const id of [...cleared]) if (!selected.includes(id)) cleared.delete(id);
+      if (!state.qaMode) qaBackup = JSON.parse(JSON.stringify(state));
+      state.active = true;
+      state.qaMode = true;
+      state.currentAct = 1;
+      state.currentStageInAct = 1;
+      state.selectedGames[0] = next;
+      state.currentStageId = null;
+      state.stageRecords[0] = Array(STAGES_PER_ACT).fill(false);
+      state.phase = 'menu';
+      state.transition = null;
       return snapshot();
     },
-    /* QA 모드 전용 — 한 시도의 예산(책상 시계)을 바뀐 제한시간에 맞춘다. */
+    exitQa() {
+      if (qaBackup) state = qaBackup;
+      qaBackup = null;
+      state.qaMode = false;
+      state.paused = false;
+      state.phase = 'menu';
+      state.currentStageId = null;
+      persist();
+      return snapshot();
+    },
     setAttemptTime(ms) {
       const value = Number(ms);
       if (!Number.isFinite(value) || value <= 0) throw new RangeError('Invalid attempt time');
-      budgetMs = Math.round(value);
-      if (phase !== 'playing') remaining = budgetMs;
+      stageTimeMs = Math.round(value);
+      if (state.phase !== 'playing') state.remainingMs = stageTimeMs;
       return snapshot();
     },
     beginAttempt(id) {
-      if (!selected.includes(id)) throw new RangeError(`Stage not selected in this run: ${id}`);
-      currentStageId = id; remaining = budgetMs; paused = false; phase = 'playing'; return snapshot();
-    },
-    consume(ms) {
-      if (phase === 'playing' && !paused) { const delta = Math.min(remaining, Math.max(0, Number(ms) || 0)); remaining -= delta; elapsedMs += delta; }
+      const selected = currentSelection();
+      if (!selected.includes(id)) throw new RangeError(`Stage not selected in this act: ${id}`);
+      if (!state.qaMode && id !== expectedStageId()) throw new RangeError(`Expected story stage: ${expectedStageId()}`);
+      state.currentStageId = id;
+      state.remainingMs = stageTimeMs;
+      state.elapsedMs = 0;
+      state.paused = false;
+      state.phase = 'playing';
+      persist();
       return snapshot();
     },
-    completeAttempt(success) { if (phase === 'playing' && success && currentStageId) cleared.add(currentStageId); phase = 'result'; paused = false; return snapshot(); },
-    leaveAttempt() { phase = 'menu'; currentStageId = null; paused = false; return snapshot(); },
-    setPaused(value) { paused = Boolean(value); return snapshot(); },
+    consume(ms) {
+      if (state.phase === 'playing' && !state.paused) {
+        const delta = Math.min(state.remainingMs, Math.max(0, Number(ms) || 0));
+        state.remainingMs -= delta;
+        state.elapsedMs += delta;
+      }
+      return snapshot();
+    },
+    completeAttempt(success) {
+      if (state.phase !== 'playing') return snapshot();
+      state.phase = 'result';
+      state.paused = false;
+      if (state.qaMode) {
+        state.transition = success ? 'qa-clear' : 'qa-retry';
+        persist();
+        return snapshot();
+      }
+
+      if (success) {
+        state.stageRecords[state.currentAct - 1][state.currentStageInAct - 1] = true;
+        state.transition = state.currentAct === ACT_COUNT && state.currentStageInAct === STAGES_PER_ACT
+          ? 'ending'
+          : state.currentStageInAct === STAGES_PER_ACT ? 'next-act' : 'next-stage';
+      } else {
+        state.lives -= 1;
+        if (state.lives > 0) {
+          state.transition = 'retry';
+        } else {
+          const actIndex = state.currentAct - 1;
+          state.actAttemptCount[actIndex] += 1;
+          state.stageRecords[actIndex] = Array(STAGES_PER_ACT).fill(false);
+          state.currentStageInAct = 1;
+          state.currentStageId = null;
+          state.lives = LIVES_PER_ACT;
+          selectAct(actIndex);
+          if (state.currentAct === 1 && state.actAttemptCount[0] >= 4) state.assistProtocolAct1 = true;
+          state.transition = 'act-restarted';
+        }
+      }
+      persist();
+      return snapshot();
+    },
+    advance() {
+      const transition = state.transition;
+      if (transition === 'next-stage') state.currentStageInAct += 1;
+      else if (transition === 'next-act') {
+        state.currentAct += 1;
+        state.currentStageInAct = 1;
+        state.lives = LIVES_PER_ACT;
+        if (!state.selectedGames[state.currentAct - 1].length) selectAct(state.currentAct - 1);
+      } else if (transition === 'ending') {
+        state.archiveEntries = state.selectedGames.flatMap((selection, actIndex) => selection.map((gameId, slotIndex) => ({
+          recordId: `A${actIndex + 1}-${String(slotIndex + 1).padStart(2, '0')}`,
+          gameId,
+        })));
+        state.finished = true;
+        state.active = false;
+        state.archiveViewerUnlocked = true;
+      }
+      state.currentStageId = null;
+      state.remainingMs = stageTimeMs;
+      state.elapsedMs = 0;
+      state.paused = false;
+      state.phase = 'menu';
+      state.transition = null;
+      persist();
+      return { transition, snapshot: snapshot() };
+    },
+    leaveAttempt() {
+      state.currentStageId = null;
+      state.paused = false;
+      if (state.phase === 'playing') state.phase = 'menu';
+      persist();
+      return snapshot();
+    },
+    setPaused(value) {
+      state.paused = Boolean(value);
+      persist();
+      return snapshot();
+    },
+    markCutsceneSeen(id) {
+      if (id) state.cutscenesSeen[id] = true;
+      persist();
+      return snapshot();
+    },
+    hasSeenCutscene: (id) => Boolean(state.cutscenesSeen[id]),
   };
 }
 
@@ -273,7 +525,7 @@ function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
 /* 렌더링/충돌 도구만 공유합니다. 모든 게임 상태는 scene.state에 새로 생성합니다. */
 const MINI = {
   clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
-  rand: (lo, hi) => lo + Math.random() * (hi - lo),
+  rand: (lo, hi, random = Math.random) => lo + random() * (hi - lo),
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
@@ -343,6 +595,10 @@ const MINI = {
   goal(scene, x, y, r = 22) {
     scene.ink.lineStyle(3, 0xa7ffc6).strokeCircle(x, y, r);
     scene.ink.lineStyle(2, 0xa7ffc6, 0.3).strokeCircle(x, y, r + 7);
+    if (scene.assistProtocol && scene.elapsed % 5 < .45) {
+      const wave = (scene.elapsed % .45) / .45;
+      scene.ink.lineStyle(4, 0x93fca0, 1 - wave).strokeCircle(x, y, r + 12 + wave * 28);
+    }
     MINI.circle(scene, x, y, 4, 0xa7ffc6);
   },
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.
@@ -439,7 +695,7 @@ const E1_GRAVITY_DASH = {
     };
     for (const o of s.obstacles) {
       const limit = Math.min(t.obstacleMaxSpeed, t.speed * .8);
-      o.vy = MINI.clamp(o.vy + s.sign * o.response * t.obstacleGravity * o.factor * dt, -limit, limit);
+      o.vy = MINI.clamp(o.vy + s.sign * o.response * this.penalty(t.obstacleGravity) * o.factor * dt, -limit, limit);
       o.y = MINI.clamp(o.y + o.vy * dt, CEIL_BOTTOM, FLOOR_TOP - o.h);
       if ((o.y === CEIL_BOTTOM && o.vy < 0) || (o.y === FLOOR_TOP - o.h && o.vy > 0)) o.vy = 0;
     }
@@ -511,7 +767,7 @@ const E2_BOUNCE_BALL = {
   action() {
     const s = this.state, t = E2_BOUNCE_BALL.tuning;
     if (!s.grounded) return;
-    s.vy = -Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain);
+    s.vy = -Math.min(t.maxJump, t.jump + s.jumps * this.penalty(t.jumpGain));
     s.grounded = false; s.jumps++; this.actions++; this.sfx('jump');
   },
   update(dt) {
@@ -531,7 +787,7 @@ const E2_BOUNCE_BALL = {
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
       s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
-    this.anomaly = `점프력 ${Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain)} · 사망 ${s.deaths}회`;
+    this.anomaly = `점프력 ${Math.round(Math.min(t.maxJump, t.jump + s.jumps * this.penalty(t.jumpGain)))} · 사망 ${s.deaths}회`;
     this.risk = Math.min(100, s.jumps * 9);
     if (s.x >= t.goal && s.grounded) this.finish(true);
   },
@@ -634,7 +890,7 @@ const E3_HUMAN_STACK = {
   },
   speed() {
     const t = E3_HUMAN_STACK.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.drops * t.speedGain);
+    return Math.min(t.maxSpeed, t.speed + this.state.drops * this.penalty(t.speedGain));
   },
   createPerson(x, y, poseIndex, angle = 0) {
     const M = Phaser.Physics.Matter.Matter, t = E3_HUMAN_STACK.tuning;
@@ -832,14 +1088,14 @@ const E4_ACCELERATION_DASH = {
   },
   /* 벽 칸과 통로 칸이 번갈아 놓이는 홀수 격자를 재귀 백트래킹으로 판다.
      막다른 칸 일부는 벽을 한 겹 더 뚫어(braid) 대쉬가 자주 갇히지 않게 한다. */
-  carve() {
+  carve(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, g = E4.grid, t = E4.tuning, map = new Uint8Array(g.cols * g.rows);
     const inside = cell => {
       const cx = cell % g.cols, cy = (cell - cx) / g.cols;
       return cx > 0 && cy > 0 && cx < g.cols - 1 && cy < g.rows - 1;
     };
-    const pick = list => list[Math.floor(Math.random() * list.length)];
-    const first = E4.index(1 + 2 * Math.floor(Math.random() * ((g.cols - 1) / 2)), 1 + 2 * Math.floor(Math.random() * ((g.rows - 1) / 2)));
+    const pick = list => list[Math.floor(random() * list.length)];
+    const first = E4.index(1 + 2 * Math.floor(random() * ((g.cols - 1) / 2)), 1 + 2 * Math.floor(random() * ((g.rows - 1) / 2)));
     const stack = [first];
     map[first] = 1;
     while (stack.length) {
@@ -853,7 +1109,7 @@ const E4_ACCELERATION_DASH = {
       if (!map[cell] || !inside(cell)) continue;
       // 출구가 하나뿐인 칸이 막다른 길이다. 통로 사이 칸은 출구가 둘이라 걸리지 않는다.
       const exits = [0, 1, 2, 3].filter(dir => map[E4.next(cell, dir)]);
-      if (exits.length !== 1 || Math.random() > t.braid) continue;
+      if (exits.length !== 1 || random() > t.braid) continue;
       const walls = [0, 1, 2, 3].filter(dir => !map[E4.next(cell, dir)] && inside(E4.next(E4.next(cell, dir), dir)));
       if (walls.length) map[E4.next(cell, pick(walls))] = 1;
     }
@@ -879,19 +1135,19 @@ const E4_ACCELERATION_DASH = {
   },
   /* 미로를 뽑고, 최소 꺾기 횟수가 정확히 tuning.turns인 칸만 출구 후보로 남긴다.
      그중 출발점에서 먼 쪽을 골라 코스가 화면 한쪽에 몰리지 않게 한다. */
-  route() {
+  route(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, t = E4.tuning;
     for (let attempt = 0; attempt < t.attempts; attempt++) {
-      const map = E4.carve(), cells = [];
+      const map = E4.carve(random), cells = [];
       for (let cell = 0; cell < map.length; cell++) if (map[cell]) cells.push(cell);
-      const start = cells[Math.floor(Math.random() * cells.length)], cost = E4.scan(map, start, false);
+      const start = cells[Math.floor(random() * cells.length)], cost = E4.scan(map, start, false);
       const goals = cells.filter(cell => Math.min(cost[cell * 4], cost[cell * 4 + 1], cost[cell * 4 + 2], cost[cell * 4 + 3]) === t.turns);
       if (!goals.length) continue;
       const from = E4.center(start);
       const ranked = goals
         .map(cell => ({ cell, span: Math.hypot(E4.center(cell).x - from.x, E4.center(cell).y - from.y) }))
         .sort((a, b) => b.span - a.span);
-      const goal = ranked[Math.floor(Math.random() * Math.ceil(ranked.length / 3))].cell;
+      const goal = ranked[Math.floor(random() * Math.ceil(ranked.length / 3))].cell;
       return { map, start, goal, toGoal: E4.scan(map, goal, true) };
     }
     return E4.comb();
@@ -911,7 +1167,7 @@ const E4_ACCELERATION_DASH = {
   },
   build() {
     MINI.init(this, 0xc6a2ff);
-    const E4 = E4_ACCELERATION_DASH, course = E4.route();
+    const E4 = E4_ACCELERATION_DASH, course = E4.route(this.random);
     this.state = {
       map: course.map, toGoal: course.toGoal, start: course.start, goal: course.goal, cell: course.start,
       dir: null, want: null, wantAt: -9, off: 0, turns: 0, bumps: 0, stuck: false,
@@ -920,7 +1176,7 @@ const E4_ACCELERATION_DASH = {
   },
   speed() {
     const t = E4_ACCELERATION_DASH.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.turns * t.gain);
+    return Math.min(t.maxSpeed, t.speed + this.state.turns * this.penalty(t.gain));
   },
   /* 방향이 실제로 바뀌는 지점. 꺾을 때마다 속도가 붙고, 첫 출발은 꺾기로 세지 않는다. */
   steer(dir) {
@@ -1023,7 +1279,7 @@ const E5_SLINGSHOT = {
     this.state = { shots: 0, cooldown: 0, drag: null, balls: [], targets: [] };
     for (let i = 0; i < 6; i++) this.state.targets.push({ x: 650 + (i % 3) * 86, y: 424 - Math.floor(i / 3) * 53, w: 38, h: 46, hp: E5_SLINGSHOT.tuning.targetHP });
   },
-  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * E5_SLINGSHOT.tuning.decay); },
+  power() { return Math.max(E5_SLINGSHOT.tuning.minPower, 1 - this.state.shots * this.penalty(E5_SLINGSHOT.tuning.decay)); },
   pointerDown(x, y) {
     if (this.state.cooldown || Math.hypot(x - 164, y - 382) > 55) return;
     this.state.drag = { x: 164, y: 382 };
@@ -1099,8 +1355,8 @@ const E6_GRAVITY_FLIGHT = {
   action() { this.state.presses++; this.actions++; this.sfx('jump'); },
   update(dt) {
     const s = this.state, t = E6_GRAVITY_FLIGHT.tuning;
-    const gravity = Math.max(t.minGravity, t.gravity - s.presses * t.gravityLoss);
-    const lift = Math.min(t.maxLift, t.lift + s.presses * t.liftGain);
+    const gravity = Math.max(t.minGravity, t.gravity - s.presses * this.penalty(t.gravityLoss));
+    const lift = Math.min(t.maxLift, t.lift + s.presses * this.penalty(t.liftGain));
     s.x += t.speed * dt; s.immune = Math.max(0, s.immune - dt);
     s.vy = MINI.clamp(s.vy + (this.held('action') ? -lift : gravity) * dt, -340, 320);
     s.y += s.vy * dt;
@@ -1142,7 +1398,7 @@ const E7_ROULETTE = {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
     this.add.text(723, 276, '꽝', { fontFamily: 'Arial', fontSize: '18px', color: '#a6b7ce' });
-    this.state = { rotation: MINI.rand(0, Math.PI * 2), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
   },
   pointerDown(x, y) {
     const s = this.state, radius = Math.hypot(x - 480, y - 321);
@@ -1166,7 +1422,7 @@ const E7_ROULETTE = {
     // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
     // extraTurns는 정수 바퀴이므로 균일성은 그대로 두고 회전량만 늘립니다.
     // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2);
+    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + t.extraTurns * Math.PI * 2 + MINI.rand(0, Math.PI * 2, this.random);
     s.deceleration = s.speed * s.speed / (2 * travel);
     s.spinning = true; this.actions++; this.sfx('click');
   },
@@ -1217,7 +1473,7 @@ const E8_SEESAW = {
     MINI.init(this, 0x91ead7);
     this.state = { x: -100, angle: .015, omega: 0, count: 0, weights: [], age: 0 };
     this.dropPlan = Array.from({ length: E8_SEESAW.tuning.drops }, (_, i) => ({
-      time: 1.1 + i * 2.45, x: MINI.rand(105, 280), mass: MINI.rand(.8, 1.4),
+      time: 1.1 + i * 2.45, x: MINI.rand(105, 280, this.random), mass: MINI.rand(.8, 1.4, this.random),
     }));
   },
   press(direction) { if (direction === 'left' || direction === 'right') this.actions++; },
@@ -1232,7 +1488,7 @@ const E8_SEESAW = {
       w.vy += 700 * dt; w.y += w.vy * dt;
       if (w.y >= t.pivotY + Math.sin(s.angle) * w.x - 16) { w.landed = true; s.omega += w.mass * .055; this.sfx('hit'); }
     }
-    const rightTorque = 1200 + s.weights.filter(w => w.landed).reduce((sum, w) => sum + w.mass * w.x, 0);
+    const rightTorque = (1200 + s.weights.filter(w => w.landed).reduce((sum, w) => sum + w.mass * w.x, 0)) * this.penalty(1);
     s.omega += ((rightTorque + s.x * t.playerMass) * Math.cos(s.angle) / t.inertia - s.omega * t.damping) * dt;
     s.angle += s.omega * dt;
     // 우리 쪽 끝은 바닥에 닿아도 받쳐집니다. 실패 조건은 반대쪽 끝만입니다.
@@ -1270,7 +1526,7 @@ const E9_ICE_CURLING = {
     this.state = { x: 166, y: 361, vx: 0, vy: 0, failures: 0, moving: false, drag: null, cooldown: 0, hold: 0 };
     this.target = { x: 769, y: 287 };
   },
-  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** this.state.failures); },
+  friction() { const t = E9_ICE_CURLING.tuning; return Math.max(t.minFriction, t.friction * t.decay ** (this.state.failures * this.penalty(1))); },
   pointerDown(x, y) {
     const s = this.state;
     if (s.moving || s.cooldown || Math.hypot(x - s.x, y - s.y) > 43) return;
@@ -1336,11 +1592,232 @@ const E9_ICE_CURLING = {
 };
 
 
+/* Source: stages/e10_numberDecode.js */
+
+const PLAYER = Object.freeze({ width: 30, height: 44 });
+const GROUND_Y = 474;
+
+const moveTowardZero = (value, amount) => (
+  Math.abs(value) <= amount ? 0 : value - Math.sign(value) * amount
+);
+
+function makeTarget(random = Math.random) {
+  const first = 1 + Math.floor(random() * 9);
+  return `${first}${Math.floor(random() * 10)}${Math.floor(random() * 10)}${Math.floor(random() * 10)}`;
+}
+
+const E10_NUMBER_DECODE = {
+  tuning: {
+    acceleration: 1250,
+    maxSpeed: 300,
+    gravity: 1650,
+    jump: 700,
+    baseFriction: 820,
+    frictionLoss: 150,
+    minFriction: 70,
+    minTraction: .32,
+  },
+
+  traction(state) {
+    const t = E10_NUMBER_DECODE.tuning;
+    return Math.max(t.minTraction, state.friction / t.baseFriction);
+  },
+
+  build() {
+    MINI.init(this, 0xf4c76b);
+    const target = makeTarget(this.random);
+    this.state = {
+      x: 480,
+      y: GROUND_Y - PLAYER.height / 2,
+      vx: 0,
+      vy: 0,
+      grounded: true,
+      target,
+      input: '',
+      directionPresses: 0,
+      friction: E10_NUMBER_DECODE.tuning.baseFriction,
+      mistakes: 0,
+      feedback: '숫자 블록의 아랫면을 점프로 터치하세요.',
+      feedbackUntil: 2.2,
+      lastHit: null,
+      lastHitCorrect: true,
+    };
+
+    this.digitBlocks = Array.from({ length: 10 }, (_, digit) => ({
+      digit: String(digit),
+      x: 38 + digit * 89,
+      y: 250,
+      w: 68,
+      h: 50,
+    }));
+    const targetStyle = {
+      fontFamily: 'monospace', fontSize: '42px', fontStyle: 'bold',
+      color: '#fff4bf', stroke: '#7a315a', strokeThickness: 3,
+    };
+    this.targetGlyphs = [...target].map((digit, index) => this.add.text(420 + index * 40, 193, digit, targetStyle).setOrigin(.5));
+    // 글자를 다 가로지르지 않고, 숫자 위에 짧게 겹치는 선 2개만 얹는다.
+    this.targetScribbles = [...target].flatMap((digit, index) => {
+      const x = 420 + index * 40;
+      const offset = (Number(digit) * 5 + index * 3) % 7 - 3;
+      return [
+        { x1: x - 15, y1: 178 + offset, x2: x + 15, y2: 188 + offset, color: 0xff4f87, width: 3 },
+        { x1: x - 14, y1: 198 - offset, x2: x + 14, y2: 208 - offset, color: 0x67e8ff, width: 2 },
+      ];
+    });
+    this.scribbleInk = this.add.graphics();
+    this.blockLabels = this.digitBlocks.map(block => this.add.text(block.x + block.w / 2, block.y + block.h / 2, block.digit, {
+      fontFamily: 'monospace', fontSize: '27px', fontStyle: 'bold', color: '#102536',
+    }).setOrigin(.5));
+    this.inputText = this.add.text(480, 348, '', {
+      fontFamily: 'monospace', fontSize: '28px', fontStyle: 'bold', color: '#eaf7ff',
+    }).setOrigin(.5);
+    this.feedbackText = this.add.text(480, 389, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#a8c6d2',
+    }).setOrigin(.5);
+  },
+
+  press(direction) {
+    if (direction !== 'left' && direction !== 'right') return;
+    const s = this.state;
+    s.directionPresses += 1;
+    s.friction = Math.max(
+      E10_NUMBER_DECODE.tuning.minFriction,
+      E10_NUMBER_DECODE.tuning.baseFriction - s.directionPresses * this.penalty(E10_NUMBER_DECODE.tuning.frictionLoss),
+    );
+    s.feedback = `방향 입력 ${s.directionPresses}회 · 바닥이 더 미끄러워졌습니다.`;
+    s.feedbackUntil = this.elapsed + 1.15;
+    this.actions += 1;
+  },
+
+  action() {
+    const s = this.state;
+    if (!s.grounded) return;
+    s.vy = -E10_NUMBER_DECODE.tuning.jump;
+    s.grounded = false;
+    this.actions += 1;
+    this.sfx('jump');
+  },
+
+  enterDigit(digit) {
+    const s = this.state;
+    s.lastHit = digit;
+    s.input += digit;
+
+    if (s.input.length < s.target.length) {
+      s.lastHitCorrect = true;
+      s.feedback = `입력 ${s.input.length}/4 · ${s.input}`;
+      s.feedbackUntil = this.elapsed + 1;
+      this.sfx('action');
+      return;
+    }
+
+    const correct = s.input === s.target;
+    s.lastHitCorrect = correct;
+    if (!correct) {
+      const wrongInput = s.input;
+      s.input = '';
+      s.mistakes += 1;
+      s.feedback = `오답 ${wrongInput} · 입력값이 초기화되었습니다.`;
+      s.feedbackUntil = this.elapsed + 1.2;
+      this.bump();
+      return;
+    }
+
+    this.sfx('action');
+    this.finish(true, `CODE ${s.target} 해독`);
+  },
+
+  update(dt) {
+    const s = this.state;
+    const t = E10_NUMBER_DECODE.tuning;
+    const axis = this.axis('left', 'right');
+    const traction = E10_NUMBER_DECODE.traction(s);
+    if (axis) s.vx = MINI.clamp(s.vx + axis * t.acceleration * traction * dt, -t.maxSpeed, t.maxSpeed);
+    else s.vx = moveTowardZero(s.vx, s.friction * dt);
+
+    s.x += s.vx * dt;
+    if (s.x < 34 || s.x > 926) {
+      s.x = MINI.clamp(s.x, 34, 926);
+      s.vx *= -.24;
+      this.bump();
+    }
+
+    const previousTop = s.y - PLAYER.height / 2;
+    s.vy += t.gravity * dt;
+    s.y += s.vy * dt;
+    const currentTop = s.y - PLAYER.height / 2;
+
+    if (s.vy < 0) {
+      const hit = this.digitBlocks.find(block => {
+        const bottom = block.y + block.h;
+        const overlapsX = s.x + PLAYER.width / 2 > block.x && s.x - PLAYER.width / 2 < block.x + block.w;
+        return overlapsX && previousTop >= bottom - 1 && currentTop <= bottom;
+      });
+      if (hit) {
+        s.y = hit.y + hit.h + PLAYER.height / 2 + .5;
+        s.vy = 95;
+        E10_NUMBER_DECODE.enterDigit.call(this, hit.digit);
+      }
+    }
+
+    if (s.y + PLAYER.height / 2 >= GROUND_Y && s.vy >= 0) {
+      s.y = GROUND_Y - PLAYER.height / 2;
+      s.vy = 0;
+      s.grounded = true;
+    } else {
+      s.grounded = false;
+    }
+
+    this.anomaly = `마찰 ${Math.round(s.friction)} · 가속력 ${Math.round(traction * 100)}% · 오답 ${s.mistakes}회`;
+    this.risk = (t.baseFriction - s.friction) / (t.baseFriction - t.minFriction) * 100;
+  },
+
+  render() {
+    const s = this.state;
+    MINI.frame(this, `AI READ ERROR    TARGET 4 DIGITS    INPUT ${s.input.length}/4`);
+
+    MINI.box(this, 347, 157, 266, 74, 0x2b1735, .96);
+    MINI.line(this, 358, 218, 602, 218, 0x78e9ff, 1);
+    this.scribbleInk.clear();
+    this.targetScribbles.forEach(stroke => {
+      this.scribbleInk.lineStyle(stroke.width, stroke.color, .94).lineBetween(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
+    });
+
+    this.digitBlocks.forEach((block, index) => {
+      const active = s.lastHit === block.digit && this.elapsed <= s.feedbackUntil;
+      const color = active ? (s.lastHitCorrect ? 0x93fca0 : 0xff6f8f) : 0xf4c76b;
+      MINI.box(this, block.x, block.y, block.w, block.h, color, active ? 1 : .88);
+      MINI.line(this, block.x + 5, block.y + block.h, block.x + block.w - 5, block.y + block.h, 0xffffff, .8);
+      this.blockLabels[index].setColor(active && !s.lastHitCorrect ? '#fff4f7' : '#102536');
+    });
+
+    MINI.box(this, 333, 324, 294, 49, 0x16384b, .94);
+    const shown = Array.from({ length: 4 }, (_, index) => s.input[index] ?? '＿').join(' ');
+    this.inputText.setText(shown);
+    this.feedbackText.setText(this.elapsed <= s.feedbackUntil ? s.feedback : '목표 숫자를 왼쪽부터 차례로 입력하세요.');
+    this.feedbackText.setColor(this.elapsed <= s.feedbackUntil && !s.lastHitCorrect ? '#ff9bb7' : '#a8c6d2');
+
+    MINI.box(this, 22, GROUND_Y, 916, 12, 0x557073);
+    const speed = Math.abs(s.vx);
+    if (speed > 25) {
+      const direction = Math.sign(s.vx);
+      for (let index = 0; index < 4; index++) {
+        const trailX = s.x - direction * (25 + index * 16);
+        MINI.line(this, trailX, s.y + 12 + index * 2, trailX - direction * (12 + speed / 30), s.y + 12 + index * 2, 0x8cecff, 1);
+      }
+    }
+    MINI.actor(this, 'player', 'player', s.x, s.y, PLAYER.width, PLAYER.height, MINI.clamp(s.vx / 700, -.22, .22));
+    MINI.meter(this, s.input.length / s.target.length);
+  },
+};
+
+
 /* Source: stages/index.mjs */
 const STAGE_GAMES = Object.freeze({
   e1: E1_GRAVITY_DASH, e2: E2_BOUNCE_BALL, e3: E3_HUMAN_STACK,
   e4: E4_ACCELERATION_DASH, e5: E5_SLINGSHOT, e6: E6_GRAVITY_FLIGHT,
   e7: E7_ROULETTE, e8: E8_SEESAW, e9: E9_ICE_CURLING,
+  e10: E10_NUMBER_DECODE,
 });
 
 
@@ -1350,11 +1827,22 @@ window.archiveAudio = audio;
 let progressStorage = null;
 try { progressStorage = window.localStorage; } catch { /* 세션 저장만 사용 */ }
 window.archiveProgress = createProgressStore(STAGES.map(stage => stage.id), progressStorage);
-window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id));
+window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id), { storage: progressStorage });
 window.archiveRecords = createMinigameRecords(STAGES.map(stage => stage.id), progressStorage);
 /* 미니게임 도감(js/ui/codex-flow.js)이 읽는 "해 본 게임" 기록. */
 window.archivePlays = createMinigamePlayLog(STAGES.map(stage => stage.id), progressStorage);
 window.addEventListener('archive-sfx', event => audio.play(event.detail?.name));
+
+function seededRandom(seed) {
+  let value = Number(seed) >>> 0;
+  return () => {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let mixed = value;
+    mixed = Math.imul(mixed ^ mixed >>> 15, mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ mixed >>> 7, mixed | 61);
+    return ((mixed ^ mixed >>> 14) >>> 0) / 4294967296;
+  };
+}
 
 class ArchiveGame extends Phaser.Scene {
   constructor() {
@@ -1419,11 +1907,20 @@ class ArchiveGame extends Phaser.Scene {
     this.ink?.clearMask(true); this.fieldMask?.destroy();
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
+    const run = window.archiveRun?.snapshot();
+    this.suppressionMultiplier = run?.active && !run?.qaMode ? run.suppressionMultiplier : 1;
+    this.random = run?.active && !run?.qaMode ? seededRandom(run.stageConfigSeed) : Math.random;
+    this.assistProtocol = Boolean(run?.active && !run.qaMode && run.currentAct === 1 && run.assistProtocolAct1);
     // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
     this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
     this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
-    this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.build.call(this);
+    this.assistText = this.assistProtocol ? this.add.text(42, 158, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '16px', fontStyle: 'bold', color: '#93fca0',
+      backgroundColor: '#08261f', padding: { x: 10, y: 6 },
+    }).setDepth(30) : null;
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   startStage() {
     if (!this.stageId) return;
@@ -1441,11 +1938,39 @@ class ArchiveGame extends Phaser.Scene {
   }
   directionRelease(direction) { this.touch.delete(direction); }
   primaryAction() { if (this.playable()) this.stageGame.action?.call(this); }
+  penalty(value) { return value * (this.suppressionMultiplier ?? 1); }
   pointerAction(x, y) { if (this.playable()) this.stageGame.pointerDown?.call(this, x, y); }
   sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
   bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
     window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
+  }
+  renderStoryOverlay() {
+    if (!this.ink) return;
+    const run = window.archiveRun?.snapshot();
+    if (!run?.active || run.qaMode) return;
+    if (this.assistProtocol) {
+      const starting = this.elapsed < 1.5;
+      const pulse = this.elapsed % 5 < .45;
+      const hints = {
+        e1: '안전 진행 방향 ▶', e2: '안전 진행 방향 ▶', e3: '안전 정렬 범위: 중앙선',
+        e4: '안전 진행: 다음 기록 노드', e5: '안전 조준: 궤적 안쪽', e6: '안전 진행 방향 ▶',
+        e7: '안전 정렬: 금색 영역', e8: '안전 균형: 수평 근처',
+        e9: '안전 속도: 과녁 안 완전 정지', e10: '안전 입력: 목표 순서',
+      };
+      this.assistText?.setVisible(starting || pulse).setText(starting ? `ASSIST · ${hints[this.stageId]}` : '◆ 증언 지점 신호 감지');
+      if ((starting || pulse) && ['e1', 'e2', 'e4', 'e6'].includes(this.stageId)) {
+        this.ink.lineStyle(4, 0x93fca0, .8).lineBetween(60, 190, 135, 190);
+        this.ink.fillStyle(0x93fca0, .8).fillTriangle(135, 176, 160, 190, 135, 204);
+      }
+    }
+    if (run.currentAct === 3) {
+      const wobble = Math.sin(this.elapsed * 3) * 3;
+      this.ink.lineStyle(3, 0xff6584, .48).strokeCircle(725 + wobble, 226, 22);
+      this.ink.lineStyle(2, 0xff6584, .32).strokeCircle(825 - wobble, 404, 28);
+      this.ink.lineBetween(704 + wobble, 205, 746 + wobble, 247);
+      this.ink.lineBetween(804 - wobble, 383, 846 - wobble, 425);
+    }
   }
   update(_time, deltaMs) {
     if (!this.playable()) return;
@@ -1460,7 +1985,7 @@ class ArchiveGame extends Phaser.Scene {
       this.stageGame.update.call(this, dt);
       if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
     }
-    this.stageGame.render.call(this); this.sendHud();
+    this.stageGame.render.call(this); this.renderStoryOverlay(); this.sendHud();
   }
   finish(success, extra = '') {
     if (!this.playable()) return;

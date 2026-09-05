@@ -1,4 +1,4 @@
-/* DOM 화면과 9개 미니게임 엔진의 연결. 게임 규칙은 stages/eN_*.js에 있습니다. */
+/* DOM 화면과 10개 미니게임 엔진의 연결. 게임 규칙은 stages/eN_*.js에 있습니다. */
 class ArchiveGameBridge {
   constructor(events, dom, soundBus) {
     this.events = events; this.ui = dom; this.soundBus = soundBus; this.stages = []; this.active = false; this.api = null;
@@ -11,6 +11,7 @@ class ArchiveGameBridge {
     window.addEventListener('archive-auto-pause', () => { if (this.active) this.pause(); });
     events.on(GAME_EVENTS.REQUEST_START, ({ stageId } = {}) => this.start(stageId));
     events.on(GAME_EVENTS.REQUEST_RESTART, () => this.restart());
+    events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.stop());
     events.on(GAME_EVENTS.REQUEST_PAUSE, () => this.pause());
     events.on(GAME_EVENTS.REQUEST_RESUME, () => this.resume());
     events.on(GAME_EVENTS.REQUEST_STAGE_SELECT, () => this.stop());
@@ -36,6 +37,9 @@ class ArchiveGameBridge {
     const stage = this.stages.find(stage => stage.id === stageId);
     if (!stage || !this.api || !window.archiveRun.snapshot().selectedStageIds.includes(stageId)) return;
     this.currentStage = stage; this.active = true; this.warningSent = false;
+    const run = window.archiveRun.snapshot();
+    this.ui.appShell.dataset.act = String(run.currentAct);
+    this.ui.appShell.dataset.assist = String(Boolean(run.assistProtocolAct1));
     this.soundBus.startGameAudio(); this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
@@ -62,10 +66,19 @@ class ArchiveGameBridge {
     this.active = false; this.api?.stop();
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud.hidden = true; this.ui.stageHudTimer.hidden = true; this.ui.touchControls.hidden = true;
+    delete this.ui.appShell.dataset.act;
+    delete this.ui.appShell.dataset.assist;
   }
   emitRunSnapshot(snapshot) {
     if (!snapshot) return;
-    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.clearedCount}/${snapshot.totalStages}`;
+    if (this.ui.stageHudAct) this.ui.stageHudAct.textContent = `ACT ${snapshot.currentAct ?? 1}/3`;
+    if (this.ui.stageHudStage) this.ui.stageHudStage.textContent = `STAGE ${snapshot.currentStageInAct ?? 1}/6`;
+    if (this.ui.stageHudLives) {
+      const lives = snapshot.lives ?? 0;
+      this.ui.stageHudLives.textContent = `LIVES ${'◆'.repeat(lives)}${'◇'.repeat(Math.max(0, 3 - lives))}`;
+    }
+    if (this.ui.stageHudActRecords) this.ui.stageHudActRecords.textContent = `${snapshot.actRecordCount ?? 0}/6`;
+    if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.totalRecordCount ?? 0}/18`;
     this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
   onHud({ remaining = 20.26, actions = 0, anomaly = '', risk = 0 }) {

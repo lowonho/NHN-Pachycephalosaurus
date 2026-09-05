@@ -5,12 +5,12 @@
  * (켜져 있는 동안은 Shift+Q로도 패널을 여닫는다.)
  *
  * 하는 일은 둘뿐이다.
- *   1) 9개 미니게임 중 아무거나 바로 연다 — 랜덤 5개 · 프로토콜 선택 · 브리핑을 건너뛴다.
+ *   1) 10개 미니게임 중 아무거나 바로 연다 — 막별 선정 순서와 브리핑을 건너뛴다.
  *   2) 한 판의 제한시간을 20.26초 대신 다른 값으로 준다.
  *
- * 1)은 엔진이 "이번 판에 뽑힌 5개"만 열어 주기 때문에(js/game.js의 start) 그냥
- * 시작시킬 수 없다. 그래서 이번 판의 선택 목록을 9개 전부로 갈아 끼운다
- * (run-state.mjs의 setSelection). QA를 끄면 protocolSelect.reset()이 다시 랜덤 5개로 되돌린다.
+ * 1)은 엔진이 "현재 막에 뽑힌 6개"만 열어 주기 때문에(js/game.js의 start) 그냥
+ * 시작시킬 수 없다. 그래서 이번 판의 선택 목록을 10개 전부로 갈아 끼운다
+ * (run-state.mjs의 setSelection). QA를 끄면 저장해 둔 이야기 진행으로 되돌린다.
  *
  * 2)의 값은 js/config/qa.js의 전역 하나에 둔다 — 엔진(클래식 번들)과 UI가 같은 값을 봐야 한다.
  *
@@ -101,7 +101,7 @@ class QaModeFlow {
     window.archiveAudio?.play("success");
 
     /*
-     * 이번 판의 선택을 9개 전부로 갈아 끼운다. 이게 없으면 엔진이 뽑힌 5개만 열어 준다.
+     * QA 선택을 10개 전부로 갈아 끼운다. 이게 없으면 엔진이 현재 막의 6개만 열어 준다.
      * (엔진이 아직 없으면 setStages가 도착한 뒤 다시 부른다.)
      */
     this.selectAllStages();
@@ -116,6 +116,7 @@ class QaModeFlow {
     ARCHIVE_QA.active = false;
     this.ui.qaBadge?.classList.add("hidden");
     this.close();
+    window.archiveRun?.exitQa?.();
     /* 예산도 20.26초로 되돌린다 — 다음 판의 책상 시계는 다시 원래 숫자여야 한다. */
     this.syncRunBudget();
   }
@@ -144,7 +145,7 @@ class QaModeFlow {
     this.ui.qaBadge?.addEventListener("click", () => this.open());
     this.ui.qaExitButton?.addEventListener("click", () => {
       this.deactivate();
-      /* 판을 접고 메인 화면으로 — 랜덤 5개와 이번 판 기록이 거기서 초기화된다. */
+      /* QA 상태를 접고 메인 화면의 저장된 이야기 진행으로 돌아간다. */
       this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
     });
 
@@ -266,7 +267,7 @@ class QaModeFlow {
 
   /* ── 그리기 ──────────────────────────────────────────────────────── */
 
-  /* 엔진이 준비되면 game.js가 넘겨 준다 — 카탈로그와 같은 9개다. */
+  /* 엔진이 준비되면 game.js가 넘겨 준다 — 카탈로그와 같은 10개다. */
   setStages(stages) {
     if (!Array.isArray(stages) || stages.length === 0) return;
     this.catalog = stages;

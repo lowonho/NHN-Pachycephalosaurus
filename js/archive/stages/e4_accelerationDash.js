@@ -20,14 +20,14 @@ export const E4_ACCELERATION_DASH = {
   },
   /* 벽 칸과 통로 칸이 번갈아 놓이는 홀수 격자를 재귀 백트래킹으로 판다.
      막다른 칸 일부는 벽을 한 겹 더 뚫어(braid) 대쉬가 자주 갇히지 않게 한다. */
-  carve() {
+  carve(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, g = E4.grid, t = E4.tuning, map = new Uint8Array(g.cols * g.rows);
     const inside = cell => {
       const cx = cell % g.cols, cy = (cell - cx) / g.cols;
       return cx > 0 && cy > 0 && cx < g.cols - 1 && cy < g.rows - 1;
     };
-    const pick = list => list[Math.floor(Math.random() * list.length)];
-    const first = E4.index(1 + 2 * Math.floor(Math.random() * ((g.cols - 1) / 2)), 1 + 2 * Math.floor(Math.random() * ((g.rows - 1) / 2)));
+    const pick = list => list[Math.floor(random() * list.length)];
+    const first = E4.index(1 + 2 * Math.floor(random() * ((g.cols - 1) / 2)), 1 + 2 * Math.floor(random() * ((g.rows - 1) / 2)));
     const stack = [first];
     map[first] = 1;
     while (stack.length) {
@@ -41,7 +41,7 @@ export const E4_ACCELERATION_DASH = {
       if (!map[cell] || !inside(cell)) continue;
       // 출구가 하나뿐인 칸이 막다른 길이다. 통로 사이 칸은 출구가 둘이라 걸리지 않는다.
       const exits = [0, 1, 2, 3].filter(dir => map[E4.next(cell, dir)]);
-      if (exits.length !== 1 || Math.random() > t.braid) continue;
+      if (exits.length !== 1 || random() > t.braid) continue;
       const walls = [0, 1, 2, 3].filter(dir => !map[E4.next(cell, dir)] && inside(E4.next(E4.next(cell, dir), dir)));
       if (walls.length) map[E4.next(cell, pick(walls))] = 1;
     }
@@ -67,19 +67,19 @@ export const E4_ACCELERATION_DASH = {
   },
   /* 미로를 뽑고, 최소 꺾기 횟수가 정확히 tuning.turns인 칸만 출구 후보로 남긴다.
      그중 출발점에서 먼 쪽을 골라 코스가 화면 한쪽에 몰리지 않게 한다. */
-  route() {
+  route(random = Math.random) {
     const E4 = E4_ACCELERATION_DASH, t = E4.tuning;
     for (let attempt = 0; attempt < t.attempts; attempt++) {
-      const map = E4.carve(), cells = [];
+      const map = E4.carve(random), cells = [];
       for (let cell = 0; cell < map.length; cell++) if (map[cell]) cells.push(cell);
-      const start = cells[Math.floor(Math.random() * cells.length)], cost = E4.scan(map, start, false);
+      const start = cells[Math.floor(random() * cells.length)], cost = E4.scan(map, start, false);
       const goals = cells.filter(cell => Math.min(cost[cell * 4], cost[cell * 4 + 1], cost[cell * 4 + 2], cost[cell * 4 + 3]) === t.turns);
       if (!goals.length) continue;
       const from = E4.center(start);
       const ranked = goals
         .map(cell => ({ cell, span: Math.hypot(E4.center(cell).x - from.x, E4.center(cell).y - from.y) }))
         .sort((a, b) => b.span - a.span);
-      const goal = ranked[Math.floor(Math.random() * Math.ceil(ranked.length / 3))].cell;
+      const goal = ranked[Math.floor(random() * Math.ceil(ranked.length / 3))].cell;
       return { map, start, goal, toGoal: E4.scan(map, goal, true) };
     }
     return E4.comb();
@@ -99,7 +99,7 @@ export const E4_ACCELERATION_DASH = {
   },
   build() {
     MINI.init(this, 0xc6a2ff);
-    const E4 = E4_ACCELERATION_DASH, course = E4.route();
+    const E4 = E4_ACCELERATION_DASH, course = E4.route(this.random);
     this.state = {
       map: course.map, toGoal: course.toGoal, start: course.start, goal: course.goal, cell: course.start,
       dir: null, want: null, wantAt: -9, off: 0, turns: 0, bumps: 0, stuck: false,
@@ -108,7 +108,7 @@ export const E4_ACCELERATION_DASH = {
   },
   speed() {
     const t = E4_ACCELERATION_DASH.tuning;
-    return Math.min(t.maxSpeed, t.speed + this.state.turns * t.gain);
+    return Math.min(t.maxSpeed, t.speed + this.state.turns * this.penalty(t.gain));
   },
   /* 방향이 실제로 바뀌는 지점. 꺾을 때마다 속도가 붙고, 첫 출발은 꺾기로 세지 않는다. */
   steer(dir) {

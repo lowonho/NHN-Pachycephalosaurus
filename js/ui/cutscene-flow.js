@@ -93,6 +93,13 @@ class CutsceneFlow {
     this.returnFocus = document.activeElement;
     this.index = -1;
 
+    if (globalThis.ARCHIVE_STORY_SETTINGS?.skipCutscenes) {
+      const done = this.onDone;
+      this.onDone = null;
+      done?.();
+      return;
+    }
+
     this.setAuto(auto ?? Boolean(this.copy.auto));
     this.closeLog();
     this.renderLog();
@@ -152,11 +159,12 @@ class CutsceneFlow {
     this.ui.cutscenePanel?.setAttribute("data-state", "typing");
     if (this.ui.cutsceneLine) this.ui.cutsceneLine.textContent = "";
 
+    const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
     this.typeTimer = window.setInterval(() => {
       this.typed += 1;
       if (this.ui.cutsceneLine) this.ui.cutsceneLine.textContent = this.fullText.slice(0, this.typed);
       if (this.typed >= this.fullText.length) this.completeTyping();
-    }, CutsceneFlow.TYPE_INTERVAL);
+    }, CutsceneFlow.TYPE_INTERVAL / speed);
   }
 
   stopTyping() {
@@ -189,10 +197,11 @@ class CutsceneFlow {
   queueAuto() {
     this.clearAuto();
     const cue = this.script[this.index] || {};
-    const typedFor = this.fullText.length * CutsceneFlow.TYPE_INTERVAL;
+    const speed = globalThis.ARCHIVE_STORY_SETTINGS?.cutsceneSpeed ?? 1;
+    const typedFor = this.fullText.length * CutsceneFlow.TYPE_INTERVAL / speed;
     const hold = Number.isFinite(cue.durationMs)
-      ? Math.max(180, cue.durationMs - typedFor)
-      : CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR;
+      ? Math.max(180, cue.durationMs / speed - typedFor)
+      : (CutsceneFlow.AUTO_HOLD + this.fullText.length * CutsceneFlow.AUTO_HOLD_PER_CHAR) / speed;
     this.autoTimer = window.setTimeout(() => {
       this.autoTimer = 0;
       // 로그를 열어 둔 채로 대사가 넘어가면 읽던 자리를 잃는다. 닫힐 때까지 미룬다.
