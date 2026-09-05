@@ -75,7 +75,8 @@
   const marker = scene.assetSprites.get('goalMark');
   const goalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
   assert(marker?.texture.key === 'e3:line' && marker.visible, 'Success line marker uses the line asset');
-  assert(marker.x === scene.stageGame.tuning.markerX && marker.x > scene.stageGame.tuning.goalRight && Math.abs(marker.y - goalY) < .001, 'Marker sits on the success line, to the right of its dashes');
+  const dashTo = scene.stageGame.project.call(scene, scene.stageGame.tuning.railRight, 0).x;
+  assert(marker.x === dashTo + scene.stageGame.tuning.markerGap && marker.x > dashTo && Math.abs(marker.y - goalY) < .001, 'Marker sits on the success line, to the right of its dashes');
   scene.state.zoom = .5; scene.stageGame.render.call(scene);
   const zoomedGoalY = scene.stageGame.project.call(scene, 0, scene.stageGame.tuning.baseY - scene.stageGame.tuning.targetHeight).y;
   assert(Math.abs(marker.y - zoomedGoalY) < .001 && Math.abs(marker.displayHeight - scene.stageGame.tuning.markerHeight) < .001, 'Marker follows the line but is not scaled by the camera zoom');

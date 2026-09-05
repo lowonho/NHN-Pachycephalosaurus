@@ -180,6 +180,8 @@ class CutsceneFlow {
     this.showBackground(visualPhase);
     this.ui.cutscene?.setAttribute("data-phase", visualPhase);
     this.ui.cutscene?.setAttribute("data-cue-kind", kind);
+    /* 화자에 따라 대사창 자리와 색이 달라진다(ARIA는 좌하단·보라). css/cutscene.css 참고. */
+    this.ui.cutscene?.setAttribute("data-speaker", speaker);
     if (this.ui.cutsceneChapter) this.ui.cutsceneChapter.textContent = currentCue.chapterLabel || this.chapter;
     this.ui.cutscene?.setAttribute("data-qa-cue", String(Boolean(currentCue.chapterLabel)));
     if (this.ui.cutsceneSpeaker) this.ui.cutsceneSpeaker.textContent = speaker;
@@ -330,6 +332,7 @@ class CutsceneFlow {
     this.ui.cutscene?.classList.add("hidden");
     this.ui.cutscene?.removeAttribute("data-phase");
     this.ui.cutscene?.removeAttribute("data-cue-kind");
+    this.ui.cutscene?.removeAttribute("data-speaker");
     this.ui.cutscene?.removeAttribute("data-qa-cue");
     this.ui.cutscene?.removeAttribute("data-has-background");
     this.ui.cutsceneBackdrop?.style.removeProperty("--cutscene-image");

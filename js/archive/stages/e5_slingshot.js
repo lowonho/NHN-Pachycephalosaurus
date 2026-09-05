@@ -18,7 +18,7 @@ export const E5_SLINGSHOT = {
     };
     // Separate load-bearing posts and floors form rooms around the cookie residents.
     for (let col = 0; col < 2; col++) {
-      const cx = 600 + col * 116;
+      const cx = 680 + col * 116;
       timber(cx - 43, 435, 12, 72); timber(cx + 43, 435, 12, 72);
       timber(cx, 393, 108, 12);
       timber(cx - 43, 357, 12, 60); timber(cx + 43, 357, 12, 60);
@@ -118,7 +118,7 @@ export const E5_SLINGSHOT = {
     if (this.settings.effects) for (let i = 0; i < (broken ? 14 : 5); i++) {
       s.crumbs.push({ x: target.x + target.w / 2, y: target.y + target.h / 2,
         vx: MINI.rand(-170, 170), vy: MINI.rand(-230, -55), age: 0, size: MINI.rand(2, 6),
-        color: i % 3 ? 0x9b6544 : 0xc0bd70 });
+        color: i % 3 ? 0xd9a15e : 0xfff3e2 });
     }
     if (broken) {
       if (target.wood) {
@@ -140,7 +140,7 @@ export const E5_SLINGSHOT = {
       // Only timber stays as rubble. Defeated cookies no longer block the next shot.
       target.body.collisionFilter.category = 4;
       if (target.wood) {
-        s.feedback = '우지끈! 기둥이 부러졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
+        s.feedback = '와사삭! 과자 기둥이 부서졌다'; s.feedbackAge = .8; this.sfx('hit'); return;
       }
       Phaser.Physics.Matter.Matter.Composite.remove(this.slingWorld.world, target.body);
       const spriteKey = 'target' + s.targets.indexOf(target);
@@ -256,7 +256,7 @@ export const E5_SLINGSHOT = {
     MINI.box(this, 22, 471, 916, 9, 0xb98e62);
     MINI.box(this, MINI.FIELD.x, 480, MINI.FIELD.w, MINI.FIELD.bottom - 480, 0x372923);
     for (let i = 0; i < 3; i++) {
-      if (i < 2) MINI.box(this, 546 + i * 116, 471, 108, 5, 0xd3b278);
+      if (i < 2) MINI.box(this, 626 + i * 116, 471, 108, 5, 0xf0c9a0);
       E5_SLINGSHOT.cookie.call(this, 'projectile', 'reserve' + i, 62 + i * 29, 450, 23, 22);
     }
     MINI.line(this, 146, 447, 137, 358, 0xa78260, 14);
@@ -281,19 +281,29 @@ export const E5_SLINGSHOT = {
     }
     for (const wood of s.timbers) {
       const g = this.ink, body = wood.body;
-      g.fillStyle(wood.hp <= 0 ? 0x654630 : wood.roof ? 0x975948 : 0xbf8c53).fillPoints(body.vertices, true);
-      g.lineStyle(2, 0x4d3528).strokePoints(body.vertices, true);
+      // 과자집: 진저브레드 기둥에 아이싱을 두르고 지붕은 딸기 아이싱으로 덮는다.
+      // 색과 장식만 바뀌고 몸체·판정은 그대로다.
+      g.fillStyle(wood.hp <= 0 ? 0x9a6a3c : wood.roof ? 0xe4728f : 0xd39a55).fillPoints(body.vertices, true);
+      g.lineStyle(2, wood.roof ? 0xfff3e2 : 0x9c6330).strokePoints(body.vertices, true);
       g.save(); g.translateCanvas(body.position.x, body.position.y); g.rotateCanvas(body.angle);
       if (!wood.roof) {
         const vertical = wood.h > wood.w;
-        for (const offset of [-2, 2]) {
-          if (vertical) MINI.line(this, offset, -wood.h / 2 + 6, offset + 1, wood.h / 2 - 6, 0x8a5d39, 1);
-          else MINI.line(this, -wood.w / 2 + 6, offset, wood.w / 2 - 6, offset + 1, 0x8a5d39, 1);
+        // 가장자리를 따라 짜 놓은 하얀 아이싱
+        for (const sign of [-1, 1]) {
+          if (vertical) MINI.line(this, sign * (wood.w / 2 - 2), -wood.h / 2 + 4, sign * (wood.w / 2 - 2), wood.h / 2 - 4, 0xfff3e2, 2);
+          else MINI.line(this, -wood.w / 2 + 4, sign * (wood.h / 2 - 2), wood.w / 2 - 4, sign * (wood.h / 2 - 2), 0xfff3e2, 2);
         }
-        for (const sign of [-1, 1]) MINI.circle(this, vertical ? 0 : sign * (wood.w / 2 - 8), vertical ? sign * (wood.h / 2 - 8) : 0, 2, 0x50372c);
+        // 알사탕 장식은 기둥 길이에 맞춰 고르게 박는다.
+        const span = vertical ? wood.h : wood.w, beads = Math.max(2, Math.round(span / 20));
+        for (let i = 0; i < beads; i++) {
+          const at = ((i + .5) / beads - .5) * (span - 10);
+          MINI.circle(this, vertical ? 0 : at, vertical ? at : 0, 2.4, i % 2 ? 0x6fd3c0 : 0xff85b3);
+        }
       } else {
-        MINI.line(this, -32, -4, 32, -4, 0xc28b66, 2);
-        MINI.line(this, -44, 5, 44, 5, 0xc28b66, 2);
+        // 처마를 타고 흘러내린 아이싱과 젤리 장식
+        MINI.line(this, -32, -4, 32, -4, 0xfff3e2, 3);
+        MINI.line(this, -44, 5, 44, 5, 0xfff3e2, 3);
+        [-33, -11, 11, 33].forEach((sx, i) => MINI.circle(this, sx, 5, 3, i % 2 ? 0x8ce0c8 : 0xffd166));
       }
       if (wood.hp < t.woodHP) {
         MINI.line(this, -4, -5, 5, 5, 0x30251d, 2);

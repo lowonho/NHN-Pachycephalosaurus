@@ -213,7 +213,7 @@ textarea {
 
 .stage-hud-heading strong {
   overflow: hidden;
-  font: 800 22px/1.2 var(--font-ui);
+  font: 800 30px/1.2 var(--font-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -246,10 +246,196 @@ textarea {
   display: none;
 }
 
+/*
+ * 시작 카운트다운 — 3 · 2 · 1 · 시작!
+ * 판을 다 그려 놓고 세기 때문에 뒤가 비치는 얇은 막만 덮는다. 첫 초를 허둥대지
+ * 않도록 화면을 읽을 틈을 주는 자리다(js/game.js의 beginCountdown).
+ * HUD와 같은 1920×1080 설계 레이어 안이라 글자 크기도 설계 px 그대로다.
+ */
+.stage-countdown {
+  position: absolute;
+  z-index: 13;
+  display: grid;
+  inset: 0;
+  align-content: center;
+  justify-items: center;
+  row-gap: 14px;
+  /* 판은 비쳐 보이되 숫자와 붉은 줄이 확실히 읽히도록 한 겹 눌러 준다. */
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(2, 9, 26, 0.46) 0 20%,
+    rgba(2, 9, 26, 0.72) 100%
+  );
+  pointer-events: none;
+}
+
+.stage-countdown[hidden] {
+  display: none;
+}
+
+.stage-countdown-value {
+  position: relative;
+  margin: 0;
+  color: var(--cyan);
+  font: 400 300px/1 var(--font-display);
+  /* 밝은 판 위에서도 획이 살아 있도록 번짐 밑에 어두운 그림자를 한 겹 깐다. */
+  text-shadow:
+    0 6px 0 rgba(2, 9, 26, 0.6),
+    0 0 28px rgba(78, 239, 255, 0.55),
+    0 0 90px rgba(31, 92, 255, 0.45);
+  /* 한 칸이 바뀔 때마다 자바스크립트가 이 클래스를 다시 붙여 애니메이션을 되감는다. */
+  animation: stage-countdown-pop 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 마지막 칸("시작!")만 노랑이고, 글자가 길어 조금 작다. */
+.stage-countdown-value[data-step="go"] {
+  color: var(--yellow);
+  font-size: 180px;
+  text-shadow:
+    0 0 28px rgba(255, 224, 75, 0.6),
+    0 0 90px rgba(255, 95, 111, 0.35);
+}
+
+/* 숫자를 따라 퍼지는 고리 — 남은 시간(.stage-timer)과 같은 테두리 색이다. */
+.stage-countdown-value::before {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: 340px;
+  height: 340px;
+  content: "";
+  transform: translate(-50%, -50%);
+  border: 3px solid rgba(78, 239, 255, 0.55);
+  border-radius: 50%;
+  animation: stage-countdown-ring 620ms ease-out both;
+}
+
+.stage-countdown-value[data-step="go"]::before {
+  border-color: rgba(255, 224, 75, 0.55);
+}
+
+/*
+ * 숫자 아래 붉은 판 — 이번 판의 이상현상(브리핑의 ANOMALY 칸과 같은 문장).
+ * 숫자는 칸마다 새로 튀지만 이 줄은 한 번 떠서 다 셀 때까지 서 있는다.
+ * 읽어야 하는 글이라 미로·눈밭처럼 밝은 판 위에서도 묻히지 않게 판때기를 깔았다 —
+ * 테두리와 흐림은 HUD 패널(.stage-hud · .stage-timer)과 같은 짜임이고 색만 붉다.
+ */
+.stage-countdown-anomaly {
+  display: grid;
+  max-width: 1280px;
+  margin: 0;
+  padding: 16px 40px 20px;
+  row-gap: 10px;
+  justify-items: center;
+  border: 1px solid rgba(255, 122, 154, 0.55);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(255, 59, 82, 0.16), rgba(24, 6, 18, 0.5)), rgba(14, 6, 22, 0.82);
+  text-align: center;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  /* 첫 칸("3")보다 빨리 다 떠올라야 세 칸 내내 읽을 수 있다. */
+  animation: stage-countdown-alert 360ms ease-out both;
+}
+
+.stage-countdown-anomaly[hidden] {
+  display: none;
+}
+
+.stage-countdown-anomaly-label {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: #ff9bb0;
+  font: 700 24px/1 var(--font-ui);
+  letter-spacing: 0.2em;
+}
+
+.stage-countdown-anomaly-label span {
+  letter-spacing: 0.04em;
+}
+
+/*
+ * 문장이 길어 두 줄이 되면 반반씩 나눈다 — 마지막 낱말만 떨어져 남지 않게.
+ * keep-all이 없으면 한국어는 아무 글자에서나 잘려 "때마 / 다"처럼 낱말이 두 동강 난다.
+ */
+.stage-countdown-anomaly-text {
+  color: #ff8095;
+  font: 700 32px/1.42 var(--font-ui);
+  word-break: keep-all;
+  text-wrap: balance;
+  text-shadow: 0 2px 0 rgba(2, 9, 26, 0.85);
+}
+
+@keyframes stage-countdown-alert {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes stage-countdown-pop {
+  0% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+
+  18% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  /* 한 칸이 서 있는 동안은 또렷하게 버틴다 — 끝에서만 살짝 물러난다. */
+  84% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+}
+
+@keyframes stage-countdown-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.35);
+    opacity: 0;
+  }
+
+  25% {
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* 애니메이션을 끄기로 한 사람에게는 숫자만 또렷하게 바뀐다. */
+@media (prefers-reduced-motion: reduce) {
+  .stage-countdown-value,
+  .stage-countdown-value::before,
+  .stage-countdown-anomaly {
+    animation: none;
+  }
+
+  .stage-countdown-value::before {
+    opacity: 0.5;
+  }
+}
+
+/* 행동 수 · 상태 문구 — 바로 윗줄(ACT · STAGE · 기록)과 같은 크기로 읽힌다. */
 .stage-hud-detail {
-  margin-top: 10px;
+  margin-top: 12px;
   color: #c3d1ed;
-  font: 700 15px/1.3 var(--font-ui);
+  font: 700 20px/1.35 var(--font-ui);
 }
 
 .stage-hud-detail span:last-child {
@@ -261,7 +447,7 @@ textarea {
 
 .stage-hud-risk {
   height: 5px;
-  margin-top: 10px;
+  margin-top: 12px;
   overflow: hidden;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);

@@ -64,6 +64,8 @@ try {
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);
+  /* 이 스위트는 씬을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다. */
+  await evaluate("ARCHIVE_STORY_SETTINGS.skipCountdown = true");
   assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
   const screen = async (name) => {
     await wait(150);

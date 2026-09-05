@@ -1,21 +1,34 @@
-﻿# 스테이지 선택 화면의 책상 위 양손을 좌/우 한 짝씩 잘라 webp로 굽는다.
+﻿# 스테이지 선택 화면의 책상 위 양손 에셋을 webp로 굽는다.
 #
-# 원본은 손 두 짝이 한 장에 들어 있는 2048폭 PNG다
-# (assets/images/ui/stage select/female_hands_nailart_2048x1152.png).
-# index.html은 이 원본을 그대로 쓰지 않고 여기서 나온 조각 두 장을 쓴다.
-# 한 장이면 입력이 들어올 때 두 손이 통째로 같이 흔들려 어색해서, 좌우를
-# 따로 두고 타자 애니메이션 주기를 어긋나게 준다(css/protocol-select.css).
+# 원본은 어느 것이나 손 두 짝이 한 장에 들어 있는 PNG다
+# (assets/images/ui/stage select/*).
 #
-# 자를 위치는 알파 채널 투영으로 찾는다. 두 손 사이는 완전히 비어 있으므로
-# 그 빈 열 구간이 곧 경계다. 각 조각은 자기 알파 경계상자에 딱 맞게 잘린다
-# ─ 그래서 조각의 윗변은 언제나 손끝, 아랫변은 화면 밖으로 나가는 팔뚝이다.
+# 두 가지 모드가 있다.
+#
+#  기본 ─ 타자 자세. 좌우를 잘라 두 장으로 낸다.
+#    한 장이면 입력이 들어올 때 두 손이 통째로 같이 흔들려 어색해서, 좌우를
+#    따로 두고 타자 애니메이션 주기를 어긋나게 준다(css/protocol-select.css).
+#    자를 위치는 알파 채널 투영으로 찾는다. 두 손 사이는 완전히 비어 있으므로
+#    그 빈 열 구간이 곧 경계다. 각 조각은 자기 알파 경계상자에 딱 맞게 잘린다
+#    ─ 그래서 조각의 윗변은 언제나 손끝, 아랫변은 화면 밖으로 나가는 팔뚝이다.
+#
+#  -Whole ─ 한 자세를 통째로. 자르지 않고 webp만 굽는다.
+#    주먹(샷건)·따봉처럼 두 손이 같이 움직이는 자세다. 좌우를 나눌 이유가
+#    없고(엇갈릴 일이 없다), 한 장이면 두 손 사이 간격이 원화 그대로 유지된다.
+#
 # 원본을 다시 그리면 이 스크립트를 다시 돌리고, index.html의 width/height
 # 속성을 출력된 크기로 맞춰 주면 된다.
+#
+#   ./slice-desk-hands.ps1
+#   ./slice-desk-hands.ps1 -Whole -Source 02_both_fists_2048x1152.png
+#   ./slice-desk-hands.ps1 -Whole -Source 03_both_thumbs_up_2048x1152.png
 
 param(
   [string]$Source = "female_hands_nailart_2048x1152.png",
   [string]$LeftName = "04a_nailart_hand_left",
   [string]$RightName = "04b_nailart_hand_right",
+  # 자르지 않고 원본 한 장을 그대로 webp로만 굽는다.
+  [switch]$Whole,
   # webp 화질. 기존 조각들과 같은 기준이다(scripts/slice-settings-sheet.ps1 참고).
   [int]$Quality = 92
 )
@@ -130,16 +143,27 @@ public class DeskHandSlicer
 
 Add-Type -TypeDefinition $sliceSource -ReferencedAssemblies System.Drawing
 
-$boxes = [DeskHandSlicer]::FindHands($sourcePath)
-$names = @($LeftName, $RightName)
 $sizes = @{}
 
-for ($index = 0; $index -lt 2; $index++) {
-  $box = $boxes[$index].Split(",")
-  $pngPath = Join-Path $sceneRoot ($names[$index] + ".png")
-  [DeskHandSlicer]::Crop($sourcePath, $pngPath, [int]$box[0], [int]$box[1], [int]$box[2], [int]$box[3])
-  $sizes[$names[$index]] = @([int]$box[2], [int]$box[3])
-  "{0,-24} {1,4}x{2,-4} (원본 x={3}, y={4})" -f $names[$index], $box[2], $box[3], $box[0], $box[1]
+if ($Whole) {
+  # 자르지 않는다. 아래 굽는 단계가 "$name.png"를 찾으므로 이름만 원본에서 딴다.
+  $names = @([IO.Path]::GetFileNameWithoutExtension($Source))
+  $sheet = [System.Drawing.Bitmap]::FromFile($sourcePath)
+  $sizes[$names[0]] = @($sheet.Width, $sheet.Height)
+  $sheet.Dispose()
+  "{0,-32} {1,4}x{2,-4} (자르지 않음)" -f $names[0], $sizes[$names[0]][0], $sizes[$names[0]][1]
+}
+else {
+  $boxes = [DeskHandSlicer]::FindHands($sourcePath)
+  $names = @($LeftName, $RightName)
+
+  for ($index = 0; $index -lt 2; $index++) {
+    $box = $boxes[$index].Split(",")
+    $pngPath = Join-Path $sceneRoot ($names[$index] + ".png")
+    [DeskHandSlicer]::Crop($sourcePath, $pngPath, [int]$box[0], [int]$box[1], [int]$box[2], [int]$box[3])
+    $sizes[$names[$index]] = @([int]$box[2], [int]$box[3])
+    "{0,-32} {1,4}x{2,-4} (원본 x={3}, y={4})" -f $names[$index], $box[2], $box[3], $box[0], $box[1]
+  }
 }
 
 # ── webp 굽기 ────────────────────────────────────────────────────────
@@ -275,6 +299,6 @@ if ($cwebp) { Invoke-CwebpBake $cwebp.Source } else { Invoke-ChromeBake }
 foreach ($name in $names) {
   $pngPath = Join-Path $sceneRoot "$name.png"
   $webpPath = Join-Path $sceneRoot "$name.webp"
-  "{0,-24} png {1,9:N0} -> webp {2,8:N0}   (index.html width={3} height={4})" -f `
+  "{0,-32} png {1,9:N0} -> webp {2,8:N0}   (index.html width={3} height={4})" -f `
     $name, (Get-Item $pngPath).Length, (Get-Item $webpPath).Length, $sizes[$name][0], $sizes[$name][1]
 }

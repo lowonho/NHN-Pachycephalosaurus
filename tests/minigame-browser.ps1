@@ -66,6 +66,9 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  # 이 스위트는 판을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다.
+  # (카운트다운 자체는 minigame-browser-check.js가 직접 세워 검사한다.)
+  Evaluate "ARCHIVE_STORY_SETTINGS.skipCountdown = true" | Out-Null
   if ($E10Only) {
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)
