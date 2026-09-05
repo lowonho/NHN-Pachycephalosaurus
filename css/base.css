@@ -203,8 +203,7 @@ textarea {
   display: none;
 }
 
-.stage-hud-heading,
-.stage-hud-detail {
+.stage-hud-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -213,7 +212,7 @@ textarea {
 
 .stage-hud-heading strong {
   overflow: hidden;
-  font: 800 22px/1.2 var(--font-ui);
+  font: 800 30px/1.2 var(--font-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -244,19 +243,6 @@ textarea {
 
 .stage-timer[hidden] {
   display: none;
-}
-
-.stage-hud-detail {
-  margin-top: 10px;
-  color: #c3d1ed;
-  font: 700 15px/1.3 var(--font-ui);
-}
-
-.stage-hud-detail span:last-child {
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .stage-hud-risk {

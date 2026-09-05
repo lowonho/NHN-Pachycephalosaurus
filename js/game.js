@@ -47,6 +47,8 @@ class ArchiveGameBridge {
     this.soundBus.startGameAudio(); this.ui.appShell?.removeAttribute('inert');
     this.ui.touchControls.hidden = ['e5', 'e7', 'e9'].includes(stageId);
     this.ui.stageHud.hidden = false; this.ui.stageHudTimer.hidden = false;
+    // 남은 목숨은 우상단(일시정지 옆)에 있어 좌상단 패널과 따로 여닫는다.
+    if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = false;
     this.ui.stageHud.dataset.stage = stageId;
     this.ui.stageHudTitle.textContent = `${stage.id.toUpperCase()} · ${stage.title}`;
     /* 도감은 클리어가 아니라 "해 봤는가"로 열린다 — 시작하는 이 자리에서 남긴다.
@@ -72,6 +74,7 @@ class ArchiveGameBridge {
     this.active = false; this.api?.stop();
     this.emitRunSnapshot(window.archiveRun?.leaveAttempt());
     this.ui.stageHud.hidden = true; this.ui.stageHudTimer.hidden = true; this.ui.touchControls.hidden = true;
+    if (this.ui.stageHudLives) this.ui.stageHudLives.hidden = true;
     delete this.ui.appShell.dataset.act;
     delete this.ui.appShell.dataset.assist;
   }
@@ -87,13 +90,15 @@ class ArchiveGameBridge {
     if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.totalRecordCount ?? 0}/18`;
     this.events.emit(GAME_EVENTS.TOTAL_TIMER_TICK, snapshot);
   }
-  onHud({ remaining = 20.26, actions = 0, anomaly = '', risk = 0 }) {
+  /*
+   * 스테이지가 올려 보내는 actions · anomaly(행동 수 · 상태 문구)는 더는 그리지 않는다.
+   * 좌상단 패널은 스테이지 정보와 위험도 막대만 남긴다.
+   */
+  onHud({ remaining = 20.26, risk = 0 }) {
     /* QA 모드가 제한시간을 바꿔 두면 remaining도 그 값에서 내려온다(js/config/qa.js). */
     if (!this.currentStage) return;
     this.ui.stageHudTimer.textContent = Math.max(0, remaining).toFixed(2);
     if (this.active) this.emitRunSnapshot(window.archiveRun.syncRemaining(remaining * 1000));
-    this.ui.stageHudAction.textContent = `${this.currentStage.actionLabel} ${actions}`;
-    this.ui.stageHudAnomaly.textContent = anomaly;
     this.ui.stageHudRisk.style.width = `${Math.max(0, Math.min(100, risk))}%`;
     this.ui.stageHudRisk.dataset.level = risk >= 75 ? 'danger' : risk >= 45 ? 'warn' : 'safe';
     this.events.emit(GAME_EVENTS.TIMER_TICK, { remainingMs: Math.round(remaining * 1000) });

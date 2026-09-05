@@ -56,16 +56,14 @@
 /* 새 미니게임: 플레이 영역 위의 짧은 HUD와 기록 표시. */
 #stage-hud-penalty { display: none; }
 .stage-hud { width: 760px; padding: 14px 18px; }
+/* 아래 한 줄(행동 수 · 상태 문구)이 빠진 만큼 남은 두 줄을 그 크기로 키웠다. */
 .stage-hud-run {
   position: static;
   flex-wrap: wrap;
-  gap: 5px 18px;
-  margin-top: 7px;
-  font-size: 14px;
+  gap: 5px 22px;
+  margin-top: 9px;
+  font-size: 20px;
 }
-.stage-hud-detail { justify-content: flex-start; }
-.stage-hud-detail span:last-child { text-align: left; }
-.stage-hud[data-stage="e4"] .stage-hud-detail,
 .stage-hud[data-stage="e4"] .stage-hud-risk { display: none; }
 #result-main-button { margin-top: 10px; }
 

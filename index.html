@@ -349,21 +349,24 @@
                   <div class="stage-hud-run">
                     <span id="stage-hud-act">ACT 1/3</span>
                     <span id="stage-hud-stage">STAGE 1/6</span>
-                    <span id="stage-hud-lives">LIVES ◆◆◆</span>
                     <span>ACT RECORDS <output id="stage-hud-act-records">0/6</output></span>
                     <span>TOTAL <output id="stage-hud-memory">0/18</output></span>
-                  </div>
-                  <div class="stage-hud-detail">
-                    <span id="stage-hud-action">입력 00</span>
-                    <span id="stage-hud-anomaly">대기</span>
                   </div>
                   <div class="stage-hud-risk" aria-hidden="true"><i id="stage-hud-risk" data-level="safe"></i></div>
                   <p id="stage-hud-penalty" hidden></p>
                 </section>
-                <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
-                  <span aria-hidden="true">Ⅱ</span>
-                  일시정지
-                </button>
+                <!--
+                  남은 목숨은 좌상단 패널이 아니라 일시정지 버튼 옆에 선다.
+                  판이 끝날 때까지 계속 지켜보는 값이라 스테이지 정보(ACT · STAGE ·
+                  기록 수)와 성격이 다르고, 크기도 일시정지 버튼과 같은 급으로 키운다.
+                -->
+                <div class="hud-top-right">
+                  <output class="stage-lives" id="stage-hud-lives" aria-label="남은 목숨" hidden>LIVES ◆◆◆</output>
+                  <button class="pause-button" id="pause-button" type="button" aria-label="게임 일시정지" hidden>
+                    <span aria-hidden="true">Ⅱ</span>
+                    일시정지
+                  </button>
+                </div>
                 <div class="touch-controls" id="touch-controls" aria-label="모바일 게임 조작" hidden>
                   <div class="touch-pad">
                     <button type="button" data-direction="up" aria-label="위">▲</button>
