@@ -33,7 +33,7 @@ export const E3_HUMAN_STACK = {
   pointerDown() { E3_HUMAN_STACK.action.call(this); },
   update(dt) {
     const s = this.state, t = E3_HUMAN_STACK.tuning, M = Phaser.Physics.Matter.Matter;
-    s.x += s.direction * Math.min(t.maxSpeed, t.speed + s.drops * t.speedGain) * dt;
+    s.x += s.direction * Math.min(t.maxSpeed, t.speed + s.drops * this.penalty(t.speedGain)) * dt;
     if (s.x < 260 || s.x > 700) { s.x = MINI.clamp(s.x, 260, 700); s.direction *= -1; }
     s.cooldown = Math.max(0, s.cooldown - dt);
     M.Engine.update(this.stackWorld, dt * 1000);
@@ -41,7 +41,7 @@ export const E3_HUMAN_STACK = {
     const settled = this.people.filter(b => b.speed < .7 && Math.abs(b.angularVelocity) < .035 && b.position.y > 225);
     s.height = settled.length ? Math.max(0, 420 - Math.min(...settled.map(b => b.bounds.min.y))) : 0;
     s.held = s.height >= t.targetHeight ? s.held + dt : 0;
-    this.anomaly = `낙하 속도 ${Math.round(Math.min(t.maxSpeed, t.speed + s.drops * t.speedGain))} · 잔해 ${s.drops}명`;
+    this.anomaly = `낙하 속도 ${Math.round(Math.min(t.maxSpeed, t.speed + s.drops * this.penalty(t.speedGain)))} · 잔해 ${s.drops}명`;
     this.risk = Math.min(100, s.drops * 7);
     if (s.held >= t.hold) this.finish(true, `${s.drops}명으로 ${Math.round(s.height)} 높이`);
   },

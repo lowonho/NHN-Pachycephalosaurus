@@ -7,9 +7,9 @@ const moveTowardZero = (value, amount) => (
   Math.abs(value) <= amount ? 0 : value - Math.sign(value) * amount
 );
 
-function makeTarget() {
-  const first = 1 + Math.floor(Math.random() * 9);
-  return `${first}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}`;
+function makeTarget(random = Math.random) {
+  const first = 1 + Math.floor(random() * 9);
+  return `${first}${Math.floor(random() * 10)}${Math.floor(random() * 10)}${Math.floor(random() * 10)}`;
 }
 
 export const E10_NUMBER_DECODE = {
@@ -31,7 +31,7 @@ export const E10_NUMBER_DECODE = {
 
   build() {
     MINI.init(this, 0xf4c76b);
-    const target = makeTarget();
+    const target = makeTarget(this.random);
     this.state = {
       x: 480,
       y: GROUND_Y - PLAYER.height / 2,
@@ -88,7 +88,7 @@ export const E10_NUMBER_DECODE = {
     s.directionPresses += 1;
     s.friction = Math.max(
       E10_NUMBER_DECODE.tuning.minFriction,
-      E10_NUMBER_DECODE.tuning.baseFriction - s.directionPresses * E10_NUMBER_DECODE.tuning.frictionLoss,
+      E10_NUMBER_DECODE.tuning.baseFriction - s.directionPresses * this.penalty(E10_NUMBER_DECODE.tuning.frictionLoss),
     );
     s.feedback = `방향 입력 ${s.directionPresses}회 · 바닥이 더 미끄러워졌습니다.`;
     s.feedbackUntil = this.elapsed + 1.15;

@@ -70,7 +70,7 @@ try {
   $playability = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-clearability.js')))
   Write-Output ($playability | ConvertTo-Json -Depth 20)
   # Browser keyboard/mouse events, including the existing CSS-scaled monitor.
-  Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); for(let i=0;i<100 && !archiveRun.snapshot().selectedStageIds.includes(id);i++) protocolSelectFlow.reset(); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2');" | Out-Null
+  Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); if(!archiveRun.snapshot().qaMode) archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2');" | Out-Null
   Start-Sleep -Milliseconds 100
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 100

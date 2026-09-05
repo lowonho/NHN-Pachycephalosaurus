@@ -8,18 +8,28 @@
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
-  codexFlow.open();
-  const codexRect = UI.codexDialog.getBoundingClientRect();
-  assert(document.querySelectorAll('.codex-card').length === 10 && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Codex displays all ten games inside the viewport');
-  codexFlow.close({ restoreFocus: false });
+  assert(UI.mainCodexButton.disabled, 'Testimony archive stays locked before the ending');
+  const menuRect = UI.mainMenu.getBoundingClientRect();
+  assert(document.querySelectorAll('.main-menu-actions .menu-button').length === 4
+    && menuRect.top >= -1 && menuRect.bottom <= innerHeight + 1, 'Main menu shows four story actions inside the viewport');
+  settingsFlow.open();
+  const settingsRect = UI.settingsDialog.getBoundingClientRect();
+  assert(document.querySelectorAll('.settings-row').length === 6
+    && settingsRect.top >= -1 && settingsRect.bottom <= innerHeight + 1, 'Six setting rows fit inside the viewport');
+  UI.cutsceneSpeed.value = '200'; UI.cutsceneSpeed.dispatchEvent(new Event('input'));
+  UI.settingsSkipCutscenesToggle.click();
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 2 && ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cutscene speed and skip settings update');
+  settingsFlow.cancel();
+  assert(ARCHIVE_STORY_SETTINGS.cutsceneSpeed === 1 && !ARCHIVE_STORY_SETTINGS.skipCutscenes, 'Cancel restores story settings');
   const seen = new Set();
   for (let i = 0; i < 80; i++) {
     const run = archiveRun.reset();
-    if (run.selectedStageIds.length !== 5 || new Set(run.selectedStageIds).size !== 5) throw Error(`Invalid random selection ${i}`);
+    if (run.selectedStageIds.length !== 6 || new Set(run.selectedStageIds).size !== 6) throw Error(`Invalid random selection ${i}`);
     run.selectedStageIds.forEach(id => seen.add(id));
   }
   assert(seen.size === 10, 'All ten games appear in random selection');
-  assert(true, '80 random runs each contain exactly five unique games');
+  assert(true, '80 random acts each contain exactly six unique games');
+  archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id));
   for (const stage of MINIGAME_CATALOG) {
     load(stage.id); advance(.25);
     const time = scene.remaining;
@@ -98,18 +108,62 @@
   assert(scene.state !== previousAttempt && scene.state.input === '' && scene.state.x === 480 && scene.state.vx === 0 && scene.state.friction === 820 && /^[1-9][0-9]{3}$/.test(scene.state.target), 'e10: retry rebuilds target, input, motion and friction');
   load('e7'); advance(21);
   assert(scene.mode === 'done' && Math.abs(scene.elapsed - 20.26) < .00001, 'Timer ends exactly at 20.26 seconds');
-  // Real UI result/retry/select routes with a stage selected in the current run.
+  // A life retry must rebuild random layouts and targets from the same story-stage seed.
+  archiveRun.exitQa();
+  const randomConfigGames = new Set(['e4', 'e7', 'e8', 'e10']);
+  let seededRun = archiveRun.reset();
+  for (let attempt = 0; attempt < 100 && !randomConfigGames.has(seededRun.expectedStageId); attempt++) seededRun = archiveRun.reset();
+  assert(randomConfigGames.has(seededRun.expectedStageId), 'A random-layout stage can be selected for retry verification');
+  protocolSelectFlow.refreshStages();
+  const seededId = seededRun.expectedStageId;
+  protocolSelectFlow.launchStage(seededId);
+  const configSignature = () => JSON.stringify(seededId === 'e4' ? scene.state.points
+    : seededId === 'e7' ? scene.state.rotation
+      : seededId === 'e8' ? scene.dropPlan : scene.state.target);
+  const firstConfig = configSignature();
+  scene.finish(false); document.querySelector('#primary-button').click();
+  assert(configSignature() === firstConfig, `${seededId}: life retry preserves the random layout or target`);
+  archiveGameBridge.stop();
+  // Real story UI result/continue/retry routes with a stage selected in the current act.
   protocolSelectFlow.reset(); protocolSelectFlow.open();
   const selected = archiveRun.snapshot().selectedStageIds;
   const id = selected[0]; protocolSelectFlow.launchStage(id); scene.finish(true);
   assert(modalFlow.isOpen(), 'Clear opens result modal');
   assert(archiveRecords.best(id) !== null, 'Successful clear stores best record');
-  document.querySelector('#secondary-button').click();
-  assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Result retry starts clean attempt');
-  scene.finish(false); document.querySelector('#primary-button').click();
-  assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Stage selection keeps same five games');
-  assert(document.querySelectorAll('.stage-select-card').length === 5, 'UI displays exactly five games');
-  protocolSelectFlow.launchStage(id); scene.finish(false); document.querySelector('#result-main-button').click();
+  assert(document.querySelector('#secondary-button').hidden, 'Story clear hides legacy retry button');
+  document.querySelector('#primary-button').click();
+  assert(archiveRun.snapshot().currentStageInAct === 2, 'Clear continues to the next story record');
+  assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Act selection keeps the same six games');
+  assert(document.querySelectorAll('.stage-select-card').length === 6, 'UI displays exactly six games');
+  assert(document.querySelectorAll('.stage-select-card:not(:disabled)').length === 1, 'Only the current story stage is enabled');
+  const retryId = archiveRun.snapshot().expectedStageId;
+  protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
+  assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');
+  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one act life');
+  assert(UI.stageHudAct.textContent === 'ACT 1/3' && UI.stageHudStage.textContent === 'STAGE 2/6'
+    && UI.stageHudLives.textContent.endsWith('◆◆◇') && UI.stageHudActRecords.textContent === '1/6'
+    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, lives, act records and total records');
+  scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
+  // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
+  protocolSelectFlow.reset();
+  for (let storyIndex = 0; storyIndex < 18; storyIndex++) {
+    const storyRun = archiveRun.snapshot();
+    protocolSelectFlow.refreshStages();
+    protocolSelectFlow.startStage(storyRun.expectedStageId);
+    if (!scene.playable()) throw Error(`Story stage ${storyIndex + 1} did not start`);
+    scene.finish(true);
+    document.querySelector('#primary-button').click();
+  }
+  const completedRun = archiveRun.snapshot();
+  assert(completedRun.finished && completedRun.ending === 'shared' && completedRun.totalRecordCount === 18, 'Eighteen clears reach the single shared-memory ending');
+  assert(completedRun.archiveViewerUnlocked && completedRun.archiveEntries.length === 18 && !UI.mainCodexButton.disabled, 'Ending unlocks all eighteen testimony entries');
+  codexFlow.open();
+  const codexRect = UI.codexDialog.getBoundingClientRect();
+  assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
+    && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');
+  codexFlow.close({ restoreFocus: false });
+  ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   return { passed: checks.length, checks: checks.filter(name => !name.startsWith('Unique random selection')) };
 })()

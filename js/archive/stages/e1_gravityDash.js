@@ -25,7 +25,7 @@ export const E1_GRAVITY_DASH = {
     s.vy += t.gravity * dt; s.y = Math.min(450, s.y + s.vy * dt);
     if (s.y === 450) s.vy = 0;
     for (const o of s.obstacles) {
-      o.vy += s.sign * t.obstacleGravity * o.factor * dt;
+      o.vy += s.sign * this.penalty(t.obstacleGravity) * o.factor * dt;
       o.vy = MINI.clamp(o.vy, -340, 340); o.y += o.vy * dt;
       if (o.y < 173 || o.y > 441) { o.y = MINI.clamp(o.y, 173, 441); o.vy = 0; }
       if (!s.immune && MINI.hit({ x: 165, y: s.y - 15, w: 30, h: 30 }, { ...o, x: o.x - s.x + 180 })) {

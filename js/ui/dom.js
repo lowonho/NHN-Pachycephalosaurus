@@ -7,6 +7,7 @@ const UI = Object.freeze({
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),
+  mainContinueButton: document.querySelector("#main-continue-button"),
   mainCodexButton: document.querySelector("#main-codex-button"),
   mainSoundButton: document.querySelector("#main-sound-button"),
 
@@ -47,13 +48,11 @@ const UI = Object.freeze({
   protocolScreen: document.querySelector("#protocol-screen"),
   protocolDesktop: document.querySelector("#protocol-desktop"),
   stageSelectGrid: document.querySelector("#stage-select-grid"),
+  stageSelectTitle: document.querySelector("#stage-select-title"),
   stageSelectBackButton: document.querySelector("#stage-select-back-button"),
   protocolProgress: document.querySelector("#protocol-progress"),
 
-  /*
-   * 책상 위 탁상시계 — 남은 복구 시간(2:23)을 1/100초까지 띄우는 유일한 표시다.
-   * 스크린 밖이라 프로토콜을 고르는 동안에도, 미니게임을 하는 동안에도 보인다.
-   */
+  /* 책상 위 탁상시계 — 현재 스테이지의 20.26초를 표시한다. */
   /* 책상 위 양손 — 입력에 따라 각각 움직인다(js/ui/desk-hands.js). */
   deskHandLeft: document.querySelector("#desk-hand-left"),
   deskHandRight: document.querySelector("#desk-hand-right"),
@@ -93,6 +92,10 @@ const UI = Object.freeze({
   sfxVolumeToggle: document.querySelector("#sfx-volume-toggle"),
   settingsFullscreenToggle: document.querySelector("#settings-fullscreen-toggle"),
   settingsFullscreenState: document.querySelector("#settings-fullscreen-state"),
+  cutsceneSpeed: document.querySelector("#cutscene-speed"),
+  cutsceneSpeedValue: document.querySelector("#cutscene-speed-value"),
+  settingsSkipCutscenesToggle: document.querySelector("#settings-skip-cutscenes-toggle"),
+  settingsSkipCutscenesState: document.querySelector("#settings-skip-cutscenes-state"),
   settingsApplyButton: document.querySelector("#settings-apply-button"),
   settingsBackButton: document.querySelector("#settings-back-button"),
 
@@ -102,12 +105,15 @@ const UI = Object.freeze({
   stageHudTitle: document.querySelector("#stage-hud-title"),
   stageHudTimer: document.querySelector("#stage-hud-timer"),
   stageHudTotal: document.querySelector("#stage-hud-total"),
+  stageHudAct: document.querySelector("#stage-hud-act"),
+  stageHudStage: document.querySelector("#stage-hud-stage"),
+  stageHudLives: document.querySelector("#stage-hud-lives"),
+  stageHudActRecords: document.querySelector("#stage-hud-act-records"),
   stageHudMemory: document.querySelector("#stage-hud-memory"),
   stageHudAction: document.querySelector("#stage-hud-action"),
   stageHudAnomaly: document.querySelector("#stage-hud-anomaly"),
   stageHudRisk: document.querySelector("#stage-hud-risk"),
   stageHudPenalty: document.querySelector("#stage-hud-penalty"),
-  fragmentDiscoveryTip: document.querySelector("#fragment-discovery-tip"),
 
   modal: document.querySelector("#result-modal"),
   modalStep: document.querySelector("#modal-step"),

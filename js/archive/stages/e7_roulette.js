@@ -6,7 +6,7 @@ export const E7_ROULETTE = {
     MINI.init(this, 0xfca8d6);
     this.add.text(723, 243, '당첨', { fontFamily: 'Arial', fontSize: '18px', color: '#ffcf7b' });
     this.add.text(723, 276, '꽝', { fontFamily: 'Arial', fontSize: '18px', color: '#a6b7ce' });
-    this.state = { rotation: MINI.rand(0, Math.PI * 2), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
+    this.state = { rotation: MINI.rand(0, Math.PI * 2, this.random), misses: 0, spinning: false, speed: 0, drag: null, cooldown: 0 };
   },
   pointerDown(x, y) {
     const s = this.state, radius = Math.hypot(x - 480, y - 321);
@@ -29,11 +29,12 @@ export const E7_ROULETTE = {
     // 균일한 한 바퀴의 추가 회전량으로 최종 각도를 균일하게 만듭니다.
     // 속도/당기는 위치에 관계없이 면적 1/N이 실제 당첨 확률 1/N이 됩니다.
     // 이 회전량에 맞는 마찰로 자연스럽게 멈추며, 당첨 판정 자체는 정지한 칸을 따릅니다.
-    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + MINI.rand(0, Math.PI * 2);
+    const travel = Math.abs(s.speed) * t.minSpinSeconds / 2 + MINI.rand(0, Math.PI * 2, this.random);
     s.deceleration = s.speed * s.speed / (2 * travel);
     s.spinning = true; this.actions++; this.sfx('click');
   },
   cancelInput() { this.state.drag = null; },
+  difficulty() { return 1 + this.state.misses * this.penalty(1); },
   update(dt) {
     const s = this.state;
     s.cooldown = Math.max(0, s.cooldown - dt);
@@ -45,16 +46,16 @@ export const E7_ROULETTE = {
       if (Math.abs(next) < .001) {
         s.spinning = false;
         const tau = Math.PI * 2, atPointer = ((-Math.PI / 2 - s.rotation) % tau + tau) % tau;
-        if (atPointer < tau / (2 * (s.misses + 1))) this.finish(true, `${this.actions}번째 추첨 당첨`);
+        if (atPointer < tau / (2 * E7_ROULETTE.difficulty.call(this))) this.finish(true, `${this.actions}번째 추첨 당첨`);
         else { s.misses++; s.cooldown = .35; this.sfx('failure'); }
       }
     }
-    this.anomaly = `당첨 영역 1/${2 * (s.misses + 1)} · ${s.spinning ? '추첨 중' : s.cooldown ? '꽝! 다시 돌리세요' : '룰렛을 휙 돌리세요'}`;
+    this.anomaly = `당첨 영역 1/${(2 * E7_ROULETTE.difficulty.call(this)).toFixed(1)} · ${s.spinning ? '추첨 중' : s.cooldown ? '꽝! 다시 돌리세요' : '룰렛을 휙 돌리세요'}`;
     this.risk = Math.min(100, s.misses * 17);
   },
   render() {
-    const s = this.state, tau = Math.PI * 2, angle = tau / (2 * (s.misses + 1));
-    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${2 * (s.misses + 1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
+    const s = this.state, tau = Math.PI * 2, difficulty = E7_ROULETTE.difficulty.call(this), angle = tau / (2 * difficulty);
+    MINI.frame(this, `PRIZE DRAW    당첨 영역 1 / ${(2 * difficulty).toFixed(1)}    ${s.spinning ? '돌아가는 중…' : '마우스로 원을 따라 휙! '}`);
     MINI.circle(this, 480, 321, 158, 0x725779); MINI.circle(this, 480, 321, 150, 0x2b344c);
     const points = [{ x: 480, y: 321 }];
     for (let i = 0; i <= 60; i++) points.push({ x: 480 + Math.cos(s.rotation + angle * i / 60) * 150, y: 321 + Math.sin(s.rotation + angle * i / 60) * 150 });

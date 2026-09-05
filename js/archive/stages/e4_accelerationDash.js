@@ -8,7 +8,7 @@ export const E4_ACCELERATION_DASH = {
     // 계단형 월드 좌표: 매번 길이가 달라지지만 코너 수는 정확히 tuning.turns개.
     const points = [{ x: 0, y: 0 }];
     for (let i = 0; i <= t.turns; i++) {
-      const last = points[points.length - 1], length = MINI.rand(t.minLength, t.maxLength);
+      const last = points[points.length - 1], length = MINI.rand(t.minLength, t.maxLength, this.random);
       points.push({ x: last.x + (i % 2 === 0 ? length : 0), y: last.y - (i % 2 ? length : 0) });
     }
     this.state = { points, segment: 0, progress: 0, misses: 0, retry: 0 };
@@ -32,11 +32,11 @@ export const E4_ACCELERATION_DASH = {
   update(dt) {
     const s = this.state, t = E4_ACCELERATION_DASH.tuning;
     s.retry = Math.max(0, s.retry - dt);
-    if (!s.retry) s.progress += Math.min(t.maxSpeed, t.speed + s.segment * t.gain) * dt;
+    if (!s.retry) s.progress += Math.min(t.maxSpeed, t.speed + s.segment * this.penalty(t.gain)) * dt;
     const a = s.points[s.segment], b = s.points[s.segment + 1], length = Math.hypot(b.x - a.x, b.y - a.y);
     if (s.segment === t.turns && s.progress >= length) this.finish(true);
     else if (s.progress > length + t.tolerance) E4_ACCELERATION_DASH.miss.call(this);
-    this.anomaly = `속도 ${Math.round(Math.min(t.maxSpeed, t.speed + s.segment * t.gain))} · 코너 ${s.segment}/${t.turns}`;
+    this.anomaly = `속도 ${Math.round(Math.min(t.maxSpeed, t.speed + s.segment * this.penalty(t.gain)))} · 코너 ${s.segment}/${t.turns}`;
     this.risk = s.segment * 9;
   },
   render() {

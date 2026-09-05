@@ -1,7 +1,7 @@
 /* 렌더링/충돌 도구만 공유합니다. 모든 게임 상태는 scene.state에 새로 생성합니다. */
 export const MINI = {
   clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
-  rand: (lo, hi) => lo + Math.random() * (hi - lo),
+  rand: (lo, hi, random = Math.random) => lo + random() * (hi - lo),
   hit: (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y,
   init(scene, color) {
     scene.actions = 0; scene.risk = 0; scene.accent = color;
@@ -58,6 +58,10 @@ export const MINI = {
   goal(scene, x, y, r = 22) {
     scene.ink.lineStyle(3, 0xa7ffc6).strokeCircle(x, y, r);
     scene.ink.lineStyle(2, 0xa7ffc6, 0.3).strokeCircle(x, y, r + 7);
+    if (scene.assistProtocol && scene.elapsed % 5 < .45) {
+      const wave = (scene.elapsed % .45) / .45;
+      scene.ink.lineStyle(4, 0x93fca0, 1 - wave).strokeCircle(x, y, r + 12 + wave * 28);
+    }
     MINI.circle(scene, x, y, 4, 0xa7ffc6);
   },
   /* 에셋 교체 지점: assets/minigames/manifest.js에 역할별 이미지 경로를 등록합니다.

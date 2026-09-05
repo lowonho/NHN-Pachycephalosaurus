@@ -90,13 +90,13 @@
   letter-spacing: 0.18em;
 }
 
-/* ── 카드 4열 ──────────────────────────────────────────────────────── */
+/* ── 증언 기록 18개: 6열 × 3행 ────────────────────────────────────── */
 
 .codex-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 20px;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -104,12 +104,12 @@
 
 .codex-card {
   display: grid;
-  flex: 0 0 calc((100% - 60px) / 4);
+  flex: 0 0 calc((100% - 70px) / 6);
   /* 내용이 한 줄 늘어도 격자가 흔들리지 않게 높이를 잡아 둔다. */
   align-content: start;
-  gap: 10px;
-  min-height: 205px;
-  padding: 18px 22px 20px;
+  gap: 7px;
+  min-height: 166px;
+  padding: 14px 15px 16px;
   border: 1px solid var(--codex-line-soft);
   clip-path: polygon(
     16px 0,
@@ -146,7 +146,7 @@
 
 .codex-card-number {
   color: var(--codex-line);
-  font: 900 24px/1 var(--font-ui);
+  font: 900 18px/1 var(--font-ui);
   letter-spacing: 0.16em;
 }
 
@@ -156,7 +156,7 @@
 
 .codex-card-icon {
   color: var(--codex-line);
-  font-size: 34px;
+  font-size: 24px;
   line-height: 1;
   text-shadow: 0 0 14px rgba(87, 232, 255, 0.55);
 }
@@ -168,7 +168,7 @@
 
 .codex-card-title {
   color: inherit;
-  font: 900 28px/1.2 var(--font-ui);
+  font: 900 20px/1.2 var(--font-ui);
   letter-spacing: 0.02em;
 }
 
@@ -192,12 +192,19 @@
   word-break: keep-all;
 }
 
+.codex-card-testimony {
+  margin: 0;
+  color: var(--codex-dim);
+  font: 700 12px/1.35 var(--font-ui);
+  white-space: pre-line;
+}
+
 .codex-card-record {
   margin: 4px 0 0;
   padding-top: 10px;
   border-top: 1px solid var(--codex-line-soft);
   color: var(--codex-dim);
-  font: 700 15px/1.3 var(--font-ui);
+  font: 700 12px/1.3 var(--font-ui);
   letter-spacing: 0.04em;
 }
 
