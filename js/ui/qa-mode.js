@@ -49,7 +49,8 @@ const QA_SCENE_LABELS = Object.freeze({
   "ending-a": "CS-06A 최종 증거 전송",
   "ending-b": "CS-06B 개발자 검증",
   "ending-c": "CS-06C ARIA-26 폐기",
-  "ending-d": "CS-06D 밈 기록 복구",
+  "ending-d-break": "CS-06D 방화벽 파괴",
+  "ending-d": "CS-06D 복구 기록 귀환",
 });
 
 const QA_CUE_KIND_LABELS = Object.freeze({

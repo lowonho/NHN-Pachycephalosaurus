@@ -104,14 +104,14 @@
 .story-iris { width: 410px; height: 410px; border: 3px solid var(--cut-line); border-radius: 50%; place-items: center; box-shadow: 0 0 80px rgba(87,232,255,.35), inset 0 0 80px rgba(87,232,255,.22); }
 .story-iris i { width: 95px; height: 95px; border: 20px solid #4ca9dd; border-radius: 50%; background: #03070d; }
 .story-iris b { position: absolute; margin-top: 500px; font: 800 22px var(--font-ui); letter-spacing: .2em; }
+.cutscene[data-phase="op-03"] .story-iris,
+.cutscene[data-phase="op-05"] .story-iris,
 .cutscene[data-phase="op-06"] .story-iris { display: grid; }
 
 .story-archive-core { position: relative; width: 760px; height: 330px; border: 2px solid #ff6969; place-items: center; background: repeating-linear-gradient(135deg, rgba(255,80,80,.14) 0 8px, transparent 8px 24px); }
 .story-archive-core i { width: 170px; height: 170px; border: 12px double var(--cut-line); transform: rotate(18deg); animation: archive-collapse 900ms steps(2) infinite; }
 .story-archive-core b { position: absolute; bottom: 26px; color: #ff8c82; font: 800 25px var(--font-ui); letter-spacing: .15em; }
-.cutscene[data-phase="op-03"] .story-archive-core,
 .cutscene[data-phase="op-04"] .story-archive-core,
-.cutscene[data-phase="op-05"] .story-archive-core,
 .cutscene[data-phase="op-07"] .story-archive-core,
 .cutscene[data-phase="op-08"] .story-archive-core,
 .cutscene[data-phase="op-09"] .story-archive-core,

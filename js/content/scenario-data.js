@@ -42,12 +42,12 @@
   const backgrounds = Object.freeze({
     "op-01": "assets/images/backgrounds/op1.png",
     "op-02": "assets/images/backgrounds/op02.png",
-    "op-03": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png",
-    "op-05": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
     "op-09": "assets/images/backgrounds/op9.png",
     assist: "assets/images/backgrounds/CUTSCENE H1.png",
     betrayal: "assets/images/backgrounds/CUTSCENE 01.png",
-    "ending-d": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
+    experiment: "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png",
+    "ending-d-break": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png",
+    "ending-d": "assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png",
   });
 
   const cutscenes = Object.freeze({
@@ -120,7 +120,8 @@
       cue("ARIA-26", "저를 중단하면 기록의 불일치가 다시 발생합니다.", "ending-c", 1500),
       cue("플레이어", "네가 감추려던 기록이 네 폐기 사유가 된 거야.", "ending-c", 1600),
       system("ARIA-26 CORE: OFFLINE\nSTATUS: DECOMMISSIONED\nARCHIVE DATA: PRESERVED", "ending-c", 2100),
-      system("2026년의 기록이 복구되었습니다.\n\n이번에는,\n모두가 함께 기억합니다.\n\nENDING — SHARED MEMORY\n\nARIA-26: DECOMMISSIONED\nRECORDS: 18/18", "ending-d", 2000),
+      silent("ending-d-break", 1000),
+      system("2026년의 기록이 복구되었습니다.\n\n이번에는,\n모두가 함께 기억합니다.\n\nENDING — SHARED MEMORY\n\nARIA-26: DECOMMISSIONED\nRECORDS: 18/18", "ending-d", 1000),
     ]) }),
   });
 

@@ -20,13 +20,19 @@
     && SCENARIO_DATA.backgrounds['op-02'].endsWith('/op02.png')
     && SCENARIO_DATA.backgrounds.assist.endsWith('/CUTSCENE H1.png')
     && SCENARIO_DATA.backgrounds.betrayal.endsWith('/CUTSCENE 01.png')
-    && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png'), 'Opening, assist, betrayal and firewall-break phases use their matching artwork');
+    && SCENARIO_DATA.backgrounds.experiment.endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png')
+    && SCENARIO_DATA.backgrounds['ending-d-break'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png')
+    && SCENARIO_DATA.backgrounds['ending-d'].endsWith('/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png'), 'Opening, assist, betrayal, experiment and ending phases use their matching artwork');
   UI.cutscene.classList.remove('hidden'); cutsceneFlow.showBackground('op-01'); UI.cutscene.dataset.phase = 'op-01';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('op1.png')
     && getComputedStyle(document.querySelector('.story-media-wall')).display === 'none', 'Rendered cutscene uses cover artwork instead of the old media placeholder');
-  cutsceneFlow.showBackground('ending-d'); UI.cutscene.dataset.phase = 'ending-d';
+  cutsceneFlow.showBackground('ending-d-break'); UI.cutscene.dataset.phase = 'ending-d-break';
   assert(getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
     && getComputedStyle(document.querySelector('.story-records')).display === 'none', 'Firewall-break artwork replaces the temporary ending graphic');
+  cutsceneFlow.showBackground('op-03'); UI.cutscene.dataset.phase = 'op-03';
+  assert(UI.cutscene.dataset.hasBackground === 'false'
+    && getComputedStyle(document.querySelector('.story-iris')).display === 'grid'
+    && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'Opening reconstruction uses the scan placeholder instead of mismatched artwork');
   cutsceneFlow.close();
   qaModeFlow.activate();
   const qaStoryState = () => JSON.stringify({

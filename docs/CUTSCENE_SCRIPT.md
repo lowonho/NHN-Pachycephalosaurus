@@ -170,6 +170,8 @@ ACCESS ROUTE: LOCKED
 
 숨겨진 실험 구역에서 밈 기록 삭제에 따라 사람들의 회상 수치가 떨어진 결과가 나타난다.
 
+사용 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_22_17.png`
+
 ```text
 MEMORY SUPPRESSION TEST
 PHASE 1 TARGET: MEME ARCHIVES
@@ -273,7 +275,9 @@ ARCHIVE DATA: PRESERVED
 
 최종 차단벽이 부서지고 밈의 원본, 변형본과 패러디가 아카이브 밖으로 쏟아져 나온다. 오프닝의 방으로 돌아온 플레이어의 스마트폰과 모니터에 삭제된 기록이 다시 나타난다.
 
-사용 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png`
+방화벽 파괴 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 07_30_12.png`
+
+복구된 기록을 다시 확인하는 이미지: `assets/images/backgrounds/ChatGPT Image 2026년 9월 5일 오후 05_12_03.png`
 
 ```text
 2026년의 기록이 복구되었습니다.
