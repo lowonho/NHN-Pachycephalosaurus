@@ -69,7 +69,7 @@ try {
   Write-Output ($checks | ConvertTo-Json -Depth 15)
   $artifactDir = Join-Path $root 'tests/.artifacts'
   New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
-  Evaluate "mainMenuFlow.close(); protocolSelectFlow.open(); protocolSelectFlow.showScreen('play'); const e3view = archivePhaserGame.scene.getScene('archive-game'); UI.stageHud.hidden=false; UI.stageHudTimer.hidden=false; UI.stageHudTitle.textContent='E3 · 사람 쌓기'; UI.stageHudTimer.textContent=e3view.remaining.toFixed(2); UI.stageHudAnomaly.textContent='실제 접촉과 무게중심으로 지탱한 탑'; UI.stageHudAction.textContent='낙하 '+e3view.state.drops; archivePhaserGame.loop.wake();" | Out-Null
+  Evaluate "mainMenuFlow.close(); protocolSelectFlow.open(); protocolSelectFlow.showScreen('play'); const e3view = archivePhaserGame.scene.getScene('archive-game'); UI.stageHud.hidden=false; UI.stageHudTimer.hidden=false; UI.stageHudTitle.textContent='E3 · 메챠 쌓기'; UI.stageHudTimer.textContent=e3view.remaining.toFixed(2); UI.stageHudAnomaly.textContent='실제 접촉과 무게중심으로 지탱한 탑'; UI.stageHudAction.textContent='낙하 '+e3view.state.drops; archivePhaserGame.loop.wake();" | Out-Null
   Start-Sleep -Milliseconds 100
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e3-tower.png'), [Convert]::FromBase64String($shot.data))

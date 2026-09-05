@@ -398,7 +398,9 @@ class QaModeFlow {
     const icon = document.createElement("span");
     icon.className = "qa-stage-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = stage.recordSymbol;
+    /* 기호가 SVG 마크업(거미줄 질주 등)이면 그대로 꽂고, 아니면 여느 문자 기호처럼 넣는다. */
+    if (stage.recordSymbol.trim().startsWith("<")) icon.innerHTML = stage.recordSymbol;
+    else icon.textContent = stage.recordSymbol;
 
     const title = document.createElement("strong");
     title.className = "qa-stage-title";

@@ -1,7 +1,7 @@
 /*
  * scripts/bake-stack-poses.ps1 이 만든 파일이다. 손으로 고치지 마라.
  *
- * e3 사람 쌓기가 떨어뜨리는 여덟 포즈다. 원본은
+ * e3 메챠 쌓기가 떨어뜨리는 여덟 포즈다. 원본은
  * assets/images/minigame/stacks/metcha/pose1..8.png 이고, 여기 값은 전부 게임 좌표다.
  *
  * width/height = 여백을 자른 그림의 표시 크기. 원점은 그 그림의 정중앙이다.
