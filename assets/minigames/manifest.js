@@ -8,6 +8,10 @@ globalThis.MINIGAME_ASSETS = {
   // 중력 쪽 모서리에 맞춘다. 표시 높이는 e1_gravityDash.js 의 POSE_HEIGHT 가 정하고,
   // 원본 png 에서 굽는 일은 scripts/bake-geomatric-dash.ps1 이 한다.
   e1: {
+    // backdrop 은 필드를 통째로 덮는 배경 한 장이다(16:9). 벽 안쪽 통로에서만 보이고,
+    // 깔리는 순간 MINI.frame 의 격자는 사라지고 어둠막만 남는다. 원본 geoje-sea.png 에서
+    // 굽는 일은 scripts/bake-geoje-sea.ps1 이 한다.
+    backdrop: 'assets/images/minigame/geomatric%20dash/geoje-sea.webp',
     run: 'assets/images/minigame/geomatric%20dash/run.webp',
     jump: 'assets/images/minigame/geomatric%20dash/jump.webp',
     hurt: 'assets/images/minigame/geomatric%20dash/hurt.webp',
