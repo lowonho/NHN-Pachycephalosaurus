@@ -168,6 +168,46 @@ function createMinigameRecords(ids, storage = null) {
 }
 
 
+/* Source: plays.mjs */
+/*
+ * 미니게임 도감이 읽는 "한 번이라도 해 봤는가" 기록.
+ *
+ * progress.mjs(복구 등급)·records.mjs(최고 기록)와 성격이 다르다.
+ * 그 둘은 클리어해야 남지만, 여기는 시작한 순간 남는다 —
+ * 도감은 "클리어한 게임"이 아니라 "만나 본 게임"을 펼치는 화면이라서다.
+ *
+ * 저장소가 막혀 있어도(사생활 보호 모드 등) 플레이는 그대로 되어야 하므로
+ * 실패는 전부 삼키고 세션 동안만 기억한다.
+ */
+const PLAY_LOG_KEY = 'archive-2026-minigame-plays-v1';
+
+function createMinigamePlayLog(stageIds, storage = null) {
+  const ids = [...new Set(stageIds)];
+  const played = new Set();
+  try {
+    const saved = JSON.parse(storage?.getItem(PLAY_LOG_KEY) || '[]');
+    if (Array.isArray(saved)) for (const id of saved) if (ids.includes(id)) played.add(id);
+  } catch { /* 저장이 깨져 있어도 도감은 열려야 한다 */ }
+
+  const persist = () => {
+    try { storage?.setItem(PLAY_LOG_KEY, JSON.stringify([...played])); } catch { /* 세션 기록은 유지 */ }
+  };
+
+  return {
+    has: (id) => played.has(id),
+    all: () => [...played],
+    count: () => played.size,
+    /* 이미 있는 id면 저장소를 다시 건드리지 않는다. 스테이지 시작마다 불리는 자리라서다. */
+    record(id) {
+      if (!ids.includes(id) || played.has(id)) return false;
+      played.add(id);
+      persist();
+      return true;
+    },
+  };
+}
+
+
 /* Source: run-state.mjs */
 const TOTAL_TIME_MS = 20_260;
 
@@ -181,21 +221,42 @@ function sampleStages(ids, count = 5, random = Math.random) {
 
 function createArchiveRunState(stageIds, totalTimeMs = TOTAL_TIME_MS) {
   let selected = sampleStages(stageIds), phase = 'menu', currentStageId = null, paused = false;
-  let remaining = totalTimeMs, elapsedMs = 0;
+  // 한 시도의 시간 예산. QA 모드만 20.26초에서 바꿔 놓는다(js/config/qa.js).
+  let budgetMs = totalTimeMs;
+  let remaining = budgetMs, elapsedMs = 0;
   const cleared = new Set();
   const resolveEnding = () => cleared.size === selected.length ? 'normal' : null;
   const snapshot = () => ({
-    totalTimeMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
+    totalTimeMs: budgetMs, totalRemainingMs: Math.round(remaining), elapsedMs, phase, paused, currentStageId,
     selectedStageIds: [...selected], clearedStageIds: [...cleared], clearedCount: cleared.size,
     totalStages: selected.length, memoryCount: cleared.size, memoryStageIds: [...cleared],
     ending: resolveEnding(),
   });
   return {
     snapshot, resolveEnding,
-    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = totalTimeMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
+    reset() { selected = sampleStages(stageIds); cleared.clear(); remaining = budgetMs; elapsedMs = 0; currentStageId = null; phase = 'menu'; paused = false; return snapshot(); },
+    /*
+     * QA 모드 전용 — 랜덤 5개 대신 지정한 목록을 이번 판의 선택으로 쓴다.
+     * (게임 브리지는 selectedStageIds에 없는 스테이지를 열어 주지 않는다.)
+     */
+    setSelection(ids) {
+      const next = [...new Set(ids)].filter(id => stageIds.includes(id));
+      if (next.length === 0) throw new RangeError('Empty stage selection');
+      selected = next;
+      for (const id of [...cleared]) if (!selected.includes(id)) cleared.delete(id);
+      return snapshot();
+    },
+    /* QA 모드 전용 — 한 시도의 예산(책상 시계)을 바뀐 제한시간에 맞춘다. */
+    setAttemptTime(ms) {
+      const value = Number(ms);
+      if (!Number.isFinite(value) || value <= 0) throw new RangeError('Invalid attempt time');
+      budgetMs = Math.round(value);
+      if (phase !== 'playing') remaining = budgetMs;
+      return snapshot();
+    },
     beginAttempt(id) {
       if (!selected.includes(id)) throw new RangeError(`Stage not selected in this run: ${id}`);
-      currentStageId = id; remaining = totalTimeMs; paused = false; phase = 'playing'; return snapshot();
+      currentStageId = id; remaining = budgetMs; paused = false; phase = 'playing'; return snapshot();
     },
     consume(ms) {
       if (phase === 'playing' && !paused) { const delta = Math.min(remaining, Math.max(0, Number(ms) || 0)); remaining -= delta; elapsedMs += delta; }
@@ -223,6 +284,34 @@ const MINI = {
     scene.readout = scene.add.text(32, 109, '', { fontFamily: 'Arial, sans-serif', fontSize: '19px', color: '#f4f3e9' });
     scene.instruction = scene.add.text(480, 513, scene.stage.controls, { fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#a8c6d2' }).setOrigin(0.5);
     scene.assetSprites = new Map();
+    scene.spawnAt = -1;
+  },
+  /* 죽고 다시 시작할 때의 공통 소환 연출. 재생 시간은 MINI.SPAWN초로 0.5초를 넘지 않습니다.
+     scene.elapsed(공통 게임 시간)만 사용하므로 게임 쪽에 별도 타이머가 필요 없습니다. */
+  SPAWN: .42,
+  summon(scene) { scene.spawnAt = scene.elapsed; },
+  spawnPhase(scene) {
+    const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
+    return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;
+  },
+  /* 소환 직후 캐릭터가 부풀었다 제자리로 돌아오는 배율. 도형과 이미지에 함께 적용합니다. */
+  spawnScale(scene) {
+    const phase = MINI.spawnPhase(scene);
+    if (phase === null) return 1;
+    return phase < .45 ? .35 + phase / .45 * .8 : 1.15 - (phase - .45) / .55 * .15;
+  },
+  spawnFx(scene, x, y, size = 30, color = scene.accent) {
+    const phase = MINI.spawnPhase(scene);
+    if (phase === null) return;
+    // 바깥에서 조여드는 두 겹의 링과 빨려드는 파편으로 "다시 소환됐다"를 알립니다.
+    const fade = 1 - phase;
+    scene.ink.lineStyle(3, color, fade).strokeCircle(x, y, size * (2.5 - 1.9 * phase));
+    scene.ink.lineStyle(1, 0xfaffec, fade * .55).strokeCircle(x, y, size * (3.6 - 2.9 * phase));
+    for (let i = 0; i < 7; i++) {
+      const angle = i * Math.PI * 2 / 7 + phase * 1.5, radius = size * (2.2 - 1.75 * phase);
+      MINI.circle(scene, x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 1 + 3 * fade, 0xfaffec, fade);
+    }
+    MINI.circle(scene, x, y, size * .85 * fade, 0xfaffec, fade * .7);
   },
   frame(scene, text) {
     const g = scene.ink; g.clear();
@@ -311,11 +400,11 @@ const E1_GRAVITY_DASH = {
       if (o.y < 173 || o.y > 441) { o.y = MINI.clamp(o.y, 173, 441); o.vy = 0; }
       if (!s.immune && MINI.hit({ x: 165, y: s.y - 15, w: 30, h: 30 }, { ...o, x: o.x - s.x + 180 })) {
         s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8;
-        this.bump(); break;
+        MINI.summon(this); this.bump(); break;
       }
     }
     if (!s.immune && this.hurdles.some(o => MINI.hit({ x: 165, y: s.y - 15, w: 30, h: 30 }, { ...o, x: o.x - s.x + 180 }))) {
-      s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8; this.bump();
+      s.deaths++; s.x = Math.max(0, s.x - 340); s.y = 450; s.vy = 0; s.immune = .8; MINI.summon(this); this.bump();
     }
     this.anomaly = `장애물 중력 ${s.sign === 1 ? '↓' : '↑'} · 충돌 ${s.deaths}회`;
     this.risk = Math.min(100, this.actions * 7);
@@ -336,8 +425,10 @@ const E1_GRAVITY_DASH = {
         MINI.line(this, x + o.w / 2, o.y - 8, x + o.w / 2, o.y - 8 - s.sign * 18, 0xffadb8);
       } else MINI.hideActor(this, `o${i}`);
     }
-    if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30, 30, -s.x / 80);
+    const pop = MINI.spawnScale(this);
+    if (!s.immune || Math.floor(s.immune * 16) % 2) MINI.actor(this, 'player', 'player', 180, s.y, 30 * pop, 30 * pop, -s.x / 80);
     else MINI.hideActor(this, 'player');
+    MINI.spawnFx(this, 180, s.y, 30);
     const goal = t.distance - s.x + 180; if (goal < 950) MINI.goal(this, goal, 433);
     MINI.meter(this, s.x / t.distance);
   },
@@ -379,7 +470,7 @@ const E2_BOUNCE_BALL = {
     if (s.y < 202 || s.y > 535) {
       s.deaths++; s.x = s.checkpoint;
       const p = this.platforms.find(p => s.x >= p.x && s.x <= p.x + p.w);
-      s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; this.bump();
+      s.y = (p?.y ?? 449) - 15; s.vy = 0; s.grounded = true; MINI.summon(this); this.bump();
     }
     this.anomaly = `점프력 ${Math.min(t.maxJump, t.jump + s.jumps * t.jumpGain)} · 사망 ${s.deaths}회`;
     this.risk = Math.min(100, s.jumps * 9);
@@ -390,7 +481,9 @@ const E2_BOUNCE_BALL = {
     MINI.frame(this, `JUMP +${s.jumps * E2_BOUNCE_BALL.tuning.jumpGain}    CHECKPOINT ${this.platforms.findIndex(p => s.checkpoint === p.x + 50) + 1}`);
     for (let x = 22; x < 938; x += 24) MINI.spike(this, x, 153, 24, 35);
     for (const p of this.platforms) MINI.box(this, p.x - cam, p.y, p.w, p.h, 0x4f7560);
-    MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30, 30, s.x / 60);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', s.x - cam, s.y, 30 * pop, 30 * pop, s.x / 60);
+    MINI.spawnFx(this, s.x - cam, s.y, 30);
     MINI.goal(this, E2_BOUNCE_BALL.tuning.goal - cam, 424);
     MINI.meter(this, s.x / E2_BOUNCE_BALL.tuning.goal);
   },
@@ -492,7 +585,7 @@ const E4_ACCELERATION_DASH = {
     if (direction === expected) E4_ACCELERATION_DASH.action.call(this);
     else if (['left', 'right', 'up', 'down'].includes(direction)) { this.actions++; E4_ACCELERATION_DASH.miss.call(this); }
   },
-  miss() { this.state.misses++; this.state.progress = 0; this.state.retry = .22; this.bump(); },
+  miss() { this.state.misses++; this.state.progress = 0; this.state.retry = .22; MINI.summon(this); this.bump(); },
   update(dt) {
     const s = this.state, t = E4_ACCELERATION_DASH.tuning;
     s.retry = Math.max(0, s.retry - dt);
@@ -518,7 +611,9 @@ const E4_ACCELERATION_DASH = {
       if (i < t.turns) MINI.goal(this, q.x, q.y, t.tolerance);
       else MINI.goal(this, q.x, q.y, 25);
     }
-    MINI.actor(this, 'player', 'player', 330, 365, 28, 28, Math.PI / 4);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', 330, 365, 28 * pop, 28 * pop, Math.PI / 4);
+    MINI.spawnFx(this, 330, 365, 28);
     MINI.meter(this, s.segment / t.turns);
   },
 };
@@ -616,7 +711,7 @@ const E6_GRAVITY_FLIGHT = {
     s.y += s.vy * dt;
     const gate = this.gates.find(g => Math.abs(g.x - s.x) < 45 && (s.y - 13 < g.y - t.gap / 2 || s.y + 13 > g.y + t.gap / 2));
     if (!s.immune && (gate || s.y < 169 || s.y > 467)) {
-      s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; this.bump();
+      s.hits++; s.x = Math.max(0, s.x - t.knockback); s.y = gate?.y ?? MINI.clamp(s.y, 220, 415); s.vy = 0; s.immune = .85; MINI.summon(this); this.bump();
     }
     s.y = MINI.clamp(s.y, 168, 468);
     this.anomaly = `중력 ${gravity} · 상승 ${lift} · 충돌 ${s.hits}회`;
@@ -634,7 +729,9 @@ const E6_GRAVITY_FLIGHT = {
       MINI.line(this, x - 30, gate.y - t.gap / 2, x + 30, gate.y - t.gap / 2, 0xff779b, 5);
       MINI.line(this, x - 30, gate.y + t.gap / 2, x + 30, gate.y + t.gap / 2, 0xff779b, 5);
     }
-    MINI.actor(this, 'player', 'player', 180, s.y, 36, 28, s.vy / 900);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', 180, s.y, 36 * pop, 28 * pop, s.vy / 900);
+    MINI.spawnFx(this, 180, s.y, 32);
     if (this.held('action')) MINI.spike(this, 146, s.y - 8, -MINI.rand(12, 28), 18, 0xffc47e);
     MINI.goal(this, t.distance - s.x + 180, 316);
     MINI.meter(this, s.x / t.distance);
@@ -763,7 +860,7 @@ const E8_SEESAW = {
     s.weights.forEach((w, i) => MINI.actor(this, 'weight', `w${i}`, 480 + w.x * c, w.landed ? t.pivotY + w.x * sn - 16 : w.y, 24 + w.mass * 8, 30, w.landed ? s.angle : 0, 0xffa8b8));
     const next = this.dropPlan[s.count];
     if (next && next.time - s.age < .85) { MINI.line(this, 480 + next.x, 160, 480 + next.x, 215, 0xff6584); MINI.spike(this, 470 + next.x, 205, 20, 14); }
-    MINI.meter(this, this.elapsed / 20.26);
+    MINI.meter(this, this.elapsed / this.timeLimit);
   },
 };
 
@@ -799,7 +896,8 @@ const E9_ICE_CURLING = {
   cancelInput() { this.state.drag = null; },
   retryStone() {
     const s = this.state;
-    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = s.hold = 0; this.sfx('failure');
+    s.failures++; s.moving = false; s.cooldown = .28; s.x = 166; s.y = 361; s.vx = s.vy = s.hold = 0;
+    MINI.summon(this); this.sfx('failure');
   },
   update(dt) {
     const s = this.state, t = E9_ICE_CURLING.tuning;
@@ -834,8 +932,10 @@ const E9_ICE_CURLING = {
       MINI.line(this, s.x, s.y, s.x + (s.x - s.drag.x) * 1.4, s.y + (s.y - s.drag.y) * 1.4, 0xffdc90, 2);
       MINI.circle(this, s.drag.x, s.drag.y, 6, 0xffdc90);
     }
-    MINI.actor(this, 'stone', 'stone', s.x, s.y, 28, 28, 0, 0xffd78f);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'stone', 'stone', s.x, s.y, 28 * pop, 28 * pop, 0, 0xffd78f);
     MINI.line(this, s.x - 7, s.y - 3, s.x + 7, s.y - 3, 0x735743, 5);
+    MINI.spawnFx(this, s.x, s.y, 28);
   },
 };
 
@@ -856,6 +956,8 @@ try { progressStorage = window.localStorage; } catch { /* 세션 저장만 사�
 window.archiveProgress = createProgressStore(STAGES.map(stage => stage.id), progressStorage);
 window.archiveRun = createArchiveRunState(STAGES.map(stage => stage.id));
 window.archiveRecords = createMinigameRecords(STAGES.map(stage => stage.id), progressStorage);
+/* 미니게임 도감(js/ui/codex-flow.js)이 읽는 "해 본 게임" 기록. */
+window.archivePlays = createMinigamePlayLog(STAGES.map(stage => stage.id), progressStorage);
 window.addEventListener('archive-sfx', event => audio.play(event.detail?.name));
 
 class ArchiveGame extends Phaser.Scene {
@@ -919,7 +1021,9 @@ class ArchiveGame extends Phaser.Scene {
     this.ink?.clearMask(true); this.fieldMask?.destroy();
     this.children.removeAll(true); this.tweens.killAll(); this.time.removeAllEvents(); this.cameras.main.resetFX();
     this.stageGame = STAGE_GAMES[id]; this.stageId = id; this.stage = STAGES.find(stage => stage.id === id);
-    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = 20.26; this.accumulator = 0;
+    // 제한시간은 판마다 다시 묻는다 — QA 모드가 20.26초를 바꿔 둘 수 있다(js/config/qa.js).
+    this.timeLimit = globalThis.archiveStageTimeLimit?.() ?? 20.26;
+    this.mode = 'ready'; this.pausedByMenu = false; this.elapsed = 0; this.remaining = this.timeLimit; this.accumulator = 0;
     this.state = null; this.anomaly = this.stage.anomaly; this.cameras.main.setBackgroundColor('#07141d');
     this.stageGame.build.call(this); this.stageGame.render.call(this); this.sendHud();
   }
@@ -943,7 +1047,7 @@ class ArchiveGame extends Phaser.Scene {
   sfx(name) { audio.play(name === 'jump' ? 'action' : name); }
   bump() { this.sfx('hit'); if (this.settings.shake) this.cameras.main.shake(100, .004); }
   sendHud() {
-    window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
+    window.dispatchEvent(new CustomEvent('archive-hud', { detail: { remaining: this.remaining, timeLimit: this.timeLimit, actions: this.actions, anomaly: this.anomaly, risk: this.risk } }));
   }
   update(_time, deltaMs) {
     if (!this.playable()) return;
@@ -953,10 +1057,10 @@ class ArchiveGame extends Phaser.Scene {
     while (this.accumulator >= step && this.playable()) {
       this.accumulator -= step;
       const dt = Math.min(step, this.remaining);
-      this.elapsed += dt; this.remaining = Math.max(0, 20.26 - this.elapsed);
+      this.elapsed += dt; this.remaining = Math.max(0, this.timeLimit - this.elapsed);
       window.dispatchEvent(new CustomEvent('archive-play-time', { detail: { deltaMs: dt * 1000 } }));
       this.stageGame.update.call(this, dt);
-      if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), '20.26초 종료');
+      if (this.playable() && this.remaining <= .000001) this.finish(Boolean(this.stageGame.timeout?.call(this)), `${this.timeLimit.toFixed(2)}초 종료`);
     }
     this.stageGame.render.call(this); this.sendHud();
   }
@@ -964,7 +1068,7 @@ class ArchiveGame extends Phaser.Scene {
     if (!this.playable()) return;
     this.mode = 'done'; this.clearInput(); this.sfx(success ? 'success' : 'failure');
     if (this.settings.effects) this.cameras.main.flash(150, success ? 130 : 255, success ? 255 : 95, success ? 170 : 110);
-    window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, actions: this.actions, extra } }));
+    window.dispatchEvent(new CustomEvent('archive-stage-end', { detail: { success, elapsed: this.elapsed, timeLimit: this.timeLimit, actions: this.actions, extra } }));
   }
 }
 

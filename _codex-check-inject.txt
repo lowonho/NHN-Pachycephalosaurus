@@ -1,0 +1,31 @@
+    <script>
+      window.__codexCheck = [];
+      window.addEventListener('error', e => {
+        const box = document.createElement('pre');
+        box.id = 'codex-check-error';
+        box.textContent = 'ERROR: ' + (e.message || '') + ' @ ' + (e.filename || '');
+        document.body.append(box);
+      });
+      window.addEventListener('load', () => {
+        try {
+          window.archivePlays?.record('e2');
+          codexFlow.open();
+          const box = document.createElement('pre');
+          box.id = 'codex-check-report';
+          box.textContent = JSON.stringify({
+            cards: document.querySelectorAll('#codex-grid .codex-card').length,
+            discovered: document.querySelectorAll('#codex-grid [data-discovered="true"]').length,
+            dimmed: document.querySelectorAll('#codex-grid [data-discovered="false"]').length,
+            count: document.querySelector('#codex-count')?.textContent,
+            open: !document.querySelector('#codex-modal').classList.contains('hidden'),
+            firstCardText: document.querySelector('#codex-grid .codex-card')?.textContent.slice(0, 80),
+          });
+          document.body.append(box);
+        } catch (error) {
+          const box = document.createElement('pre');
+          box.id = 'codex-check-error';
+          box.textContent = 'THROWN: ' + error.message;
+          document.body.append(box);
+        }
+      });
+    </script>

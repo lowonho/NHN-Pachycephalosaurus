@@ -15,17 +15,32 @@
  */
 
 class MainMenuFlow {
-  constructor(events, dom, soundBus, settings, cutscene, protocolSelect) {
+  constructor(events, dom, soundBus, settings, cutscene, protocolSelect, codex) {
     this.events = events;
     this.ui = dom;
     this.soundBus = soundBus;
     this.settings = settings;
     this.cutscene = cutscene;
     this.protocolSelect = protocolSelect;
+    this.codex = codex;
+
+    // 메인 화면으로 나갈지 되묻는 창이 떠 있는지.
+    this.leaveAsked = false;
 
     this.ui.mainPlayButton?.addEventListener("click", () => this.playIntro());
-    this.ui.stageSelectBackButton?.addEventListener("click", () => this.closeStageSelect());
+    this.ui.mainCodexButton?.addEventListener("click", () => this.codex.toggle());
     this.ui.mainSettingsButton?.addEventListener("click", () => this.settings.toggle());
+
+    /*
+     * "◀ 메인메뉴로" — 바로 나가지 않는다. 판부터 멈추고 한 번 되묻는다.
+     * 나가면 이번 판이 통째로 접히므로(reset) 잘못 누르면 되돌릴 길이 없다.
+     */
+    this.ui.stageSelectBackButton?.addEventListener("click", () => this.askLeaveToMain());
+    this.ui.leaveConfirmButton?.addEventListener("click", () => this.confirmLeaveToMain());
+    this.ui.leaveCancelButton?.addEventListener("click", () => this.cancelLeaveToMain());
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.leaveAsked) this.cancelLeaveToMain();
+    });
 
     /*
      * 오른쪽 위 ON/OFF — 마스터 뮤트 하나를 설정 화면과 나눠 쓴다.
@@ -53,6 +68,8 @@ class MainMenuFlow {
   open() {
     // 컷신 도중에 메인 화면으로 돌아오는 경로가 생기면 컷신부터 걷어낸다.
     this.cutscene.close();
+    // 도감은 메인 화면 위에만 뜬다 — 돌아올 때 열려 있으면 걷어낸다.
+    this.codex.close({ restoreFocus: false });
     this.protocolSelect.close();
     this.protocolSelect.reset();
     this.ui.mainMenu?.removeAttribute("inert");
@@ -85,18 +102,48 @@ class MainMenuFlow {
     });
   }
 
-  /* 프로토콜 선택의 "뒤로" — 판을 접고 메인 화면으로 돌아온다. */
-  closeStageSelect() {
-    this.protocolSelect.close();
-    this.protocolSelect.reset();
-    this.ui.mainMenu?.removeAttribute("inert");
-    this.ui.mainMenu?.classList.remove("hidden");
+  /*
+   * 프로토콜 선택의 "◀ 메인메뉴로" — 누르는 즉시 판을 멈추고 되묻는다.
+   *
+   * REQUEST_PAUSE는 진행 중인 판이 있을 때만 실제로 멈춘다(js/game.js의 pause).
+   * 선택 화면에서는 멈출 것이 없어 아무 일도 일어나지 않으므로 그냥 보내도 안전하다.
+   * 되묻는 동안 뒤의 프로토콜 선택 화면은 inert로 잠가 타일을 못 누르게 한다.
+   */
+  askLeaveToMain() {
+    if (this.leaveAsked) return;
+    this.leaveAsked = true;
+    this.events.emit(GAME_EVENTS.REQUEST_PAUSE, {});
+    this.ui.protocolDesktop?.setAttribute("inert", "");
+    this.ui.leaveConfirmModal?.classList.remove("hidden");
+    // 기본 손가락은 "계속하기"에 둔다 — 잘못 눌러 판이 날아가지 않게.
+    this.ui.leaveCancelButton?.focus();
+  }
+
+  /* "계속하기" · Esc — 멈춘 판을 다시 돌리고 선택 화면으로 돌아간다. */
+  cancelLeaveToMain() {
+    if (!this.leaveAsked) return;
+    this.leaveAsked = false;
+    this.ui.leaveConfirmModal?.classList.add("hidden");
+    this.ui.protocolDesktop?.removeAttribute("inert");
+    this.events.emit(GAME_EVENTS.REQUEST_RESUME, {});
+    this.ui.stageSelectBackButton?.focus();
+  }
+
+  /* "메인 화면으로" — 판을 접고 메인 화면으로 돌아온다. */
+  confirmLeaveToMain() {
+    if (!this.leaveAsked) return;
+    this.leaveAsked = false;
+    this.ui.leaveConfirmModal?.classList.add("hidden");
+    this.ui.protocolDesktop?.removeAttribute("inert");
+    // open()이 컷신·프로토콜 선택을 걷어내고 판을 초기화한다.
+    this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {});
     this.ui.mainPlayButton?.focus();
   }
 
-  /* 스테이지 목록은 엔진이 준비되면 game.js가 넘겨 준다. */
+  /* 스테이지 목록은 엔진이 준비되면 game.js가 넘겨 준다. 도감도 같은 목록을 쓴다. */
   setStages(stages) {
     this.protocolSelect.setStages(stages);
+    this.codex.setStages(stages);
   }
 
   /*
@@ -115,4 +162,5 @@ const mainMenuFlow = new MainMenuFlow(
   settingsFlow,
   cutsceneFlow,
   protocolSelectFlow,
+  codexFlow,
 );

@@ -7,7 +7,25 @@ const UI = Object.freeze({
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),
+  mainCodexButton: document.querySelector("#main-codex-button"),
   mainSoundButton: document.querySelector("#main-sound-button"),
+
+  /*
+   * QA 모드(js/ui/qa-mode.js) — 검수용 뒷문.
+   * #qa-unlock은 메인 화면의 "2026 ARCHIVE" 글자다(빠르게 10번 누르면 열린다).
+   */
+  qaUnlock: document.querySelector("#qa-unlock"),
+  qaPanel: document.querySelector("#qa-panel"),
+  qaCloseButton: document.querySelector("#qa-close-button"),
+  qaExitButton: document.querySelector("#qa-exit-button"),
+  qaStageGrid: document.querySelector("#qa-stage-grid"),
+  qaTimeNumber: document.querySelector("#qa-time-number"),
+  qaTimeSlider: document.querySelector("#qa-time-slider"),
+  qaTimePresets: document.querySelector("#qa-time-presets"),
+  qaBriefToggle: document.querySelector("#qa-brief-toggle"),
+  qaHint: document.querySelector("#qa-hint"),
+  qaBadge: document.querySelector("#qa-badge"),
+  qaBadgeTime: document.querySelector("#qa-badge-time"),
 
   cutscene: document.querySelector("#cutscene"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
@@ -55,6 +73,13 @@ const UI = Object.freeze({
   recoveryFailed: document.querySelector("#recovery-failed"),
   recoveryFailedButton: document.querySelector("#recovery-failed-button"),
 
+  /* 미니게임 도감 — 메인 화면에서만 연다(js/ui/codex-flow.js). */
+  codexBackdrop: document.querySelector("#codex-modal"),
+  codexDialog: document.querySelector("#codex-dialog"),
+  codexGrid: document.querySelector("#codex-grid"),
+  codexCount: document.querySelector("#codex-count"),
+  codexCloseButton: document.querySelector("#codex-close-button"),
+
   settingsBackdrop: document.querySelector("#settings-modal"),
   settingsDialog: document.querySelector("#settings-dialog"),
   masterVolume: document.querySelector("#master-volume"),
@@ -98,4 +123,9 @@ const UI = Object.freeze({
   pauseModal: document.querySelector("#pause-modal"),
   resumeButton: document.querySelector("#resume-button"),
   pauseMainButton: document.querySelector("#pause-main-button"),
+
+  /* "◀ 메인메뉴로"를 눌렀을 때 되묻는 창(js/ui/main-menu-flow.js). */
+  leaveConfirmModal: document.querySelector("#leave-confirm-modal"),
+  leaveConfirmButton: document.querySelector("#leave-confirm-button"),
+  leaveCancelButton: document.querySelector("#leave-cancel-button"),
 });

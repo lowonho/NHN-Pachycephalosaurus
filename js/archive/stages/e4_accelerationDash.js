@@ -28,7 +28,7 @@ export const E4_ACCELERATION_DASH = {
     if (direction === expected) E4_ACCELERATION_DASH.action.call(this);
     else if (['left', 'right', 'up', 'down'].includes(direction)) { this.actions++; E4_ACCELERATION_DASH.miss.call(this); }
   },
-  miss() { this.state.misses++; this.state.progress = 0; this.state.retry = .22; this.bump(); },
+  miss() { this.state.misses++; this.state.progress = 0; this.state.retry = .22; MINI.summon(this); this.bump(); },
   update(dt) {
     const s = this.state, t = E4_ACCELERATION_DASH.tuning;
     s.retry = Math.max(0, s.retry - dt);
@@ -54,7 +54,9 @@ export const E4_ACCELERATION_DASH = {
       if (i < t.turns) MINI.goal(this, q.x, q.y, t.tolerance);
       else MINI.goal(this, q.x, q.y, 25);
     }
-    MINI.actor(this, 'player', 'player', 330, 365, 28, 28, Math.PI / 4);
+    const pop = MINI.spawnScale(this);
+    MINI.actor(this, 'player', 'player', 330, 365, 28 * pop, 28 * pop, Math.PI / 4);
+    MINI.spawnFx(this, 330, 365, 28);
     MINI.meter(this, s.segment / t.turns);
   },
 };

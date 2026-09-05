@@ -1,0 +1,265 @@
+/*
+ * A(비주얼) 전용 — 미니게임 도감.
+ *
+ * 메인 화면 위에 덮이는 한 장이다. 9개 카드를 3×3으로 펼치고,
+ * 아직 해 보지 않은 카드는 딤드로 둔다(js/ui/codex-flow.js의 data-discovered).
+ *
+ * 팔레트·모서리 처리는 프로토콜 선택 화면(css/protocol-select.css)의
+ * 시안 HUD 톤을 그대로 따른다 — 남색 유리판 · 시안 네온 · 45° 잘린 모서리.
+ *
+ * 크기는 전부 1920×1080 설계 좌표(px)다(css/base.css의 "UI 배율 규칙").
+ * 창 크기는 .ui-scaled의 --ui-scale 하나가 흡수하므로 여기에 미디어 쿼리는 두지 않는다.
+ */
+
+.codex-backdrop {
+  --codex-line: #57e8ff;
+  --codex-line-soft: rgba(87, 232, 255, 0.26);
+  --codex-glass: rgba(6, 26, 62, 0.62);
+  --codex-glass-deep: rgba(3, 14, 38, 0.86);
+  --codex-text: #eaf7ff;
+  --codex-dim: #8fb6d8;
+  --codex-gold: #ffd27c;
+
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  /* 설정 화면과 같은 이유로 트랙을 창 크기에 못 박는다(auto면 위에 붙고 아래가 잘린다). */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  overflow: hidden;
+  background: rgba(1, 7, 24, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.codex-backdrop.hidden {
+  display: none;
+}
+
+.codex-dialog {
+  display: grid;
+  gap: 26px;
+  width: 1420px;
+  padding: 40px 48px 34px;
+  border: 1px solid var(--codex-line-soft);
+  /* 네 모서리를 45°로 깎는다 — 이 프로젝트 HUD 판의 공통 모양이다. */
+  clip-path: polygon(
+    26px 0,
+    calc(100% - 26px) 0,
+    100% 26px,
+    100% calc(100% - 26px),
+    calc(100% - 26px) 100%,
+    26px 100%,
+    0 calc(100% - 26px),
+    0 26px
+  );
+  background:
+    linear-gradient(160deg, rgba(87, 232, 255, 0.12), rgba(6, 26, 62, 0.22)),
+    var(--codex-glass-deep);
+}
+
+/* 화면을 열 때 포커스를 받는 자리일 뿐이라 테두리는 그리지 않는다. */
+.codex-dialog:focus {
+  outline: none;
+}
+
+/* ── 머리 ──────────────────────────────────────────────────────────── */
+
+.codex-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--codex-line-soft);
+}
+
+.codex-title {
+  margin: 0;
+  color: var(--codex-text);
+  font: 900 44px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 18px rgba(87, 232, 255, 0.5);
+}
+
+.codex-count {
+  margin: 0;
+  color: var(--codex-line);
+  font: 700 22px/1 var(--font-ui);
+  letter-spacing: 0.18em;
+}
+
+/* ── 카드 3×3 ──────────────────────────────────────────────────────── */
+
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codex-card {
+  display: grid;
+  /* 내용이 한 줄 늘어도 3×3 격자가 흔들리지 않게 높이를 잡아 둔다. */
+  align-content: start;
+  gap: 10px;
+  min-height: 226px;
+  padding: 18px 22px 20px;
+  border: 1px solid var(--codex-line-soft);
+  clip-path: polygon(
+    16px 0,
+    100% 0,
+    100% calc(100% - 16px),
+    calc(100% - 16px) 100%,
+    0 100%,
+    0 16px
+  );
+  background:
+    linear-gradient(160deg, rgba(87, 232, 255, 0.1), rgba(6, 26, 62, 0.2)),
+    var(--codex-glass);
+  color: var(--codex-text);
+}
+
+/*
+ * 아직 해 보지 않은 칸 — 딤드.
+ * 지우지 않고 흐리게만 둔다. 도감은 "무엇이 남았는지"를 보여 주는 화면이라
+ * 칸이 통째로 사라지면 그 일을 못 한다.
+ */
+.codex-card[data-discovered="false"] {
+  border-color: rgba(143, 182, 216, 0.16);
+  background: rgba(4, 14, 34, 0.62);
+  color: #5f7796;
+  filter: saturate(0.25);
+}
+
+.codex-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.codex-card-number {
+  color: var(--codex-line);
+  font: 900 24px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+}
+
+.codex-card[data-discovered="false"] .codex-card-number {
+  color: #5f7796;
+}
+
+.codex-card-icon {
+  color: var(--codex-line);
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(87, 232, 255, 0.55);
+}
+
+.codex-card[data-discovered="false"] .codex-card-icon {
+  color: #55698a;
+  text-shadow: none;
+}
+
+.codex-card-title {
+  color: inherit;
+  font: 900 28px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.codex-card-line {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  font: 700 15px/1.45 var(--font-ui);
+}
+
+/* 조작 · 목표 · 변수 — 세 줄의 머리표. 폭을 고정해 글이 한 세로줄에서 시작한다. */
+.codex-card-tag {
+  flex: 0 0 38px;
+  color: var(--codex-line);
+  letter-spacing: 0.08em;
+}
+
+.codex-card-text {
+  color: var(--codex-dim);
+  /* 조작 안내는 줄바꿈이 들어 있는 문장이 아니라 한 덩어리라 그대로 흘린다. */
+  word-break: keep-all;
+}
+
+.codex-card-record {
+  margin: 4px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--codex-line-soft);
+  color: var(--codex-dim);
+  font: 700 15px/1.3 var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+/* 완전 복구(◆)한 기록만 금색으로 둔다 — 프로토콜 선택 화면과 같은 뜻이다. */
+.codex-card-record[data-full="true"] {
+  color: var(--codex-gold);
+}
+
+.codex-card-locked {
+  margin: 6px 0 0;
+  color: #5f7796;
+  font: 700 15px/1.3 var(--font-ui);
+  letter-spacing: 0.06em;
+}
+
+/* ── 발 ────────────────────────────────────────────────────────────── */
+
+.codex-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--codex-line-soft);
+}
+
+.codex-hint {
+  margin: 0;
+  color: var(--codex-dim);
+  font: 700 16px/1.3 var(--font-ui);
+  letter-spacing: 0.06em;
+}
+
+.codex-close {
+  padding: 12px 42px;
+  border: 1px solid var(--codex-line);
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+  background: linear-gradient(160deg, rgba(87, 232, 255, 0.22), rgba(6, 26, 62, 0.24));
+  color: var(--codex-text);
+  cursor: pointer;
+  font: 900 22px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  transition: filter 140ms ease, transform 140ms ease;
+}
+
+.codex-close:hover,
+.codex-close:focus-visible {
+  filter: brightness(1.18);
+  transform: translateY(-2px);
+}
+
+.codex-close:focus-visible {
+  outline: 3px solid var(--codex-line);
+  outline-offset: 4px;
+}
+
+.codex-close:active {
+  filter: brightness(0.94);
+  transform: translateY(1px);
+}

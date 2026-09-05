@@ -677,16 +677,6 @@
 
       타일 목록은 js/ui/qa-mode.js가 MINIGAME_CATALOG로 채운다.
     -->
-    <!--
-      QA 모드가 켜져 있다는 표시. 플레이 중에도 화면 구석에 남는다 —
-      제한시간이 20.26초가 아닌 판을 켜 둔 것을 모르고 놀면 결과를 잘못 읽는다.
-      눌러서 패널을 다시 연다.
-    -->
-    <button class="qa-badge hidden" id="qa-badge" type="button" title="QA 패널 열기 (Shift+Q)">
-      <b>QA</b>
-      <span id="qa-badge-time">20.26초</span>
-    </button>
-
     <div class="qa-backdrop hidden" id="qa-panel" role="dialog" aria-modal="true" aria-labelledby="qa-title">
       <section class="qa-dialog ui-scaled">
         <header class="qa-header">
@@ -804,5 +794,36 @@
       bundle also works when index.html is opened directly through file://.
     -->
     <script src="js/archive/game-classic.js"></script>
+    <script>
+      window.__codexCheck = [];
+      window.addEventListener('error', e => {
+        const box = document.createElement('pre');
+        box.id = 'codex-check-error';
+        box.textContent = 'ERROR: ' + (e.message || '') + ' @ ' + (e.filename || '');
+        document.body.append(box);
+      });
+      window.addEventListener('load', () => {
+        try {
+          window.archivePlays?.record('e2');
+          codexFlow.open();
+          const box = document.createElement('pre');
+          box.id = 'codex-check-report';
+          box.textContent = JSON.stringify({
+            cards: document.querySelectorAll('#codex-grid .codex-card').length,
+            discovered: document.querySelectorAll('#codex-grid [data-discovered="true"]').length,
+            dimmed: document.querySelectorAll('#codex-grid [data-discovered="false"]').length,
+            count: document.querySelector('#codex-count')?.textContent,
+            open: !document.querySelector('#codex-modal').classList.contains('hidden'),
+            firstCardText: document.querySelector('#codex-grid .codex-card')?.textContent.slice(0, 80),
+          });
+          document.body.append(box);
+        } catch (error) {
+          const box = document.createElement('pre');
+          box.id = 'codex-check-error';
+          box.textContent = 'THROWN: ' + error.message;
+          document.body.append(box);
+        }
+      });
+    </script>
   </body>
 </html>
