@@ -1,5 +1,5 @@
 /*
- * 프로토콜 목록 — 프로토콜 선택 화면(모니터)이 그리는 타일 7개.
+ * 프로토콜 목록 — 프로토콜 선택 화면(모니터)이 그리는 타일 5개.
  *
  * 왜 엔진 목록(js/archive/data.mjs의 STAGES)을 그대로 안 쓰는가.
  *   그쪽은 ES 모듈이라 Phaser 씬이 뜬 뒤에야 game.js를 거쳐 도착한다.
@@ -16,11 +16,9 @@
  */
 
 const PROTOCOLS = Object.freeze([
-  Object.freeze({ id: "maze", number: "01", title: "가속 미로" }),
-  Object.freeze({ id: "gravity", number: "02", title: "중력 타워" }),
-  Object.freeze({ id: "bounce", number: "03", title: "탄성 우회" }),
-  Object.freeze({ id: "recoil", number: "04", title: "반동 사격장" }),
-  Object.freeze({ id: "friction", number: "05", title: "무마찰 배송" }),
-  Object.freeze({ id: "darkness", number: "06", title: "소실 회랑" }),
-  Object.freeze({ id: "rotation", number: "07", title: "각속도 잠금" }),
+  { id: "maze", number: "01", title: "가속 코스" },
+  { id: "gravity", number: "02", title: "중력 타워" },
+  { id: "bounce", number: "03", title: "탄성 과잉" },
+  { id: "friction", number: "04", title: "미끄럼 배송" },
+  { id: "stack", number: "05", title: "무게중심 쌓기" },
 ]);

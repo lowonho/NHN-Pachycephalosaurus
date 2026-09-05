@@ -1,20 +1,20 @@
 /*
  * 기능(B) — 프로토콜 선택 화면(옛 스테이지 선택).
  *
- * 1인칭 모니터 화면 안에 복구할 기록 7개를 데스크톱 앱처럼 펼친다.
+ * 1인칭 모니터 화면 안에 복구할 기록 5개를 데스크톱 앱처럼 펼친다.
  * 타일을 누르면 그 프로토콜이 바로 시작된다(REQUEST_START).
  *
  * ── 2:26 ────────────────────────────────────────────────────────────
  * 스테이지마다 도는 20.26초와 별개로, 이 화면은 판 전체의 제한시간 하나를 들고 있다.
- * 7 × 20.26초 = 141.82초에 여유를 더한 146초(2:26)가 한 판의 예산이고,
- * 이 안에 프로토콜 7개를 전부 복구하지 못하면 복구 실패다.
+ * 다섯 스테이지의 재도전을 포함한 146초(2:26)가 한 판의 예산이고,
+ * 이 안에 프로토콜 5개를 전부 복구하지 못하면 복구 실패다.
  *
  * 예산은 벽시계 기준으로 계속 줄어든다. 화면을 처음 열 때 돌기 시작해서
  * 스테이지를 플레이하는 동안에도 계속 줄고, 일시정지 중에만 멈춘다.
  * 메인 화면으로 나가면(reset) 판이 끝나고 예산과 복구 기록이 처음으로 돌아간다.
  */
 
-const RECOVERY_BUDGET_MS = 146_000; // 2:26 — 20.26초 × 7 + 여유
+const RECOVERY_BUDGET_MS = 146_000; // 2:26 — 재도전을 포함한 전체 예산
 const RECOVERY_URGENT_MS = 30_000; // 이 아래로 떨어지면 타이머가 깜빡인다.
 
 /*
@@ -31,6 +31,7 @@ const RECORD_FULL = "FULLY RESTORED";
  * (지침 9절: 물리 상태는 숫자보다 그림으로 알린다.)
  */
 const PROTOCOL_GLYPHS = Object.freeze({
+  stack: '<path d="M3 20h18M6 14h12v6H6zM8 8h10v6H8zM5 2h10v6H5z"/>',
   // 속도 — 가속선과 화살촉
   maze: '<path d="M3 8h9M3 12h12M3 16h7"/><path d="M15 6l5 6-5 6"/>',
   // 중력 — 바닥으로 떨어지는 화살
@@ -247,7 +248,7 @@ class ProtocolSelectFlow {
   /*
    * ARCHIVE 복구 현황 — 판을 넘어 남는 누적 기록이다(js/archive/progress.mjs).
    *
-   * 위의 renderProgress(RESTORED n / 7)와 성격이 다르다. 그쪽은 이번 판에서
+   * 위의 renderProgress(RESTORED n / 5)와 성격이 다르다. 그쪽은 이번 판에서
    * 복구한 개수라 reset()으로 0이 되고, 여기는 localStorage에 저장돼 다음 판에도 남는다.
    *
    * 기록은 엔진(js/archive/game.mjs)이 세우므로 엔진이 뜨기 전에는 없을 수 있다.
@@ -272,7 +273,7 @@ class ProtocolSelectFlow {
       );
     }
 
-    // 엔딩 등급은 7개를 전부 복구했을 때만 뜬다.
+    // 엔딩 등급은 5개를 전부 복구했을 때만 뜬다.
     const ending = this.ui.archiveEndingStatus;
     if (ending) {
       ending.hidden = !summary.allCleared;

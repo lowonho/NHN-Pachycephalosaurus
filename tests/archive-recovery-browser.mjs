@@ -64,7 +64,7 @@ try {
   console.log("Opening", appUrl);
   await send("Page.navigate", { url: appUrl });
   for (let i = 0; i < 100 && !await evaluate("Boolean(window.archiveGame)"); i++) await wait(100);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
   const screen = async (name) => {
     await wait(150);
     const { data } = await send("Page.captureScreenshot");
@@ -164,7 +164,56 @@ try {
   await evaluate("document.querySelector('#primary-button').click()");
   assert.equal(await evaluate('testScene.state.bounces'), 0);
   assert.equal(await evaluate('testScene.fragmentCollected'), false);
-  for (const stage of ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"]) {
+  for (const memory of [false, true]) {
+    await start('friction');
+    const result = await evaluate(`(() => {
+      const route = [[92,108],[440,108], ...(${memory} ? [[440,64],[440,108]] : []), [440,428],[640,428],[640,108],[850,92]];
+      let index=0;
+      for(let i=0;i<1216 && testScene.mode==='playing';i++) {
+        const s=testScene.state, t=route[index];
+        const ex=t[0]-s.x, ey=t[1]-s.y;
+        if(Math.hypot(ex,ey)<14 && Math.hypot(s.vx,s.vy)<75 && index<route.length-1) index++;
+        const cap=v=>Math.max(-230,Math.min(230,v));
+        const ax=cap(ex*3)-s.vx, ay=cap(ey*3)-s.vy;
+        const direction=Math.max(Math.abs(ax),Math.abs(ay))<10?null:Math.abs(ax)>Math.abs(ay)?(ax>0?'right':'left'):(ay>0?'down':'up');
+        if(direction!==s.direction) {
+          if(s.direction) archiveGame.release(s.direction);
+          if(direction) archiveGame.press(direction);
+        }
+        testScene.update(0,1000/60);
+      }
+      return { title:UI.modalTitle.textContent, fragment:testScene.fragmentCollected, elapsed:testScene.elapsed, index, x:testScene.state.x, y:testScene.state.y };
+    })()`);
+    console.log('FRICTION ROUTE', memory, result);
+    assert.equal(result.title, memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED');
+    assert.equal(result.fragment,memory);
+  }
+  for (const memory of [false, true]) {
+    await start('stack');
+    await evaluate("testScene.pausedByMenu = true; window.archivePhaserGame.loop.wake()");
+    await screen('stack-course');
+    await evaluate("window.archivePhaserGame.loop.sleep(); testScene.pausedByMenu = false");
+    const result = await evaluate(`(() => {
+      for (let i=0; i<1216 && testScene.mode==='playing'; i++) {
+        const s=testScene.state;
+        if (!s.dropping && s.blocks.length<6) {
+          const target = ${memory} ? (!s.blocks.length ? 514 : 490) : 480;
+          if (Math.abs(target-s.x)<=2.01) testScene.pointerAction(700,80);
+          else archiveGame.press(target>s.x ? 'right' : 'left');
+        }
+        testScene.update(0,1000/60);
+      }
+      return { title: UI.modalTitle.textContent, fragment: testScene.fragmentCollected };
+    })()`);
+    assert.deepEqual(result, {title: memory ? 'FULLY RESTORED' : 'PARTIALLY RESTORED', fragment:memory});
+  }
+  await start('stack');
+  await evaluate("archiveGame.press('right'); for(let i=0;i<35;i++) testScene.update(0,1000/60); testScene.pointerAction(480, 80); for (let i=0;i<100 && testScene.mode==='playing';i++) testScene.update(0,1000/60)");
+  assert.equal(await evaluate('UI.modalTitle.textContent'), 'RECORD LOST');
+  await evaluate("document.querySelector('#primary-button').click()");
+  assert.equal(await evaluate('testScene.state.blocks.length'), 0);
+  assert.equal(await evaluate('testScene.fragmentCollected'), false);
+  for (const stage of ["maze", "gravity", "bounce", "friction", "stack"]) {
     await start(stage);
     assert.equal(await evaluate("testScene.timePenalty"), 0, `${stage}: time penalty reset`);
     assert.equal(await evaluate("UI.stageHudPenalty.hidden"), stage !== 'maze');
@@ -172,11 +221,7 @@ try {
     // Drive each stage's existing update method through the real collection adapter.
     await evaluate(`(() => {
       const s = testScene.state, f = testScene.fragment;
-      if (testScene.stageId === 'recoil') {
-        s.bullets.push({ x: f.x - 35, y: f.y, vx: 2800, vy: 0, object: testScene.add.circle(0, 0, 5) });
-      } else if (testScene.stageId === 'rotation') {
-        s.angle = -2.1;
-      } else {
+      {
         const body = testScene.stageId === 'maze' ? s.ball : s;
         body.x = f.x; body.y = f.y; body.vx = 0; body.vy = 0;
       }
@@ -207,15 +252,15 @@ try {
   await screen("restored-records");
   await send("Page.reload");
   await wait(1200);
-  assert.equal(await evaluate("window.archiveProgress.summary().fragmentCount"), 7);
-  assert.equal(await evaluate("document.querySelectorAll('[data-recovery=full]').length"), 7);
+  assert.equal(await evaluate("window.archiveProgress.summary().fragmentCount"), 5);
+  assert.equal(await evaluate("document.querySelectorAll('[data-recovery=full]').length"), 5);
   // The generated bundle must also boot when the game is opened as a local file.
   await send("Page.navigate", { url: new URL(`file:///${root.replaceAll('\\', '/')}/index.html`).href });
   await wait(1200);
   assert.equal(await evaluate("Boolean(window.archiveGame)"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 7);
+  assert.equal(await evaluate("document.querySelectorAll('[data-stage-id]').length"), 5);
   assert.deepEqual(errors, []);
-  console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 7 pickups, pause, persistence, file:// boot, no runtime errors");
+  console.log("PASS | browser: collision time deduction, no repeat contact penalty, elapsed time, penalty loss/reset, chapter navigation, 5 pickups, pause, persistence, file:// boot, no runtime errors");
 } finally {
   socket?.close();
   browser.kill();

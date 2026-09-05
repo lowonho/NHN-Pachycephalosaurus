@@ -14,7 +14,7 @@ export const PROLOGUE = [
   {
     code: "OPERATOR // ASSIGNED",
     title: "당신은 마지막 기록 관리자다.",
-    body: "속도, 중력, 탄성, 반동, 마찰, 빛, 회전. 일곱 개의 물리 채널을 최소한의 개입으로 복구하라.",
+    body: "속도, 중력, 탄성, 마찰, 무게중심. 다섯 개의 물리 채널을 최소한의 개입으로 복구하라.",
   },
 ];
 
@@ -30,7 +30,7 @@ export const STAGES = [
     controls: "WASD / 방향키 · 반대 방향으로 제동",
     actionLabel: "방향 입력",
     logTitle: "속도 채널 복구",
-    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다. 복구율 14%.",
+    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다.",
   },
   {
     id: "gravity",
@@ -43,7 +43,7 @@ export const STAGES = [
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",
     logTitle: "중력 채널 복구",
-    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다. 복구율 28%.",
+    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다.",
   },
   {
     id: "bounce",
@@ -56,59 +56,21 @@ export const STAGES = [
     controls: "A/D 또는 ←/→ 이동 · 자동 바운스",
     actionLabel: "착지",
     logTitle: "탄성 채널 복구",
-    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다. 복구율 42%.",
+    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다.",
   },
   {
-    id: "recoil",
-    recordSymbol: "⌖",
-    number: "04",
-    code: "RECOIL_ARRAY",
-    title: "반동 사격장",
-    objective: "이동하는 세 개의 기록 노드를 모두 맞히세요.",
-    anomaly: "발사할 때마다 포대가 밀리고 조준 오차가 커집니다.",
-    controls: "마우스 / 터치로 조준 · 클릭하여 발사",
-    actionLabel: "발사",
-    logTitle: "반동 채널 복구",
-    log: "모든 발사는 기록 관리자를 뒤로 밀어냈다. 적은 탄환이 가장 정확한 답이었다. 복구율 57%.",
+    id: "friction", recordSymbol: "≈", number: "04", code: "FRICTION_DROP",
+    title: "미끄럼 배송", objective: "관성을 제어해 화물을 DOCK 안에서 멈추세요.",
+    anomaly: "이동 입력이 쌓일수록 마찰이 줄어 제동이 어려워집니다.",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
+    logTitle: "마찰 채널 복구", log: "미끄러지는 기록은 제동을 기억하고 있었다.",
   },
   {
-    id: "friction",
-    recordSymbol: "≈",
-    number: "05",
-    code: "FRICTION_DROP",
-    title: "무마찰 배송",
-    objective: "화물을 장애물 사이로 운반해 적재 구역에 정지시키세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰력이 감소합니다.",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "이동 입력",
-    logTitle: "마찰 채널 복구",
-    log: "미끄러지는 기록은 목적지를 지나치고도 멈추지 않았다. 움직임보다 제동이 중요했다. 복구율 71%.",
-  },
-  {
-    id: "darkness",
-    recordSymbol: "☼",
-    number: "06",
-    code: "LIGHT_DECAY",
-    title: "소실 회랑",
-    objective: "시야가 사라지기 전에 출구 비콘에 도착하세요.",
-    anomaly: "방향을 새로 누를 때마다 조명 반경이 줄어듭니다.",
-    controls: "WASD / 방향키",
-    actionLabel: "방향 입력",
-    logTitle: "광원 채널 복구",
-    log: "기록은 볼 수 없는 곳에서도 존재했다. 경로를 먼저 읽은 뒤 움직이자 빛이 돌아왔다. 복구율 85%.",
-  },
-  {
-    id: "rotation",
-    recordSymbol: "↻",
-    number: "07",
-    code: "ANGULAR_LOCK",
-    title: "각속도 잠금",
-    objective: "회전 바를 목표 각도에 맞추고 정지시키세요.",
-    anomaly: "회전 입력마다 각속도와 토크가 증가합니다.",
-    controls: "A/D 또는 ←/→ 회전 · 반대 방향으로 제동",
-    actionLabel: "회전 입력",
-    logTitle: "최종 채널 복구",
-    log: "마지막 기록은 계속 돌고 있었다. 더 돌리는 대신 정확한 순간에 힘을 거두자 정지했다. 복구율 100%.",
+    id: "stack", recordSymbol: "▤", number: "05", code: "CENTER_OF_MASS",
+    title: "무게중심 쌓기", objective: "블록 6개를 쌓고 무게중심을 지켜 0.7초간 안정시키세요.",
+    anomaly: "블록이 점점 무겁고 좁아지며, 좌우 이동도 빨라집니다.",
+    controls: "자동 좌우 이동 · A/D 또는 ←/→ 보정 · Space / 클릭 낙하", actionLabel: "낙하",
+    logTitle: "무게중심 채널 복구", log: "쌓인 기록의 무게를 받치는 중심을 찾았다.",
   },
 ];
 
@@ -120,5 +82,4 @@ export const ENDING = {
 
 export const STORAGE_KEY = "archive-2026-progress-v1";
 export const SETTINGS_KEY = "archive-2026-settings-v1";
-
 

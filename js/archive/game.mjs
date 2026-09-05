@@ -3,6 +3,7 @@ import { createProgressStore } from "./progress.mjs";
 import { MEMORY_FRAGMENTS, touchesFragment } from "./fragments.mjs";
 import { GRAVITY_COURSE, createGravityState, applyGravityJump, stepGravity } from "./gravity-core.mjs";
 import { BOUNCE_COURSE, createBounceState, stepBounce } from "./bounce-core.mjs";
+import { STACK_RULES, stackBlockWidth, createStackState, dropStack, stepStack, nextStackBlock } from "./stack-core.mjs";
 import { audio } from "./audio.mjs";
 import { BALL_RADIUS, GOAL, PHYSICS, START, VIEWPORT, WALLS, ROUTE, FRAGMENT_ROUTE } from "./level-data.mjs";
 import { createBallState, multiplierForPresses, registerDirection, releaseDirection, riskLabel, stepBall } from "./physics-core.mjs";
@@ -128,10 +129,8 @@ class ArchiveGame extends Phaser.Scene {
       maze: () => this.buildMaze(),
       gravity: () => this.buildGravity(),
       bounce: () => this.buildBounce(),
-      recoil: () => this.buildRecoil(),
       friction: () => this.buildFriction(),
-      darkness: () => this.buildDarkness(),
-      rotation: () => this.buildRotation(),
+      stack: () => this.buildStack(),
     };
     builders[id]?.();
     this.buildFragment();
@@ -230,13 +229,11 @@ class ArchiveGame extends Phaser.Scene {
       maze: () => this.updateMaze(dt),
       gravity: () => this.updateGravity(dt),
       bounce: () => this.updateBounce(dt),
-      recoil: () => this.updateRecoil(dt),
       friction: () => this.updateFriction(dt),
-      darkness: () => this.updateDarkness(dt),
-      rotation: () => this.updateRotation(dt),
+      stack: () => this.updateStack(dt),
     };
     updates[this.stageId]?.();
-    if (this.mode === "playing") this.checkFragment(this.fragmentBody(), previous);
+    if (this.mode === "playing" && this.stageId !== "stack") this.checkFragment(this.fragmentBody(), previous);
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -248,8 +245,7 @@ class ArchiveGame extends Phaser.Scene {
       gravity: () => this.gravityPress(direction),
       bounce: () => { if (direction === "left" || direction === "right") this.state.direction = direction; },
       friction: () => this.frictionPress(direction),
-      darkness: () => this.darknessPress(direction),
-      rotation: () => this.rotationPress(direction),
+      stack: () => { this.state.direction = direction; },
     };
     handlers[this.stageId]?.();
   }
@@ -261,8 +257,7 @@ class ArchiveGame extends Phaser.Scene {
       bounce: () => { if (this.state.direction === direction) this.state.direction = null; },
       gravity: () => { if (this.state.direction === direction) this.state.direction = null; },
       friction: () => { if (this.state.direction === direction) this.state.direction = null; },
-      darkness: () => { if (this.state.direction === direction) this.state.direction = null; },
-      rotation: () => { if (this.state.direction === direction) this.state.direction = null; },
+      stack: () => { if (this.state.direction === direction) this.state.direction = null; },
     };
     handlers[this.stageId]?.();
   }
@@ -270,11 +265,14 @@ class ArchiveGame extends Phaser.Scene {
   primaryAction() {
     if (this.mode !== "playing" || this.pausedByMenu) return;
     if (this.stageId === "gravity") this.gravityJump();
+    if (this.stageId === "stack" && dropStack(this.state)) this.actions++;
   }
 
   pointerAction(x, y) {
 
-    if (this.stageId === "recoil") this.fireRecoilShot(x, y);
+    if (this.stageId === "stack" && !this.state.dropping && this.state.blocks.length < STACK_RULES.count) {
+      this.primaryAction();
+    }
   }
 
   finish(success, extra = "") {
@@ -303,18 +301,13 @@ class ArchiveGame extends Phaser.Scene {
     this.fragmentRing = this.add.circle(this.fragment.x, this.fragment.y, this.fragment.radius + 7, 0xffd27c, 0.08)
       .setStrokeStyle(1, 0xffd27c, 0.6).setDepth(6);
     this.tweens.add({ targets: this.fragmentRing, alpha: 0.3, duration: 650, yoyo: true, repeat: -1 });
-    if (this.stageId === "rotation") this.fragmentTip = this.add.circle(0, 0, 7, 0xffe5ab).setDepth(6);
     this.sendHud();
   }
 
   fragmentBody() {
     const s = this.state;
-    if (!s || this.stageId === "recoil") return null;
-    if (this.stageId === "rotation") {
-      const body = { x: s.center.x + Math.cos(s.angle) * 165, y: s.center.y + Math.sin(s.angle) * 165, radius: 7 };
-      this.fragmentTip?.setPosition(body.x, body.y);
-      return body;
-    }
+    if (!s) return null;
+
     const body = this.stageId === "maze" ? s.ball : s;
     return { x: body.x, y: body.y, radius: body.radius ?? 12 };
   }
@@ -506,100 +499,6 @@ class ArchiveGame extends Phaser.Scene {
     else if (result.cleared) this.finish(true);
   }
 
-  /* 04 — Recoil array */
-  buildRecoil() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "반동 정상";
-    this.state = {
-      turretX: 480,
-      turretY: 468,
-      bullets: [],
-      hits: 0,
-      time: 0,
-      targets: [
-        { x: 205, y: 150, baseX: 205, phase: 0, hit: false },
-        { x: 480, y: 112, baseX: 480, phase: 2.1, hit: false },
-        { x: 755, y: 165, baseX: 755, phase: 4.2, hit: false },
-      ],
-    };
-    this.targetObjects = this.state.targets.map((target, index) => {
-      const ring = this.add.circle(target.x, target.y, 27, 0xffb35d, 0.09).setStrokeStyle(3, 0xffb35d).setDepth(3);
-      const text = this.add.text(target.x, target.y, String(index + 1), { fontFamily: "monospace", fontSize: "12px", color: "#ffd19d" }).setOrigin(0.5).setDepth(4);
-      return { ring, text };
-    });
-    this.turret = this.add.rectangle(480, 468, 68, 28, 0x46788c).setStrokeStyle(2, 0x79cbe4).setDepth(4);
-    this.barrel = this.add.rectangle(480, 440, 70, 9, 0xb8dfec).setOrigin(0.1, 0.5).setDepth(3);
-    this.crosshair = this.add.circle(480, 220, 13, 0x000000, 0).setStrokeStyle(2, 0x93fca0, 0.8).setDepth(5);
-    this.hitText = this.add.text(48, 60, "NODES 0 / 3", { fontFamily: "monospace", fontSize: "16px", color: "#93fca0" });
-  }
-
-  fireRecoilShot(x, y) {
-    const s = this.state;
-    this.actions += 1;
-    const baseAngle = Math.atan2(y - s.turretY, x - s.turretX);
-    const drift = this.actions === 1 ? 0 : (this.actions - 1) * 0.012 * (this.actions % 2 ? -1 : 1);
-    const angle = baseAngle + drift;
-    const speed = 720;
-    const bullet = { x: s.turretX, y: s.turretY - 12, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
-    bullet.object = this.add.circle(bullet.x, bullet.y, 5, 0xe9fbff).setDepth(5);
-    s.bullets.push(bullet);
-    const recoil = 12 + this.actions * 6;
-    s.turretX = clamp(s.turretX - Math.cos(angle) * recoil, 105, 855);
-    this.risk = clamp(this.actions / 7 * 100, 0, 100);
-    this.anomaly = `반동 ${Math.min(3.4, 1 + this.actions * 0.34).toFixed(1)}×`;
-    this.setCorruption(this.risk * 0.85);
-    this.shake(70, clamp(0.002 + this.actions * 0.0005, 0.002, 0.007));
-    emit("archive-sfx", { name: "action" });
-  }
-
-  updateRecoil(dt) {
-    const s = this.state;
-    s.time += dt;
-    const pointer = this.input.activePointer;
-    this.crosshair.setPosition(pointer.worldX, pointer.worldY);
-    const barrelAngle = Math.atan2(pointer.worldY - s.turretY, pointer.worldX - s.turretX);
-    this.turret.setPosition(s.turretX, s.turretY);
-    this.barrel.setPosition(s.turretX, s.turretY - 4).setRotation(barrelAngle);
-
-    s.targets.forEach((target, index) => {
-      if (target.hit) return;
-      target.x = target.baseX + Math.sin(s.time * 1.35 + target.phase) * 34;
-      this.targetObjects[index].ring.setPosition(target.x, target.y);
-      this.targetObjects[index].text.setPosition(target.x, target.y);
-    });
-
-    for (let index = s.bullets.length - 1; index >= 0; index -= 1) {
-      const bullet = s.bullets[index];
-      const previous = { x: bullet.x, y: bullet.y };
-      bullet.x += bullet.vx * dt;
-      bullet.y += bullet.vy * dt;
-      this.checkFragment({ x: bullet.x, y: bullet.y, radius: 5 }, previous);
-      bullet.object.setPosition(bullet.x, bullet.y);
-      let removed = false;
-      for (let targetIndex = 0; targetIndex < s.targets.length; targetIndex += 1) {
-        const target = s.targets[targetIndex];
-        if (!target.hit && Math.hypot(bullet.x - target.x, bullet.y - target.y) <= 33) {
-          target.hit = true;
-          s.hits += 1;
-          this.targetObjects[targetIndex].ring.setFillStyle(0x93fca0, 0.22).setStrokeStyle(3, 0x93fca0);
-          this.targetObjects[targetIndex].text.setText("✓").setColor("#93fca0");
-          bullet.object.destroy();
-          s.bullets.splice(index, 1);
-          removed = true;
-          this.hitText.setText(`NODES ${s.hits} / 3`);
-          emit("archive-sfx", { name: "hit" });
-          if (s.hits === 3) this.finish(true, `${this.actions}발 사용`);
-          break;
-        }
-      }
-      if (!removed && (bullet.x < -20 || bullet.x > WIDTH + 20 || bullet.y < -20 || bullet.y > HEIGHT + 20)) {
-        bullet.object.destroy();
-        s.bullets.splice(index, 1);
-      }
-    }
-  }
-
   /* 05 — Friction drop */
   buildFriction() {
     this.actions = 0;
@@ -607,19 +506,19 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "마찰 100%";
     const walls = [
       ...boundaryWalls(28, 14),
-      { x: 278, y: 252, w: 30, h: 258 },
-      { x: 520, y: 30, w: 30, h: 282 },
-      { x: 728, y: 252, w: 30, h: 258 },
+      { x: 278, y: 150, w: 30, h: 360 },
+      { x: 520, y: 30, w: 30, h: 352 },
+      { x: 728, y: 150, w: 30, h: 360 },
     ];
     this.drawWalls(walls, 0x3b5262, 0x7698aa);
-    this.drawGoal(864, 72, 32, "DOCK");
+    this.drawGoal(850, 92, 22, "DOCK");
     this.state = {
       x: 92, y: 452, vx: 0, vy: 0, radius: 15,
       direction: null, walls, goalHold: 0, wasInside: false, overruns: 0,
     };
     this.player = this.add.rectangle(92, 452, 30, 30, 0xffca75).setStrokeStyle(3, 0xffe1ad).setDepth(5);
     this.cargoTrail = this.add.graphics().setDepth(3);
-    this.goalText = this.add.text(864, 72, "0%", { fontFamily: "monospace", fontSize: "10px", color: "#d9ffdd" }).setOrigin(0.5).setDepth(6);
+    this.goalText = this.add.text(850, 92, "0%", { fontFamily: "monospace", fontSize: "10px", color: "#d9ffdd" }).setOrigin(0.5).setDepth(6);
   }
 
   frictionPress(direction) {
@@ -637,137 +536,62 @@ class ArchiveGame extends Phaser.Scene {
     const vectors = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
     const [dx, dy] = vectors[s.direction] || [0, 0];
     const acceleration = 470;
-    const drag = Math.max(55, 720 - this.actions * 82);
+    const drag = Math.max(28, 640 - this.actions * 105);
     if (dx) s.vx += dx * acceleration * dt; else s.vx = moveTowardZero(s.vx, drag * dt);
     if (dy) s.vy += dy * acceleration * dt; else s.vy = moveTowardZero(s.vy, drag * dt);
     const speed = Math.hypot(s.vx, s.vy);
     if (speed > 265) { s.vx = s.vx / speed * 265; s.vy = s.vy / speed * 265; }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    for (const wall of s.walls) circleRectCollision(s, wall, 0.02);
+    for (const wall of s.walls) circleRectCollision(s, wall, 0.35);
     this.player.setPosition(s.x, s.y).setRotation(Math.atan2(s.vy, s.vx) * 0.18);
     this.cargoTrail.clear().lineStyle(3, 0xffb35d, 0.14 + this.risk / 500).lineBetween(s.x - s.vx * 0.12, s.y - s.vy * 0.12, s.x, s.y);
 
     const currentSpeed = Math.hypot(s.vx, s.vy);
-    const inside = Math.hypot(s.x - 864, s.y - 72) <= 32;
-    if (inside && currentSpeed <= 78) s.goalHold += dt;
+    const inside = Math.hypot(s.x - 850, s.y - 92) <= 22;
+    if (inside && currentSpeed <= 28) s.goalHold += dt;
     else if (!inside) s.goalHold = 0;
     else s.goalHold = Math.max(0, s.goalHold - dt * 2);
-    if (s.wasInside && !inside && s.goalHold < 0.4) s.overruns += 1;
+    if (s.wasInside && !inside && s.goalHold < 0.8) s.overruns += 1;
     s.wasInside = inside;
-    const progress = clamp(s.goalHold / 0.4, 0, 1);
-    this.goalText.setText(inside && currentSpeed > 78 ? "FAST" : `${Math.round(progress * 100)}%`)
-      .setColor(inside && currentSpeed > 78 ? "#ffb35d" : "#d9ffdd");
+    const progress = clamp(s.goalHold / 0.8, 0, 1);
+    this.goalText.setText(inside && currentSpeed > 28 ? "FAST" : `${Math.round(progress * 100)}%`)
+      .setColor(inside && currentSpeed > 28 ? "#ffb35d" : "#d9ffdd");
     if (progress >= 1) this.finish(true, `지나침 ${s.overruns}회`);
   }
 
-  /* 06 — Light decay */
-  buildDarkness() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "광량 100%";
-    const walls = [
-      ...boundaryWalls(28, 14),
-      { x: 28, y: 392, w: 330, h: 18 },
-      { x: 358, y: 208, w: 18, h: 202 },
-      { x: 190, y: 208, w: 488, h: 18 },
-      { x: 678, y: 208, w: 18, h: 222 },
-      { x: 500, y: 430, w: 196, h: 18 },
-      { x: 790, y: 100, w: 18, h: 108 },
-      { x: 808, y: 100, w: 122, h: 18 },
-    ];
-    this.drawWalls(walls, 0x263f4b, 0x65808d);
-    this.drawGoal(865, 72, 24, "EXIT");
-    this.state = { x: 86, y: 458, vx: 0, vy: 0, radius: 12, direction: null, walls, lightRadius: 230 };
-    this.player = this.add.circle(86, 458, 12, 0xf6fbff).setStrokeStyle(3, 0xffe29d).setDepth(5);
-    lightOverlay.classList.add("is-active");
-    this.updateLightOverlay();
+  buildStack() {
+    this.actions = 0; this.risk = 0; this.anomaly = "다음 무게 1.00×";
+    this.state = createStackState();
+    this.drawWalls([{ x: 480 - STACK_RULES.baseWidth / 2, y: 480, w: STACK_RULES.baseWidth, h: 22 }], 0x315169, 0x789bb7);
+    this.stackArt = this.add.graphics().setDepth(4);
+    this.player = this.add.rectangle(480, 80, STACK_RULES.width, 38, 0xffca75).setStrokeStyle(2, 0xffe1ad).setDepth(5);
+    this.stackText = this.add.text(650, 460, "STACK 0 / 6", { fontFamily: "monospace", fontSize: "16px", color: "#93fca0" });
   }
 
-  darknessPress(direction) {
-    this.state.direction = direction;
-    this.actions += 1;
-    this.state.lightRadius = Math.max(58, 230 - this.actions * 19);
-    this.risk = clamp((230 - this.state.lightRadius) / 172 * 100, 0, 100);
-    this.anomaly = `광량 ${Math.round(this.state.lightRadius / 230 * 100)}%`;
-    emit("archive-sfx", { name: this.actions >= 7 ? "warning" : "action" });
-  }
-
-  updateLightOverlay() {
-    const s = this.state;
-    lightOverlay.style.setProperty("--light-x", `${s.x / WIDTH * 100}%`);
-    lightOverlay.style.setProperty("--light-y", `${s.y / HEIGHT * 100}%`);
-    lightOverlay.style.setProperty("--light-radius", `${s.lightRadius / WIDTH * 100}%`);
-  }
-
-  updateDarkness(dt) {
-    const s = this.state;
-    const vectors = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
-    const [dx, dy] = vectors[s.direction] || [0, 0];
-    s.vx = dx * 185;
-    s.vy = dy * 185;
-    s.x += s.vx * dt;
-    s.y += s.vy * dt;
-    for (const wall of s.walls) circleRectCollision(s, wall, 0);
-    this.player.setPosition(s.x, s.y);
-    this.updateLightOverlay();
-    if (Math.hypot(s.x - 865, s.y - 72) <= 34) this.finish(true);
-  }
-
-  /* 07 — Angular lock */
-  buildRotation() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "각속도 안정";
-    const center = { x: 480, y: 272 };
-    const targetAngle = 0.42;
-    this.add.circle(center.x, center.y, 184, 0x0b2835, 0.32).setStrokeStyle(2, 0x315e70, 0.8);
-    const ticks = this.add.graphics().lineStyle(2, 0x5e8797, 0.46);
-    for (let i = 0; i < 24; i += 1) {
-      const angle = i / 24 * Math.PI * 2;
-      ticks.lineBetween(center.x + Math.cos(angle) * 171, center.y + Math.sin(angle) * 171, center.x + Math.cos(angle) * 183, center.y + Math.sin(angle) * 183);
+  updateStack(dt) {
+    const s = this.state, previous = { x: s.x, y: s.y, radius: s.radius };
+    const result = stepStack(s, dt);
+    this.checkFragment(this.fragmentBody(), previous);
+    this.risk = clamp((30 - s.margin) / 30 * 100, 0, 100);
+    this.anomaly = `다음 무게 ${(1 + Math.min(s.blocks.length, 5) * STACK_RULES.massStep).toFixed(2)}×`;
+    this.stackArt.clear();
+    for (const block of s.blocks) {
+      this.stackArt.fillStyle(0x487e94).fillRect(block.x - block.w / 2, block.y - 19, block.w, 38);
+      this.stackArt.lineStyle(2, 0x9cdcef).strokeRect(block.x - block.w / 2, block.y - 19, block.w, 38);
     }
-    this.add.line(center.x, center.y, 0, 0, Math.cos(targetAngle) * 340, Math.sin(targetAngle) * 340, 0x93fca0, 0.22).setLineWidth(12).setOrigin(0, 0.5);
-    this.add.text(center.x + Math.cos(targetAngle) * 202, center.y + Math.sin(targetAngle) * 202, "LOCK ANGLE", { fontFamily: "monospace", fontSize: "10px", color: "#93fca0" }).setOrigin(0.5);
-    this.rotationBar = this.add.rectangle(center.x, center.y, 330, 14, 0x9cdcef).setStrokeStyle(2, 0xe8fbff).setDepth(4);
-    this.add.circle(center.x, center.y, 25, 0x173f50).setStrokeStyle(3, 0x65cce8).setDepth(5);
-    this.rotationText = this.add.text(center.x, 486, "ALIGN 0%", { fontFamily: "monospace", fontSize: "15px", color: "#8daeba" }).setOrigin(0.5);
-    this.state = { angle: -1.15, angularVelocity: 0, direction: null, targetAngle, hold: 0, center };
-    this.rotationBar.setRotation(this.state.angle);
+    if (s.blocks.length) {
+      const mass = s.blocks.reduce((n, b) => n + b.mass, 0);
+      const center = s.blocks.reduce((n, b) => n + b.x * b.mass, 0) / mass;
+      this.stackArt.lineStyle(2, s.margin < 12 ? 0xff7979 : 0x93fca0, 0.8).lineBetween(center, 240, center, 500);
+    }
+    this.stackText.setText(`STACK ${s.blocks.length} / 6`);
+    if (result.landed && !result.failed && s.blocks.length < STACK_RULES.count) nextStackBlock(s);
+    this.player.setPosition(s.x, s.y).setDisplaySize(stackBlockWidth(Math.min(s.blocks.length, 5)), 38).setVisible(s.blocks.length < STACK_RULES.count && !result.failed);
+    if (result.failed) this.finish(false, "무게중심 이탈 · 기록 붕괴");
+    else if (result.cleared) this.finish(true);
   }
 
-  rotationPress(direction) {
-    if (direction !== "left" && direction !== "right") return;
-    this.state.direction = direction;
-    this.actions += 1;
-    this.risk = clamp(this.actions / 9 * 100, 0, 100);
-    this.anomaly = `각속도 ${Math.min(3.8, 1 + this.actions * 0.31).toFixed(1)}×`;
-    this.setCorruption(this.risk);
-    emit("archive-sfx", { name: "action" });
-  }
-
-  updateRotation(dt) {
-    const s = this.state;
-    const direction = s.direction === "left" ? -1 : s.direction === "right" ? 1 : 0;
-    const torque = 2.45 * (1 + this.actions * 0.16);
-    const damping = Math.max(0.22, 1.32 - this.actions * 0.1);
-    if (direction) s.angularVelocity += direction * torque * dt;
-    else s.angularVelocity = moveTowardZero(s.angularVelocity, damping * dt);
-    const maxVelocity = 1.55 + this.actions * 0.27;
-    s.angularVelocity = clamp(s.angularVelocity, -maxVelocity, maxVelocity);
-    s.angle += s.angularVelocity * dt;
-    if (s.angle > Math.PI) s.angle -= Math.PI * 2;
-    if (s.angle < -Math.PI) s.angle += Math.PI * 2;
-    this.rotationBar.setRotation(s.angle);
-
-    const angleError = Math.abs(Math.atan2(Math.sin(s.angle - s.targetAngle), Math.cos(s.angle - s.targetAngle)));
-    const valid = angleError <= 0.09 && Math.abs(s.angularVelocity) <= 0.22;
-    if (valid) s.hold += dt; else s.hold = Math.max(0, s.hold - dt * 1.5);
-    const progress = clamp(s.hold / 0.65, 0, 1);
-    this.rotationText.setText(valid ? `LOCK ${Math.round(progress * 100)}%` : `ERROR ${(angleError * 180 / Math.PI).toFixed(1)}°`)
-      .setColor(valid ? "#93fca0" : "#8daeba");
-    if (progress >= 1) this.finish(true, `각도 오차 ${(angleError * 180 / Math.PI).toFixed(1)}°`);
-  }
 }
 
 window.archivePhaserGame = new Phaser.Game({

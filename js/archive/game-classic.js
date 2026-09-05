@@ -21,7 +21,7 @@ const PROLOGUE = [
   {
     code: "OPERATOR // ASSIGNED",
     title: "당신은 마지막 기록 관리자다.",
-    body: "속도, 중력, 탄성, 반동, 마찰, 빛, 회전. 일곱 개의 물리 채널을 최소한의 개입으로 복구하라.",
+    body: "속도, 중력, 탄성, 마찰, 무게중심. 다섯 개의 물리 채널을 최소한의 개입으로 복구하라.",
   },
 ];
 
@@ -37,7 +37,7 @@ const STAGES = [
     controls: "WASD / 방향키 · 반대 방향으로 제동",
     actionLabel: "방향 입력",
     logTitle: "속도 채널 복구",
-    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다. 복구율 14%.",
+    log: "첫 기록은 빨라지는 것보다 멈추는 법을 기억하고 있었다.",
   },
   {
     id: "gravity",
@@ -50,7 +50,7 @@ const STAGES = [
     controls: "A/D 또는 ←/→ 이동 · Space 점프",
     actionLabel: "점프",
     logTitle: "중력 채널 복구",
-    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다. 복구율 28%.",
+    log: "기록은 위로 향할수록 무거워졌다. 필요한 점프만 남기자 길이 열렸다.",
   },
   {
     id: "bounce",
@@ -63,59 +63,21 @@ const STAGES = [
     controls: "A/D 또는 ←/→ 이동 · 자동 바운스",
     actionLabel: "착지",
     logTitle: "탄성 채널 복구",
-    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다. 복구율 42%.",
+    log: "착지할수록 기록은 더 높이 튀었다. 다음 착지 위치를 고르자 길이 이어졌다.",
   },
   {
-    id: "recoil",
-    recordSymbol: "⌖",
-    number: "04",
-    code: "RECOIL_ARRAY",
-    title: "반동 사격장",
-    objective: "이동하는 세 개의 기록 노드를 모두 맞히세요.",
-    anomaly: "발사할 때마다 포대가 밀리고 조준 오차가 커집니다.",
-    controls: "마우스 / 터치로 조준 · 클릭하여 발사",
-    actionLabel: "발사",
-    logTitle: "반동 채널 복구",
-    log: "모든 발사는 기록 관리자를 뒤로 밀어냈다. 적은 탄환이 가장 정확한 답이었다. 복구율 57%.",
+    id: "friction", recordSymbol: "≈", number: "04", code: "FRICTION_DROP",
+    title: "미끄럼 배송", objective: "관성을 제어해 화물을 DOCK 안에서 멈추세요.",
+    anomaly: "이동 입력이 쌓일수록 마찰이 줄어 제동이 어려워집니다.",
+    controls: "WASD / 방향키 · 반대 방향으로 제동", actionLabel: "이동 입력",
+    logTitle: "마찰 채널 복구", log: "미끄러지는 기록은 제동을 기억하고 있었다.",
   },
   {
-    id: "friction",
-    recordSymbol: "≈",
-    number: "05",
-    code: "FRICTION_DROP",
-    title: "무마찰 배송",
-    objective: "화물을 장애물 사이로 운반해 적재 구역에 정지시키세요.",
-    anomaly: "이동 입력이 쌓일수록 마찰력이 감소합니다.",
-    controls: "WASD / 방향키 · 반대 방향으로 제동",
-    actionLabel: "이동 입력",
-    logTitle: "마찰 채널 복구",
-    log: "미끄러지는 기록은 목적지를 지나치고도 멈추지 않았다. 움직임보다 제동이 중요했다. 복구율 71%.",
-  },
-  {
-    id: "darkness",
-    recordSymbol: "☼",
-    number: "06",
-    code: "LIGHT_DECAY",
-    title: "소실 회랑",
-    objective: "시야가 사라지기 전에 출구 비콘에 도착하세요.",
-    anomaly: "방향을 새로 누를 때마다 조명 반경이 줄어듭니다.",
-    controls: "WASD / 방향키",
-    actionLabel: "방향 입력",
-    logTitle: "광원 채널 복구",
-    log: "기록은 볼 수 없는 곳에서도 존재했다. 경로를 먼저 읽은 뒤 움직이자 빛이 돌아왔다. 복구율 85%.",
-  },
-  {
-    id: "rotation",
-    recordSymbol: "↻",
-    number: "07",
-    code: "ANGULAR_LOCK",
-    title: "각속도 잠금",
-    objective: "회전 바를 목표 각도에 맞추고 정지시키세요.",
-    anomaly: "회전 입력마다 각속도와 토크가 증가합니다.",
-    controls: "A/D 또는 ←/→ 회전 · 반대 방향으로 제동",
-    actionLabel: "회전 입력",
-    logTitle: "최종 채널 복구",
-    log: "마지막 기록은 계속 돌고 있었다. 더 돌리는 대신 정확한 순간에 힘을 거두자 정지했다. 복구율 100%.",
+    id: "stack", recordSymbol: "▤", number: "05", code: "CENTER_OF_MASS",
+    title: "무게중심 쌓기", objective: "블록 6개를 쌓고 무게중심을 지켜 0.7초간 안정시키세요.",
+    anomaly: "블록이 점점 무겁고 좁아지며, 좌우 이동도 빨라집니다.",
+    controls: "자동 좌우 이동 · A/D 또는 ←/→ 보정 · Space / 클릭 낙하", actionLabel: "낙하",
+    logTitle: "무게중심 채널 복구", log: "쌓인 기록의 무게를 받치는 중심을 찾았다.",
   },
 ];
 
@@ -127,7 +89,6 @@ const ENDING = {
 
 const STORAGE_KEY = "archive-2026-progress-v1";
 const SETTINGS_KEY = "archive-2026-settings-v1";
-
 
 
 
@@ -559,6 +520,66 @@ function stepBounce(s, dt) {
 }
 
 
+/* Source: stack-core.mjs */
+const STACK_RULES = { count: 6, width: 84, widthStep: 8, height: 38, gravity: 1100, speed: 240, baseWidth: 96, massStep: 0.75, minimumMargin: 8 };
+const stackBlockWidth = count => STACK_RULES.width - count * STACK_RULES.widthStep;
+function createStackState() {
+  return { blocks: [], x: 480, y: 80, vy: 0, radius: 18, direction: null, travel: 1, dropping: false, failed: false, hold: 0, margin: 48 };
+}
+// Each interface must support the mass-weighted centre of everything above it.
+function stackMargin(blocks) {
+  let margin = 70;
+  for (let i = 0; i < blocks.length; i++) {
+    const lower = i ? blocks[i - 1] : { x: 480, w: STACK_RULES.baseWidth };
+    const upper = blocks[i];
+    const left = Math.max(lower.x - lower.w / 2, upper.x - upper.w / 2);
+    const right = Math.min(lower.x + lower.w / 2, upper.x + upper.w / 2);
+    const above = blocks.slice(i);
+    const mass = above.reduce((n, b) => n + b.mass, 0);
+    const center = above.reduce((n, b) => n + b.x * b.mass, 0) / mass;
+    margin = Math.min(margin, center - left, right - center);
+  }
+  return margin;
+}
+function dropStack(s) {
+  if (s.dropping || s.failed || s.blocks.length >= STACK_RULES.count) return false;
+  s.dropping = true;
+  return true;
+}
+function stepStack(s, dt) {
+  let landed = false;
+  if (s.failed) return { failed: true, cleared: false, landed };
+  if (s.blocks.length >= STACK_RULES.count) {
+    s.hold += dt;
+    return { failed: false, cleared: s.hold >= 0.7, landed };
+  }
+  if (!s.dropping) {
+    const velocity = s.direction === 'left' ? -STACK_RULES.speed : s.direction === 'right' ? STACK_RULES.speed : s.travel * (130 + s.blocks.length * 22);
+    s.x = Math.max(300, Math.min(660, s.x + velocity * dt));
+    if (s.x <= 300) s.travel = 1;
+    if (s.x >= 660) s.travel = -1;
+  } else {
+    s.y += s.vy * dt + STACK_RULES.gravity * dt * dt / 2;
+    s.vy += STACK_RULES.gravity * dt;
+    const top = 480 - s.blocks.length * STACK_RULES.height;
+    if (s.y + STACK_RULES.height / 2 >= top) {
+      s.y = top - STACK_RULES.height / 2;
+      s.blocks.push({ x: s.x, y: s.y, w: stackBlockWidth(s.blocks.length), mass: 1 + s.blocks.length * STACK_RULES.massStep });
+      s.margin = stackMargin(s.blocks);
+      s.failed = s.margin < STACK_RULES.minimumMargin;
+      s.dropping = false;
+      landed = true;
+    }
+  }
+  return { failed: s.failed, cleared: false, landed };
+}
+function nextStackBlock(s) {
+  s.x = s.blocks.length % 2 ? 650 : 310;
+  s.travel = s.blocks.length % 2 ? -1 : 1;
+  s.y = 80; s.vy = 0;
+}
+
+
 /* Source: progress.mjs */
 const RECORD_STATUS = Object.freeze({
   DAMAGED: "DAMAGED", PARTIAL: "PARTIALLY RESTORED", FULL: "FULLY RESTORED", LOST: "RECORD LOST",
@@ -607,10 +628,8 @@ const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
   gravity: { x: 307, y: 244, radius: 12, hint: "" },
   bounce: { x: 447, y: 82, radius: 10, hint: "" },
-  recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
-  friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
-  darkness: { x: 610, y: 290, radius: 12, hint: "회랑 안쪽의 조각에 접촉" },
-  rotation: { x: 480 + Math.cos(-2.1) * 165, y: 272 + Math.sin(-2.1) * 165, radius: 14, hint: "밝은 끝점을 조각까지 회전" },
+  stack: { x: 530, y: 220, radius: 12, hint: "" },
+  friction: { x: 440, y: 64, radius: 12, hint: "" },
 });
 
 // Swept circle check prevents fast projectiles from skipping small fragments.
@@ -747,10 +766,8 @@ class ArchiveGame extends Phaser.Scene {
       maze: () => this.buildMaze(),
       gravity: () => this.buildGravity(),
       bounce: () => this.buildBounce(),
-      recoil: () => this.buildRecoil(),
       friction: () => this.buildFriction(),
-      darkness: () => this.buildDarkness(),
-      rotation: () => this.buildRotation(),
+      stack: () => this.buildStack(),
     };
     builders[id]?.();
     this.buildFragment();
@@ -849,13 +866,11 @@ class ArchiveGame extends Phaser.Scene {
       maze: () => this.updateMaze(dt),
       gravity: () => this.updateGravity(dt),
       bounce: () => this.updateBounce(dt),
-      recoil: () => this.updateRecoil(dt),
       friction: () => this.updateFriction(dt),
-      darkness: () => this.updateDarkness(dt),
-      rotation: () => this.updateRotation(dt),
+      stack: () => this.updateStack(dt),
     };
     updates[this.stageId]?.();
-    if (this.mode === "playing") this.checkFragment(this.fragmentBody(), previous);
+    if (this.mode === "playing" && this.stageId !== "stack") this.checkFragment(this.fragmentBody(), previous);
     this.sendHud();
     if (this.remaining <= 0 && this.mode === "playing") this.finish(false);
   }
@@ -867,8 +882,7 @@ class ArchiveGame extends Phaser.Scene {
       gravity: () => this.gravityPress(direction),
       bounce: () => { if (direction === "left" || direction === "right") this.state.direction = direction; },
       friction: () => this.frictionPress(direction),
-      darkness: () => this.darknessPress(direction),
-      rotation: () => this.rotationPress(direction),
+      stack: () => { this.state.direction = direction; },
     };
     handlers[this.stageId]?.();
   }
@@ -880,8 +894,7 @@ class ArchiveGame extends Phaser.Scene {
       bounce: () => { if (this.state.direction === direction) this.state.direction = null; },
       gravity: () => { if (this.state.direction === direction) this.state.direction = null; },
       friction: () => { if (this.state.direction === direction) this.state.direction = null; },
-      darkness: () => { if (this.state.direction === direction) this.state.direction = null; },
-      rotation: () => { if (this.state.direction === direction) this.state.direction = null; },
+      stack: () => { if (this.state.direction === direction) this.state.direction = null; },
     };
     handlers[this.stageId]?.();
   }
@@ -889,11 +902,14 @@ class ArchiveGame extends Phaser.Scene {
   primaryAction() {
     if (this.mode !== "playing" || this.pausedByMenu) return;
     if (this.stageId === "gravity") this.gravityJump();
+    if (this.stageId === "stack" && dropStack(this.state)) this.actions++;
   }
 
   pointerAction(x, y) {
 
-    if (this.stageId === "recoil") this.fireRecoilShot(x, y);
+    if (this.stageId === "stack" && !this.state.dropping && this.state.blocks.length < STACK_RULES.count) {
+      this.primaryAction();
+    }
   }
 
   finish(success, extra = "") {
@@ -922,18 +938,13 @@ class ArchiveGame extends Phaser.Scene {
     this.fragmentRing = this.add.circle(this.fragment.x, this.fragment.y, this.fragment.radius + 7, 0xffd27c, 0.08)
       .setStrokeStyle(1, 0xffd27c, 0.6).setDepth(6);
     this.tweens.add({ targets: this.fragmentRing, alpha: 0.3, duration: 650, yoyo: true, repeat: -1 });
-    if (this.stageId === "rotation") this.fragmentTip = this.add.circle(0, 0, 7, 0xffe5ab).setDepth(6);
     this.sendHud();
   }
 
   fragmentBody() {
     const s = this.state;
-    if (!s || this.stageId === "recoil") return null;
-    if (this.stageId === "rotation") {
-      const body = { x: s.center.x + Math.cos(s.angle) * 165, y: s.center.y + Math.sin(s.angle) * 165, radius: 7 };
-      this.fragmentTip?.setPosition(body.x, body.y);
-      return body;
-    }
+    if (!s) return null;
+
     const body = this.stageId === "maze" ? s.ball : s;
     return { x: body.x, y: body.y, radius: body.radius ?? 12 };
   }
@@ -1125,100 +1136,6 @@ class ArchiveGame extends Phaser.Scene {
     else if (result.cleared) this.finish(true);
   }
 
-  /* 04 — Recoil array */
-  buildRecoil() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "반동 정상";
-    this.state = {
-      turretX: 480,
-      turretY: 468,
-      bullets: [],
-      hits: 0,
-      time: 0,
-      targets: [
-        { x: 205, y: 150, baseX: 205, phase: 0, hit: false },
-        { x: 480, y: 112, baseX: 480, phase: 2.1, hit: false },
-        { x: 755, y: 165, baseX: 755, phase: 4.2, hit: false },
-      ],
-    };
-    this.targetObjects = this.state.targets.map((target, index) => {
-      const ring = this.add.circle(target.x, target.y, 27, 0xffb35d, 0.09).setStrokeStyle(3, 0xffb35d).setDepth(3);
-      const text = this.add.text(target.x, target.y, String(index + 1), { fontFamily: "monospace", fontSize: "12px", color: "#ffd19d" }).setOrigin(0.5).setDepth(4);
-      return { ring, text };
-    });
-    this.turret = this.add.rectangle(480, 468, 68, 28, 0x46788c).setStrokeStyle(2, 0x79cbe4).setDepth(4);
-    this.barrel = this.add.rectangle(480, 440, 70, 9, 0xb8dfec).setOrigin(0.1, 0.5).setDepth(3);
-    this.crosshair = this.add.circle(480, 220, 13, 0x000000, 0).setStrokeStyle(2, 0x93fca0, 0.8).setDepth(5);
-    this.hitText = this.add.text(48, 60, "NODES 0 / 3", { fontFamily: "monospace", fontSize: "16px", color: "#93fca0" });
-  }
-
-  fireRecoilShot(x, y) {
-    const s = this.state;
-    this.actions += 1;
-    const baseAngle = Math.atan2(y - s.turretY, x - s.turretX);
-    const drift = this.actions === 1 ? 0 : (this.actions - 1) * 0.012 * (this.actions % 2 ? -1 : 1);
-    const angle = baseAngle + drift;
-    const speed = 720;
-    const bullet = { x: s.turretX, y: s.turretY - 12, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
-    bullet.object = this.add.circle(bullet.x, bullet.y, 5, 0xe9fbff).setDepth(5);
-    s.bullets.push(bullet);
-    const recoil = 12 + this.actions * 6;
-    s.turretX = clamp(s.turretX - Math.cos(angle) * recoil, 105, 855);
-    this.risk = clamp(this.actions / 7 * 100, 0, 100);
-    this.anomaly = `반동 ${Math.min(3.4, 1 + this.actions * 0.34).toFixed(1)}×`;
-    this.setCorruption(this.risk * 0.85);
-    this.shake(70, clamp(0.002 + this.actions * 0.0005, 0.002, 0.007));
-    emit("archive-sfx", { name: "action" });
-  }
-
-  updateRecoil(dt) {
-    const s = this.state;
-    s.time += dt;
-    const pointer = this.input.activePointer;
-    this.crosshair.setPosition(pointer.worldX, pointer.worldY);
-    const barrelAngle = Math.atan2(pointer.worldY - s.turretY, pointer.worldX - s.turretX);
-    this.turret.setPosition(s.turretX, s.turretY);
-    this.barrel.setPosition(s.turretX, s.turretY - 4).setRotation(barrelAngle);
-
-    s.targets.forEach((target, index) => {
-      if (target.hit) return;
-      target.x = target.baseX + Math.sin(s.time * 1.35 + target.phase) * 34;
-      this.targetObjects[index].ring.setPosition(target.x, target.y);
-      this.targetObjects[index].text.setPosition(target.x, target.y);
-    });
-
-    for (let index = s.bullets.length - 1; index >= 0; index -= 1) {
-      const bullet = s.bullets[index];
-      const previous = { x: bullet.x, y: bullet.y };
-      bullet.x += bullet.vx * dt;
-      bullet.y += bullet.vy * dt;
-      this.checkFragment({ x: bullet.x, y: bullet.y, radius: 5 }, previous);
-      bullet.object.setPosition(bullet.x, bullet.y);
-      let removed = false;
-      for (let targetIndex = 0; targetIndex < s.targets.length; targetIndex += 1) {
-        const target = s.targets[targetIndex];
-        if (!target.hit && Math.hypot(bullet.x - target.x, bullet.y - target.y) <= 33) {
-          target.hit = true;
-          s.hits += 1;
-          this.targetObjects[targetIndex].ring.setFillStyle(0x93fca0, 0.22).setStrokeStyle(3, 0x93fca0);
-          this.targetObjects[targetIndex].text.setText("✓").setColor("#93fca0");
-          bullet.object.destroy();
-          s.bullets.splice(index, 1);
-          removed = true;
-          this.hitText.setText(`NODES ${s.hits} / 3`);
-          emit("archive-sfx", { name: "hit" });
-          if (s.hits === 3) this.finish(true, `${this.actions}발 사용`);
-          break;
-        }
-      }
-      if (!removed && (bullet.x < -20 || bullet.x > WIDTH + 20 || bullet.y < -20 || bullet.y > HEIGHT + 20)) {
-        bullet.object.destroy();
-        s.bullets.splice(index, 1);
-      }
-    }
-  }
-
   /* 05 — Friction drop */
   buildFriction() {
     this.actions = 0;
@@ -1226,19 +1143,19 @@ class ArchiveGame extends Phaser.Scene {
     this.anomaly = "마찰 100%";
     const walls = [
       ...boundaryWalls(28, 14),
-      { x: 278, y: 252, w: 30, h: 258 },
-      { x: 520, y: 30, w: 30, h: 282 },
-      { x: 728, y: 252, w: 30, h: 258 },
+      { x: 278, y: 150, w: 30, h: 360 },
+      { x: 520, y: 30, w: 30, h: 352 },
+      { x: 728, y: 150, w: 30, h: 360 },
     ];
     this.drawWalls(walls, 0x3b5262, 0x7698aa);
-    this.drawGoal(864, 72, 32, "DOCK");
+    this.drawGoal(850, 92, 22, "DOCK");
     this.state = {
       x: 92, y: 452, vx: 0, vy: 0, radius: 15,
       direction: null, walls, goalHold: 0, wasInside: false, overruns: 0,
     };
     this.player = this.add.rectangle(92, 452, 30, 30, 0xffca75).setStrokeStyle(3, 0xffe1ad).setDepth(5);
     this.cargoTrail = this.add.graphics().setDepth(3);
-    this.goalText = this.add.text(864, 72, "0%", { fontFamily: "monospace", fontSize: "10px", color: "#d9ffdd" }).setOrigin(0.5).setDepth(6);
+    this.goalText = this.add.text(850, 92, "0%", { fontFamily: "monospace", fontSize: "10px", color: "#d9ffdd" }).setOrigin(0.5).setDepth(6);
   }
 
   frictionPress(direction) {
@@ -1256,137 +1173,62 @@ class ArchiveGame extends Phaser.Scene {
     const vectors = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
     const [dx, dy] = vectors[s.direction] || [0, 0];
     const acceleration = 470;
-    const drag = Math.max(55, 720 - this.actions * 82);
+    const drag = Math.max(28, 640 - this.actions * 105);
     if (dx) s.vx += dx * acceleration * dt; else s.vx = moveTowardZero(s.vx, drag * dt);
     if (dy) s.vy += dy * acceleration * dt; else s.vy = moveTowardZero(s.vy, drag * dt);
     const speed = Math.hypot(s.vx, s.vy);
     if (speed > 265) { s.vx = s.vx / speed * 265; s.vy = s.vy / speed * 265; }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    for (const wall of s.walls) circleRectCollision(s, wall, 0.02);
+    for (const wall of s.walls) circleRectCollision(s, wall, 0.35);
     this.player.setPosition(s.x, s.y).setRotation(Math.atan2(s.vy, s.vx) * 0.18);
     this.cargoTrail.clear().lineStyle(3, 0xffb35d, 0.14 + this.risk / 500).lineBetween(s.x - s.vx * 0.12, s.y - s.vy * 0.12, s.x, s.y);
 
     const currentSpeed = Math.hypot(s.vx, s.vy);
-    const inside = Math.hypot(s.x - 864, s.y - 72) <= 32;
-    if (inside && currentSpeed <= 78) s.goalHold += dt;
+    const inside = Math.hypot(s.x - 850, s.y - 92) <= 22;
+    if (inside && currentSpeed <= 28) s.goalHold += dt;
     else if (!inside) s.goalHold = 0;
     else s.goalHold = Math.max(0, s.goalHold - dt * 2);
-    if (s.wasInside && !inside && s.goalHold < 0.4) s.overruns += 1;
+    if (s.wasInside && !inside && s.goalHold < 0.8) s.overruns += 1;
     s.wasInside = inside;
-    const progress = clamp(s.goalHold / 0.4, 0, 1);
-    this.goalText.setText(inside && currentSpeed > 78 ? "FAST" : `${Math.round(progress * 100)}%`)
-      .setColor(inside && currentSpeed > 78 ? "#ffb35d" : "#d9ffdd");
+    const progress = clamp(s.goalHold / 0.8, 0, 1);
+    this.goalText.setText(inside && currentSpeed > 28 ? "FAST" : `${Math.round(progress * 100)}%`)
+      .setColor(inside && currentSpeed > 28 ? "#ffb35d" : "#d9ffdd");
     if (progress >= 1) this.finish(true, `지나침 ${s.overruns}회`);
   }
 
-  /* 06 — Light decay */
-  buildDarkness() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "광량 100%";
-    const walls = [
-      ...boundaryWalls(28, 14),
-      { x: 28, y: 392, w: 330, h: 18 },
-      { x: 358, y: 208, w: 18, h: 202 },
-      { x: 190, y: 208, w: 488, h: 18 },
-      { x: 678, y: 208, w: 18, h: 222 },
-      { x: 500, y: 430, w: 196, h: 18 },
-      { x: 790, y: 100, w: 18, h: 108 },
-      { x: 808, y: 100, w: 122, h: 18 },
-    ];
-    this.drawWalls(walls, 0x263f4b, 0x65808d);
-    this.drawGoal(865, 72, 24, "EXIT");
-    this.state = { x: 86, y: 458, vx: 0, vy: 0, radius: 12, direction: null, walls, lightRadius: 230 };
-    this.player = this.add.circle(86, 458, 12, 0xf6fbff).setStrokeStyle(3, 0xffe29d).setDepth(5);
-    lightOverlay.classList.add("is-active");
-    this.updateLightOverlay();
+  buildStack() {
+    this.actions = 0; this.risk = 0; this.anomaly = "다음 무게 1.00×";
+    this.state = createStackState();
+    this.drawWalls([{ x: 480 - STACK_RULES.baseWidth / 2, y: 480, w: STACK_RULES.baseWidth, h: 22 }], 0x315169, 0x789bb7);
+    this.stackArt = this.add.graphics().setDepth(4);
+    this.player = this.add.rectangle(480, 80, STACK_RULES.width, 38, 0xffca75).setStrokeStyle(2, 0xffe1ad).setDepth(5);
+    this.stackText = this.add.text(650, 460, "STACK 0 / 6", { fontFamily: "monospace", fontSize: "16px", color: "#93fca0" });
   }
 
-  darknessPress(direction) {
-    this.state.direction = direction;
-    this.actions += 1;
-    this.state.lightRadius = Math.max(58, 230 - this.actions * 19);
-    this.risk = clamp((230 - this.state.lightRadius) / 172 * 100, 0, 100);
-    this.anomaly = `광량 ${Math.round(this.state.lightRadius / 230 * 100)}%`;
-    emit("archive-sfx", { name: this.actions >= 7 ? "warning" : "action" });
-  }
-
-  updateLightOverlay() {
-    const s = this.state;
-    lightOverlay.style.setProperty("--light-x", `${s.x / WIDTH * 100}%`);
-    lightOverlay.style.setProperty("--light-y", `${s.y / HEIGHT * 100}%`);
-    lightOverlay.style.setProperty("--light-radius", `${s.lightRadius / WIDTH * 100}%`);
-  }
-
-  updateDarkness(dt) {
-    const s = this.state;
-    const vectors = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
-    const [dx, dy] = vectors[s.direction] || [0, 0];
-    s.vx = dx * 185;
-    s.vy = dy * 185;
-    s.x += s.vx * dt;
-    s.y += s.vy * dt;
-    for (const wall of s.walls) circleRectCollision(s, wall, 0);
-    this.player.setPosition(s.x, s.y);
-    this.updateLightOverlay();
-    if (Math.hypot(s.x - 865, s.y - 72) <= 34) this.finish(true);
-  }
-
-  /* 07 — Angular lock */
-  buildRotation() {
-    this.actions = 0;
-    this.risk = 0;
-    this.anomaly = "각속도 안정";
-    const center = { x: 480, y: 272 };
-    const targetAngle = 0.42;
-    this.add.circle(center.x, center.y, 184, 0x0b2835, 0.32).setStrokeStyle(2, 0x315e70, 0.8);
-    const ticks = this.add.graphics().lineStyle(2, 0x5e8797, 0.46);
-    for (let i = 0; i < 24; i += 1) {
-      const angle = i / 24 * Math.PI * 2;
-      ticks.lineBetween(center.x + Math.cos(angle) * 171, center.y + Math.sin(angle) * 171, center.x + Math.cos(angle) * 183, center.y + Math.sin(angle) * 183);
+  updateStack(dt) {
+    const s = this.state, previous = { x: s.x, y: s.y, radius: s.radius };
+    const result = stepStack(s, dt);
+    this.checkFragment(this.fragmentBody(), previous);
+    this.risk = clamp((30 - s.margin) / 30 * 100, 0, 100);
+    this.anomaly = `다음 무게 ${(1 + Math.min(s.blocks.length, 5) * STACK_RULES.massStep).toFixed(2)}×`;
+    this.stackArt.clear();
+    for (const block of s.blocks) {
+      this.stackArt.fillStyle(0x487e94).fillRect(block.x - block.w / 2, block.y - 19, block.w, 38);
+      this.stackArt.lineStyle(2, 0x9cdcef).strokeRect(block.x - block.w / 2, block.y - 19, block.w, 38);
     }
-    this.add.line(center.x, center.y, 0, 0, Math.cos(targetAngle) * 340, Math.sin(targetAngle) * 340, 0x93fca0, 0.22).setLineWidth(12).setOrigin(0, 0.5);
-    this.add.text(center.x + Math.cos(targetAngle) * 202, center.y + Math.sin(targetAngle) * 202, "LOCK ANGLE", { fontFamily: "monospace", fontSize: "10px", color: "#93fca0" }).setOrigin(0.5);
-    this.rotationBar = this.add.rectangle(center.x, center.y, 330, 14, 0x9cdcef).setStrokeStyle(2, 0xe8fbff).setDepth(4);
-    this.add.circle(center.x, center.y, 25, 0x173f50).setStrokeStyle(3, 0x65cce8).setDepth(5);
-    this.rotationText = this.add.text(center.x, 486, "ALIGN 0%", { fontFamily: "monospace", fontSize: "15px", color: "#8daeba" }).setOrigin(0.5);
-    this.state = { angle: -1.15, angularVelocity: 0, direction: null, targetAngle, hold: 0, center };
-    this.rotationBar.setRotation(this.state.angle);
+    if (s.blocks.length) {
+      const mass = s.blocks.reduce((n, b) => n + b.mass, 0);
+      const center = s.blocks.reduce((n, b) => n + b.x * b.mass, 0) / mass;
+      this.stackArt.lineStyle(2, s.margin < 12 ? 0xff7979 : 0x93fca0, 0.8).lineBetween(center, 240, center, 500);
+    }
+    this.stackText.setText(`STACK ${s.blocks.length} / 6`);
+    if (result.landed && !result.failed && s.blocks.length < STACK_RULES.count) nextStackBlock(s);
+    this.player.setPosition(s.x, s.y).setDisplaySize(stackBlockWidth(Math.min(s.blocks.length, 5)), 38).setVisible(s.blocks.length < STACK_RULES.count && !result.failed);
+    if (result.failed) this.finish(false, "무게중심 이탈 · 기록 붕괴");
+    else if (result.cleared) this.finish(true);
   }
 
-  rotationPress(direction) {
-    if (direction !== "left" && direction !== "right") return;
-    this.state.direction = direction;
-    this.actions += 1;
-    this.risk = clamp(this.actions / 9 * 100, 0, 100);
-    this.anomaly = `각속도 ${Math.min(3.8, 1 + this.actions * 0.31).toFixed(1)}×`;
-    this.setCorruption(this.risk);
-    emit("archive-sfx", { name: "action" });
-  }
-
-  updateRotation(dt) {
-    const s = this.state;
-    const direction = s.direction === "left" ? -1 : s.direction === "right" ? 1 : 0;
-    const torque = 2.45 * (1 + this.actions * 0.16);
-    const damping = Math.max(0.22, 1.32 - this.actions * 0.1);
-    if (direction) s.angularVelocity += direction * torque * dt;
-    else s.angularVelocity = moveTowardZero(s.angularVelocity, damping * dt);
-    const maxVelocity = 1.55 + this.actions * 0.27;
-    s.angularVelocity = clamp(s.angularVelocity, -maxVelocity, maxVelocity);
-    s.angle += s.angularVelocity * dt;
-    if (s.angle > Math.PI) s.angle -= Math.PI * 2;
-    if (s.angle < -Math.PI) s.angle += Math.PI * 2;
-    this.rotationBar.setRotation(s.angle);
-
-    const angleError = Math.abs(Math.atan2(Math.sin(s.angle - s.targetAngle), Math.cos(s.angle - s.targetAngle)));
-    const valid = angleError <= 0.09 && Math.abs(s.angularVelocity) <= 0.22;
-    if (valid) s.hold += dt; else s.hold = Math.max(0, s.hold - dt * 1.5);
-    const progress = clamp(s.hold / 0.65, 0, 1);
-    this.rotationText.setText(valid ? `LOCK ${Math.round(progress * 100)}%` : `ERROR ${(angleError * 180 / Math.PI).toFixed(1)}°`)
-      .setColor(valid ? "#93fca0" : "#8daeba");
-    if (progress >= 1) this.finish(true, `각도 오차 ${(angleError * 180 / Math.PI).toFixed(1)}°`);
-  }
 }
 
 window.archivePhaserGame = new Phaser.Game({

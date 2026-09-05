@@ -3,10 +3,8 @@ export const MEMORY_FRAGMENTS = Object.freeze({
   maze: { x: 830, y: 210, radius: 14, hint: "오른쪽 위 조각을 얻고 돌아오기" },
   gravity: { x: 307, y: 244, radius: 12, hint: "" },
   bounce: { x: 447, y: 82, radius: 10, hint: "" },
-  recoil: { x: 100, y: 280, radius: 16, hint: "세 노드 완료 전에 조각을 사격" },
-  friction: { x: 440, y: 105, radius: 12, hint: "화물로 상단 조각에 접촉" },
-  darkness: { x: 610, y: 290, radius: 12, hint: "회랑 안쪽의 조각에 접촉" },
-  rotation: { x: 480 + Math.cos(-2.1) * 165, y: 272 + Math.sin(-2.1) * 165, radius: 14, hint: "밝은 끝점을 조각까지 회전" },
+  stack: { x: 530, y: 220, radius: 12, hint: "" },
+  friction: { x: 440, y: 64, radius: 12, hint: "" },
 });
 
 // Swept circle check prevents fast projectiles from skipping small fragments.

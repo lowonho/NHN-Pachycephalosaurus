@@ -10,6 +10,7 @@ $sourceNames = @(
   "physics-core.mjs",
   "gravity-core.mjs",
   "bounce-core.mjs",
+  "stack-core.mjs",
   "progress.mjs",
   "fragments.mjs",
   "game.mjs"

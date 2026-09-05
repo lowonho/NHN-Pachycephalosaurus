@@ -75,7 +75,7 @@ const initial = await evaluate(`({
   canvas: document.querySelectorAll('#game-container canvas').length
 })`);
 check("게임 엔진 로드", initial.gameReady && initial.phaserReady, JSON.stringify(initial));
-check("7개 스테이지 카드 생성", initial.cards === 7, `${initial.cards}개`);
+check("5개 스테이지 카드 생성", initial.cards === 5, `${initial.cards}개`);
 check("Phaser 캔버스 생성", initial.canvas === 1, `${initial.canvas}개`);
 
 // "게임 시작" → 컷신 → 프로토콜 선택. 컷신은 SKIP으로 건너뛴다.
@@ -87,7 +87,7 @@ const selectState = await evaluate(`({
   enabledCards: document.querySelectorAll('.stage-select-card[data-stage-id]:not(:disabled)').length
 })`);
 check("메인에서 스테이지 선택 열기", selectState.visible, JSON.stringify(selectState));
-check("스테이지 카드 선택 가능", selectState.enabledCards === 7, `${selectState.enabledCards}개`);
+check("스테이지 카드 선택 가능", selectState.enabledCards === 5, `${selectState.enabledCards}개`);
 
 await evaluate("document.querySelector('.stage-select-card[data-stage-id=maze]').click()");
 await wait(180);
@@ -141,7 +141,7 @@ const retryState = await evaluate(`({
 })`);
 check("결과 화면 재도전", retryState.resultHidden && retryState.timer > 19.8, JSON.stringify(retryState));
 
-const stageIds = ["maze", "gravity", "bounce", "recoil", "friction", "darkness", "rotation"];
+const stageIds = ["maze", "gravity", "bounce", "friction", "stack"];
 for (const stageId of stageIds) {
   const state = await evaluate(`archiveGameBridge.start(${JSON.stringify(stageId)}); ({
     id: archiveGameBridge.currentStage?.id,

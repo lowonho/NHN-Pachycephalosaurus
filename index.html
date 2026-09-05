@@ -154,11 +154,11 @@
 
     <!--
       프로토콜 선택 — assets/images/concept/stage select.png의 배치를 따른다.
-      1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 7개가 데스크톱 앱처럼 놓인다.
+      1인칭으로 마주 보는 모니터 화면이고, 복구할 기록 5개가 데스크톱 앱처럼 놓인다.
       (화면 밖의 방·책상·모니터 몸체는 전부 CSS로 그린다. 배경 일러스트 에셋은 쓰지 않는다.)
 
       컨셉 이미지와 다른 점은 네 가지다.
-        · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 7개를 한 화면에 모두 편다.
+        · 좌우로 넘기는 캐러셀이 아니다. 프로토콜 5개를 한 화면에 모두 편다.
         · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
           다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
           이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
@@ -185,7 +185,7 @@
                 <span class="protocol-meta-rule" aria-hidden="true"></span>
                 <div class="protocol-archive-readout">
                   <p class="protocol-archive-rate" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
-                  <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/7 · 기억 조각 0/7</p>
+                  <p class="protocol-archive-detail" id="archive-recovery-detail">기록 0/5 · 기억 조각 0/5</p>
                 </div>
               </div>
             </header>
@@ -213,7 +213,7 @@
             <footer class="protocol-footer">
               <div class="protocol-footer-status">
                 <!-- 이번 판에서 복구한 개수. 2:26이 끝나거나 메인으로 나가면 0으로 돌아간다. -->
-                <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 7</p>
+                <p class="protocol-progress" id="protocol-progress">RESTORED 0 / 5</p>
                 <!-- 타일의 ◇/◆ 표식이 무슨 뜻인지 — ARCHIVE 복구 등급 규칙이다. -->
                 <p class="protocol-archive-help">목표 달성 → 부분 복구 / 기억 조각 + 목표 달성 → 완전 복구</p>
                 <p class="protocol-archive-ending" id="archive-ending-status" hidden></p>
@@ -242,7 +242,7 @@
     </div>
 
     <!--
-      복구 실패 — 2:26 안에 프로토콜 7개를 전부 복구하지 못했을 때 뜬다.
+      복구 실패 — 2:26 안에 프로토콜 5개를 전부 복구하지 못했을 때 뜬다.
       (지침 13절의 실패 연출 문구 RECORD LOST를 그대로 쓴다.)
     -->
     <div
