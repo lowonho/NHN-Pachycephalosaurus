@@ -283,6 +283,7 @@
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');
+  scene.state.tiger.enabled = false; // 벽 차감만 따로 검증한다. 추격은 e4-tiger-check와 완주 검사에서 활성화.
   assert(scene.state.tiles.length === 7 && scene.state.tiles[0].length === 19, 'e4: compact maze');
   const startX = scene.state.x; advance(.2);
   assert(scene.state.x === startX, 'e4: no automatic movement');

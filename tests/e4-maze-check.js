@@ -3,7 +3,8 @@
   archivePhaserGame.loop.sleep();
   const checks = [];
   const assert = (value, name) => { if (!value) throw Error(name); checks.push(name); };
-  const load = id => { archiveGameBridge.active = false; scene.loadStage(id); scene.startStage(); scene.settings = { shake: false, effects: false }; };
+  // 벽·제동 단위 검사는 추격을 분리하고, 아래 25개 실제 완주 검사는 호랑이를 활성화한다.
+  const load = (id, chase = false) => { archiveGameBridge.active = false; scene.loadStage(id); scene.startStage(); scene.settings = { shake: false, effects: false }; scene.state.tiger.enabled = chase; };
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
@@ -103,7 +104,7 @@
   assert(scene.mode === 'done' && scene.remaining === 0 && Math.abs(scene.elapsed - 20.26) < .001, 'e4: time expires at 20.26 seconds');
 
   for (let attempt = 0; attempt < 25; attempt++) {
-  load('e4');
+  load('e4', true);
   const maze = scene.state, center = scene.stageGame.tileCenter;
   const queue = [{ x: 1, y: 1, parent: -1 }], seen = new Set(['1,1']);
   let end;

@@ -118,6 +118,10 @@ try {
     return
   }
   if ($E4Only) {
+    $villageChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-village-check.js')))
+    Write-Output ($villageChecks | ConvertTo-Json -Depth 10)
+    $chaseChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-tiger-check.js')))
+    Write-Output ($chaseChecks | ConvertTo-Json -Depth 10)
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-maze-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)
     Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.wake(); archiveGame.pause(true);" | Out-Null
@@ -151,6 +155,18 @@ try {
     Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     Write-Output 'PASS: E4 maze collision, timer, retry, and 25 generated mazes'
+    Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); s.loadStage('e4'); s.startStage(); s.directionPress('right'); for(let i=0;i<24;i++) s.update(0,1000/120); s.directionRelease('right'); for(let i=0;i<384;i++) s.update(0,1000/120); s.pausedByMenu=true; archivePhaserGame.loop.wake(); })()" | Out-Null
+    Start-Sleep -Milliseconds 100
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-chase.png'), [Convert]::FromBase64String($shot.data))
+    Evaluate "(() => { archivePhaserGame.loop.sleep(); archiveGame.pause(false); const s=archivePhaserGame.scene.getScene('archive-game'); for(let i=0;i<120&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
+    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('RETRY') && UI.modalCopy.textContent.includes('\uD638\uB791\uC774')")) { throw 'E4 tiger catch did not open the existing failure UI' }
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-failure.png'), [Convert]::FromBase64String($shot.data))
+    Evaluate "(() => { modalFlow.close(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.sleep(); const s=archivePhaserGame.scene.getScene('archive-game'); s.state.x=s.state.goal.x-20; s.state.y=s.state.goal.y; s.directionPress('right'); for(let i=0;i<12&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
+    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('CLEAR')")) { throw 'E4 reaching the king did not open the existing success UI' }
+    Write-Output 'PASS: tiger failure and king arrival open the existing result UI'
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     return
   }
   Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
@@ -158,6 +174,8 @@ try {
   $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-browser-check.js')))
   Write-Output ($checks | ConvertTo-Json -Depth 20)
   $skaterChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
+  $chaseChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-tiger-check.js')))
+  Write-Output ($chaseChecks | ConvertTo-Json -Depth 10)
   Write-Output ($skaterChecks | ConvertTo-Json -Depth 20)
   $slingshotChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e5-slingshot-check.js')))
   Write-Output ($slingshotChecks | ConvertTo-Json -Depth 20)
