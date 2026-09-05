@@ -6,20 +6,17 @@
  * 이번 차례 타일 하나만 누를 수 있었다. "증언 시작"을 누르면 그 프로토콜이
  * 시작된다(REQUEST_START).
  *
- * 각 게임은 독립된 20.26초 타이머를 사용한다. 책상 시계도 현재 시도의 시간을
- * 표시한다. 브리핑/소개/결과/일시정지에서는 멈춘다. 메인 화면으로 나가면(reset)
- * 랜덤 6개와 이번 판의 클리어 현황만 초기화하며 최고 기록은 유지한다.
- *
- * 남은 시간을 보여 주는 곳은 책상 위 탁상시계(#desk-clock) 하나뿐이다.
- * 모니터 스크린 안에는 두지 않는다 — 스크린은 플레이가 시작되면 게임 화면으로
- * 바뀌어서, 거기 둔 숫자는 정작 필요한 순간에 사라진다.
+ * 각 게임은 독립된 20.26초 타이머를 사용한다. 남은 시간은 게임 화면 안에서만
+ * 보여 준다 — 이 화면은 시간을 그리지 않는다(책상 위 탁상시계는 걷어냈다).
+ * 메인 화면으로 나가면(reset) 랜덤 6개와 이번 판의 클리어 현황만 초기화하며
+ * 최고 기록은 유지한다.
  */
-
-const RECOVERY_BUDGET_MS = 20260;
-const RECOVERY_URGENT_MS = 5000;
 
 /* 브리핑 하단 바의 안내 문구. 엔진 경고가 잠깐 덮었다가 이 문장으로 되돌아온다. */
 const BRIEF_NOTE = "Enter · Space로 시작 / Esc로 일시정지";
+
+/* 전원 연출 길이(ms). css/protocol-select.css의 .protocol-power 애니메이션과 같은 값이다. */
+const POWER_ON_MS = 980;
 
 class ProtocolSelectFlow {
   constructor(events, dom, soundBus, strings, cutscene) {
@@ -37,18 +34,24 @@ class ProtocolSelectFlow {
     this.briefBack = null;
 
     /*
+     * 불을 넣어 둔 막("막 번호:시도 횟수"). 같은 막을 다시 열 때는 켜지 않는다.
+     * powerHandle은 연출을 되돌려 끄는 타이머다.
+     */
+    this.poweredAct = "";
+    this.powerHandle = 0;
+
+    /*
      * 엔진을 기다리지 않는다 — js/config/protocols.js의 목록으로 바로 그린다.
      * 엔진이 뜨면 setStages가 더 자세한 목록으로 갈아 끼운다.
      */
     this.catalog = PROTOCOLS;
     this.stages = [];
-    this.remainingMs = RECOVERY_BUDGET_MS;
     this.warnHandle = 0;
 
     this.events.on(GAME_EVENTS.STAGE_CLEAR, () => this.render());
     this.events.on(GAME_EVENTS.STAGE_FAIL, () => this.render());
-    this.events.on(GAME_EVENTS.TOTAL_TIMER_TICK, (snapshot = {}) => this.syncRun(snapshot));
-    this.events.on(GAME_EVENTS.RUN_RESET, (snapshot = {}) => this.syncRun(snapshot));
+    this.events.on(GAME_EVENTS.TOTAL_TIMER_TICK, () => this.syncRun());
+    this.events.on(GAME_EVENTS.RUN_RESET, () => this.syncRun());
     this.events.on(GAME_EVENTS.REQUEST_CONTINUE, () => this.continueStory());
 
     this.ui.protocolBriefStartButton?.addEventListener("click", () => this.confirmBrief());
@@ -71,7 +74,11 @@ class ProtocolSelectFlow {
     this.ui.mainMenu?.setAttribute("inert", "");
     this.ui.stageSelectScreen?.classList.remove("hidden");
 
-    const stageId = window.archiveRun?.snapshot().expectedStageId;
+    const snapshot = window.archiveRun?.snapshot();
+    // 새 막이면 여기서 모니터에 불이 들어온다(같은 막 안 기록 이동에는 켜지 않는다).
+    this.powerOnForAct(snapshot);
+
+    const stageId = snapshot?.expectedStageId;
     if (stageId) this.openBrief(stageId);
     else this.showScreen("brief");
   }
@@ -81,8 +88,55 @@ class ProtocolSelectFlow {
     // 브리핑을 열어 둔 채로 나갔다면 예약된 "시작"도 함께 버린다.
     this.briefStart = null;
     this.briefBack = null;
+    // 화면을 내렸으니 전원도 내려간다 — 다시 들어오면 같은 막이라도 불이 들어온다.
+    this.stopPowerOn();
+    this.poweredAct = "";
     this.showScreen("brief");
     this.ui.stageSelectScreen?.classList.add("hidden");
+  }
+
+  /* ── 전원 연출 ───────────────────────────────────────────────────── */
+
+  /*
+   * 막이 바뀌었을 때만 모니터에 불을 넣는다. 한 막 안에서 기록을 넘길 때는
+   * 화면이 계속 켜져 있던 셈이므로 조용히 지나간다.
+   * 막을 다시 짤 때(act-restarted)도 새 접속이라 한 번 더 켠다 — 그래서
+   * 막 번호만이 아니라 시도 횟수까지 열쇠에 넣는다.
+   */
+  powerOnForAct(snapshot) {
+    const act = snapshot?.currentAct ?? 1;
+    const key = `${act}:${snapshot?.actAttemptCount?.[act - 1] ?? 1}`;
+    if (key === this.poweredAct) return;
+    this.poweredAct = key;
+    this.playPowerOn();
+  }
+
+  /*
+   * 검은 화면 → 십자 광선 → 가로선이 위아래로 열린다. 그림은 CSS가 그리고
+   * (css/protocol-select.css의 .protocol-power) 여기서는 여닫기만 한다.
+   * 연출은 브리핑 위에 얹힐 뿐이라 도는 동안에도 시작 버튼은 그대로 눌린다.
+   */
+  playPowerOn() {
+    const power = this.ui.protocolPower;
+    if (!power) return;
+    // 모션을 줄여 달라고 했으면 번쩍임 없이 그냥 켜진 화면으로 시작한다.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    window.clearTimeout(this.powerHandle);
+    /*
+     * 돌던 중에 다시 부르면 애니메이션이 이어지지 않고 그대로 멈춰 있다.
+     * 한 번 껐다 켜서(레이아웃을 한 번 읽어 강제로 반영) 처음부터 돌린다.
+     */
+    power.hidden = true;
+    void power.offsetWidth;
+    power.hidden = false;
+    this.powerHandle = window.setTimeout(() => this.stopPowerOn(), POWER_ON_MS);
+  }
+
+  stopPowerOn() {
+    window.clearTimeout(this.powerHandle);
+    this.powerHandle = 0;
+    if (this.ui.protocolPower) this.ui.protocolPower.hidden = true;
   }
 
   /*
@@ -120,7 +174,7 @@ class ProtocolSelectFlow {
   /* 한 판을 접는다 — 메인 화면으로 나갈 때 부른다. */
   reset() {
     const snapshot = window.archiveRun?.startNew();
-    this.syncRun(snapshot);
+    this.syncRun();
     this.events.emit(GAME_EVENTS.RUN_RESET, snapshot);
     return snapshot;
   }
@@ -287,7 +341,7 @@ class ProtocolSelectFlow {
     const before = window.archiveRun?.snapshot();
     const advanced = window.archiveRun?.advance();
     if (!before || !advanced) return;
-    this.syncRun(advanced.snapshot);
+    this.syncRun();
     const open = () => this.open();
     const play = (name, done = open) => this.playStoryCutscene(name, done);
 
@@ -348,9 +402,7 @@ class ProtocolSelectFlow {
     note.textContent = BRIEF_NOTE;
   }
 
-  syncRun(snapshot = {}) {
-    if (Number.isFinite(snapshot.stageRemainingMs)) this.remainingMs = snapshot.stageRemainingMs;
-    else if (Number.isFinite(snapshot.totalRemainingMs)) this.remainingMs = snapshot.totalRemainingMs;
+  syncRun() {
     this.refreshStages();
     this.render();
   }
@@ -358,24 +410,8 @@ class ProtocolSelectFlow {
   /* ── 그리기 ──────────────────────────────────────────────────────── */
 
   render() {
-    this.renderTimer();
     this.renderProgress();
     this.renderArchive();
-  }
-
-  /*
-   * 남은 시간은 책상 위 탁상시계 한 곳에만 뜬다.
-   * 스크린 안에 또 두면 플레이 중에만 사라져서 오히려 헷갈린다.
-   */
-  renderTimer() {
-    if (!this.ui.deskClock) return;
-
-    const parts = ProtocolSelectFlow.clockParts(this.remainingMs);
-    this.ui.deskClock.dataset.state = this.remainingMs <= RECOVERY_URGENT_MS ? "urgent" : "idle";
-
-    if (this.ui.deskClockMinutes) this.ui.deskClockMinutes.textContent = parts.minutes;
-    if (this.ui.deskClockSeconds) this.ui.deskClockSeconds.textContent = parts.seconds;
-    if (this.ui.deskClockCentis) this.ui.deskClockCentis.textContent = parts.centis;
   }
 
   /*
@@ -419,21 +455,6 @@ class ProtocolSelectFlow {
     const seconds = Math.floor(safe / 1000) % 60;
     const hundredths = Math.floor((safe % 1000) / 10);
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
-  }
-
-  /*
-   * 143000 → { minutes: "2", seconds: "23", centis: "00" }.
-   *
-   * 전부 내림이다. 초만 올림하면 시계가 0:01.50인데 초 자리는 0:02가 되어
-   * 같은 판 위의 두 숫자가 서로 안 맞는다.
-   */
-  static clockParts(milliseconds) {
-    const total = Math.max(0, milliseconds);
-    return {
-      minutes: String(Math.floor(total / 60000)),
-      seconds: String(Math.floor(total / 1000) % 60).padStart(2, "0"),
-      centis: String(Math.floor(total / 10) % 100).padStart(2, "0"),
-    };
   }
 }
 

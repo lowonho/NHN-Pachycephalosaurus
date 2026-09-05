@@ -44,7 +44,13 @@ export const MINI = {
   /* 죽고 다시 시작할 때의 공통 소환 연출. 재생 시간은 MINI.SPAWN초로 0.5초를 넘지 않습니다.
      scene.elapsed(공통 게임 시간)만 사용하므로 게임 쪽에 별도 타이머가 필요 없습니다. */
   SPAWN: .42,
-  summon(scene) { scene.spawnAt = scene.elapsed; },
+  /* 모니터 밖 책상 위의 손도 이 순간에 반응한다(js/ui/desk-hands.js).
+     엔진에서 DOM으로는 게임 브리지가 듣는 window 이벤트로 넘긴다(js/game.js) —
+     다른 엔진 신호(archive-hud · archive-stage-end)와 같은 길이다. */
+  summon(scene) {
+    scene.spawnAt = scene.elapsed;
+    window.dispatchEvent(new CustomEvent('archive-respawn'));
+  },
   spawnPhase(scene) {
     const phase = (scene.elapsed - scene.spawnAt) / MINI.SPAWN;
     return scene.spawnAt >= 0 && phase >= 0 && phase < 1 ? phase : null;
@@ -87,8 +93,10 @@ export const MINI = {
   frame(scene) {
     const g = scene.ink, f = MINI.FIELD; g.clear();
     if (scene.backdrop) { g.fillStyle(0x07141d, .42).fillRect(f.x, f.y, f.w, f.h); return; }
-    g.fillStyle(0x0c202e).fillRect(f.x, f.y, f.w, f.h);
-    g.lineStyle(1, scene.accent, 0.13);
+    // 게임이 fieldColor 를 두면 그 색으로 바닥을 칠한다(없으면 기본 어두운 남색).
+    // 밝은 바닥에서는 accent 격자가 묻히므로 격자 색도 fieldGrid 로 따로 받는다.
+    g.fillStyle(scene.fieldColor ?? 0x0c202e).fillRect(f.x, f.y, f.w, f.h);
+    g.lineStyle(1, scene.fieldGrid ?? scene.accent, 0.13);
     for (let x = f.x + 20; x < f.right; x += 40) g.lineBetween(x, f.y, x, f.bottom);
     for (let y = f.y + 28; y < f.bottom; y += 40) g.lineBetween(f.x, y, f.right, y);
   },

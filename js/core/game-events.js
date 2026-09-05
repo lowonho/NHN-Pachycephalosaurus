@@ -22,6 +22,8 @@ const GAME_EVENTS = Object.freeze({
   STAGE_RESUME: "stage:resume", // {}
   STAGE_CLEAR: "stage:clear", // { elapsed, stageId? }
   STAGE_FAIL: "stage:fail", // { stageId? }
+  /* 제한시간 안에서 죽고 다시 소환될 때. 스테이지는 끝나지 않는다. */
+  STAGE_RESPAWN: "stage:respawn", // { stageId? }
 
   // 외부 요청(UI → 씬)
   REQUEST_START: "request:start", // { stageId }

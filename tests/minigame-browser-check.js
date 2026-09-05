@@ -375,11 +375,11 @@
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   // 장애물은 코스에 미리 깔아 두지 않는다 — 사정거리 안으로 들어온 것만, 그것도 화면 오른쪽 바깥에서 태어난다.
   load('e6');
-  const flight = scene.stageGame.tuning;
+  const flight = scene.stageGame.tuning, tunnel = scene.stageGame.tunnel;
   assert(scene.gates.length <= 4 && scene.gates.every(gate => gate.x <= flight.spawnAhead), 'e6: only obstacles inside the spawn range exist');
   const bornGates = new Set(scene.gates.map(gate => gate.x));
   let poppedOnScreen = false, liveGates = scene.gates.length;
-  const memeWords = [];
+  const memeWords = scene.gates.map(gate => gate.word);
   advance(9, frame => {
     // 앞뒤 장애물의 통과 지점을 이어 그 선을 따라 난다(클리어 검사와 같은 조종).
     if (frame % 16 === 0) {
@@ -398,16 +398,28 @@
       bornGates.add(gate.x); memeWords.push(gate.word);
       if (gate.x - scene.state.x < 810) poppedOnScreen = true;
       // 밈 글자는 벽에 붙어 서고, 남은 통로는 언제나 minGap 이상 열려 있다.
-      const onWall = gate.side === 'top' ? gate.top === 168 : gate.bottom === 468;
-      const gap = gate.side === 'top' ? 468 - gate.bottom : gate.top - 168;
+      const onWall = gate.side === 'top' ? gate.top === tunnel.top : gate.bottom === tunnel.bottom;
+      const gap = gate.side === 'top' ? tunnel.bottom - gate.bottom : gate.top - tunnel.top;
       if (!onWall || gap < flight.minGap - .5 || gate.halfWidth <= 5) throw Error(`e6: bad meme pillar ${JSON.stringify(gate)}`);
     }
     liveGates = Math.max(liveGates, scene.gates.length);
   });
   assert(!poppedOnScreen, 'e6: obstacles are born off-screen instead of popping into view');
   assert(bornGates.size > scene.gates.length && liveGates <= 6, 'e6: passed obstacles are dropped instead of piling up');
-  const memeSentence = scene.stageGame.words;
-  assert(memeWords.length > 0 && memeWords.every((word, index) => word === memeSentence[(index + 2) % memeSentence.length]), 'e6: the meme sentence cycles through its words in order');
+  // 밈은 낱말이 아니라 세트로 선다. 어느 세트가 먼저 올지는 무작위라 순서는 보지 않고,
+  // 한 세트가 쪼개지지 않는지(여러분→저됐어요→뭣됐어요가 늘 붙어 나오는지)만 본다.
+  const memeSets = scene.stageGame.sets;
+  assert(memeWords.length > 0, 'e6: meme pillars carry words');
+  const usedSets = new Set();
+  for (let at = 0; at < memeWords.length;) {
+    const set = memeSets.find(candidate => candidate[0] === memeWords[at]);
+    if (!set) throw Error(`e6: '${memeWords[at]}' is not the head of any meme set`);
+    const run = memeWords.slice(at, at + set.length);
+    assert(run.every((word, step) => word === set[step]), `e6: meme set split apart at ${at}: ${run.join('/')}`);
+    usedSets.add(set); at += set.length;
+  }
+  // 한 세트가 두 바퀴째로 넘어가기 전에 나머지가 모두 나온다 — 열한 기둥이면 한 바퀴는 돈다.
+  assert(usedSets.size === memeSets.length, 'e6: every meme set shows up before any repeats a full cycle');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
   scene.state.y = 100; advance(.02);
   assert(scene.state.hits === 1 && scene.state.presses === presses, 'e6: collision retains gravity penalty');
@@ -416,7 +428,7 @@
   const spin = scene.stageGame.tuning;
   assert(scene.state.spinning && Math.abs(scene.state.speed) <= spin.maxSpeed && Math.abs(scene.state.speed) >= spin.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
-    scene.state.rotation = .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
+    scene.state.rotation = scene.stageGame.POINTER_ANGLE + Math.PI; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);
     assert(scene.state.misses === miss && !scene.state.spinning, `e7: miss ${miss} reduces friction`);
   }
@@ -627,6 +639,26 @@
   assert(document.querySelectorAll('.codex-card[data-discovered="true"]').length === 18
     && codexRect.top >= -1 && codexRect.bottom <= innerHeight + 1, 'Unlocked testimony archive shows eighteen records inside the viewport');
   codexFlow.close({ restoreFocus: false });
+  // 시작 카운트다운 — 판은 그려진 채로 3 · 2 · 1 · 시작!을 세고, 다 세고 나서야 엔진이 돈다.
+  ARCHIVE_STORY_SETTINGS.skipCountdown = false;
+  archiveGameBridge.stop();
+  const countdownStage = MINIGAME_CATALOG.find(stage => stage.id === 'e1');
+  archiveGameBridge.currentStage = countdownStage;
+  scene.loadStage('e1');
+  archiveGameBridge.beginCountdown();
+  const countdownShown = !UI.stageCountdown.hidden, countdownMode = scene.mode;
+  const countdownAnomaly = { shown: !UI.stageCountdownAnomaly.hidden, text: UI.stageCountdownAnomalyText.textContent };
+  const countdownLabels = [UI.stageCountdownValue.textContent];
+  while (archiveGameBridge.nextCountdownStep()) countdownLabels.push(UI.stageCountdownValue.textContent);
+  assert(countdownShown && countdownMode === 'ready' && countdownLabels.join(' ') === '3 2 1 시작!'
+    && UI.stageCountdown.hidden && scene.mode === 'playing' && scene.elapsed === 0,
+    'Countdown holds the stage at ready through 3 · 2 · 1 and then hands it to the engine');
+  // 숫자 아래 붉은 줄은 브리핑의 ANOMALY 칸과 같은 문장이고, 세는 내내 그대로 서 있는다.
+  assert(countdownAnomaly.shown && countdownAnomaly.text === countdownStage.anomaly
+    && UI.stageCountdownAnomalyText.textContent === countdownStage.anomaly,
+    'Countdown shows the stage anomaly under the number for every beat');
+  ARCHIVE_STORY_SETTINGS.skipCountdown = true;
+  archiveGameBridge.stop();
   ARCHIVE_STORY_SETTINGS.skipCutscenes = false;
   return { passed: checks.length, checks: checks.filter(name => !name.startsWith('Unique random selection')) };
 })()

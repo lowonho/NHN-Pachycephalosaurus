@@ -1,28 +1,65 @@
 /*
  * A(비주얼) 전용 — 메인 화면.
  * 배치 기준: 컨셉 이미지(2026 ARCHIVE 타이틀 화면).
- *   왼쪽 위 브랜드 · 오른쪽 위 사운드 ON/OFF · 가운데 타이틀 판 → 버튼 3개.
+ *   왼쪽 위 브랜드 · 오른쪽 위 사운드 ON/OFF ·
+ *   왼쪽 아래 캐릭터 · 오른쪽 가운데 타이틀 판 → 버튼 4개.
  *
- * 컨셉 이미지의 배경 일러스트(밤 도시 · 캐릭터 · 픽셀 스테이지)는 에셋이 없어
- * 넣지 않는다. 그 자리는 시안·자주 글로우를 얹은 어두운 화면으로 대신한다.
+ * 배경 일러스트(assets/images/ui/Main/bg.webp)와 캐릭터(character.webp)는
+ * scripts/bake-main-menu.ps1 이 원본 png 에서 구운 것이다. 원본을 바꿨으면 그 스크립트를 다시 돌린다.
  *
- * 타이틀 판·버튼 판때기는 assets/images/ui/Main/*.webp 에셋이다.
+ * 타이틀 판·버튼 판때기도 assets/images/ui/Main/*.webp 에셋이다.
  * 전부 원본 비율(aspect-ratio)을 그대로 유지한다 — 이 판때기들은 모서리가 45°로
  * 잘린 HUD 프레임이라 세로로 누르면 잘린 각도가 눈에 띄게 틀어진다.
  *
  * 크기는 전부 1920×1080 설계 좌표(px)다 — css/base.css의 "UI 배율 규칙"을 따른다.
  */
 
+/*
+ * 배경 일러스트는 설계 화면(.main-menu-frame)이 아니라 이 바깥 판이 깐다(아래 ::before).
+ * 설계 화면은 --ui-scale로 균일 축소되므로 창이 16:9가 아니면 위아래나 좌우에 띠가 남는다 —
+ * 배경을 거기에 붙이면 그 띠가 그대로 빈 자리로 보인다. 창 전체(inset: 0)에 cover로 깔면
+ * 비율이 어떻든 화면이 꽉 찬다(대신 남는 쪽이 조금 잘리는데, 배경은 잘려도 되는 그림이다).
+ *
+ * 여기 남은 색은 배경 그림이 뜨기 전에 보이는 바탕이다.
+ */
 .main-menu {
   position: fixed;
   z-index: 35;
   inset: 0;
   overflow: hidden;
+  background: #03071a;
+}
+
+/*
+ * 배경 일러스트 한 겹. 배경만 따로 pseudo로 떼어 둔 이유는 filter 때문이다 —
+ * .main-menu에 바로 걸면 그 안의 캐릭터와 UI까지 같이 채도가 빠진다.
+ * 원본 간판 네온이 너무 쨍해서 캐릭터(살구빛 피부·분홍 모자)와 버튼 판때기가 배경에 먹혔다.
+ * 채도를 4분의 1쯤 빼고 살짝 어둡게 눌러 두면 앞의 것들이 살아난다 — 더 빼면 배경이 죽는다.
+ */
+.main-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("../assets/images/ui/Main/bg.webp") center / cover no-repeat;
+  filter: saturate(0.75) brightness(0.92);
+}
+
+/*
+ * 배경 위에 덮는 막. 두 가지를 겹친다.
+ *   · 회색 막 — 남은 채도를 한 번 더 눌러 배경을 뒤로 물린다(맨 아래 칸).
+ *   · 비네트 — 위아래 띠와 가장자리 어둠. 창 비율이 어떻든 모양이 사는 것들만 여기 둔다.
+ * 브랜드·타이틀 카드처럼 자리가 정해진 UI 뒤의 어둠은 그 요소에 각각 붙였다(::before) —
+ * 그래야 창이 넓어져 설계 화면과 창의 가운데가 어긋나도 어둠이 UI를 따라간다.
+ */
+.main-menu::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(120% 76% at 50% -8%, rgba(31, 92, 255, 0.34), transparent 60%),
-    radial-gradient(60% 48% at 88% 78%, rgba(146, 74, 255, 0.18), transparent 70%),
-    radial-gradient(56% 44% at 10% 74%, rgba(255, 95, 160, 0.12), transparent 70%),
-    #03071a;
+    linear-gradient(180deg, rgba(3, 7, 26, 0.72) 0%, rgba(3, 7, 26, 0.1) 20%, transparent 32%),
+    linear-gradient(0deg, rgba(3, 7, 26, 0.72) 0%, transparent 32%),
+    radial-gradient(120% 100% at 50% 50%, transparent 38%, rgba(3, 7, 26, 0.52) 100%),
+    linear-gradient(0deg, rgba(122, 132, 154, 0.05), rgba(122, 132, 154, 0.05));
 }
 
 .main-menu.hidden {
@@ -33,9 +70,12 @@
  * 설계 화면 한 장. .protocol-frame과 같은 방식으로 1920×1080을 중앙에 놓고
  * --ui-scale 하나로 통째로 균일 축소한다. 네 귀퉁이 요소(브랜드 · 사운드)를
  * 화면 모서리에 붙이려면 카드가 아니라 이 판이 기준이어야 한다.
+ *
+ * z-index는 비네트(::before)와 캐릭터(z-index 1)보다 위에 오려고 준다 — UI가 늘 앞이다.
  */
 .main-menu-frame {
   position: absolute;
+  z-index: 2;
   top: 50%;
   left: 50%;
   width: 1920px;
@@ -44,24 +84,87 @@
   transform-origin: center center;
 }
 
-/* 배경 일러스트가 없는 자리를 메우는 아주 옅은 격자. 컷신·프로토콜 선택과 같은 결이다. */
-.main-menu-frame::before {
-  content: "";
+/* ── 왼쪽 아래 캐릭터 ──────────────────────────────────────────────── */
+
+/*
+ * 컨셉 이미지처럼 화면 왼쪽을 세로로 채우고 아래는 화면 밖으로 흘려 보낸다.
+ * 에셋은 투명 여백을 잘라 둔 상태(1228×1244)라 아래 값들이 곧 그림의 자리다.
+ *
+ * 설계 화면 밖에 있으므로 자리를 직접 맞춘다. 기준은 설계 좌표로 left: 106px, bottom: -40px,
+ * 폭 920px(=높이 932px)이고, 여기에 --ui-scale을 곱해 설계 화면과 같은 배율로 놓는다.
+ *   · 가로 — 설계 화면의 왼쪽 끝은 창 가운데에서 960px(설계) 왼쪽이다. 거기서 106px 들어오므로
+ *     창 가운데 기준 -854px(설계)이 그림의 왼쪽 끝이다.
+ *     이 값과 .main-menu-card의 left는 같이 움직인다 — 둘의 간격이 곧 캐릭터와 UI가
+ *     한 덩어리로 보이는 정도다. 한쪽만 옮기면 겹침이 무너지므로 늘 같은 양만큼 옮긴다.
+ *   · 세로 — 창 아래에 붙인다. 창이 세로로 길어도 잘린 허리 단면이 드러나지 않는다.
+ * 폭 920px이면 모자 꼭대기가 설계 y≈188px에 온다 — 왼쪽 위 브랜드 블록(44~185px)의 바로 아래다.
+ * 더 키우면 모자가 브랜드 글자를 먹는다.
+ *
+ * 레이어 순서는 배경 → 캐릭터(z-index 1) → 설계 화면 = UI(z-index 2)다.
+ * 캐릭터의 오른쪽(머리카락)과 타이틀 판이 일부러 겹치고, 겹치는 곳은 UI가 앞에 온다.
+ */
+.menu-character {
   position: absolute;
-  inset: 0;
-  opacity: 0.45;
-  background:
-    repeating-linear-gradient(90deg, rgba(87, 232, 255, 0.05) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(0deg, rgba(87, 232, 255, 0.04) 0 1px, transparent 1px 96px);
+  z-index: 1;
+  bottom: calc(-40px * var(--ui-scale, 1));
+  left: 50%;
+  width: 920px;
+  height: auto;
+  pointer-events: none;
+  /* 배경 위에 잘라 붙인 티가 나지 않게 바닥 쪽 그림자를 깔아 준다. */
+  filter: drop-shadow(0 18px 46px rgba(0, 0, 0, 0.62));
+  /*
+   * 둥실거림. 위아래로 12px(설계), 1.3초에 한 번 오르내린다(왕복 2.6초).
+   *
+   * 매끈하게 흐르지 않고 픽셀 아트처럼 툭툭 끊겨야 하므로 steps를 쓴다 —
+   * 3px씩 다섯 칸(0 · -3 · -6 · -9 · -12)으로 끊어 올라갔다 내려온다. ease가 아니라 steps라서
+   * 중간값이 아예 생기지 않고, 도트 스프라이트가 프레임 단위로 뛰는 것처럼 보인다.
+   * 칸을 더 잘게 쪼개면(steps 값을 키우면) 그만큼 매끈해진다.
+   *
+   * jump-none이어야 한다. 기본값(jump-end)은 마지막 칸인 -12px을 붙잡지 않고 지나쳐서
+   * 실제로 보이는 진폭이 -9.6px까지로 줄어든다. jump-none은 양 끝을 모두 한 칸씩 붙잡는다.
+   *
+   * 자리 잡기(translate·scale)도 같은 transform에 들어 있어 keyframes가 통째로 다시 쓴다 —
+   * 그래서 두 키프레임 모두 배율과 가로 자리를 그대로 들고 있어야 한다.
+   * 모션 최소화 설정에서는 css/responsive.css의 전역 규칙이 이 애니메이션을 멈춘다.
+   */
+  transform-origin: left bottom;
+  transform: translateX(calc(-854px * var(--ui-scale, 1))) scale(var(--ui-scale, 1));
+  animation: menu-character-float 1.3s steps(5, jump-none) infinite alternate;
+  user-select: none;
+}
+
+@keyframes menu-character-float {
+  from {
+    transform: translateX(calc(-854px * var(--ui-scale, 1))) scale(var(--ui-scale, 1));
+  }
+
+  to {
+    transform: translate(calc(-854px * var(--ui-scale, 1)), calc(-12px * var(--ui-scale, 1)))
+      scale(var(--ui-scale, 1));
+  }
 }
 
 /* ── 왼쪽 위 브랜드 ────────────────────────────────────────────────── */
 
 .menu-brand {
   position: absolute;
+  z-index: 3;
   top: 44px;
   left: 52px;
   text-align: left;
+}
+
+/*
+ * 브랜드 글자 뒤의 어둠. 창 전체 비네트로는 배경의 파라파라 간판(분홍 네온)을 못 이겨서
+ * 여기에 따로 깐다. 글자 블록에 붙여 두면 창 비율이 어떻든 글자를 그대로 따라간다.
+ */
+.menu-brand::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -70px -140px -60px -110px;
+  background: radial-gradient(60% 60% at 34% 46%, rgba(3, 7, 26, 0.88), transparent 74%);
 }
 
 .menu-brand p {
@@ -109,6 +212,7 @@
 
 .menu-sound {
   position: absolute;
+  z-index: 3;
   top: 44px;
   right: 52px;
   display: flex;
@@ -192,15 +296,35 @@
 
 /* ── 가운데 스택 ───────────────────────────────────────────────────── */
 
+/*
+ * 타이틀 판과 버튼의 자리. .menu-character와 한 덩어리로 움직인다 —
+ * 캐릭터를 오른쪽으로 96px 옮기면 이 값도 같은 만큼(=5%p) 따라간다.
+ * left 67%면 타이틀 판의 왼쪽 끝이 캐릭터의 머리카락 위로 190px쯤 올라타는데,
+ * 이 겹침이 둘을 한몸으로 보이게 하는 값이라 옮길 때도 그대로 유지한다.
+ * 겹치는 건 일부러다: 캐릭터가 뒤, 설계 화면 위의 이 카드가 앞이다.
+ */
 .main-menu-card {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  z-index: 3;
+  top: 51%;
+  left: 67%;
   display: grid;
   justify-items: center;
-  width: 960px;
+  width: 900px;
   transform: translate(-50%, -50%);
   text-align: center;
+}
+
+/*
+ * 타이틀 판과 버튼 뒤의 어둠. 브랜드와 같은 이유로 카드에 붙여 둔다.
+ * 캐릭터 위로도 덮이므로(카드가 앞이다) 너무 진하면 얼굴이 눌린다 — 0.6까지만 준다.
+ */
+.main-menu-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -110px -150px -130px;
+  background: radial-gradient(56% 52% at 50% 50%, rgba(3, 7, 26, 0.6), transparent 72%);
 }
 
 /* ── 타이틀 판 ─────────────────────────────────────────────────────── */
