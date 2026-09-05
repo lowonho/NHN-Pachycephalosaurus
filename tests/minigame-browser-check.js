@@ -53,14 +53,32 @@
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');
-  assert(scene.state.points.length === 12, 'e4: exactly ten corners');
+  // 출구는 "최소로 꺾어도 10번"인 칸에만 놓인다. 미로를 40판 새로 뽑아 최소 꺾기 횟수를 직접 센다.
+  const e4 = scene.stageGame, e4Turns = () => {
+    const s = scene.state, cost = e4.scan(s.map, s.start, false);
+    return Math.min(cost[s.goal * 4], cost[s.goal * 4 + 1], cost[s.goal * 4 + 2], cost[s.goal * 4 + 3]);
+  };
+  const e4Rounds = new Set();
+  for (let round = 0; round < 40; round++) { load('e4'); e4Rounds.add(e4Turns() + ':' + scene.state.goal); }
+  assert([...e4Rounds].every(round => round.startsWith('10:')), 'e4: every random maze exit needs exactly ten turns');
+  assert(e4Rounds.size > 1, 'e4: maze and exit are regenerated each round');
+  // 방향키를 아무 때나 여러 번 눌러도 통로 밖으로는 나가지 않는다.
+  load('e4');
+  let e4Inside = true;
+  advance(19, frame => {
+    if (frame % 3 === 0) { scene.touch.clear(); scene.directionPress(['left', 'right', 'up', 'down'][Math.floor(Math.random() * 4)]); }
+    if (!scene.state.map[scene.state.cell]) e4Inside = false;
+  });
+  assert(e4Inside, 'e4: free direction mashing never leaves the maze corridors');
   load('e5'); scene.pointerAction(164, 382); scene.stageGame.pointerMove.call(scene, 64, 426); scene.stageGame.pointerUp.call(scene);
   assert(scene.state.shots === 1 && scene.stageGame.power.call(scene) < 1, 'e5: drag fires and weakens rubber');
   load('e6'); scene.primaryAction(); const presses = scene.state.presses;
   scene.state.y = 100; advance(.02);
   assert(scene.state.hits === 1 && scene.state.presses === presses, 'e6: collision retains gravity penalty');
   load('e7'); scene.pointerAction(620, 321); advance(.05); scene.stageGame.pointerMove.call(scene, 480, 461); scene.stageGame.pointerUp.call(scene);
-  assert(scene.state.spinning && Math.abs(scene.state.speed) <= scene.stageGame.tuning.maxSpeed && Math.abs(scene.state.speed) >= scene.stageGame.tuning.minSpeed, 'e7: swipe speed clamped');
+  // 회전량을 조정해도 검사가 깨지지 않도록 실제 tuning 범위로 확인한다.
+  const spin = scene.stageGame.tuning;
+  assert(scene.state.spinning && Math.abs(scene.state.speed) <= spin.maxSpeed && Math.abs(scene.state.speed) >= spin.minSpeed, 'e7: swipe speed clamped');
   for (let miss = 1; miss <= 3; miss++) {
     scene.state.rotation = -Math.PI / 2 + .3; scene.state.speed = .0001; scene.state.deceleration = 8; scene.state.spinning = true;
     advance(.02);
@@ -84,7 +102,8 @@
   const id = selected[0]; protocolSelectFlow.launchStage(id); scene.finish(true);
   assert(modalFlow.isOpen(), 'Clear opens result modal');
   assert(archiveRecords.best(id) !== null, 'Successful clear stores best record');
-  document.querySelector('#secondary-button').click();
+  assert(document.querySelector('#secondary-button').hidden, 'Result modal hides the retry button');
+  gameEvents.emit(GAME_EVENTS.REQUEST_RESTART, {});
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Result retry starts clean attempt');
   scene.finish(false); document.querySelector('#primary-button').click();
   assert(JSON.stringify(archiveRun.snapshot().selectedStageIds) === JSON.stringify(selected), 'Stage selection keeps same five games');

@@ -9,7 +9,7 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
-  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets'].includes(key) ? undefined : value)) });
+  const save = id => results.push({ id, success: outcome?.success ?? false, elapsed: scene.elapsed, actions: scene.actions, state: JSON.parse(JSON.stringify(scene.state, (key, value) => ['obstacles','points','balls','targets','map','toGoal','seen'].includes(key) ? undefined : value)) });
   load('e1');
   const flippedGates = new Set();
   advance(20.3, () => {
@@ -29,11 +29,11 @@
   advance(20.3, () => { if (Math.abs(scene.state.x - 480) < 3 && scene.elapsed - lastDrop > .7 && scene.state.height < scene.stageGame.tuning.targetHeight) { scene.primaryAction(); lastDrop = scene.elapsed; } });
   save('e3');
   load('e4');
-  advance(20.3, () => {
-    const s = scene.state, next = s.dirs[s.segment + 1];
-    if (!next || s.retry) return;
-    const a = s.points[s.segment], b = s.points[s.segment + 1];
-    if (Math.hypot(b.x-a.x,b.y-a.y) - s.progress < 10) { scene.touch.clear(); scene.directionPress(next); }
+  // 미로를 읽고 다음 갈림길에서 꺾을 방향을 미리 눌러 준다. 사람도 낼 수 있는 50ms 간격 입력이고,
+  // 같은 방향을 다시 눌러도 게임이 무시하므로 입력 횟수는 실제 꺾은 횟수만큼만 늘어난다.
+  advance(20.3, frame => {
+    if (frame % 6) return;
+    scene.touch.clear(); scene.directionPress(scene.stageGame.hint.call(scene));
   }); save('e4');
   load('e5');
   const chooseShot = () => {
