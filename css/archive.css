@@ -1,16 +1,12 @@
 /* Shared archive shell; existing game viewport and settings remain supported. */
-.main-menu { background: radial-gradient(ellipse at 50% 25%, #103540 0%, #050e18 65%); }
-.archive-title { margin: 12px 0; color: #ecfaff; font: 800 112px/0.95 monospace; letter-spacing: -7px; }
-.archive-title span { font-size: 86px; color: #93fca0; letter-spacing: 5px; }
-.archive-eyebrow { color: #85b5be; font: 14px/1.5 monospace; letter-spacing: 3px; }
-.archive-system-log { color: #ffcd83; font: 16px/1.8 monospace; letter-spacing: 2px; text-align: left; border-left: 2px solid #ffcd83; padding-left: 20px; }
-.archive-premise { color: #c4d7df; font-size: 20px; line-height: 1.7; }
-.archive-recovery { color: #93fca0; font: 700 22px/1.5 monospace; margin: 14px 0 4px; }
-.main-menu .main-menu-actions { width: 350px; margin-top: 24px; gap: 14px; }
-.main-menu .menu-button { background-image: none; background-color: #12333b; border: 1px solid #3f7c87; border-radius: 8px; min-height: 65px; padding: 12px 18px; color: #ecfaff; }
-.main-menu .menu-button--play { background: #93fca0; color: #071d17; }
-.main-menu .menu-button--challenge { display: none; }
-.main-menu .menu-button-icon { width: 30px; height: 30px; object-fit: contain; }
+
+/*
+ * 메인 화면 스타일은 여기 두지 않는다.
+ * 예전에는 이 파일이 임시 텍스트 화면(초록 제목 · SYSTEM ERROR 로그 · 소개 문구 ·
+ * 납작한 사각 버튼)을 css/main-menu.css 위에 덮어썼다. 지금은 컨셉 이미지의
+ * 타이틀 판·버튼 판때기 에셋을 그대로 쓰므로 main-menu.css 하나가 맡는다.
+ * archive.css는 그 뒤에 로드되므로 여기서 겹쳐 잡으면 그 디자인을 덮어쓴다.
+ */
 
 /*
  * 프로토콜 선택 화면(옛 스테이지 선택)의 스타일은 여기 두지 않는다.

@@ -22,42 +22,83 @@
   </head>
   <body>
     <!--
-      메인 화면 — assets/images/concept/main.png의 UI 배치를 따른다.
-      위에서부터 로고 → 버튼 3개 순서다.
-      컨셉 이미지의 배경 일러스트와 주변 장식은 의도적으로 넣지 않는다.
-      (음성 조작을 걷어내면서 로고 아래의 마이크·파형 마크도 함께 뺐다.)
+      메인 화면 — 컨셉 이미지의 UI 배치를 따른다.
+        왼쪽 위 브랜드 블록 · 오른쪽 위 사운드 ON/OFF ·
+        가운데에 타이틀 판 → 버튼 2개(게임 시작 · 설정).
+      컨셉 이미지의 배경 일러스트(도시·캐릭터)는 에셋이 없어 넣지 않는다.
+
+      컨셉 이미지에 없는 글자는 두지 않는다 — 예전 임시 화면의
+      MEMORY PRESERVATION SYSTEM · SYSTEM ERROR DETECTED · 소개 문구 ·
+      ARCHIVE RECOVERY 줄은 모두 걷어냈다(복구율은 프로토콜 선택 화면에 그대로 있다).
+
+      타이틀 판·버튼 판때기는 assets/images/ui/Main/*.webp 에셋이고,
+      글자는 그 위에 CSS로 얹는다(에셋에는 글자가 없다).
     -->
     <div class="main-menu" id="main-menu">
-      <section class="main-menu-card ui-scaled" aria-labelledby="main-menu-title">
-        <p class="archive-eyebrow">MEMORY PRESERVATION SYSTEM / 2026</p>
-        <h1 class="archive-title" id="main-menu-title">2026<br><span>ARCHIVE</span></h1>
-        <p class="archive-system-log">SYSTEM ERROR DETECTED<br>PHYSICAL DATA CORRUPTED<br>RECOVERY REQUIRED</p>
-        <p class="archive-premise">빨리 해야 하는데, 움직일수록 더 망가진다.<br>20.26초 안에 손상된 기록을 복구하세요.</p>
-        <p class="archive-recovery" data-archive-recovery>ARCHIVE RECOVERY 0%</p>
-
-        <div class="main-menu-actions">
-          <button class="menu-button menu-button--play" id="main-play-button" type="button">
-            <span>기록 복구 시작</span>
-          </button>
-
-          <button
-            class="menu-button menu-button--settings"
-            id="main-settings-button"
-            type="button"
-            aria-expanded="false"
-            aria-controls="settings-modal"
-          >
-            <img
-              class="menu-button-icon"
-              src="assets/images/ui/Main/icon-settings.webp"
-              alt=""
-              width="160"
-              height="161"
-            />
-            <span>설정</span>
-          </button>
+      <div class="main-menu-frame">
+        <!-- 왼쪽 위 브랜드 — 컷신 화면의 .cutscene-brand와 같은 문구다. -->
+        <div class="menu-brand" aria-hidden="true">
+          <p class="menu-brand-title">2026 ARCHIVE</p>
+          <p class="menu-brand-sub"><span class="menu-brand-bars"></span>PLAY × MEMORIES</p>
+          <p class="menu-brand-note">RECORDING<br />OUR FUN<br />AGAIN.</p>
         </div>
-      </section>
+
+        <!--
+          오른쪽 위 사운드 스위치. 누르면 마스터 뮤트가 바뀐다
+          (설정 화면의 마스터 전원 토글과 같은 값을 나눠 쓴다).
+
+          글자는 지금 상태만 보인다 — 켜져 있으면 ON, 꺼져 있으면 OFF.
+          두 글자를 겹쳐 두지 않고 나란히 두되 한쪽만 보이게 하면 폭이 들쭉날쭉해지므로,
+          자리는 CSS에서 겹쳐 잡고 보이는 쪽만 바꾼다.
+        -->
+        <button
+          class="menu-sound"
+          id="main-sound-button"
+          type="button"
+          aria-pressed="false"
+          aria-label="소리 켜기/끄기"
+        >
+          <svg class="menu-sound-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path class="menu-sound-body" d="M4 9.5h3.6L12.6 5v14L7.6 14.5H4z" />
+            <path class="menu-sound-wave" d="M16.2 9.1a4.2 4.2 0 0 1 0 5.8" />
+            <path class="menu-sound-wave" d="M18.9 6.4a8 8 0 0 1 0 11.2" />
+            <path class="menu-sound-cross" d="M16.6 9.6l5.4 4.8M22 9.6l-5.4 4.8" />
+          </svg>
+          <span class="menu-sound-label">
+            <b class="menu-sound-on">ON</b>
+            <b class="menu-sound-off">OFF</b>
+          </span>
+        </button>
+
+        <section class="main-menu-card" aria-labelledby="main-menu-title">
+          <h1 class="menu-logo" id="main-menu-title">
+            <img
+              src="assets/images/ui/Main/01_title_20.26_the_archive_panel_2k.webp"
+              alt="20.26 THE ARCHIVE"
+              width="1774"
+              height="746"
+            />
+          </h1>
+
+          <div class="main-menu-actions">
+            <button class="menu-button menu-button--play" id="main-play-button" type="button">
+              <span>게임 시작</span>
+            </button>
+
+            <!-- 챌린지 모드는 두지 않는다. 판때기 에셋(03_button_challenge_cyan)도 쓰지 않는다. -->
+
+            <button
+              class="menu-button menu-button--settings"
+              id="main-settings-button"
+              type="button"
+              aria-expanded="false"
+              aria-controls="settings-modal"
+            >
+              <span>설정</span>
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <!--
@@ -77,7 +118,7 @@
         <div class="cutscene-brand" aria-hidden="true">
           <p class="cutscene-brand-title">2026 ARCHIVE</p>
           <div class="cutscene-brand-rule"></div>
-          <p class="cutscene-brand-sub">VOICE × PLAY × MEMORIES</p>
+          <p class="cutscene-brand-sub">PLAY × MEMORIES</p>
           <p class="cutscene-brand-note">RECORDING<br />OUR FUN<br />AGAIN.</p>
         </div>
 
@@ -156,7 +197,8 @@
         · 컨셉 이미지의 프로토콜 정보(썸네일 · CLEAR율 · LOCKED · 설명문)는 넣지 않는다.
           다만 ARCHIVE 복구 등급(◇/◆)만은 타일에 글자 하나로 붙인다 — 그 기록을
           이미 복구했는지가 다음에 무엇을 고를지 정하는 정보라서다.
-        · 안내 문구는 한 줄만 왼쪽에 두고, 같은 가로 라인 오른쪽에 2:26 타이머가 온다.
+        · 안내 문구는 한 줄만 왼쪽에 둔다. 남은 복구 시간(2:26)은 스크린 안이 아니라
+          책상 위 탁상시계에 있다 — 미니게임 플레이 중에도 보여야 하는 숫자라서다.
         · 표제 오른쪽에 ARCHIVE 누적 복구율이, 하단 바에 복구 등급 안내가 붙는다.
           모두 판을 넘어 남는 기록이라 2:26·RESTORED와는 다른 숫자다.
 
@@ -195,22 +237,13 @@
                 </div>
               </header>
 
-              <!-- 안내 문구(좌) + 남은 복구 시간(우) — 같은 가로 라인이다. -->
+              <!--
+                안내 문구. 남은 복구 시간은 여기 두지 않는다 —
+                책상 위 탁상시계(#desk-clock)가 유일한 표시다.
+                스크린 안에 또 두면 플레이 중에만 사라져서 오히려 헷갈린다.
+              -->
               <div class="protocol-prompt">
                 <h2 class="protocol-prompt-text" id="stage-select-title">복구할 프로토콜을 선택하세요.</h2>
-                <!--
-                  role="timer"는 aria-live가 기본 off다. output(=role status)으로 두면
-                  초가 바뀔 때마다 스크린 리더가 읽어 버린다.
-                -->
-                <p
-                  class="protocol-timer"
-                  id="protocol-timer"
-                  role="timer"
-                  data-state="idle"
-                  aria-label="남은 복구 시간"
-                >
-                  2:26
-                </p>
               </div>
 
               <div class="stage-select-grid" id="stage-select-grid"></div>
@@ -306,6 +339,35 @@
         </div>
 
         <div class="protocol-desk" aria-hidden="true"></div>
+
+        <!--
+          탁상시계 — 컨셉 이미지의 책상 위 시계다. 복구 프로토콜 전체 제한시간(2:26)이 여기 뜬다.
+          모니터 스크린 밖(.protocol-frame)이라 프로토콜을 고르는 동안에도,
+          미니게임을 하는 동안에도 계속 보인다 — 플레이 중에는 여기가 유일한 잔여 시간 표시다.
+
+          책상(.protocol-desk)보다 뒤에 둔다. 책상 윗면 선을 시계 몸체가 가려야
+          책상 위에 놓인 것처럼 보인다.
+
+          숫자는 js/ui/protocol-select-flow.js의 renderTimer가 채운다.
+        -->
+        <div class="desk-clock" id="desk-clock" data-state="idle" role="timer" aria-label="남은 복구 시간">
+          <p class="desk-clock-brand" aria-hidden="true">
+            <span>2026 ARCHIVE</span>
+            <span class="desk-clock-rec">REC</span>
+          </p>
+
+          <!-- flex 컨테이너라 조각 사이의 공백 텍스트는 무시된다(자간이 벌어지지 않는다). -->
+          <p class="desk-clock-face">
+            <span id="desk-clock-minutes">2</span>
+            <span class="desk-clock-sep">:</span>
+            <span id="desk-clock-seconds">26</span>
+            <span class="desk-clock-centis">
+              <span class="desk-clock-sep">.</span><span id="desk-clock-centis">00</span>
+            </span>
+          </p>
+
+          <p class="desk-clock-note" aria-hidden="true">GOOD MEMORIES ALWAYS</p>
+        </div>
       </div>
     </div>
 
