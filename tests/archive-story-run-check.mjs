@@ -93,8 +93,8 @@ run.setPaused(false);
 state = run.completeAttempt(false);
 assert.equal(state.lives, 2);
 assert.equal(state.transition, 'retry');
-assert.deepEqual(state.selectedStageIds, firstSelection, '목숨이 남으면 같은 게임과 순서를 유지해야 한다');
-assert.equal(state.stageConfigSeed, firstStageSeed, '목숨이 남으면 같은 난수 배치 시드를 유지해야 한다');
+assert.deepEqual(state.selectedStageIds, firstSelection, '기억이 남으면 같은 게임과 순서를 유지해야 한다');
+assert.equal(state.stageConfigSeed, firstStageSeed, '기억이 남으면 같은 난수 배치 시드를 유지해야 한다');
 
 run.beginAttempt(state.expectedStageId);
 run.completeAttempt(false);
@@ -106,7 +106,7 @@ assert.equal(state.actAttemptCount[0], 2);
 assert.equal(state.currentStageInAct, 1);
 assert.equal(state.actRecordCount, 0);
 assert.equal(state.selectedStageIds.length, 6);
-assert.notDeepEqual(state.selectedStageIds, firstSelection, '목숨 0이면 현재 막의 게임을 다시 뽑아야 한다');
+assert.notDeepEqual(state.selectedStageIds, firstSelection, '기억 0이면 현재 막의 게임을 다시 뽑아야 한다');
 assert.notEqual(state.stageConfigSeed, firstStageSeed, '막 재구성 시 난수 배치도 새로 뽑아야 한다');
 run.advance();
 
@@ -169,4 +169,4 @@ const afterQa = qaRun.exitQa();
 assert.equal(afterQa.qaMode, false);
 assert.deepEqual(afterQa.selectedStageIds, beforeQa.selectedStageIds);
 
-console.log('PASS | 3막×6스테이지, 목숨·막 재선정, 20.26초, 18개 기록, 저장·지원·단일 엔딩');
+console.log('PASS | 3막×6스테이지, 기억·막 재선정, 20.26초, 18개 기록, 저장·지원·단일 엔딩');

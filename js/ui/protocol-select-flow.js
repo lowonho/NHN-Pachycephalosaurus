@@ -330,8 +330,10 @@ class ProtocolSelectFlow {
       return;
     }
 
-    this.showScreen("play");
-    this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
+    sceneFade.cut(() => {
+      this.showScreen("play");
+      this.events.emit(GAME_EVENTS.REQUEST_START, { stageId });
+    });
   }
 
   continueStory() {
@@ -343,8 +345,9 @@ class ProtocolSelectFlow {
     const open = () => this.open();
     const play = (name, done = open) => this.playStoryCutscene(name, done);
 
+    // 컷신 없는 전환은 여기서 암전으로 감싼다 — 컷신이 끼는 전환은 cutscene-flow가 감싼다.
     if (advanced.transition === "next-stage") {
-      open();
+      sceneFade.cut(open);
       return;
     }
     if (advanced.transition === "next-act") {
@@ -354,14 +357,14 @@ class ProtocolSelectFlow {
     }
     if (advanced.transition === "act-restarted") {
       if (advanced.snapshot.currentAct === 1 && advanced.snapshot.assistProtocolAct1) play("assist");
-      else open();
+      else sceneFade.cut(open);
       return;
     }
     if (advanced.transition === "ending") {
       play("ending", () => this.events.emit(GAME_EVENTS.REQUEST_MAIN_MENU, {}));
       return;
     }
-    open();
+    sceneFade.cut(open);
   }
 
   playStoryCutscene(name, onDone) {
@@ -412,7 +415,7 @@ class ProtocolSelectFlow {
   }
 
   /*
-   * 브리핑 하단 바 왼쪽 — 남은 목숨 하나뿐이다.
+   * 브리핑 하단 바 왼쪽 — 남은 기억 하나뿐이다.
    *
    * 막·스테이지·기록 수는 여기 두지 않는다. 브리핑에서 정할 것은 "시작할지"
    * 하나뿐이고, 그 판단에 필요한 것은 실패했을 때 무엇을 잃느냐다. 나머지 진행도는
@@ -423,7 +426,7 @@ class ProtocolSelectFlow {
     const run = window.archiveRun?.snapshot();
     if (!label || !run) return;
     const lives = `${"◆".repeat(run.lives)}${"◇".repeat(Math.max(0, 3 - run.lives))}`;
-    label.textContent = `LIVES ${lives}`;
+    label.textContent = `MEMORY ${lives}`;
   }
 
   /*

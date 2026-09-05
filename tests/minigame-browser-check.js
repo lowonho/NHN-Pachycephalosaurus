@@ -7,6 +7,7 @@
   const advance = (seconds, control = () => {}) => {
     for (let i = 0; i < Math.ceil(seconds * 120) && scene.playable(); i++) { control(i); scene.update(0, 1000 / 120); }
   };
+  const waitFor = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   assert(MINIGAME_CATALOG.length === 10, 'Ten games registered');
   const cutsceneImagePaths = [...new Set(Object.values(SCENARIO_DATA.backgrounds))];
   const cutsceneImageSizes = await Promise.all(cutsceneImagePaths.map((path) => new Promise((resolve, reject) => {
@@ -60,13 +61,58 @@
   assert(UI.cutscene.dataset.hasBackground === 'true'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('09_34_55.png')
     && getComputedStyle(document.querySelector('.story-archive-core')).display === 'none', 'CS-02 uses the deletion-source artwork without the centered archive-core placeholder');
+  assert(document.querySelector('#cutscene-skip-top-button') === null
+    && document.querySelectorAll('#cutscene [id*="skip"]').length === 1
+    && UI.cutsceneSkipButton?.id === 'cutscene-skip-button', 'Cutscenes keep only the lower dialogue-panel skip button');
+
+  cutsceneFlow.close();
+  ARCHIVE_DISABLE_TRANSITIONS = false;
+  cutsceneFlow.play({
+    chapter: 'SCENE TRANSITION TEST',
+    auto: false,
+    forceDisplay: true,
+    script: [
+      { speaker: '김민', text: '첫 장면 대사', phase: 'op-01', kind: 'dialogue' },
+      { speaker: 'ARIA-26', text: '두 번째 장면 대사', phase: 'op-03', kind: 'dialogue' },
+    ],
+  });
+  for (let waited = 0; waited < 3000 && (!cutsceneFlow.awaitingSceneInput || cutsceneFlow.sceneTransitioning); waited += 50) await waitFor(50);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-01'
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden', 'A newly faded-in scene waits with no dialogue visible');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight' }));
+  cutsceneFlow.completeTyping();
+  assert(!cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '첫 장면 대사', 'Any key reveals the first dialogue after the scene is visible');
+  cutsceneFlow.advance();
+  assert(cutsceneFlow.sceneTransitioning && UI.sceneFade.classList.contains('is-active'), 'Changing scenes starts a fade to black');
+  for (let waited = 0; waited < 3000 && (!cutsceneFlow.awaitingSceneInput || cutsceneFlow.sceneTransitioning); waited += 50) await waitFor(50);
+  assert(cutsceneFlow.awaitingSceneInput && !cutsceneFlow.sceneTransitioning
+    && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === ''
+    && !UI.sceneFade.classList.contains('is-active'), 'The next scene fades in without showing its dialogue');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneLine.textContent === '두 번째 장면 대사', 'The next scene also requires a fresh input before dialogue');
+  cutsceneFlow.finish();
+  await waitFor(560);
+  ARCHIVE_DISABLE_TRANSITIONS = true;
+
   cutsceneFlow.play({ chapter: 'CS-06 BACKGROUND TEST', script: SCENARIO_DATA.cutscenes.ending.script, auto: false, forceDisplay: true });
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutsceneLine.textContent === '', 'A story cutscene starts on a dialogue-free scene frame');
+  cutsceneFlow.advance();
   for (let cue = 1; cue < 4; cue += 1) { cutsceneFlow.completeTyping(); cutsceneFlow.advance(); }
+  await Promise.resolve();
   const indexedEnding = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.ending.script);
   assert(cutsceneFlow.index === 3
     && UI.cutscene.dataset.phase === 'ending-a-break'
     && getComputedStyle(UI.cutsceneBackdrop).backgroundImage.includes('07_30_12.png')
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
     && indexedEnding[3].chapterLabel.includes('CS-06A 최종 증거 전송 · 대사 4/5'), 'CS-06A switches to the firewall-breaking artwork on its fourth dialogue');
+  cutsceneFlow.advance();
+  cutsceneFlow.completeTyping();
   const screenCues = Object.values(SCENARIO_DATA.cutscenes).flatMap(({ script }) => script).filter(({ kind }) => kind === 'system');
   assert(screenCues.every(({ text }) => !/[A-Za-z]/.test(text)), 'Cutscene screen directions contain no English text');
   cutsceneFlow.close();
@@ -83,27 +129,36 @@
     && qaRect.top >= -1 && qaRect.bottom <= innerHeight + 1, 'QA panel shows every story cutscene inside the viewport');
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   document.querySelector('.qa-story-button[data-story-id="opening"]').click();
+  await Promise.resolve();
   assert(cutsceneFlow.isOpen()
     && UI.cutscene.dataset.phase === 'op-01'
-    && UI.cutscene.dataset.cueKind === 'narration'
+    && UI.cutscene.dataset.cueKind === 'scene'
     && UI.cutsceneChapter.textContent === 'QA // OP-01 반복되는 피드 · 장면 설명 1/1 · 큐 1/14'
     && !cutsceneFlow.auto
     && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false'
+    && cutsceneFlow.awaitingSceneInput
+    && UI.cutsceneLine.textContent === ''
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'hidden'
+    && UI.qaPanel.classList.contains('hidden'), 'QA opening also starts on a dialogue-free scene frame');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutscene.dataset.cueKind === 'narration'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && getComputedStyle(document.querySelector('.cutscene-dialogue')).display !== 'none'
+    && getComputedStyle(UI.cutsceneDialogue).visibility === 'visible'
     && UI.cutsceneLine.textContent.startsWith('여느 때와 다름없이 김민은 릴스를 보고 있었다.')
     && UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1
-    && UI.qaPanel.classList.contains('hidden'), 'QA opening starts with the OP-01 scene description and AUTO disabled');
+    && UI.qaPanel.classList.contains('hidden'), 'QA shows the first scene description only after input');
   UI.cutsceneAutoButton.click();
   assert(cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'true', 'AUTO starts only when the player turns it on');
   UI.cutsceneAutoButton.click();
   assert(!cutsceneFlow.auto && UI.cutsceneAutoButton.getAttribute('aria-pressed') === 'false', 'AUTO can be turned off again');
   cutsceneFlow.advance();
-  assert(UI.cutscene.dataset.phase === 'op-02'
+  assert(!cutsceneFlow.awaitingSceneInput
+    && UI.cutscene.dataset.phase === 'op-02'
     && UI.cutscene.dataset.cueKind === 'system'
     && UI.cutsceneChapter.textContent === 'QA // OP-02 일괄 삭제 · 화면 문구 1/1 · 큐 2/14'
     && getComputedStyle(document.querySelector('.cutscene-speaker')).display === 'none'
-    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'Korean screen directions render without a speaker name');
+    && UI.cutsceneLine.textContent === '삭제됨\n검색 결과 0건', 'OP-01 to OP-02 reuses the same artwork, so no pause and no fade is needed');
   const systemPanelRect = UI.cutscenePanel.getBoundingClientRect();
   const systemLineRect = UI.cutsceneLine.getBoundingClientRect();
   cutsceneFlow.advance();
@@ -115,6 +170,14 @@
     && UI.cutsceneLine.textContent === '이상하다. 릴스가 끊길 리가 없는데.'
     && sameRect(systemPanelRect, dialoguePanelRect)
     && sameRect(systemLineRect, dialogueLineRect), 'OP-02 names Kim Min and keeps screen directions and dialogue at the same position');
+  cutsceneFlow.advance();
+  await Promise.resolve();
+  assert(cutsceneFlow.awaitingSceneInput && UI.cutscene.dataset.phase === 'op-03'
+    && UI.cutsceneLine.textContent === '', 'QA keeps later scene transitions dialogue-free too');
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', code: 'KeyC' }));
+  cutsceneFlow.completeTyping();
+  assert(UI.cutsceneSpeaker.textContent === 'ARIA-26'
+    && UI.cutsceneLine.textContent.startsWith('디지털 공간에서 삭제된 순간'), 'QA reveals the later scene dialogue after one key');
   const indexedOpening = qaModeFlow.buildStoryPreviewScript(SCENARIO_DATA.cutscenes.opening.script);
   assert(indexedOpening[4].chapterLabel === 'QA // OP-03 삭제된 장면 재현 · 대사 2/3 · 큐 5/14', 'QA labels dialogue order inside each scene');
   cutsceneFlow.finish();
@@ -125,6 +188,8 @@
     auto: false,
     forceDisplay: true,
   });
+  await Promise.resolve();
+  cutsceneFlow.advance();
   const everyScreenCueFits = screenCues.every(({ text }) => {
     UI.cutsceneLine.textContent = text;
     return UI.cutsceneLine.scrollHeight <= UI.cutsceneLine.clientHeight + 1;
@@ -229,8 +294,8 @@
   }
   assert(heights.slice(1, 5).every((h, i) => h < heights[i] - 1), 'e2: real jump apex gets progressively lower');
   assert(heights[0] > 190 && heights[2] < heights[0] * .75 && heights[4] > 80, 'e2: early jump reduction preserves useful mid-course height');
-  assert(heights[8] < heights[5] && heights[8] > heights[10] + 5, 'e2: jump height keeps changing into the late course');
-  assert(Math.abs(heights[11] - heights[12]) < .01 && heights[12] > 20, 'e2: heavily damaged ball retains a usable minimum bounce');
+  assert(heights[8] < heights[5] && heights[8] > heights[9] + 2, 'e2: jump height keeps changing into the late course');
+  assert(Math.abs(heights[10] - heights[12]) < .01 && heights[12] > 30, 'e2: heavily damaged ball retains a usable minimum bounce');
   assert(scene.state.shards.length === 0, 'e2: emitted wax shards expire');
   scene.primaryAction();
   const pausedShards = JSON.stringify(scene.state.shards);
@@ -239,9 +304,18 @@
   archiveGame.pause(false);
   load('e2');
   assert(scene.state.jumps === 0 && scene.state.shards.length === 0 && scene.stageGame.jumpPower.call(scene) > weakened, 'e2: fresh attempt restores shell and jump power');
-  // A high assisted jump can pass the former ceiling without dying or resetting damage.
-  scene.touch.add('up'); scene.primaryAction(); advance(.8);
-  assert(scene.state.y < 188 && scene.state.deaths === 0 && scene.state.jumps === 1, 'e2: former ceiling is open for high jumps');
+  const verticalSample = direction => {
+    load('e2'); scene.state.jumps = 100; scene.touch.clear();
+    if (direction) scene.touch.add(direction);
+    scene.primaryAction(); advance(.2);
+    return { y: scene.state.y, vy: scene.state.vy };
+  };
+  const neutralJump = verticalSample(null), upJump = verticalSample('up'), downJump = verticalSample('down');
+  assert(Math.abs(neutralJump.y - upJump.y) < .001 && Math.abs(neutralJump.vy - upJump.vy) < .001
+    && Math.abs(neutralJump.y - downJump.y) < .001 && Math.abs(neutralJump.vy - downJump.vy) < .001,
+  'e2: W/S inputs do not alter the jump trajectory');
+  assert(MINIGAME_CATALOG.find(stage => stage.id === 'e2').controls === 'A/D 이동 · Space 점프',
+    'e2: stage UI lists only A/D and Space controls');
   load('e2');
   const lift = scene.platforms.find(p => p.kind === 'lift'), startLiftY = lift.y;
   Object.assign(scene.state, { x: lift.x + lift.w / 2, y: lift.y - 20, platformIndex: lift.index, grounded: true, vy: 0 });
@@ -262,27 +336,28 @@
   advance(1);
   assert(crumble.active && crumble.crumbleLeft === null, 'e2: collapsed platform rebuilds for another attempt');
   load('e2');
-  // The weakened ball needs W assistance and late takeoffs on the harder course.
-  scene.state.jumps = 100; driveE2();
-  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: assisted minimum jump can clear the terrain (${scene.state.x}, deaths ${scene.state.deaths})`);
+  // Natural jump decay still allows a full clear using only late A/D + Space jumps.
+  driveE2();
+  assert(scene.state.x >= scene.stageGame.tuning.goal && scene.elapsed < 20.26, `e2: progressively weakened jumps clear without air control (${scene.state.x}, deaths ${scene.state.deaths})`);
   // Reach the fixed final staircase across different elevator phases using end-of-platform takeoffs.
   for (const phase of [0, .7, 1.4, 2.1]) {
     load('e2'); const p = scene.platforms[5];
     Object.assign(scene.state, { x: p.x + 50, y: p.y - 20, checkpoint: p.x + 50, platformIndex: p.index, jumps: 100 });
     scene.elapsed = phase;
-    driveE2(18, { reactionFrames: 2, edge: 6, allowAssist: false });
-    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears without W at minimum bounce with edge jumps (phase ${phase})`);
+    driveE2(18, { reactionFrames: 2, edge: 6 });
+    assert(scene.state.x >= scene.stageGame.tuning.goal && scene.state.deaths === 0, `e2: late staircase clears at minimum bounce with edge jumps (phase ${phase})`);
   }
   load('e2');
   const stair = scene.platforms[12], nextStair = scene.platforms[13];
   Object.assign(scene.state, { x: stair.x + stair.w - 24, y: stair.y - 20, checkpoint: stair.x + 50, platformIndex: stair.index, jumps: 100 });
   scene.touch.add('right'); scene.primaryAction(); advance(.8);
-  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses without W');
+  assert(scene.state.platformIndex !== nextStair.index && scene.state.y + 20 > nextStair.y, 'e2: jumping 24px before the final edge still misses at minimum bounce');
   // Aim both drops at the pedestal: with no floor, a miss falls off the screen and is removed.
   load('e3'); scene.state.x = 480; scene.primaryAction(); advance(.5); scene.state.x = 480; scene.primaryAction(); advance(.5);
   assert(scene.people.length === 2 && scene.state.drops === 2, 'e3: physical people and accumulated speed');
   const stackWorld = scene.stackWorld; load('e4');
   assert(stackWorld.world.bodies.length === 0, 'e3: physics world disposed on switch');
+  scene.state.tiger.enabled = false; // 벽 차감만 따로 검증한다. 추격은 e4-tiger-check와 완주 검사에서 활성화.
   assert(scene.state.tiles.length === 7 && scene.state.tiles[0].length === 19, 'e4: compact maze');
   const startX = scene.state.x; advance(.2);
   assert(scene.state.x === startX, 'e4: no automatic movement');
@@ -515,16 +590,38 @@
   assert(protocolSelectFlow.isBriefOpen() && !UI.protocolBrief.hidden, 'Continuing opens the next briefing with no stage list in between');
   assert(UI.protocolBriefTitle.textContent === protocolSelectFlow.catalog.find(stage => stage.id === archiveRun.snapshot().expectedStageId).title,
     'The briefing shows the stage the story expects next');
-  assert(UI.protocolBriefLives.textContent === 'LIVES ◆◆◆', 'The briefing footer keeps the remaining lives');
+  assert(UI.protocolBriefLives.textContent === 'MEMORY ◆◆◆', 'The briefing footer shows the remaining memory');
   const retryId = archiveRun.snapshot().expectedStageId;
-  protocolSelectFlow.launchStage(retryId); scene.finish(false); document.querySelector('#primary-button').click();
+  protocolSelectFlow.launchStage(retryId); scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  assert(modalFlow.isOpen()
+    && archiveRun.snapshot().phase === 'result'
+    && document.querySelector('#primary-button').textContent === '재접속 (R)', 'Stage failure waits for retry or main-menu input');
+  document.querySelector('#primary-button').click();
   assert(scene.playable() && scene.elapsed === 0 && scene.actions === 0, 'Life remaining retries the same stage cleanly');
-  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one act life');
+  assert(archiveRun.snapshot().lives === 2, 'Failure consumes exactly one memory');
   assert(UI.stageHudAct.textContent === 'ACT 1/3' && UI.stageHudStage.textContent === 'STAGE 2/6'
-    && UI.stageHudLives.textContent.endsWith('◆◆◇') && UI.stageHudActRecords.textContent === '1/6'
-    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, lives, act records and total records');
+    && UI.stageHudLives.textContent === 'MEMORY ◆◆◇' && UI.stageHudActRecords.textContent === '1/6'
+    && UI.stageHudMemory.textContent === '1/18', 'Gameplay HUD shows act, stage, remaining memory, act records and total records');
   scene.finish(false); document.querySelector('#result-main-button').click();
   assert(!document.querySelector('#main-menu').classList.contains('hidden'), 'Result main button returns to main');
+  protocolSelectFlow.reset(); protocolSelectFlow.open();
+  const exhaustionId = archiveRun.snapshot().expectedStageId;
+  protocolSelectFlow.launchStage(exhaustionId);
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false); document.querySelector('#primary-button').click();
+  scene.finish(false);
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  const exhaustedRun = archiveRun.snapshot();
+  assert(modalFlow.isOpen()
+    && exhaustedRun.transition === 'act-restarted'
+    && UI.modalTitle.textContent === '당신은 기억을 되찾는 데 실패했습니다.'
+    && UI.modalCopy.textContent === '기억을 모두 잃어버렸습니다.\n다시 기억을 되찾겠습니까?'
+    && UI.primaryButton.textContent === '기억 다시 되찾기 (R)'
+    && document.querySelector('#result-main-button').textContent === '메인 메뉴로', 'Exhausting all lives waits on clear retry/current-act and main-menu choices');
+  document.querySelector('#primary-button').click();
+  assert(!modalFlow.isOpen() && protocolSelectFlow.isBriefOpen()
+    && archiveRun.snapshot().transition === null, 'Current-act retry proceeds only after player confirmation');
   // Traverse the full 18-stage UI route with cutscenes skipped to verify act transitions and archive unlock.
   ARCHIVE_STORY_SETTINGS.skipCutscenes = true;
   protocolSelectFlow.reset();

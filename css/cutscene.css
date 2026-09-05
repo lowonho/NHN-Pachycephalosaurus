@@ -211,6 +211,13 @@
   width: 1148px;
 }
 
+/* 새 장면은 배경만 먼저 보여 주고, 확인 입력을 받은 뒤 대사 UI를 연다. */
+.cutscene[data-awaiting-scene="true"] .cutscene-dialogue {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /*
  * ARIA는 좌하단에서 말한다 — 디자인은 그대로 두고 좌우 위치만 반대편으로 옮긴다.
  * 오른쪽 여백(1920 − 592 − 1148 = 180px)을 그대로 왼쪽 여백으로 쓴 대칭 배치다.
@@ -469,13 +476,6 @@
 
 .cutscene-button-mark {
   font-size: 15px;
-}
-
-/* 우상단 SKIP — 슬레이트 높이에 맞춰 늘어나는 변형. */
-.cutscene-button--slate {
-  width: 118px;
-  height: auto;
-  font-size: 16px;
 }
 
 /* ── 로그(지나간 대사) ──────────────────────────────────────────────── */

@@ -5,7 +5,9 @@ export const E8_WEB_SWING = {
     speed: 340, boost: 1.35, maxMultiplier: 3, gravity: 1050,
     airGravity: 1600, weightGain: .25,
     retryDelay: .32,
-    startAngle: -1.0,
+    // 시작 지점(첫 스폰)에서는 줄이 연결점과 수평(90도)이 되게 해서, 최대 진폭으로
+    // 떨어지며 첫 스윙에 충분한 탄력이 붙게 한다.
+    startAngle: -Math.PI / 2,
     spacing: 660, anchorCount: 22, fallY: 710,
   },
   build() {
@@ -110,8 +112,11 @@ export const E8_WEB_SWING = {
       r.omega -= t.gravity / r.length * Math.sin(r.theta) * dt;
       r.theta += r.omega * dt;
       E8_WEB_SWING.pose.call(this);
-      // 줄은 밀어낼 수 없습니다. 장력이 사라지면 그 순간의 속도로 자유 낙하합니다.
-      if (r.length * r.omega ** 2 + t.gravity * Math.cos(r.theta) < 0) s.rope = null;
+      /*
+       * 버튼을 누르고 있는 한 각도·속도와 상관없이 줄이 끊기지 않는다.
+       * (버튼을 떼면 위 105행에서 이미 rope를 비우므로, 여기까지 오는 것은
+       * 항상 버튼을 누르고 있는 경우다.) 장력 부족으로 인한 자유낙하는 두지 않는다.
+       */
     } else {
       // 가속이 쌓일수록 공중에서도 더 무겁게 끌려 내려갑니다.
       // 수평 관성은 유지하되 긴 체공으로 여러 연결점을 건너뛰기 어렵게 합니다.

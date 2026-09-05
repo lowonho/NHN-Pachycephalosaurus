@@ -1,4 +1,4 @@
-param([switch]$E4Only, [switch]$E8Only, [switch]$E9Only, [switch]$E10Only)
+param([switch]$E2Only, [switch]$E4Only, [switch]$E8Only, [switch]$E9Only, [switch]$E10Only)
 $ErrorActionPreference = "Stop"
 [Net.WebRequest]::DefaultWebProxy = $null
 $root = Split-Path -Parent $PSScriptRoot
@@ -66,6 +66,9 @@ try {
     Start-Sleep -Milliseconds 100
   }
   if (!$ready) { throw "Game did not become ready" }
+  # 자동화 스크립트는 화면 전환을 실제 사람처럼 기다리지 않고 곧바로 다음 상태를
+  # 확인하므로, 암전 전환(js/ui/scene-fade.js)의 지연을 꺼서 그대로 동기적으로 맞춘다.
+  Evaluate "globalThis.ARCHIVE_DISABLE_TRANSITIONS = true;" | Out-Null
   # 이 스위트는 판을 update()로 한 걸음씩 몬다 — 실시간으로 흐르는 3 · 2 · 1을 기다리지 않는다.
   # (카운트다운 자체는 minigame-browser-check.js가 직접 세워 검사한다.)
   Evaluate "ARCHIVE_STORY_SETTINGS.skipCountdown = true" | Out-Null
@@ -120,7 +123,26 @@ try {
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     return
   }
+  if ($E2Only) {
+    Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
+    $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-bounce-check.js')))
+    Write-Output ($checks | ConvertTo-Json -Depth 10)
+    Evaluate "window.testLaunch = id => { archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); if(!archiveRun.snapshot().qaMode) archiveRun.setSelection(MINIGAME_CATALOG.map(stage => stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage(id); archivePhaserGame.loop.wake(); }; testLaunch('e2'); (() => { const s=archivePhaserGame.scene.getScene('archive-game'), p=s.platforms[12]; Object.assign(s.state,{x:p.x+p.w-6,y:p.y-20,vy:0,grounded:true,platformIndex:12,checkpoint:p.x+50,jumps:100}); })()" | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
+    Start-Sleep -Milliseconds 580
+    Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
+    if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0; })()")) { throw 'E2 native D + Space failed to land on the next stair at minimum jump' }
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
+    Write-Output 'PASS: E2 minimum jump, native D + Space, no-air-control course, and A/D + Space UI'
+    return
+  }
   if ($E4Only) {
+    $villageChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-village-check.js')))
+    Write-Output ($villageChecks | ConvertTo-Json -Depth 10)
+    $chaseChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-tiger-check.js')))
+    Write-Output ($chaseChecks | ConvertTo-Json -Depth 10)
     $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-maze-check.js')))
     Write-Output ($checks | ConvertTo-Json -Depth 10)
     Evaluate "archiveGameBridge.stop(); modalFlow.close(); mainMenuFlow.close(); archiveRun.setSelection(MINIGAME_CATALOG.map(stage=>stage.id)); protocolSelectFlow.open(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.wake(); archiveGame.pause(true);" | Out-Null
@@ -154,6 +176,18 @@ try {
     Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = $dashKey; code = $dashCode; windowsVirtualKeyCode = $dashVirtualKey } | Out-Null
     if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     Write-Output 'PASS: E4 maze collision, timer, retry, and 25 generated mazes'
+    Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); archivePhaserGame.loop.sleep(); s.loadStage('e4'); s.startStage(); s.directionPress('right'); for(let i=0;i<24;i++) s.update(0,1000/120); s.directionRelease('right'); for(let i=0;i<384;i++) s.update(0,1000/120); s.pausedByMenu=true; archivePhaserGame.loop.wake(); })()" | Out-Null
+    Start-Sleep -Milliseconds 100
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-chase.png'), [Convert]::FromBase64String($shot.data))
+    Evaluate "(() => { archivePhaserGame.loop.sleep(); archiveGame.pause(false); const s=archivePhaserGame.scene.getScene('archive-game'); for(let i=0;i<120&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
+    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('RETRY') && UI.modalCopy.textContent.includes('\uD638\uB791\uC774')")) { throw 'E4 tiger catch did not open the existing failure UI' }
+    $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
+    [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e4-tiger-failure.png'), [Convert]::FromBase64String($shot.data))
+    Evaluate "(() => { modalFlow.close(); protocolSelectFlow.launchStage('e4'); archivePhaserGame.loop.sleep(); const s=archivePhaserGame.scene.getScene('archive-game'); s.state.x=s.state.goal.x-20; s.state.y=s.state.goal.y; s.directionPress('right'); for(let i=0;i<12&&s.playable();i++) s.update(0,1000/120); archivePhaserGame.loop.wake(); })()" | Out-Null
+    if (!(Evaluate "modalFlow.isOpen() && UI.modalStep.textContent.includes('CLEAR')")) { throw 'E4 reaching the king did not open the existing success UI' }
+    Write-Output 'PASS: tiger failure and king arrival open the existing result UI'
+    if ($script:browserErrors.Count) { throw ($script:browserErrors -join "`n") }
     return
   }
   Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e2-course-driver.js'))) | Out-Null
@@ -161,6 +195,8 @@ try {
   $checks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/minigame-browser-check.js')))
   Write-Output ($checks | ConvertTo-Json -Depth 20)
   $skaterChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e10-skater-check.js')))
+  $chaseChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e4-tiger-check.js')))
+  Write-Output ($chaseChecks | ConvertTo-Json -Depth 10)
   Write-Output ($skaterChecks | ConvertTo-Json -Depth 20)
   $slingshotChecks = Evaluate ([IO.File]::ReadAllText((Join-Path $root 'tests/e5-slingshot-check.js')))
   Write-Output ($slingshotChecks | ConvertTo-Json -Depth 20)
@@ -261,15 +297,15 @@ try {
   Start-Sleep -Milliseconds 70
   $shot = Send-Cdp 'Page.captureScreenshot' @{ format = 'png' }
   [IO.File]::WriteAllBytes((Join-Path $artifactDir 'e2-stairs.png'), [Convert]::FromBase64String($shot.data))
-  # Native D + Space only at minimum power: W must not be required for the last stairs.
+  # Native D + Space only at minimum power reaches the next stair.
   Evaluate "testLaunch('e2'); (() => { const s=archivePhaserGame.scene.getScene('archive-game'), p=s.platforms[12]; Object.assign(s.state,{x:p.x+p.w-6,y:p.y-20,vy:0,grounded:true,platformIndex:12,checkpoint:p.x+50,jumps:100}); })()" | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null
   Start-Sleep -Milliseconds 580
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyUp'; key = 'd'; code = 'KeyD'; windowsVirtualKeyCode = 68 } | Out-Null
-  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown; })()")) { throw 'Native D + Space failed to land on final stair without W' }
-  Write-Output 'PASS: native D + Space reaches final staircase at minimum jump without W'
+  if (!(Evaluate "(() => { const s=archivePhaserGame.scene.getScene('archive-game'); return s.state.platformIndex===13 && s.state.grounded && s.state.deaths===0 && !s.keys.up.isDown && !s.keys.down.isDown; })()")) { throw 'Native D + Space failed to land on final stair at minimum jump' }
+  Write-Output 'PASS: native D + Space reaches final staircase at minimum jump'
   # Native e8 adopts the starting web, releases, then catches it again on both input routes.
   Evaluate "testLaunch('e8');" | Out-Null
   Send-Cdp 'Input.dispatchKeyEvent' @{ type = 'keyDown'; key = ' '; code = 'Space'; windowsVirtualKeyCode = 32 } | Out-Null

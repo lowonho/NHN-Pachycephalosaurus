@@ -163,7 +163,7 @@ class ArchiveGameBridge {
     if (this.ui.stageHudStage) this.ui.stageHudStage.textContent = `STAGE ${snapshot.currentStageInAct ?? 1}/6`;
     if (this.ui.stageHudLives) {
       const lives = snapshot.lives ?? 0;
-      this.ui.stageHudLives.textContent = `LIVES ${'◆'.repeat(lives)}${'◇'.repeat(Math.max(0, 3 - lives))}`;
+      this.ui.stageHudLives.textContent = `MEMORY ${'◆'.repeat(lives)}${'◇'.repeat(Math.max(0, 3 - lives))}`;
     }
     if (this.ui.stageHudActRecords) this.ui.stageHudActRecords.textContent = `${snapshot.actRecordCount ?? 0}/6`;
     if (this.ui.stageHudMemory) this.ui.stageHudMemory.textContent = `${snapshot.totalRecordCount ?? 0}/18`;

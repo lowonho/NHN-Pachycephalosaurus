@@ -34,7 +34,16 @@ globalThis.MINIGAME_ASSETS = {
     pose7: 'assets/images/minigame/stacks/metcha/pose7.webp',
     pose8: 'assets/images/minigame/stacks/metcha/pose8.webp',
     line: 'assets/images/minigame/stacks/metcha/line.webp',
-  }, e4: { player: null, tileRoof: 'assets/minigames/e4/tile-roof.png', thatch: null },
+  }, e4: {
+    player: null, playerRight: null,
+    playerUp: 'assets/minigames/e4/왕사남유해진 뒤 (1).png',
+    playerDown: 'assets/minigames/e4/왕사남유해진앞 (1).png',
+    tiger: 'assets/minigames/e4/호랑이 스프라이트.png',
+    goalCharacter: 'assets/minigames/e4/대기중인왕.png',
+    tileRoof: 'assets/minigames/e4/기와집.png', tileRoofAlt: 'assets/minigames/e4/기와집2.png',
+    thatch: 'assets/minigames/e4/초가집 (1).png', thatchAlt: 'assets/minigames/e4/초가집2.png',
+    inn: null, longHouse: null,
+  },
   // e5: 두쫀쿠 새총. 원점=이미지 중심이고, 표시 크기는 e5_slingshot.js 의 ART 가 정한다.
   // 판정은 Matter 강체 그대로라 그림을 갈아 끼워도 난이도는 변하지 않는다.
   // 원본 png 에서 굽는 일은 scripts/bake-ddujjonku.ps1 이 한다.
@@ -95,4 +104,25 @@ globalThis.MINIGAME_ASSETS = {
 };
 
 // E4 actual artwork bounds [x,y,width,height], measured from PNG alpha.
-globalThis.E4_VILLAGE_BOUNDS = { tileRoof: [151,43,1008,1021] };
+globalThis.E4_VILLAGE_BOUNDS = {
+  tileRoof: [1, 0, 788, 821], tileRoofAlt: [0, 1, 731, 739],
+  thatch: [1, 0, 748, 755], thatchAlt: [0, 1, 637, 635],
+};
+// 실제 알파 연결 영역을 측정한 프레임. pivot은 각 잘린 프레임 안의 몸통 기준점이다.
+globalThis.E4_VILLAGE_MOTIONS = {
+  playerUp: {
+    frames: [[0, 3, 449, 582], [715, 0, 428, 556], [1430, 3, 452, 580]],
+    pivots: [[238, 327], [238, 330], [238, 327]],
+    referenceSide: 582,
+  },
+  playerDown: {
+    frames: [[0, 1, 466, 553], [693, 0, 436, 526], [1363, 0, 433, 554]],
+    pivots: [[253, 329], [225, 330], [224, 330]],
+    referenceSide: 582,
+  },
+  tiger: {
+    frames: [[0, 1, 305, 639], [719, 1, 284, 639], [1419, 1, 306, 639]],
+    pivots: [[153, 229], [142, 229], [153, 229]],
+  },
+  goalCharacter: { frames: [[0, 0, 411, 489], [887, 0, 411, 489]], pivots: [[205.5, 317.85], [205.5, 317.85]] },
+};

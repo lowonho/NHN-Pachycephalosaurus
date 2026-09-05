@@ -183,6 +183,26 @@ textarea {
   display: block;
 }
 
+/*
+ * 화면 전환 암전 — 게임 시작·컷신 시작/종료·브리핑↔플레이 같은 큰 화면 전환마다
+ * 잠깐 검게 덮었다 걷는다. body 바로 아래 둬서 --ui-scale이 걸린 조상이 없다
+ * (다른 화면처럼 transform 축소를 받으면 fixed가 실제 창이 아니라 그 조상 기준으로
+ * 잡히기 때문이다). 켜고 끄는 것은 js/ui/scene-fade.js 하나뿐이다.
+ */
+#scene-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+#scene-fade.is-active {
+  opacity: 1;
+}
+
 .stage-hud {
   position: absolute;
   z-index: 11;

@@ -4,6 +4,9 @@
  */
 
 const UI = Object.freeze({
+  /* 화면 전환 암전 — js/ui/scene-fade.js 전용. */
+  sceneFade: document.querySelector("#scene-fade"),
+
   mainMenu: document.querySelector("#main-menu"),
   mainSettingsButton: document.querySelector("#main-settings-button"),
   mainPlayButton: document.querySelector("#main-play-button"),
@@ -32,13 +35,13 @@ const UI = Object.freeze({
   cutscene: document.querySelector("#cutscene"),
   cutsceneBackdrop: document.querySelector("#cutscene-backdrop"),
   cutsceneChapter: document.querySelector("#cutscene-chapter"),
+  cutsceneDialogue: document.querySelector(".cutscene-dialogue"),
   cutsceneSpeaker: document.querySelector("#cutscene-speaker-name"),
   cutscenePanel: document.querySelector("#cutscene-panel"),
   cutsceneLine: document.querySelector("#cutscene-line"),
   cutsceneAutoButton: document.querySelector("#cutscene-auto-button"),
   cutsceneLogButton: document.querySelector("#cutscene-log-button"),
   cutsceneSkipButton: document.querySelector("#cutscene-skip-button"),
-  cutsceneSkipTopButton: document.querySelector("#cutscene-skip-top-button"),
   cutsceneLog: document.querySelector("#cutscene-log"),
   cutsceneLogList: document.querySelector("#cutscene-log-list"),
 

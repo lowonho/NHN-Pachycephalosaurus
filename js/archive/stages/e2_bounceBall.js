@@ -1,7 +1,7 @@
 import { MINI } from './minigame-kit.js';
 
 export const E2_BOUNCE_BALL = {
-  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 280, radius: 20, goal: 3730,
+  tuning: { speed: 245, gravity: 1300, jump: 740, jumpDecay: .9, minJump: 300, radius: 20, goal: 3730,
     liftRange: 22, liftSpeed: 2.1, crumbleTime: .55, rebuildTime: 1.4 },
   build() {
     MINI.init(this, 0xb8f77b);
@@ -65,8 +65,8 @@ export const E2_BOUNCE_BALL = {
       shard.age += dt; shard.vy += 700 * dt; shard.x += shard.vx * dt; shard.y += shard.vy * dt; shard.angle += shard.spin * dt;
     }
     s.shards = s.shards.filter(shard => shard.age < .7).slice(-35);
-    // W/S도 공중 위치 조정에 사용. 스페이스를 길게 눌러도 점프력은 변하지 않습니다.
-    s.vy += (t.gravity + this.axis('up', 'down') * 420) * dt;
+    // 공중 보정 없이 점프 순간의 힘과 중력만으로 궤적이 결정됩니다.
+    s.vy += t.gravity * dt;
     s.y += s.vy * dt; s.grounded = false;
     for (const p of this.platforms) {
       const previousTop = wasGrounded && p === support ? p.y : p.previousY;
